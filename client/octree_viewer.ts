@@ -18,6 +18,27 @@ import {now} from './main';
 
 const KEY_L = 'L'.charCodeAt(0);
 
+let VERTEX_SHADER = `
+uniform float size;
+attribute vec3 color;
+
+varying vec3 v_color;  // 'varying' vars are passed to the fragment shader
+
+void main() {
+  v_color = color;   // pass the color to the fragment shader
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  gl_PointSize = size;
+}
+`;
+
+let FRAGMENT_SHADER = `
+varying vec3 v_color;
+
+void main() {
+  gl_FragColor = vec4(v_color, 1.);
+}
+`;
+
 function matrixToString(m: THREE.Matrix4): string {
   const me = m.elements;
   return [
@@ -45,7 +66,7 @@ class NodePoints {
 }
 
 class NodeLoader {
-  public load(scene: THREE.Scene, material: THREE.PointsMaterial, entries: [
+  public load(scene: THREE.Scene, material: THREE.ShaderMaterial, entries: [
     NodeData, number
   ][]): Promise<void> {
     let query: string[] = [];
@@ -109,7 +130,7 @@ class NodeData {
   public startFetching(lod: number) { this.fetchingLevel = lod; }
 
   public newData(
-      scene: THREE.Scene, material: THREE.PointsMaterial, lod: number,
+      scene: THREE.Scene, material: THREE.ShaderMaterial, lod: number,
       nodePoints: NodePoints) {
     // If this node contains no points.
     if (nodePoints.points.length === 0) {
@@ -144,7 +165,7 @@ class NodeData {
 export class OctreeViewer {
   // TODO(hrapp): These are only public, so we can wire up DAT to affect
   // material.size. If DAT supports callbacks, we can encapsulate this nicer.
-  public material: THREE.PointsMaterial;
+  public material: THREE.ShaderMaterial;
   public useLod: boolean;
 
   private loadedData: {[key: string]: NodeData} = {};
@@ -153,8 +174,14 @@ export class OctreeViewer {
   private currentlyLoading: number;
 
   constructor(private scene: THREE.Scene) {
-    this.material = new THREE.PointsMaterial(
-        {size: 1e-2, vertexColors: THREE.VertexColors});
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        size: { value: 1e-2 },
+      },
+      vertexShader: VERTEX_SHADER,
+      fragmentShader: FRAGMENT_SHADER,
+    });
+
     window.addEventListener(
         'keydown', event => this.onKeyDown(<KeyboardEvent>event), false);
     this.useLod = true;

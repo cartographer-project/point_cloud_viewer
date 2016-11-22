@@ -58,9 +58,7 @@ impl PointStream {
         Self::from_reader_and_count(BufReader::new(file), num_total_points)
     }
 
-    fn from_reader_and_count(data: BufReader<File>,
-                             num_total_points: i64)
-                             -> Self {
+    fn from_reader_and_count(data: BufReader<File>, num_total_points: i64) -> Self {
         PointStream {
             data: data,
             num_total_points: num_total_points,

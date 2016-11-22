@@ -28,16 +28,16 @@ use point_viewer::octree;
 use point_viewer::pts::PtsPointStream;
 
 use byteorder::{LittleEndian, WriteBytesExt};
-use pbr::{ProgressBar};
+use pbr::ProgressBar;
 use scoped_pool::{Scope, Pool};
-use std::collections::{HashSet, HashMap};
+use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write, Stdout};
-use std::cmp;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
 const UPDATE_COUNT: i64 = 100000;
+const MAX_POINTS_PER_NODE: i64 = 100000;
 
 #[derive(Debug)]
 struct NodeWriter {
@@ -88,15 +88,21 @@ struct SplittedNode {
 fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
                                                 name: &str,
                                                 bounding_box: &BoundingBox,
-                                                stream: PointIterator,
-                                                mut progress: Option<SendingProgressReporter>)
+                                                stream: PointIterator)
                                                 -> Vec<SplittedNode> {
     let mut children: Vec<Option<NodeWriter>> = vec![None, None, None, None, None, None, None,
                                                      None];
-    for (num_point, p) in stream.enumerate() {
-        if num_point % UPDATE_COUNT as usize == 0 {
-            progress.as_mut().map(|s| s.add(UPDATE_COUNT as u64));
+    match stream.size_hint().1 {
+        Some(size) => {
+            println!("Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",
+                     name,
+                     size,
+                     size as f64 / MAX_POINTS_PER_NODE as f64)
         }
+        None => println!("Splitting {} which has an unknown number of points.", name),
+    };
+
+    for p in stream {
         let child_index = get_child_index(&bounding_box, &p.position);
         if children[child_index as usize].is_none() {
             children[child_index as usize] =
@@ -111,6 +117,7 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
     // ignore file removing error. For example, we never write out the root, so it cannot be
     // removed.
     let _ = fs::remove_file(octree::node_path(output_directory, name));
+
     let mut rv = Vec::new();
     for (child_index, c) in children.into_iter().enumerate() {
         if c.is_none() {
@@ -124,8 +131,6 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
             bounding_box: octree::get_child_bounding_box(&bounding_box, child_index as u8),
         });
     }
-
-    progress.map(|s| s.finish());
     rv
 }
 
@@ -137,66 +142,27 @@ fn get_child_index(bounding_box: &BoundingBox, v: &Vector3f) -> u8 {
     (gt_x as u8) << 2 | (gt_y as u8) << 1 | gt_z as u8
 }
 
-struct SendingProgressReporter {
-    name: String,
-    tx: mpsc::Sender<Status>,
-    num_points: i64,
-    current_points: i64,
-}
-
-impl SendingProgressReporter {
-    pub fn new(name: String, tx: mpsc::Sender<Status>, num_points: i64) -> Self {
-        let reporter = SendingProgressReporter {
-            name: name,
-            tx: tx,
-            num_points: num_points,
-            current_points: 0,
-        };
-        reporter.send_status();
-        reporter
-    }
-
-    fn send_status(&self) {
-        self.tx.send(Status {
-            name: self.name.clone(),
-            current_points: self.current_points,
-            num_points: self.num_points,
-        }).unwrap();
-    }
-
-    fn finish(mut self) {
-        self.current_points = self.num_points;
-        self.send_status();
-    }
-
-    fn add(&mut self, count: u64) {
-        self.current_points = cmp::min(self.current_points + count as i64, self.num_points);
-        self.send_status();
-    }
-}
-
-fn split_node<'a, 'b: 'a, PointIterator: Iterator<Item = Point>>(scope: &Scope<'a>,
-                                                                 output_directory: &'b Path,
-                                                                 node: SplittedNode,
-                                                                 stream: PointIterator,
-                                                                 leaf_nodes_sender: mpsc::Sender<String>,
-                                                                 progress_sender: mpsc::Sender<Status>) {
-    let progress = stream.size_hint().1.map(|size| {
-            SendingProgressReporter::new(
-                node.name.clone(), progress_sender.clone(), size as i64)
-    });
-
-    let children = split(output_directory, &node.name, &node.bounding_box, stream, progress);
+fn split_node<'a, 'b: 'a, PointIterator>(scope: &Scope<'a>,
+                                         output_directory: &'b Path,
+                                         node: SplittedNode,
+                                         stream: PointIterator,
+                                         leaf_nodes_sender: mpsc::Sender<String>)
+    where PointIterator: Iterator<Item = Point>
+{
+    let children = split(output_directory, &node.name, &node.bounding_box, stream);
     let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) = children.into_iter()
-        .partition(|n| n.num_points < 100000);
+        .partition(|n| n.num_points < MAX_POINTS_PER_NODE);
 
     for child in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
-        let progress_sender_clone = progress_sender.clone();
         scope.recurse(move |scope| {
             let stream = octree::PointStream::from_blob(&octree::node_path(output_directory,
                                                                            &child.name));
-            split_node(scope, output_directory, child, stream, leaf_nodes_sender_clone, progress_sender_clone);
+            split_node(scope,
+                       output_directory,
+                       child,
+                       stream,
+                       leaf_nodes_sender_clone);
         });
     }
 
@@ -208,15 +174,14 @@ fn split_node<'a, 'b: 'a, PointIterator: Iterator<Item = Point>>(scope: &Scope<'
 fn subsample_children_into(output_directory: &Path, node_name: &str) {
     let mut parent = NodeWriter::new(octree::node_path(output_directory, node_name));
 
-    println!("Creating {} from subsampling children...", node_name);
+    println!("Creating {} from subsampling children.", node_name);
     for i in 0..8 {
         let child_name = octree::child_node_name(node_name, i);
         let path = octree::node_path(output_directory, &child_name);
         if !path.exists() {
             continue;
         }
-        let points: Vec<_> = octree::PointStream::from_blob(&path)
-            .collect();
+        let points: Vec<_> = octree::PointStream::from_blob(&path).collect();
         let mut child = NodeWriter::new(octree::node_path(output_directory, &child_name));
         for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
@@ -235,19 +200,10 @@ enum InputFile {
     Pts(PathBuf),
 }
 
-#[derive(Debug,Clone)]
-struct Status {
-    // NOCOM(#hrapp): can this be non-copy?
-    name: String,
-    current_points: i64,
-    num_points: i64,
-}
-
-fn make_stream(input: &InputFile) -> (Box<Iterator<Item = Point>>, Option<pbr::ProgressBar<Stdout>>) {
-    let stream: Box<Iterator<Item=Point>> = match *input {
-        InputFile::Ply(ref filename) => {
-            Box::new(octree::PointStream::from_ply(filename))
-        }
+fn make_stream(input: &InputFile)
+               -> (Box<Iterator<Item = Point>>, Option<pbr::ProgressBar<Stdout>>) {
+    let stream: Box<Iterator<Item = Point>> = match *input {
+        InputFile::Ply(ref filename) => Box::new(octree::PointStream::from_ply(filename)),
         InputFile::Pts(ref filename) => Box::new(PtsPointStream::new(filename)),
     };
 
@@ -258,20 +214,27 @@ fn make_stream(input: &InputFile) -> (Box<Iterator<Item = Point>>, Option<pbr::P
     (stream, progress_bar)
 }
 
-fn report_progress(progress_receiver: mpsc::Receiver<Status>, message: &str) {
-    let mut progress = HashMap::new();
-    while let Ok(status) = progress_receiver.recv() {
-        progress.insert(status.name.clone(), format!("{:.2}%",
-                     status.current_points as f64 / status.num_points as f64 * 100.));
-        if !progress.is_empty() {
-            let formatted_progress = &progress.iter().map(|(name, status)| format!("{}({})", name, status)).collect::<Vec<_>>();
-            println!("{} {}", message, &formatted_progress.join(", "));
-        }
+/// Returns the bounding_box and the number of the points in 'input'.
+fn find_bounding_box(input: &InputFile) -> (BoundingBox, i64) {
+    let mut num_points = 0i64;
+    let mut bounding_box = BoundingBox::new();
+    let (stream, mut progress_bar) = make_stream(input);
+    if let Some(ref mut progress_bar) = progress_bar {
+        progress_bar.message("Determining bounding box: ");
+    };
 
-        if status.num_points == status.current_points {
-            progress.remove(&status.name);
+    for p in stream {
+        bounding_box.update(&p.position);
+        num_points += 1;
+        if num_points % UPDATE_COUNT == 0 {
+            if let Some(ref mut progress_bar) = progress_bar {
+                progress_bar.add(UPDATE_COUNT as u64);
+            }
         }
     }
+    progress_bar.map(|mut f| f.finish());
+    bounding_box.make_cubic();
+    (bounding_box, num_points)
 }
 
 fn main() {
@@ -299,27 +262,7 @@ fn main() {
     };
 
 
-    let mut num_total_points = 0i64;
-    let bounding_box = {
-        let mut r = BoundingBox::new();
-        let (stream, mut progress_bar) = make_stream(&input);
-
-        if let Some(ref mut progress_bar) = progress_bar {
-            progress_bar.message("Determining bounding box: ");
-        };
-
-        for p in stream {
-            r.update(&p.position);
-            num_total_points += 1;
-            if num_total_points % UPDATE_COUNT == 0 {
-                if let Some(ref mut progress_bar) = progress_bar {
-                    progress_bar.add(UPDATE_COUNT as u64);
-                }
-            }
-        }
-        r.make_cubic();
-        r
-    };
+    let (bounding_box, num_points) = find_bounding_box(&input);
 
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
@@ -343,19 +286,18 @@ fn main() {
     let pool = Pool::new(10);
 
     let (leaf_nodes_sender, leaf_nodes_receiver) = mpsc::channel();
-    let (progress_sender, progress_receiver) = mpsc::channel::<Status>();
     pool.scoped(move |scope| {
-        scope.execute(move || {
-            report_progress(progress_receiver, "Splitting:");
-        });
-
         let (root_stream, _) = make_stream(&input);
         let root = SplittedNode {
             name: "r".into(),
             bounding_box: bounding_box,
-            num_points: num_total_points,
+            num_points: num_points,
         };
-        split_node(scope, output_directory, root, root_stream, leaf_nodes_sender.clone(), progress_sender.clone());
+        split_node(scope,
+                   output_directory,
+                   root,
+                   root_stream,
+                   leaf_nodes_sender.clone());
     });
 
     let mut leaf_nodes: Vec<_> = leaf_nodes_receiver.into_iter().collect();

@@ -55,7 +55,7 @@ class App {
     this.lastFrustumUpdateTime = 0;
     this.viewer = new OctreeViewer(this.scene);
     const gui = new dat.GUI();
-    gui.add(this.viewer.material, 'size');
+    gui.add(this.viewer.material.uniforms.size, 'value');
     gui.add(this.viewer, 'useLod');
     window.addEventListener('resize', () => this.onWindowResize(), false);
     this.animate();
