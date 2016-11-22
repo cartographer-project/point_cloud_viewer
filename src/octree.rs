@@ -12,28 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ::byteorder::{LittleEndian, ByteOrder};
-use ::json;
-use ::math::{BoundingBox, Matrix4f, Vector3f, Vector2f, Frustum};
-use ::pbr::ProgressBar;
-use ::{Point, ply};
-use ::std::cmp;
-use ::std::collections::HashMap;
-use ::std::fs::{self, File};
-use ::std::io::{Read, BufReader};
-use ::std::path::{Path, PathBuf};
-use ::walkdir;
+use byteorder::{LittleEndian, ByteOrder};
+use json;
+use math::{BoundingBox, Matrix4f, Vector3f, Vector2f, Frustum};
+use {Point, ply};
+use std::cmp;
+use std::collections::HashMap;
+use std::fs::{self, File};
+use std::io::{Read, BufReader};
+use std::path::{Path, PathBuf};
+use walkdir;
 
 pub struct PointStream {
     data: BufReader<File>,
     num_points_read: i64,
-    progress_bar: Option<ProgressBar>,
     pub num_total_points: i64,
-}
-
-pub enum ShowProgress {
-    No,
-    Yes,
 }
 
 impl Iterator for PointStream {
@@ -41,19 +34,10 @@ impl Iterator for PointStream {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.num_points_read >= self.num_total_points {
-            if let Some(progress_bar) = self.progress_bar.as_mut() {
-                progress_bar.finish();
-            };
             return None;
         }
         let point = ply::read_point(&mut self.data);
         self.num_points_read += 1;
-        if let Some(progress_bar) = self.progress_bar.as_mut() {
-            const UPDATE_COUNT: i64 = 100000;
-            if self.num_points_read > 0 && self.num_points_read % UPDATE_COUNT == 0 {
-                progress_bar.add(UPDATE_COUNT as u64);
-            }
-        }
         Some(point)
     }
 
@@ -63,31 +47,24 @@ impl Iterator for PointStream {
 }
 
 impl PointStream {
-    pub fn from_ply(ply_file: &Path, show_progress: ShowProgress) -> Self {
+    pub fn from_ply(ply_file: &Path) -> Self {
         let (file, num_total_points) = ply::open(ply_file);
-        Self::from_reader_and_count(BufReader::new(file), num_total_points, show_progress)
+        Self::from_reader_and_count(BufReader::new(file), num_total_points)
     }
 
-    pub fn from_blob(blob_path: &Path, show_progress: ShowProgress) -> Self {
+    pub fn from_blob(blob_path: &Path) -> Self {
         let num_total_points = fs::metadata(blob_path).unwrap().len() as i64 / 15;
         let file = File::open(blob_path).unwrap();
-        Self::from_reader_and_count(BufReader::new(file), num_total_points, show_progress)
+        Self::from_reader_and_count(BufReader::new(file), num_total_points)
     }
 
     fn from_reader_and_count(data: BufReader<File>,
-                             num_total_points: i64,
-                             show_progress: ShowProgress)
+                             num_total_points: i64)
                              -> Self {
-        let progress_bar = match show_progress {
-            ShowProgress::Yes => Some(ProgressBar::new(num_total_points as u64)),
-            ShowProgress::No => None,
-        };
-
         PointStream {
             data: data,
             num_total_points: num_total_points,
             num_points_read: 0,
-            progress_bar: progress_bar,
         }
     }
 }
@@ -301,8 +278,7 @@ impl Octree {
         let mut num_points = 0;
         let mut rv = Vec::new();
         for node in nodes {
-            let points: Vec<_> = PointStream::from_blob(&node_path(&self.directory, &node.name),
-                                                        ShowProgress::No)
+            let points: Vec<_> = PointStream::from_blob(&node_path(&self.directory, &node.name))
                 .collect();
             let num_points_for_lod =
                 (points.len() as f32 / node.level_of_detail as f32).ceil() as usize;
