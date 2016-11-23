@@ -170,4 +170,9 @@ impl BoundingBox {
                       (self.min.y + self.max.y) / 2.,
                       (self.min.z + self.max.z) / 2.)
     }
+
+    /// The size of the box.
+    pub fn size(&self) -> Vector3f {
+        self.max - self.min
+    }
 }

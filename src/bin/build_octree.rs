@@ -60,7 +60,13 @@ impl Drop for NodeWriter {
 }
 
 impl NodeWriter {
-    fn new(path: PathBuf) -> Self {
+    fn new(path: PathBuf, bounding_box: BoundingBox, resolution: f64) -> Self {
+        let size = bounding_box.size();
+        println!("#hrapp size: {:#?}", size);
+        let cnt = size.x as f64 / resolution;
+        println!("#hrapp cnt: {:#?}", cnt);
+        println!("#hrapp cnt.log2(): {:#?}", cnt.log2());
+
         NodeWriter {
             writer: BufWriter::new(File::create(&path).unwrap()),
             path: path,
@@ -86,6 +92,7 @@ struct SplittedNode {
 }
 
 fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
+                                                resolution: f64,
                                                 name: &str,
                                                 bounding_box: &BoundingBox,
                                                 stream: PointIterator)
@@ -106,8 +113,11 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
         let child_index = get_child_index(&bounding_box, &p.position);
         if children[child_index as usize].is_none() {
             children[child_index as usize] =
-                Some(NodeWriter::new(octree::node_path(output_directory,
-                                               &octree::child_node_name(name, child_index as u8))));
+                Some(NodeWriter::new(
+                        octree::node_path(output_directory,
+                                               &octree::child_node_name(name, child_index as u8)),
+                        octree::get_child_bounding_box(&bounding_box, child_index),
+                        resolution));
         }
         children[child_index as usize].as_mut().unwrap().write(&p);
     }
@@ -142,14 +152,20 @@ fn get_child_index(bounding_box: &BoundingBox, v: &Vector3f) -> u8 {
     (gt_x as u8) << 2 | (gt_y as u8) << 1 | gt_z as u8
 }
 
+struct NodeToCreateBySubsamplingChildren {
+    name: String,
+    bounding_box: BoundingBox,
+}
+
 fn split_node<'a, 'b: 'a, PointIterator>(scope: &Scope<'a>,
                                          output_directory: &'b Path,
+                                         resolution: f64,
                                          node: SplittedNode,
                                          stream: PointIterator,
-                                         leaf_nodes_sender: mpsc::Sender<String>)
+                                         leaf_nodes_sender: mpsc::Sender<NodeToCreateBySubsamplingChildren>)
     where PointIterator: Iterator<Item = Point>
 {
-    let children = split(output_directory, &node.name, &node.bounding_box, stream);
+    let children = split(output_directory, resolution, &node.name, &node.bounding_box, stream);
     let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) = children.into_iter()
         .partition(|n| n.num_points < MAX_POINTS_PER_NODE);
 
@@ -160,6 +176,7 @@ fn split_node<'a, 'b: 'a, PointIterator>(scope: &Scope<'a>,
                                                                            &child.name));
             split_node(scope,
                        output_directory,
+                       resolution,
                        child,
                        stream,
                        leaf_nodes_sender_clone);
@@ -167,22 +184,31 @@ fn split_node<'a, 'b: 'a, PointIterator>(scope: &Scope<'a>,
     }
 
     for node in leaf_nodes {
-        leaf_nodes_sender.send(node.name).unwrap();
+        leaf_nodes_sender.send(NodeToCreateBySubsamplingChildren {
+            name: node.name,
+            bounding_box: node.bounding_box,
+        }).unwrap();
     }
 }
 
-fn subsample_children_into(output_directory: &Path, node_name: &str) {
-    let mut parent = NodeWriter::new(octree::node_path(output_directory, node_name));
+fn subsample_children_into(output_directory: &Path, node: NodeToCreateBySubsamplingChildren, resolution: f64) {
+    let mut parent = NodeWriter::new(
+        octree::node_path(output_directory, &node.name),
+        node.bounding_box.clone(),
+        resolution);
 
-    println!("Creating {} from subsampling children.", node_name);
+    println!("Creating {} from subsampling children.", &node.name);
     for i in 0..8 {
-        let child_name = octree::child_node_name(node_name, i);
+        let child_name = octree::child_node_name(&node.name, i);
         let path = octree::node_path(output_directory, &child_name);
         if !path.exists() {
             continue;
         }
         let points: Vec<_> = octree::PointStream::from_blob(&path).collect();
-        let mut child = NodeWriter::new(octree::node_path(output_directory, &child_name));
+        let mut child = NodeWriter::new(
+            octree::node_path(output_directory, &child_name),
+            octree::get_child_bounding_box(&node.bounding_box, i as u8),
+            resolution);
         for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
                 parent.write(&p);
@@ -244,6 +270,10 @@ fn main() {
                     .long("output_directory")
                     .required(true)
                     .takes_value(true),
+                clap::Arg::with_name("resolution")
+                    .help("Minimal precision that this point cloud should have. This decides on the number of bits used to encode each node.")
+                    .long("resolution")
+                    .default_value("0.001"),
                 clap::Arg::with_name("input")
                     .help("PLY/PTS file to parse for the points.")
                     .index(1)
@@ -251,6 +281,7 @@ fn main() {
         .get_matches();
 
     let output_directory = &PathBuf::from(matches.value_of("output_directory").unwrap());
+    let resolution = matches.value_of("resolution").unwrap().parse::<f64>().expect("resolution could not be parsed as float.");
 
     let input = {
         let filename = PathBuf::from(matches.value_of("input").unwrap());
@@ -267,7 +298,8 @@ fn main() {
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
     let meta = object!{
-        "version" => 1,
+        "version" => 2,
+        "resolution" => resolution,
         "bounding_box" => object!{
             "min_x" => bounding_box.min.x,
             "min_y" => bounding_box.min.y,
@@ -295,6 +327,7 @@ fn main() {
         };
         split_node(scope,
                    output_directory,
+                   resolution,
                    root,
                    root_stream,
                    leaf_nodes_sender.clone());
@@ -304,31 +337,45 @@ fn main() {
 
     // Sort by length of node name, longest first. A node with the same length name as another are
     // on the same tree level and can be subsampled in parallel.
-    leaf_nodes.sort_by(|a, b| b.len().cmp(&a.len()));
+    leaf_nodes.sort_by(|a, b| b.name.len().cmp(&a.name.len()));
 
     while !leaf_nodes.is_empty() {
-        let current_length = leaf_nodes[0].len();
-        let res = leaf_nodes.into_iter().partition(|n| n.len() == current_length);
+        let current_length = leaf_nodes[0].name.len();
+        let res = leaf_nodes.into_iter().partition(|n| n.name.len() == current_length);
         leaf_nodes = res.1;
 
         let mut parent_names = HashSet::new();
+        let mut subsample_nodes = Vec::new();
         for node in res.0 {
-            let parent_name = octree::parent_node_name(&node);
+            let parent_name = octree::parent_node_name(&node.name);
             if parent_name.is_empty() || parent_names.contains(parent_name) {
                 continue;
             }
             parent_names.insert(parent_name.to_string());
 
+            let parent_bounding_box = octree::get_parent_bounding_box(&node.bounding_box, octree::get_child_index(&node.name));
+
             let grand_parent = octree::parent_node_name(&parent_name);
             if !grand_parent.is_empty() {
-                leaf_nodes.push(grand_parent.to_string());
+                let grand_parent_bounding_box =
+                    octree::get_parent_bounding_box(&parent_bounding_box,
+                                                    octree::get_child_index(&parent_name));
+                leaf_nodes.push(NodeToCreateBySubsamplingChildren {
+                    name: grand_parent.to_string(),
+                    bounding_box: grand_parent_bounding_box,
+                })
             }
+
+            subsample_nodes.push(NodeToCreateBySubsamplingChildren {
+                name: parent_name.to_string(),
+                bounding_box: parent_bounding_box,
+            });
         }
 
         pool.scoped(move |scope| {
-            for parent_name in parent_names {
+            for node in subsample_nodes {
                 scope.execute(move || {
-                    subsample_children_into(output_directory, &parent_name);
+                    subsample_children_into(output_directory, node, resolution);
                 });
             }
         });

@@ -79,6 +79,22 @@ pub fn parent_node_name(name: &str) -> &str {
     }
 }
 
+pub fn get_child_index(name: &str) -> u8 {
+    assert!(!name.is_empty());
+    let last_char = name.split_at(name.len() - 1).1.bytes().last().unwrap() as char;
+    match last_char {
+        '0' => 0,
+        '1' => 1,
+        '2' => 2,
+        '3' => 3,
+        '4' => 4,
+        '5' => 5,
+        '6' => 6,
+        '7' => 7,
+        _ => panic!("Invalid node name: {}", name),
+    }
+}
+
 pub fn child_node_name(parent: &str, child_index: u8) -> String {
     assert!(child_index < 8);
     format!("{}{}", parent, child_index)
@@ -108,6 +124,33 @@ pub fn get_child_bounding_box(parent: &BoundingBox, child_index: u8) -> Bounding
         bounding_box.min.x += half_size_x;
     } else {
         bounding_box.max.x -= half_size_x;
+    }
+    bounding_box
+}
+
+// NOCOM(#hrapp): could use some testing.
+pub fn get_parent_bounding_box(child: &BoundingBox, child_index: u8) -> BoundingBox {
+    let mut bounding_box = child.clone();
+    let size_x = bounding_box.max.x - bounding_box.min.x;
+    let size_y = bounding_box.max.y - bounding_box.min.y;
+    let size_z = bounding_box.max.z - bounding_box.min.z;
+
+    if (child_index & 0b001) != 0 {
+        bounding_box.min.z -= size_z;
+    } else {
+        bounding_box.max.z += size_z;
+    }
+
+    if (child_index & 0b010) != 0 {
+        bounding_box.min.y -= size_y;
+    } else {
+        bounding_box.max.y += size_y;
+    }
+
+    if (child_index & 0b100) != 0 {
+        bounding_box.min.x -= size_x;
+    } else {
+        bounding_box.max.x += size_x;
     }
     bounding_box
 }
