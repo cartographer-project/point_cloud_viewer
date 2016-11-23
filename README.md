@@ -26,7 +26,7 @@ is useful in its own right.
 ## Usage
 
 First, build an octree using `build_octree` from a point source like a PLY or
-XYZ file. Then serve it up using `server` - this requires that the client files
+XYZ file. Then serve it up using `viewer` - this requires that the client files
 have been build and are found.
 
 ## Prior art
