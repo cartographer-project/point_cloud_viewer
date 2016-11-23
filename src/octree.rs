@@ -316,6 +316,8 @@ impl Octree {
     }
 
     pub fn get_nodes_as_binary_blob(&self, nodes: &[NodesToBlob]) -> (usize, Vec<u8>) {
+        const NUM_BYTES_PER_POINT: usize = 4*3+4;
+
         let mut num_points = 0;
         let mut rv = Vec::new();
         for node in nodes {
@@ -326,8 +328,8 @@ impl Octree {
 
             num_points += num_points_for_lod;
             let mut pos = rv.len();
-            rv.resize(pos + 4 + 24 * num_points_for_lod, 0u8);
-            LittleEndian::write_u32(&mut rv[pos..], num_points_for_lod as u32 * 24);
+            rv.resize(pos + 4 + NUM_BYTES_PER_POINT * num_points_for_lod, 0u8);
+            LittleEndian::write_u32(&mut rv[pos..], (num_points_for_lod * NUM_BYTES_PER_POINT) as u32);
             pos += 4;
 
             // Put positions.
@@ -348,15 +350,17 @@ impl Octree {
                 if idx % node.level_of_detail as usize != 0 {
                     continue;
                 }
-                LittleEndian::write_f32(&mut rv[pos..], p.r as f32 / 255.);
-                pos += 4;
-                LittleEndian::write_f32(&mut rv[pos..], p.g as f32 / 255.);
-                pos += 4;
-                LittleEndian::write_f32(&mut rv[pos..], p.b as f32 / 255.);
-                pos += 4;
+                rv[pos] = p.r;
+                pos+=1;
+                rv[pos] = p.g;
+                pos+=1;
+                rv[pos] = p.b;
+                pos+=1;
+                rv[pos] = 255;
+                pos += 1;
             }
         }
-        assert_eq!(4 * nodes.len() + 24 * num_points, rv.len());
+        assert_eq!(4 * nodes.len() + NUM_BYTES_PER_POINT * num_points, rv.len());
         (num_points, rv)
     }
 }

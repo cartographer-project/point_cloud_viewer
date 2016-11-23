@@ -62,10 +62,11 @@ impl Drop for NodeWriter {
 impl NodeWriter {
     fn new(path: PathBuf, bounding_box: BoundingBox, resolution: f64) -> Self {
         let size = bounding_box.size();
-        println!("#hrapp size: {:#?}", size);
+        // NOCOM(#hrapp): use this to fix code encode the (x,y,z).
+        // println!("#hrapp size: {:#?}", size);
         let cnt = size.x as f64 / resolution;
-        println!("#hrapp cnt: {:#?}", cnt);
-        println!("#hrapp cnt.log2(): {:#?}", cnt.log2());
+        // println!("#hrapp cnt: {:#?}", cnt);
+        // println!("#hrapp cnt.log2(): {:#?}", cnt.log2());
 
         NodeWriter {
             writer: BufWriter::new(File::create(&path).unwrap()),

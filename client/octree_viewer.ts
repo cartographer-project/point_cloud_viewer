@@ -20,22 +20,22 @@ const KEY_L = 'L'.charCodeAt(0);
 
 let VERTEX_SHADER = `
 uniform float size;
-attribute vec3 color;
+attribute vec4 color;
 
-varying vec3 v_color;  // 'varying' vars are passed to the fragment shader
+varying vec4 v_color;  // 'varying' vars are passed to the fragment shader
 
 void main() {
-  v_color = color;   // pass the color to the fragment shader
+  v_color = color / 255.;   // pass the color to the fragment shader
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   gl_PointSize = size;
 }
 `;
 
 let FRAGMENT_SHADER = `
-varying vec3 v_color;
+varying vec4 v_color;
 
 void main() {
-  gl_FragColor = vec4(v_color, 1.);
+  gl_FragColor = v_color;
 }
 `;
 
@@ -62,7 +62,7 @@ function matrixToString(m: THREE.Matrix4): string {
 }
 
 class NodePoints {
-  constructor(public points: Float32Array, public colors: Float32Array) {}
+  constructor(public points: Float32Array, public colors: Uint8Array) {}
 }
 
 class NodeLoader {
@@ -92,14 +92,15 @@ class NodeLoader {
         const numBytesInBlob =
             view.getUint32(numBytesRead, true /* littleEndian */);
         numBytesRead += 4;
-        const numPoints = numBytesInBlob / 24;
+        const BytesPerPoint = 16;
+        const numPoints = numBytesInBlob / BytesPerPoint;
         let points = new NodePoints(
             new Float32Array(data, numBytesRead, numPoints * 3),
-            new Float32Array(
-                data, numBytesRead + numPoints * 12, numPoints * 3));
+            new Uint8Array(
+                data, numBytesRead + numPoints * 12, numPoints * 4));
         let entry = entries[currentEntry];
         entry[0].newData(scene, material, entry[1], points);
-        numBytesRead += numPoints * 24;
+        numBytesRead += numPoints * BytesPerPoint;
         currentEntry += 1;
       }
     });
@@ -156,7 +157,7 @@ class NodeData {
     geometry.addAttribute(
         'position', new THREE.BufferAttribute(nodePoints.points, 3));
     geometry.addAttribute(
-        'color', new THREE.BufferAttribute(nodePoints.colors, 3));
+        'color', new THREE.BufferAttribute(nodePoints.colors, 4));
     this.threePoints = new THREE.Points(geometry, material);
     scene.add(this.threePoints);
   }
@@ -176,7 +177,7 @@ export class OctreeViewer {
   constructor(private scene: THREE.Scene) {
     this.material = new THREE.ShaderMaterial({
       uniforms: {
-        size: { value: 1e-2 },
+        size: { value: 2. },
       },
       vertexShader: VERTEX_SHADER,
       fragmentShader: FRAGMENT_SHADER,
