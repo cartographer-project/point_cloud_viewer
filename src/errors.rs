@@ -1,4 +1,3 @@
-//
 // Copyright 2016 The Cartographer Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,8 +25,10 @@ error_chain! {
     errors {
         InvalidVersion(version: i32) {
             description("invalid octree version on disk")
-            display("Octree in this directory has a version of {}, the only supported version is {}. The viewer might eventually
-                    be backwards compatible, but for now only the currently created version is supported.", version, octree::CURRENT_VERSION)
+            display(
+            "Octree in this directory has a version of {}, the only supported version is {}. \
+            The viewer might eventually be backwards compatible, but for now only \
+            the currently created version is supported.", version, octree::CURRENT_VERSION)
         }
     }
 }

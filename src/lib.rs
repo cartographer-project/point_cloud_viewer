@@ -19,8 +19,10 @@ extern crate cgmath;
 extern crate json;
 extern crate pbr;
 extern crate walkdir;
-#[macro_use] extern crate nom;
-#[macro_use] extern crate error_chain;
+#[macro_use]
+extern crate error_chain;
+#[macro_use]
+extern crate nom;
 
 pub mod math;
 pub mod octree;

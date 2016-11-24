@@ -44,7 +44,6 @@ struct NodeWriter {
     writer: BufWriter<File>,
     path: PathBuf,
     num_points: i64,
-    bounding_cube: Cube,
 }
 
 impl Drop for NodeWriter {
@@ -61,25 +60,20 @@ impl Drop for NodeWriter {
 }
 
 impl NodeWriter {
-    fn new(path: PathBuf, bounding_cube: Cube, resolution: f64) -> Self {
-        let size = bounding_cube.size();
-        // NOCOM(#hrapp): use this to fix code encode the (x,y,z).
-        println!("#hrapp size: {:#?}", size);
-        let cnt = size.x as f64 / resolution;
-        println!("#hrapp cnt: {:#?}", cnt);
-        println!("#hrapp cnt.log2(): {:#?}", cnt.log2());
+    fn new(path: PathBuf, bounding_cube: &Cube, resolution: f64) -> Self {
+        // TODO: use this to fix-code encode the (x,y,z).
+        // let required_bytes = octree::required_bytes(bounding_cube, resolution);
 
         NodeWriter {
             writer: BufWriter::new(File::create(&path).unwrap()),
             path: path,
             num_points: 0,
-            bounding_cube: bounding_cube,
         }
     }
 
     pub fn write(&mut self, p: &Point) {
-        // NOCOM(#hrapp): bring back and make this pass.
-        // assert!(self.bounding_cube.contains(&p.position));
+        // Note that due to floating point rounding errors while calculating bounding boxes, it
+        // could be here that 'p' is not quite the bounding box of our node.
         self.writer.write_f32::<LittleEndian>(p.position.x).unwrap();
         self.writer.write_f32::<LittleEndian>(p.position.y).unwrap();
         self.writer.write_f32::<LittleEndian>(p.position.z).unwrap();
@@ -121,7 +115,7 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
                 Some(NodeWriter::new(
                         octree::node_path(output_directory,
                                                &octree::child_node_name(name, child_index as u8)),
-                        octree::get_child_bounding_cube(&bounding_cube, child_index),
+                        &octree::get_child_bounding_cube(&bounding_cube, child_index),
                         resolution));
         }
         children[child_index as usize].as_mut().unwrap().write(&p);
@@ -150,6 +144,8 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
 }
 
 fn get_child_index(bounding_cube: &Cube, v: &Vector3f) -> u8 {
+    // This is a bit flawed: it is not guaranteed that 'child_bounding_box.contains(&v)' is true
+    // using this calculated index due to floating point precision.
     let center = bounding_cube.center();
     let gt_x = v.x > center.x;
     let gt_y = v.y > center.y;
@@ -162,15 +158,20 @@ struct NodeToCreateBySubsamplingChildren {
     bounding_cube: Cube,
 }
 
-fn split_node<'a, 'b: 'a, PointIterator>(scope: &Scope<'a>,
-                                         output_directory: &'b Path,
-                                         resolution: f64,
-                                         node: SplittedNode,
-                                         stream: PointIterator,
-                                         leaf_nodes_sender: mpsc::Sender<NodeToCreateBySubsamplingChildren>)
-    where PointIterator: Iterator<Item = Point>
+fn split_node<'a, 'b, Points>(scope: &Scope<'a>,
+                              output_directory: &'b Path,
+                              resolution: f64,
+                              node: SplittedNode,
+                              stream: Points,
+                              leaf_nodes_sender: mpsc::Sender<NodeToCreateBySubsamplingChildren>)
+    where 'b: 'a,
+          Points: Iterator<Item = Point>
 {
-    let children = split(output_directory, resolution, &node.name, &node.bounding_cube, stream);
+    let children = split(output_directory,
+                         resolution,
+                         &node.name,
+                         &node.bounding_cube,
+                         stream);
     let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) = children.into_iter()
         .partition(|n| n.num_points < MAX_POINTS_PER_NODE);
 
@@ -190,17 +191,19 @@ fn split_node<'a, 'b: 'a, PointIterator>(scope: &Scope<'a>,
 
     for node in leaf_nodes {
         leaf_nodes_sender.send(NodeToCreateBySubsamplingChildren {
-            name: node.name,
-            bounding_cube: node.bounding_cube,
-        }).unwrap();
+                name: node.name,
+                bounding_cube: node.bounding_cube,
+            })
+            .unwrap();
     }
 }
 
-fn subsample_children_into(output_directory: &Path, node: NodeToCreateBySubsamplingChildren, resolution: f64) {
-    let mut parent = NodeWriter::new(
-        octree::node_path(output_directory, &node.name),
-        node.bounding_cube.clone(),
-        resolution);
+fn subsample_children_into(output_directory: &Path,
+                           node: NodeToCreateBySubsamplingChildren,
+                           resolution: f64) {
+    let mut parent = NodeWriter::new(octree::node_path(output_directory, &node.name),
+                                     &node.bounding_cube,
+                                     resolution);
 
     println!("Creating {} from subsampling children.", &node.name);
     for i in 0..8 {
@@ -210,10 +213,10 @@ fn subsample_children_into(output_directory: &Path, node: NodeToCreateBySubsampl
             continue;
         }
         let points: Vec<_> = octree::PointStream::from_blob(&path).collect();
-        let mut child = NodeWriter::new(
-            octree::node_path(output_directory, &child_name),
-            octree::get_child_bounding_cube(&node.bounding_cube, i as u8),
-            resolution);
+        let mut child = NodeWriter::new(octree::node_path(output_directory, &child_name),
+                                        &octree::get_child_bounding_cube(&node.bounding_cube,
+                                                                         i as u8),
+                                        resolution);
         for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
                 parent.write(&p);
@@ -275,7 +278,8 @@ fn main() {
                     .required(true)
                     .takes_value(true),
                 clap::Arg::with_name("resolution")
-                    .help("Minimal precision that this point cloud should have. This decides on the number of bits used to encode each node.")
+                    .help("Minimal precision that this point cloud should have. This decides \
+                           on the number of bits used to encode each node.")
                     .long("resolution")
                     .default_value("0.001"),
                 clap::Arg::with_name("input")
@@ -285,7 +289,10 @@ fn main() {
         .get_matches();
 
     let output_directory = &PathBuf::from(matches.value_of("output_directory").unwrap());
-    let resolution = matches.value_of("resolution").unwrap().parse::<f64>().expect("resolution could not be parsed as float.");
+    let resolution = matches.value_of("resolution")
+        .unwrap()
+        .parse::<f64>()
+        .expect("resolution could not be parsed as float.");
 
     let input = {
         let filename = PathBuf::from(matches.value_of("input").unwrap());
@@ -355,13 +362,15 @@ fn main() {
             }
             parent_names.insert(parent_name.to_string());
 
-            let parent_bounding_cube = octree::get_parent_bounding_cube(&node.bounding_cube, octree::get_child_index(&node.name));
+            let parent_bounding_cube =
+                octree::get_parent_bounding_cube(&node.bounding_cube,
+                                                 octree::get_child_index(&node.name));
 
             let grand_parent = octree::parent_node_name(&parent_name);
             if !grand_parent.is_empty() {
                 let grand_parent_bounding_cube =
                     octree::get_parent_bounding_cube(&parent_bounding_cube,
-                                                    octree::get_child_index(&parent_name));
+                                                     octree::get_child_index(&parent_name));
                 leaf_nodes.push(NodeToCreateBySubsamplingChildren {
                     name: grand_parent.to_string(),
                     bounding_cube: grand_parent_bounding_cube,

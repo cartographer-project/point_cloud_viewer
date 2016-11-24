@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ::std;
-
-use ::cgmath;
-use ::cgmath::prelude::*;
+use cgmath;
+use cgmath::prelude::*;
+use std;
 
 // TODO(hrapp): collision-rs has nearly everything we need. The Frustum is missing a 'intersects'
 // method and it needs updating to work with newer cgmaths.
@@ -32,8 +31,7 @@ pub trait CuboidLike {
     fn contains(&self, p: &Vector3f) -> bool {
         let min = self.min();
         let max = self.max();
-        min.x <= p.x && p.x <= max.x && min.y <= p.y && p.y <= max.y &&
-        min.z <= p.z && p.z <= max.z
+        min.x <= p.x && p.x <= max.x && min.y <= p.y && p.y <= max.y && min.z <= p.z && p.z <= max.z
     }
 
     /// The center of the box.
@@ -177,7 +175,9 @@ impl CuboidLike for Cube {
     }
 
     fn max(&self) -> Vector3f {
-        Vector3f::new(self.min.x + self.edge_length, self.min.y + self.edge_length, self.min.z + self.edge_length)
+        Vector3f::new(self.min.x + self.edge_length,
+                      self.min.y + self.edge_length,
+                      self.min.z + self.edge_length)
     }
 }
 
@@ -217,8 +217,8 @@ impl Cuboid {
     /// The new 'Cube' will fully contain the old 'Cuboid'.
     pub fn to_cube(self) -> Cube {
         let edge_length = (self.max.x - self.min.x)
-            .max((self.max.y - self.min.y))
-            .max((self.max.z - self.min.z));
+            .max(self.max.y - self.min.y)
+            .max(self.max.z - self.min.z);
         Cube {
             min: self.min,
             edge_length: edge_length,

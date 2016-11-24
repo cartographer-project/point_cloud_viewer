@@ -82,17 +82,21 @@ pub fn parent_node_name(name: &str) -> &str {
     }
 }
 
-// NOCOM(#hrapp): implement
-// #[derive(Debug)]
-// pub enum BytesPerCoordinate {
-    // One,
-    // Two,
-    // Four,
-// }
+#[derive(Debug)]
+pub enum BytesPerCoordinate {
+    One,
+    Two,
+    Four,
+}
 
-// pub fn required_bits(bounding_cube: &Cube, resolution: f64) -> Result<i32> {
-    // let size = bounding_cube.size();
-// }
+pub fn required_bytes(bounding_cube: &Cube, resolution: f64) -> BytesPerCoordinate {
+    let min_bits = (bounding_cube.edge_length() as f64 / resolution).log2() as u32 + 1;
+    match min_bits {
+        0...8 => BytesPerCoordinate::One,
+        9...16 => BytesPerCoordinate::Two,
+        _ => BytesPerCoordinate::Four,
+    }
+}
 
 pub fn get_child_index(name: &str) -> u8 {
     assert!(!name.is_empty());
@@ -134,7 +138,7 @@ pub fn get_child_bounding_cube(parent: &Cube, child_index: u8) -> Cube {
     Cube::new(min, half_edge_length)
 }
 
-// NOCOM(#hrapp): could use some testing.
+// TODO(hrapp): This function could use some testing.
 pub fn get_parent_bounding_cube(child: &Cube, child_index: u8) -> Cube {
     let mut min = child.min();
     let edge_length = child.edge_length();
@@ -227,12 +231,11 @@ impl Octree {
             _ => (), // Correct version.
         }
 
-        let bounding_cube = Cube::new(
-            Vector3f::new(
-                meta["bounding_cube"]["min_x"].as_f32().unwrap(),
-                meta["bounding_cube"]["min_y"].as_f32().unwrap(),
-                meta["bounding_cube"]["min_z"].as_f32().unwrap()),
-                meta["bounding_cube"]["edge_length"].as_f32().unwrap());
+        let bounding_cube =
+            Cube::new(Vector3f::new(meta["bounding_cube"]["min_x"].as_f32().unwrap(),
+                                    meta["bounding_cube"]["min_y"].as_f32().unwrap(),
+                                    meta["bounding_cube"]["min_z"].as_f32().unwrap()),
+                      meta["bounding_cube"]["edge_length"].as_f32().unwrap());
 
         let mut nodes = HashMap::new();
         for entry in walkdir::WalkDir::new(&directory).into_iter().filter_map(|e| e.ok()) {
@@ -300,7 +303,7 @@ impl Octree {
                 open.push(NodeToExplore {
                     name: child_node_name(&node_to_explore.name, child_index),
                     bounding_cube: get_child_bounding_cube(&node_to_explore.bounding_cube,
-                                                         child_index as u8),
+                                                           child_index as u8),
                 })
             }
 
@@ -320,7 +323,7 @@ impl Octree {
     }
 
     pub fn get_nodes_as_binary_blob(&self, nodes: &[NodesToBlob]) -> (usize, Vec<u8>) {
-        const NUM_BYTES_PER_POINT: usize = 4*3+4;
+        const NUM_BYTES_PER_POINT: usize = 4 * 3 + 4;
 
         let mut num_points = 0;
         let mut rv = Vec::new();
@@ -333,7 +336,8 @@ impl Octree {
             num_points += num_points_for_lod;
             let mut pos = rv.len();
             rv.resize(pos + 4 + NUM_BYTES_PER_POINT * num_points_for_lod, 0u8);
-            LittleEndian::write_u32(&mut rv[pos..], (num_points_for_lod * NUM_BYTES_PER_POINT) as u32);
+            LittleEndian::write_u32(&mut rv[pos..],
+                                    (num_points_for_lod * NUM_BYTES_PER_POINT) as u32);
             pos += 4;
 
             // Put positions.
@@ -355,11 +359,11 @@ impl Octree {
                     continue;
                 }
                 rv[pos] = p.r;
-                pos+=1;
+                pos += 1;
                 rv[pos] = p.g;
-                pos+=1;
+                pos += 1;
                 rv[pos] = p.b;
-                pos+=1;
+                pos += 1;
                 rv[pos] = 255;
                 pos += 1;
             }
