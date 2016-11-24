@@ -21,7 +21,10 @@ use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{Read, BufReader};
 use std::path::{Path, PathBuf};
+use errors::*;
 use walkdir;
+
+pub const CURRENT_VERSION: i32 = 2;
 
 pub struct PointStream {
     data: BufReader<File>,
@@ -215,19 +218,26 @@ pub enum UseLod {
 }
 
 impl Octree {
-    pub fn new(directory: PathBuf) -> Self {
-        let bounding_box = {
+    pub fn new(directory: PathBuf) -> Result<Self> {
+        let meta = {
             let mut content = String::new();
-            File::open(&directory.join("meta.json")).unwrap().read_to_string(&mut content).unwrap();
-            let meta = json::parse(&content).unwrap();
-            BoundingBox {
-                min: Vector3f::new(meta["bounding_box"]["min_x"].as_f32().unwrap(),
-                                   meta["bounding_box"]["min_y"].as_f32().unwrap(),
-                                   meta["bounding_box"]["min_z"].as_f32().unwrap()),
-                max: Vector3f::new(meta["bounding_box"]["max_x"].as_f32().unwrap(),
-                                   meta["bounding_box"]["max_y"].as_f32().unwrap(),
-                                   meta["bounding_box"]["max_z"].as_f32().unwrap()),
-            }
+            File::open(&directory.join("meta.json"))?.read_to_string(&mut content)?;
+            json::parse(&content)?
+        };
+
+        match meta["version"].as_i32() {
+            None => return Err(ErrorKind::InvalidVersion(-1).into()),
+            Some(v) if v != CURRENT_VERSION => return Err(ErrorKind::InvalidVersion(v).into()),
+            _ => (), // Correct version.
+        }
+
+        let bounding_box = BoundingBox {
+            min: Vector3f::new(meta["bounding_box"]["min_x"].as_f32().unwrap(),
+            meta["bounding_box"]["min_y"].as_f32().unwrap(),
+            meta["bounding_box"]["min_z"].as_f32().unwrap()),
+            max: Vector3f::new(meta["bounding_box"]["max_x"].as_f32().unwrap(),
+            meta["bounding_box"]["max_y"].as_f32().unwrap(),
+            meta["bounding_box"]["max_z"].as_f32().unwrap()),
         };
 
         let mut nodes = HashMap::new();
@@ -244,11 +254,11 @@ impl Octree {
             nodes.insert(file_name.to_string(), num_points);
         }
 
-        Octree {
+        Ok(Octree {
             directory: directory.into(),
             nodes: nodes,
             bounding_box: bounding_box,
-        }
+        })
     }
 
     pub fn get_visible_nodes(&self,

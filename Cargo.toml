@@ -20,6 +20,7 @@ authors = ["Holger Rapp <hrapp@google.com>"]
 [dependencies]
 clap="^2.6.0"
 nom="^1.2.3"
+error-chain="^0.5.0"
 byteorder="^0.5.3"
 pbr="1.0.0-alpha.1"
 scoped-pool="^0.1"

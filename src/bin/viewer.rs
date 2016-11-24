@@ -159,7 +159,13 @@ fn main() {
     let port = value_t!(matches, "port", u16).unwrap_or(5433);
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
 
-    let otree = Arc::new(RwLock::new(octree::Octree::new(octree_directory)));
+    let otree = {
+        let otree = match octree::Octree::new(octree_directory) {
+            Ok(otree) => otree,
+            Err(err) => panic!("Could not load octree: {}", err),
+        };
+        Arc::new(RwLock::new(otree))
+    };
 
     let mut router = Router::new();
     router.get("/", index);
@@ -170,5 +176,4 @@ fn main() {
 
     println!("Listening on port {}.", port);
     Iron::new(router).http(("localhost", port)).unwrap();
-
 }

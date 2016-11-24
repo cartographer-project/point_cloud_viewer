@@ -12,18 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![recursion_limit = "1024"]
+
 extern crate byteorder;
 extern crate cgmath;
 extern crate json;
 extern crate pbr;
 extern crate walkdir;
-#[macro_use]
-extern crate nom;
+#[macro_use] extern crate nom;
+#[macro_use] extern crate error_chain;
 
 pub mod math;
 pub mod octree;
 pub mod ply;
 pub mod pts;
+mod errors;
 
 #[derive(Debug)]
 pub struct Point {
