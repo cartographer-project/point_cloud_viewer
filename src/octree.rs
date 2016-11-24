@@ -14,7 +14,7 @@
 
 use byteorder::{LittleEndian, ByteOrder};
 use json;
-use math::{BoundingBox, Matrix4f, Vector3f, Vector2f, Frustum};
+use math::{CuboidLike, Cuboid, Cube, Matrix4f, Vector3f, Vector2f, Frustum};
 use {Point, ply};
 use std::cmp;
 use std::collections::HashMap;
@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 use errors::*;
 use walkdir;
 
-pub const CURRENT_VERSION: i32 = 2;
+pub const CURRENT_VERSION: i32 = 3;
 
 pub struct PointStream {
     data: BufReader<File>,
@@ -82,6 +82,18 @@ pub fn parent_node_name(name: &str) -> &str {
     }
 }
 
+// NOCOM(#hrapp): implement
+// #[derive(Debug)]
+// pub enum BytesPerCoordinate {
+    // One,
+    // Two,
+    // Four,
+// }
+
+// pub fn required_bits(bounding_cube: &Cube, resolution: f64) -> Result<i32> {
+    // let size = bounding_cube.size();
+// }
+
 pub fn get_child_index(name: &str) -> u8 {
     assert!(!name.is_empty());
     let last_char = name.split_at(name.len() - 1).1.bytes().last().unwrap() as char;
@@ -103,65 +115,47 @@ pub fn child_node_name(parent: &str, child_index: u8) -> String {
     format!("{}{}", parent, child_index)
 }
 
-pub fn get_child_bounding_box(parent: &BoundingBox, child_index: u8) -> BoundingBox {
+pub fn get_child_bounding_cube(parent: &Cube, child_index: u8) -> Cube {
     assert!(child_index < 8);
 
-    let mut bounding_box = parent.clone();
-    let half_size_x = (bounding_box.max.x - bounding_box.min.x) / 2.;
-    let half_size_y = (bounding_box.max.y - bounding_box.min.y) / 2.;
-    let half_size_z = (bounding_box.max.z - bounding_box.min.z) / 2.;
-
+    let half_edge_length = parent.edge_length() / 2.;
+    let mut min = parent.min();
     if (child_index & 0b001) != 0 {
-        bounding_box.min.z += half_size_z;
-    } else {
-        bounding_box.max.z -= half_size_z;
+        min.z += half_edge_length;
     }
 
     if (child_index & 0b010) != 0 {
-        bounding_box.min.y += half_size_y;
-    } else {
-        bounding_box.max.y -= half_size_y;
+        min.y += half_edge_length;
     }
 
     if (child_index & 0b100) != 0 {
-        bounding_box.min.x += half_size_x;
-    } else {
-        bounding_box.max.x -= half_size_x;
+        min.x += half_edge_length;
     }
-    bounding_box
+    Cube::new(min, half_edge_length)
 }
 
 // NOCOM(#hrapp): could use some testing.
-pub fn get_parent_bounding_box(child: &BoundingBox, child_index: u8) -> BoundingBox {
-    let mut bounding_box = child.clone();
-    let size_x = bounding_box.max.x - bounding_box.min.x;
-    let size_y = bounding_box.max.y - bounding_box.min.y;
-    let size_z = bounding_box.max.z - bounding_box.min.z;
-
+pub fn get_parent_bounding_cube(child: &Cube, child_index: u8) -> Cube {
+    let mut min = child.min();
+    let edge_length = child.edge_length();
     if (child_index & 0b001) != 0 {
-        bounding_box.min.z -= size_z;
-    } else {
-        bounding_box.max.z += size_z;
+        min.z -= edge_length;
     }
 
     if (child_index & 0b010) != 0 {
-        bounding_box.min.y -= size_y;
-    } else {
-        bounding_box.max.y += size_y;
+        min.y -= edge_length;
     }
 
     if (child_index & 0b100) != 0 {
-        bounding_box.min.x -= size_x;
-    } else {
-        bounding_box.max.x += size_x;
+        min.x -= edge_length;
     }
-    bounding_box
+    Cube::new(min, edge_length * 2.)
 }
 
 #[derive(Debug)]
 struct NodeToExplore {
     name: String,
-    bounding_box: BoundingBox,
+    bounding_cube: Cube,
 }
 
 #[derive(Debug)]
@@ -186,21 +180,23 @@ fn project(m: &Matrix4f, p: &Vector3f) -> Vector3f {
                   (m[0][2] * p.x + m[1][2] * p.y + m[2][2] * p.z + m[3][2]) * d)
 }
 
-fn size_in_pixels(bb: &BoundingBox, matrix: &Matrix4f, width: i32, height: i32) -> Vector2f {
+fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i32) -> Vector2f {
     // z is unused here.
-    let mut rv = BoundingBox::new();
-    for p in &[Vector3f::new(bb.min.x, bb.min.y, bb.min.z),
-               Vector3f::new(bb.max.x, bb.min.y, bb.min.z),
-               Vector3f::new(bb.min.x, bb.max.y, bb.min.z),
-               Vector3f::new(bb.max.x, bb.max.y, bb.min.z),
-               Vector3f::new(bb.min.x, bb.min.y, bb.max.z),
-               Vector3f::new(bb.max.x, bb.min.y, bb.max.z),
-               Vector3f::new(bb.min.x, bb.max.y, bb.max.z),
-               Vector3f::new(bb.max.x, bb.max.y, bb.max.z)] {
+    let min = bounding_cube.min();
+    let max = bounding_cube.max();
+    let mut rv = Cuboid::new();
+    for p in &[Vector3f::new(min.x, min.y, min.z),
+               Vector3f::new(max.x, min.y, min.z),
+               Vector3f::new(min.x, max.y, min.z),
+               Vector3f::new(max.x, max.y, min.z),
+               Vector3f::new(min.x, min.y, max.z),
+               Vector3f::new(max.x, min.y, max.z),
+               Vector3f::new(min.x, max.y, max.z),
+               Vector3f::new(max.x, max.y, max.z)] {
         rv.update(&project(matrix, &p));
     }
-    Vector2f::new((rv.max.x - rv.min.x) * (width as f32) / 2.,
-                  (rv.max.y - rv.min.y) * (height as f32) / 2.)
+    Vector2f::new((rv.max().x - rv.min().x) * (width as f32) / 2.,
+                  (rv.max().y - rv.min().y) * (height as f32) / 2.)
 }
 
 #[derive(Debug)]
@@ -208,7 +204,7 @@ pub struct Octree {
     directory: PathBuf,
     // Maps from node name to number of points.
     nodes: HashMap<String, u64>,
-    bounding_box: BoundingBox,
+    bounding_cube: Cube,
 }
 
 #[derive(Debug)]
@@ -231,14 +227,12 @@ impl Octree {
             _ => (), // Correct version.
         }
 
-        let bounding_box = BoundingBox {
-            min: Vector3f::new(meta["bounding_box"]["min_x"].as_f32().unwrap(),
-            meta["bounding_box"]["min_y"].as_f32().unwrap(),
-            meta["bounding_box"]["min_z"].as_f32().unwrap()),
-            max: Vector3f::new(meta["bounding_box"]["max_x"].as_f32().unwrap(),
-            meta["bounding_box"]["max_y"].as_f32().unwrap(),
-            meta["bounding_box"]["max_z"].as_f32().unwrap()),
-        };
+        let bounding_cube = Cube::new(
+            Vector3f::new(
+                meta["bounding_cube"]["min_x"].as_f32().unwrap(),
+                meta["bounding_cube"]["min_y"].as_f32().unwrap(),
+                meta["bounding_cube"]["min_z"].as_f32().unwrap()),
+                meta["bounding_cube"]["edge_length"].as_f32().unwrap());
 
         let mut nodes = HashMap::new();
         for entry in walkdir::WalkDir::new(&directory).into_iter().filter_map(|e| e.ok()) {
@@ -257,7 +251,7 @@ impl Octree {
         Ok(Octree {
             directory: directory.into(),
             nodes: nodes,
-            bounding_box: bounding_box,
+            bounding_cube: bounding_cube,
         })
     }
 
@@ -270,19 +264,19 @@ impl Octree {
         let frustum = Frustum::from_matrix(projection_matrix);
         let mut open = vec![NodeToExplore {
                                 name: "r".into(),
-                                bounding_box: self.bounding_box.clone(),
+                                bounding_cube: self.bounding_cube.clone(),
                             }];
 
         let mut visible = Vec::new();
         while !open.is_empty() {
             let node_to_explore = open.pop().unwrap();
             let maybe_num_points = self.nodes.get(&node_to_explore.name);
-            if maybe_num_points.is_none() || !frustum.intersects(&node_to_explore.bounding_box) {
+            if maybe_num_points.is_none() || !frustum.intersects(&node_to_explore.bounding_cube) {
                 continue;
             }
             let num_points = *maybe_num_points.unwrap();
 
-            let pixels = size_in_pixels(&node_to_explore.bounding_box,
+            let pixels = size_in_pixels(&node_to_explore.bounding_cube,
                                         projection_matrix,
                                         width,
                                         height);
@@ -305,7 +299,7 @@ impl Octree {
             for child_index in 0..8 {
                 open.push(NodeToExplore {
                     name: child_node_name(&node_to_explore.name, child_index),
-                    bounding_box: get_child_bounding_box(&node_to_explore.bounding_box,
+                    bounding_cube: get_child_bounding_cube(&node_to_explore.bounding_cube,
                                                          child_index as u8),
                 })
             }

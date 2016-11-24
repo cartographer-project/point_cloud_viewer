@@ -23,7 +23,7 @@ extern crate pbr;
 extern crate json;
 
 use point_viewer::Point;
-use point_viewer::math::{Vector3f, BoundingBox};
+use point_viewer::math::{Vector3f, CuboidLike, Cube, Cuboid};
 use point_viewer::octree;
 use point_viewer::pts::PtsPointStream;
 
@@ -44,6 +44,7 @@ struct NodeWriter {
     writer: BufWriter<File>,
     path: PathBuf,
     num_points: i64,
+    bounding_cube: Cube,
 }
 
 impl Drop for NodeWriter {
@@ -60,22 +61,25 @@ impl Drop for NodeWriter {
 }
 
 impl NodeWriter {
-    fn new(path: PathBuf, bounding_box: BoundingBox, resolution: f64) -> Self {
-        let size = bounding_box.size();
+    fn new(path: PathBuf, bounding_cube: Cube, resolution: f64) -> Self {
+        let size = bounding_cube.size();
         // NOCOM(#hrapp): use this to fix code encode the (x,y,z).
-        // println!("#hrapp size: {:#?}", size);
+        println!("#hrapp size: {:#?}", size);
         let cnt = size.x as f64 / resolution;
-        // println!("#hrapp cnt: {:#?}", cnt);
-        // println!("#hrapp cnt.log2(): {:#?}", cnt.log2());
+        println!("#hrapp cnt: {:#?}", cnt);
+        println!("#hrapp cnt.log2(): {:#?}", cnt.log2());
 
         NodeWriter {
             writer: BufWriter::new(File::create(&path).unwrap()),
             path: path,
             num_points: 0,
+            bounding_cube: bounding_cube,
         }
     }
 
     pub fn write(&mut self, p: &Point) {
+        // NOCOM(#hrapp): bring back and make this pass.
+        // assert!(self.bounding_cube.contains(&p.position));
         self.writer.write_f32::<LittleEndian>(p.position.x).unwrap();
         self.writer.write_f32::<LittleEndian>(p.position.y).unwrap();
         self.writer.write_f32::<LittleEndian>(p.position.z).unwrap();
@@ -88,14 +92,14 @@ impl NodeWriter {
 
 struct SplittedNode {
     name: String,
-    bounding_box: BoundingBox,
+    bounding_cube: Cube,
     num_points: i64,
 }
 
 fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
                                                 resolution: f64,
                                                 name: &str,
-                                                bounding_box: &BoundingBox,
+                                                bounding_cube: &Cube,
                                                 stream: PointIterator)
                                                 -> Vec<SplittedNode> {
     let mut children: Vec<Option<NodeWriter>> = vec![None, None, None, None, None, None, None,
@@ -111,13 +115,13 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
     };
 
     for p in stream {
-        let child_index = get_child_index(&bounding_box, &p.position);
+        let child_index = get_child_index(&bounding_cube, &p.position);
         if children[child_index as usize].is_none() {
             children[child_index as usize] =
                 Some(NodeWriter::new(
                         octree::node_path(output_directory,
                                                &octree::child_node_name(name, child_index as u8)),
-                        octree::get_child_bounding_box(&bounding_box, child_index),
+                        octree::get_child_bounding_cube(&bounding_cube, child_index),
                         resolution));
         }
         children[child_index as usize].as_mut().unwrap().write(&p);
@@ -139,14 +143,14 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
         rv.push(SplittedNode {
             name: octree::child_node_name(name, child_index as u8),
             num_points: c.num_points,
-            bounding_box: octree::get_child_bounding_box(&bounding_box, child_index as u8),
+            bounding_cube: octree::get_child_bounding_cube(&bounding_cube, child_index as u8),
         });
     }
     rv
 }
 
-fn get_child_index(bounding_box: &BoundingBox, v: &Vector3f) -> u8 {
-    let center = bounding_box.center();
+fn get_child_index(bounding_cube: &Cube, v: &Vector3f) -> u8 {
+    let center = bounding_cube.center();
     let gt_x = v.x > center.x;
     let gt_y = v.y > center.y;
     let gt_z = v.z > center.z;
@@ -155,7 +159,7 @@ fn get_child_index(bounding_box: &BoundingBox, v: &Vector3f) -> u8 {
 
 struct NodeToCreateBySubsamplingChildren {
     name: String,
-    bounding_box: BoundingBox,
+    bounding_cube: Cube,
 }
 
 fn split_node<'a, 'b: 'a, PointIterator>(scope: &Scope<'a>,
@@ -166,7 +170,7 @@ fn split_node<'a, 'b: 'a, PointIterator>(scope: &Scope<'a>,
                                          leaf_nodes_sender: mpsc::Sender<NodeToCreateBySubsamplingChildren>)
     where PointIterator: Iterator<Item = Point>
 {
-    let children = split(output_directory, resolution, &node.name, &node.bounding_box, stream);
+    let children = split(output_directory, resolution, &node.name, &node.bounding_cube, stream);
     let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) = children.into_iter()
         .partition(|n| n.num_points < MAX_POINTS_PER_NODE);
 
@@ -187,7 +191,7 @@ fn split_node<'a, 'b: 'a, PointIterator>(scope: &Scope<'a>,
     for node in leaf_nodes {
         leaf_nodes_sender.send(NodeToCreateBySubsamplingChildren {
             name: node.name,
-            bounding_box: node.bounding_box,
+            bounding_cube: node.bounding_cube,
         }).unwrap();
     }
 }
@@ -195,7 +199,7 @@ fn split_node<'a, 'b: 'a, PointIterator>(scope: &Scope<'a>,
 fn subsample_children_into(output_directory: &Path, node: NodeToCreateBySubsamplingChildren, resolution: f64) {
     let mut parent = NodeWriter::new(
         octree::node_path(output_directory, &node.name),
-        node.bounding_box.clone(),
+        node.bounding_cube.clone(),
         resolution);
 
     println!("Creating {} from subsampling children.", &node.name);
@@ -208,7 +212,7 @@ fn subsample_children_into(output_directory: &Path, node: NodeToCreateBySubsampl
         let points: Vec<_> = octree::PointStream::from_blob(&path).collect();
         let mut child = NodeWriter::new(
             octree::node_path(output_directory, &child_name),
-            octree::get_child_bounding_box(&node.bounding_box, i as u8),
+            octree::get_child_bounding_cube(&node.bounding_cube, i as u8),
             resolution);
         for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
@@ -241,17 +245,17 @@ fn make_stream(input: &InputFile)
     (stream, progress_bar)
 }
 
-/// Returns the bounding_box and the number of the points in 'input'.
-fn find_bounding_box(input: &InputFile) -> (BoundingBox, i64) {
+/// Returns the bounding_cube and the number of the points in 'input'.
+fn find_bounding_cube(input: &InputFile) -> (Cube, i64) {
     let mut num_points = 0i64;
-    let mut bounding_box = BoundingBox::new();
+    let mut bounding_cube = Cuboid::new();
     let (stream, mut progress_bar) = make_stream(input);
     if let Some(ref mut progress_bar) = progress_bar {
         progress_bar.message("Determining bounding box: ");
     };
 
     for p in stream {
-        bounding_box.update(&p.position);
+        bounding_cube.update(&p.position);
         num_points += 1;
         if num_points % UPDATE_COUNT == 0 {
             if let Some(ref mut progress_bar) = progress_bar {
@@ -260,8 +264,7 @@ fn find_bounding_box(input: &InputFile) -> (BoundingBox, i64) {
         }
     }
     progress_bar.map(|mut f| f.finish());
-    bounding_box.make_cubic();
-    (bounding_box, num_points)
+    (bounding_cube.to_cube(), num_points)
 }
 
 fn main() {
@@ -294,20 +297,18 @@ fn main() {
     };
 
 
-    let (bounding_box, num_points) = find_bounding_box(&input);
+    let (bounding_cube, num_points) = find_bounding_cube(&input);
 
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
     let meta = object!{
-        "version" => 2,
+        "version" => octree::CURRENT_VERSION,
         "resolution" => resolution,
-        "bounding_box" => object!{
-            "min_x" => bounding_box.min.x,
-            "min_y" => bounding_box.min.y,
-            "min_z" => bounding_box.min.z,
-            "max_x" => bounding_box.max.x,
-            "max_y" => bounding_box.max.y,
-            "max_z" => bounding_box.max.z
+        "bounding_cube" => object!{
+            "min_x" => bounding_cube.min().x,
+            "min_y" => bounding_cube.min().y,
+            "min_z" => bounding_cube.min().z,
+            "edge_length" => bounding_cube.edge_length()
         }
     };
     File::create(&output_directory.join("meta.json"))
@@ -323,7 +324,7 @@ fn main() {
         let (root_stream, _) = make_stream(&input);
         let root = SplittedNode {
             name: "r".into(),
-            bounding_box: bounding_box,
+            bounding_cube: bounding_cube,
             num_points: num_points,
         };
         split_node(scope,
@@ -354,22 +355,22 @@ fn main() {
             }
             parent_names.insert(parent_name.to_string());
 
-            let parent_bounding_box = octree::get_parent_bounding_box(&node.bounding_box, octree::get_child_index(&node.name));
+            let parent_bounding_cube = octree::get_parent_bounding_cube(&node.bounding_cube, octree::get_child_index(&node.name));
 
             let grand_parent = octree::parent_node_name(&parent_name);
             if !grand_parent.is_empty() {
-                let grand_parent_bounding_box =
-                    octree::get_parent_bounding_box(&parent_bounding_box,
+                let grand_parent_bounding_cube =
+                    octree::get_parent_bounding_cube(&parent_bounding_cube,
                                                     octree::get_child_index(&parent_name));
                 leaf_nodes.push(NodeToCreateBySubsamplingChildren {
                     name: grand_parent.to_string(),
-                    bounding_box: grand_parent_bounding_box,
+                    bounding_cube: grand_parent_bounding_cube,
                 })
             }
 
             subsample_nodes.push(NodeToCreateBySubsamplingChildren {
                 name: parent_name.to_string(),
-                bounding_box: parent_bounding_box,
+                bounding_cube: parent_bounding_cube,
             });
         }
 
