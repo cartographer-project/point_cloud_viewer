@@ -13,62 +13,18 @@
 // limitations under the License.
 
 use byteorder::{LittleEndian, ByteOrder};
+use errors::*;
 use json;
 use math::{CuboidLike, Cuboid, Cube, Matrix4f, Vector3f, Vector2f, Frustum};
-use {Point, ply};
+use point_stream::PointStream;
 use std::cmp;
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{Read, BufReader};
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use errors::*;
 use walkdir;
 
 pub const CURRENT_VERSION: i32 = 3;
-
-pub struct PointStream {
-    data: BufReader<File>,
-    num_points_read: i64,
-    pub num_total_points: i64,
-}
-
-impl Iterator for PointStream {
-    type Item = Point;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.num_points_read >= self.num_total_points {
-            return None;
-        }
-        let point = ply::read_point(&mut self.data);
-        self.num_points_read += 1;
-        Some(point)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.num_total_points as usize, Some(self.num_total_points as usize))
-    }
-}
-
-impl PointStream {
-    pub fn from_ply(ply_file: &Path) -> Self {
-        let (file, num_total_points) = ply::open(ply_file);
-        Self::from_reader_and_count(BufReader::new(file), num_total_points)
-    }
-
-    pub fn from_blob(blob_path: &Path) -> Self {
-        let num_total_points = fs::metadata(blob_path).unwrap().len() as i64 / 15;
-        let file = File::open(blob_path).unwrap();
-        Self::from_reader_and_count(BufReader::new(file), num_total_points)
-    }
-
-    fn from_reader_and_count(data: BufReader<File>, num_total_points: i64) -> Self {
-        PointStream {
-            data: data,
-            num_total_points: num_total_points,
-            num_points_read: 0,
-        }
-    }
-}
 
 pub fn node_path(directory: &Path, name: &str) -> PathBuf {
     directory.join(name)
@@ -322,13 +278,14 @@ impl Octree {
         visible
     }
 
-    pub fn get_nodes_as_binary_blob(&self, nodes: &[NodesToBlob]) -> (usize, Vec<u8>) {
+    pub fn get_nodes_as_binary_blob(&self, nodes: &[NodesToBlob]) -> Result<(usize, Vec<u8>)> {
         const NUM_BYTES_PER_POINT: usize = 4 * 3 + 4;
 
         let mut num_points = 0;
         let mut rv = Vec::new();
         for node in nodes {
             let points: Vec<_> = PointStream::from_blob(&node_path(&self.directory, &node.name))
+                ?
                 .collect();
             let num_points_for_lod =
                 (points.len() as f32 / node.level_of_detail as f32).ceil() as usize;
@@ -369,7 +326,7 @@ impl Octree {
             }
         }
         assert_eq!(4 * nodes.len() + NUM_BYTES_PER_POINT * num_points, rv.len());
-        (num_points, rv)
+        Ok((num_points, rv))
     }
 }
 

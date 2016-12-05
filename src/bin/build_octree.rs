@@ -22,9 +22,11 @@ extern crate pbr;
 #[macro_use]
 extern crate json;
 
-use point_viewer::Point;
+use point_viewer::errors::*;
 use point_viewer::math::{Vector3f, CuboidLike, Cube, Cuboid};
 use point_viewer::octree;
+use point_viewer::Point;
+use point_viewer::point_stream::PointStream;
 use point_viewer::pts::PtsPointStream;
 
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -178,8 +180,10 @@ fn split_node<'a, 'b, Points>(scope: &Scope<'a>,
     for child in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
         scope.recurse(move |scope| {
-            let stream = octree::PointStream::from_blob(&octree::node_path(output_directory,
-                                                                           &child.name));
+            let blob_path = octree::node_path(output_directory, &child.name);
+            let stream = PointStream::from_blob(&blob_path)
+                .chain_err(|| format!("Could not open {:?}", blob_path))
+                .unwrap();
             split_node(scope,
                        output_directory,
                        resolution,
@@ -200,11 +204,10 @@ fn split_node<'a, 'b, Points>(scope: &Scope<'a>,
 
 fn subsample_children_into(output_directory: &Path,
                            node: NodeToCreateBySubsamplingChildren,
-                           resolution: f64) {
+                           resolution: f64) -> Result<()> {
     let mut parent = NodeWriter::new(octree::node_path(output_directory, &node.name),
                                      &node.bounding_cube,
                                      resolution);
-
     println!("Creating {} from subsampling children.", &node.name);
     for i in 0..8 {
         let child_name = octree::child_node_name(&node.name, i);
@@ -212,7 +215,9 @@ fn subsample_children_into(output_directory: &Path,
         if !path.exists() {
             continue;
         }
-        let points: Vec<_> = octree::PointStream::from_blob(&path).collect();
+        let points: Vec<_> = PointStream::from_blob(&path)
+            .chain_err(|| format!("Could not find {:?}", path))?
+            .collect();
         let mut child = NodeWriter::new(octree::node_path(output_directory, &child_name),
                                         &octree::get_child_bounding_cube(&node.bounding_cube,
                                                                          i as u8),
@@ -224,8 +229,8 @@ fn subsample_children_into(output_directory: &Path,
                 child.write(&p);
             }
         }
-
     }
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -237,7 +242,7 @@ enum InputFile {
 fn make_stream(input: &InputFile)
                -> (Box<Iterator<Item = Point>>, Option<pbr::ProgressBar<Stdout>>) {
     let stream: Box<Iterator<Item = Point>> = match *input {
-        InputFile::Ply(ref filename) => Box::new(octree::PointStream::from_ply(filename)),
+        InputFile::Ply(ref filename) => Box::new(PointStream::from_ply(filename)),
         InputFile::Pts(ref filename) => Box::new(PtsPointStream::new(filename)),
     };
 
@@ -386,7 +391,7 @@ fn main() {
         pool.scoped(move |scope| {
             for node in subsample_nodes {
                 scope.execute(move || {
-                    subsample_children_into(output_directory, node, resolution);
+                    subsample_children_into(output_directory, node, resolution).unwrap();
                 });
             }
         });

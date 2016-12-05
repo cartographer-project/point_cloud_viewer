@@ -28,7 +28,8 @@ pub mod math;
 pub mod octree;
 pub mod ply;
 pub mod pts;
-mod errors;
+pub mod point_stream;
+pub mod errors;
 
 #[derive(Debug)]
 pub struct Point {

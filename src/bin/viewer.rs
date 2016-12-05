@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[macro_use]
 extern crate iron;
 extern crate json;
 extern crate point_viewer;
@@ -131,7 +132,7 @@ impl iron::Handler for NodesData {
 
         let blob = {
             let octree = self.octree.read().unwrap();
-            let (num_points, blob) = octree.get_nodes_as_binary_blob(&nodes_to_load);
+            let (num_points, blob) = itry!(octree.get_nodes_as_binary_blob(&nodes_to_load));
             let duration_ms = (time::precise_time_ns() - start) as f32 / 1000000.;
             println!("Got {} nodes with {} points ({}ms).",
                      nodes_to_load.len(),

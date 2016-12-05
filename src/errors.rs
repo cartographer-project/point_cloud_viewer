@@ -18,8 +18,8 @@ use std::io;
 
 error_chain! {
     foreign_links {
-        json::JsonError, Json;
-        io::Error, Io;
+        Json(json::JsonError);
+        Io(io::Error);
     }
 
     errors {
