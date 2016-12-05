@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "module": "amd",
+        "noImplicitAny": true,
+        "removeComments": true,
+        "preserveConstEnums": true,
+        "outFile": "app_bundle.js",
+        "target": "es6",
+        "sourceMap": true
+    },
+    "files": [
+       "control.ts",
+       "main.ts",
+       "octree_viewer.ts",
+       "typings/index.d.ts"
+    ]
+}
