@@ -5,12 +5,13 @@
   "main": "index.js",
   "scripts": {
     "typings:install": "typings install",
+    "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Holger Rapp <hrapp@google.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "typescript": "^2.0.10",
-    "typings": "^2.0.0"
+    "typescript": "^1.0.10",
+    "typings": "^1.0.0"
   }
 }

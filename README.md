@@ -1,5 +1,7 @@
 # Point viewer
 
+[![build status](https://travis-ci.org/googlecartographer/point_cloud_viewer.svg?branch=master)](https://travis-ci.org/googlecartographer/point_cloud_viewer)
+
 This is a standalone project to make viewing massive point clouds easy and
 convenient. It was build to serve the needs of the
 [Cartographer](http://github.com/googlecartographer) project, but
@@ -13,8 +15,8 @@ is useful in its own right.
 1. Change into the client directory: `cd client`.
 2. Install npm: `sudo apt-get install npm` or equivalent for your system.
 3. Install javascript dependencies: `npm install`.
-4. Install typescript module dependencies: `typings install`.
-5. Build the client: `tsc`.
+4. Install typescript module dependencies: `npm run typings:install`.
+5. Build the client: `npm run build`.
 
 ### Server
 
