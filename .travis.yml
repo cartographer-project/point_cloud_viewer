@@ -1,0 +1,41 @@
+# Based on https://github.com/japaric/rust-everywhere.
+
+language: rust
+cache: cargo
+
+matrix:
+  include:
+    # TODO(hrapp): Try to get this running on Mac C?
+    # Stable channel
+    - os: linux
+      rust: stable
+      env: TARGET=x86_64-unknown-linux-gnu
+      addons:
+        packages:
+        - npm
+    # Beta channel
+    - os: linux
+      rust: beta
+      env: TARGET=x86_64-unknown-linux-gnu
+      addons:
+        packages:
+        - npm
+
+before_install:
+  - export PATH="$PATH:$HOME/.cargo/bin"
+
+install:
+  - bash ci/install.sh
+
+script:
+  - bash ci/script.sh
+
+# NOCOM(#hrapp): come back to this
+#branches:
+#  only:
+#    # Pushes and PR to the master branch
+#    - master
+
+notifications:
+  email:
+    on_success: never
