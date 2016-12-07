@@ -100,7 +100,7 @@ impl iron::Handler for VisibleNodes {
         };
         let mut reply = String::from("[");
         let visible_nodes_string = visible_nodes.iter()
-            .map(|n| format!("[\"{}\", {}]", n.name, n.level_of_detail))
+            .map(|n| format!("[\"{}\", {}]", n.id, n.level_of_detail))
             .collect::<Vec<_>>()
             .join(",");
         reply.push_str(&visible_nodes_string);
@@ -124,7 +124,7 @@ impl iron::Handler for NodesData {
         let nodes_to_load: Vec<_> = data.members()
             .map(|e| {
                 octree::NodesToBlob {
-                    name: e[0].as_str().unwrap().to_string(),
+                    id: octree::NodeId::from_string(e[0].as_str().unwrap().to_string()),
                     level_of_detail: e[1].as_i32().unwrap(),
                 }
             })

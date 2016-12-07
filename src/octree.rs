@@ -22,19 +22,72 @@ use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::fmt;
+use std::result;
 use walkdir;
 
 pub const CURRENT_VERSION: i32 = 3;
 
-pub fn node_path(directory: &Path, name: &str) -> PathBuf {
-    directory.join(name)
+/// A unique identifier to a node. Currently this is implemented as 'r' being the root and r[0-7]
+/// being the children, r[0-7][0-7] being the grand children and so on. The actual representation
+/// might change though.
+#[derive(Debug,Hash,Clone,PartialEq,Eq)]
+pub struct NodeId {
+    name: String,
 }
 
-pub fn parent_node_name(name: &str) -> &str {
-    if name.is_empty() {
-        name
-    } else {
-        name.split_at(name.len() - 1).0
+impl fmt::Display for NodeId {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
+        self.name.fmt(formatter)
+    }
+}
+
+impl NodeId {
+    pub fn from_string(name: String) -> Self {
+        NodeId { name: name }
+    }
+
+    pub fn root() -> Self {
+        NodeId::from_string("r".to_string())
+    }
+
+    pub fn data_file_path(&self, directory: &Path) -> PathBuf {
+        directory.join(&self.name)
+    }
+
+    pub fn child_id(&self, child_index: u8) -> Self {
+        assert!(child_index < 8);
+        let mut child_name = self.name.clone();
+        child_name.push((child_index + '0' as u8) as char);
+        NodeId::from_string(child_name)
+    }
+
+    pub fn get_child_index(&self) -> u8 {
+        let last_char = self.name.split_at(self.name.len() - 1).1.bytes().last().unwrap() as char;
+        match last_char {
+            '0' => 0,
+            '1' => 1,
+            '2' => 2,
+            '3' => 3,
+            '4' => 4,
+            '5' => 5,
+            '6' => 6,
+            '7' => 7,
+            _ => panic!("Invalid node name: {}", self.name),
+        }
+    }
+
+    /// Returns the parents id or None if this is the root.
+    pub fn parent_id(&self) -> Option<NodeId> {
+        if self.level() == 0 {
+            return None;
+        }
+        let parent_name = self.name.split_at(self.name.len() - 1).0.to_string();
+        Some(NodeId::from_string(parent_name))
+    }
+
+    pub fn level(&self) -> usize {
+        self.name.len() - 1
     }
 }
 
@@ -52,27 +105,6 @@ pub fn required_bytes(bounding_cube: &Cube, resolution: f64) -> BytesPerCoordina
         9...16 => BytesPerCoordinate::Two,
         _ => BytesPerCoordinate::Four,
     }
-}
-
-pub fn get_child_index(name: &str) -> u8 {
-    assert!(!name.is_empty());
-    let last_char = name.split_at(name.len() - 1).1.bytes().last().unwrap() as char;
-    match last_char {
-        '0' => 0,
-        '1' => 1,
-        '2' => 2,
-        '3' => 3,
-        '4' => 4,
-        '5' => 5,
-        '6' => 6,
-        '7' => 7,
-        _ => panic!("Invalid node name: {}", name),
-    }
-}
-
-pub fn child_node_name(parent: &str, child_index: u8) -> String {
-    assert!(child_index < 8);
-    format!("{}{}", parent, child_index)
 }
 
 pub fn get_child_bounding_cube(parent: &Cube, child_index: u8) -> Cube {
@@ -114,20 +146,20 @@ pub fn get_parent_bounding_cube(child: &Cube, child_index: u8) -> Cube {
 
 #[derive(Debug)]
 struct NodeToExplore {
-    name: String,
+    id: NodeId,
     bounding_cube: Cube,
 }
 
 #[derive(Debug)]
 pub struct VisibleNode {
-    pub name: String,
+    pub id: NodeId,
     pub level_of_detail: i32,
     pixels: Vector2f,
 }
 
 #[derive(Debug)]
 pub struct NodesToBlob {
-    pub name: String,
+    pub id: NodeId,
     pub level_of_detail: i32,
 }
 
@@ -162,8 +194,8 @@ fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i
 #[derive(Debug)]
 pub struct Octree {
     directory: PathBuf,
-    // Maps from node name to number of points.
-    nodes: HashMap<String, u64>,
+    // Maps from node id to number of points.
+    nodes: HashMap<NodeId, u64>,
     bounding_cube: Cube,
 }
 
@@ -204,7 +236,7 @@ impl Octree {
                 continue;
             }
             let num_points = fs::metadata(path).unwrap().len() / 15;
-            nodes.insert(file_name.to_string(), num_points);
+            nodes.insert(NodeId::from_string(file_name.to_string()), num_points);
         }
 
         Ok(Octree {
@@ -222,14 +254,14 @@ impl Octree {
                              -> Vec<VisibleNode> {
         let frustum = Frustum::from_matrix(projection_matrix);
         let mut open = vec![NodeToExplore {
-                                name: "r".into(),
+                                id: NodeId::root(),
                                 bounding_cube: self.bounding_cube.clone(),
                             }];
 
         let mut visible = Vec::new();
         while !open.is_empty() {
             let node_to_explore = open.pop().unwrap();
-            let maybe_num_points = self.nodes.get(&node_to_explore.name);
+            let maybe_num_points = self.nodes.get(&node_to_explore.id);
             if maybe_num_points.is_none() || !frustum.intersects(&node_to_explore.bounding_cube) {
                 continue;
             }
@@ -257,14 +289,14 @@ impl Octree {
 
             for child_index in 0..8 {
                 open.push(NodeToExplore {
-                    name: child_node_name(&node_to_explore.name, child_index),
+                    id: node_to_explore.id.child_id(child_index),
                     bounding_cube: get_child_bounding_cube(&node_to_explore.bounding_cube,
                                                            child_index as u8),
                 })
             }
 
             visible.push(VisibleNode {
-                name: node_to_explore.name,
+                id: node_to_explore.id,
                 level_of_detail: level_of_detail,
                 pixels: pixels,
             });
@@ -284,7 +316,7 @@ impl Octree {
         let mut num_points = 0;
         let mut rv = Vec::new();
         for node in nodes {
-            let points: Vec<_> = PointStream::from_blob(&node_path(&self.directory, &node.name))
+            let points: Vec<_> = PointStream::from_blob(&node.id.data_file_path(&self.directory))
                 ?
                 .collect();
             let num_points_for_lod =
@@ -332,10 +364,11 @@ impl Octree {
 
 #[cfg(test)]
 mod tests {
-    use super::parent_node_name;
+    use super::NodeId;
 
     #[test]
     fn test_parent_node_name() {
-        assert_eq!("r12345", parent_node_name("r123456"));
+        assert_eq!(Some(NodeId::from_string("r12345".into())),
+                   NodeId::from_string("r123456".into()).parent_id());
     }
 }
