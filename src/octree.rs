@@ -43,26 +43,33 @@ impl fmt::Display for NodeId {
 }
 
 impl NodeId {
+    /// Construct a NodeId. No checking is done if this is a valid Id.
     pub fn from_string(name: String) -> Self {
         NodeId { name: name }
     }
 
-    pub fn root() -> Self {
-        NodeId::from_string("r".to_string())
-    }
-
-    pub fn data_file_path(&self, directory: &Path) -> PathBuf {
+    /// Returns the path on disk where the data for this node is saved.
+    pub fn get_on_disk_path(&self, directory: &Path) -> PathBuf {
         directory.join(&self.name)
     }
 
-    pub fn child_id(&self, child_index: u8) -> Self {
+    /// Returns the root node of the octree.
+    fn root() -> Self {
+        NodeId::from_string("r".to_string())
+    }
+
+    /// Returns the NodeId for the corresponding 'child_index'.
+    fn get_child_id(&self, child_index: u8) -> Self {
         assert!(child_index < 8);
         let mut child_name = self.name.clone();
         child_name.push((child_index + '0' as u8) as char);
         NodeId::from_string(child_name)
     }
 
-    pub fn get_child_index(&self) -> u8 {
+    /// The child index of this node in its parent.
+    // TODO(hrapp): Child index should be a newtype or an enum.
+    // TODO(hrapp): Should return None if this is the root.
+    fn child_index(&self) -> u8 {
         let last_char = self.name.split_at(self.name.len() - 1).1.bytes().last().unwrap() as char;
         match last_char {
             '0' => 0,
@@ -78,7 +85,7 @@ impl NodeId {
     }
 
     /// Returns the parents id or None if this is the root.
-    pub fn parent_id(&self) -> Option<NodeId> {
+    fn parent_id(&self) -> Option<NodeId> {
         if self.level() == 0 {
             return None;
         }
@@ -86,7 +93,8 @@ impl NodeId {
         Some(NodeId::from_string(parent_name))
     }
 
-    pub fn level(&self) -> usize {
+    /// Returns the level of this node in the octree, with 0 being the root.
+    fn level(&self) -> usize {
         self.name.len() - 1
     }
 }
@@ -107,47 +115,89 @@ pub fn required_bytes(bounding_cube: &Cube, resolution: f64) -> BytesPerCoordina
     }
 }
 
-pub fn get_child_bounding_cube(parent: &Cube, child_index: u8) -> Cube {
-    assert!(child_index < 8);
-
-    let half_edge_length = parent.edge_length() / 2.;
-    let mut min = parent.min();
-    if (child_index & 0b001) != 0 {
-        min.z += half_edge_length;
-    }
-
-    if (child_index & 0b010) != 0 {
-        min.y += half_edge_length;
-    }
-
-    if (child_index & 0b100) != 0 {
-        min.x += half_edge_length;
-    }
-    Cube::new(min, half_edge_length)
-}
-
-// TODO(hrapp): This function could use some testing.
-pub fn get_parent_bounding_cube(child: &Cube, child_index: u8) -> Cube {
-    let mut min = child.min();
-    let edge_length = child.edge_length();
-    if (child_index & 0b001) != 0 {
-        min.z -= edge_length;
-    }
-
-    if (child_index & 0b010) != 0 {
-        min.y -= edge_length;
-    }
-
-    if (child_index & 0b100) != 0 {
-        min.x -= edge_length;
-    }
-    Cube::new(min, edge_length * 2.)
-}
-
 #[derive(Debug)]
-struct NodeToExplore {
-    id: NodeId,
-    bounding_cube: Cube,
+pub struct Node {
+    pub id: NodeId,
+    pub bounding_cube: Cube,
+}
+
+impl Node {
+    pub fn root_with_bounding_cube(cube: Cube) -> Self {
+        Node {
+            id: NodeId::root(),
+            bounding_cube: cube,
+        }
+    }
+
+    pub fn get_child(&self, child_index: u8) -> Node {
+        let child_bounding_cube = {
+            assert!(child_index < 8);
+            let half_edge_length = self.bounding_cube.edge_length() / 2.;
+            let mut min = self.bounding_cube.min();
+            if (child_index & 0b001) != 0 {
+                min.z += half_edge_length;
+            }
+
+            if (child_index & 0b010) != 0 {
+                min.y += half_edge_length;
+            }
+
+            if (child_index & 0b100) != 0 {
+                min.x += half_edge_length;
+            }
+            Cube::new(min, half_edge_length)
+        };
+        Node {
+            id: self.id.get_child_id(child_index),
+            bounding_cube: child_bounding_cube,
+        }
+    }
+
+    /// Returns the ChildId of the child containing 'v'.
+    pub fn get_child_id_containing_point(&self, v: &Vector3f) -> u8 {
+        // This is a bit flawed: it is not guaranteed that 'child_bounding_box.contains(&v)' is true
+        // using this calculated index due to floating point precision.
+        let center = self.bounding_cube.center();
+        let gt_x = v.x > center.x;
+        let gt_y = v.y > center.y;
+        let gt_z = v.z > center.z;
+        (gt_x as u8) << 2 | (gt_y as u8) << 1 | gt_z as u8
+    }
+
+    // TODO(hrapp): This function could use some testing.
+    pub fn parent(&self) -> Option<Node> {
+        let maybe_parent_id = self.id.parent_id();
+        if maybe_parent_id.is_none() {
+            return None;
+        }
+
+        let parent_cube = {
+            let child_index = self.id.child_index();
+            let mut min = self.bounding_cube.min();
+            let edge_length = self.bounding_cube.edge_length();
+            if (child_index & 0b001) != 0 {
+                min.z -= edge_length;
+            }
+
+            if (child_index & 0b010) != 0 {
+                min.y -= edge_length;
+            }
+
+            if (child_index & 0b100) != 0 {
+                min.x -= edge_length;
+            }
+            Cube::new(min, edge_length * 2.)
+        };
+        Some(Node {
+            id: maybe_parent_id.unwrap(),
+            bounding_cube: parent_cube,
+        })
+    }
+
+    /// Returns the level of this node in the octree, with 0 being the root.
+    pub fn level(&self) -> usize {
+        self.id.level()
+    }
 }
 
 #[derive(Debug)]
@@ -253,7 +303,7 @@ impl Octree {
                              use_lod: UseLod)
                              -> Vec<VisibleNode> {
         let frustum = Frustum::from_matrix(projection_matrix);
-        let mut open = vec![NodeToExplore {
+        let mut open = vec![Node {
                                 id: NodeId::root(),
                                 bounding_cube: self.bounding_cube.clone(),
                             }];
@@ -288,11 +338,7 @@ impl Octree {
             };
 
             for child_index in 0..8 {
-                open.push(NodeToExplore {
-                    id: node_to_explore.id.child_id(child_index),
-                    bounding_cube: get_child_bounding_cube(&node_to_explore.bounding_cube,
-                                                           child_index as u8),
-                })
+                open.push(node_to_explore.get_child(child_index))
             }
 
             visible.push(VisibleNode {
@@ -316,7 +362,7 @@ impl Octree {
         let mut num_points = 0;
         let mut rv = Vec::new();
         for node in nodes {
-            let points: Vec<_> = PointStream::from_blob(&node.id.data_file_path(&self.directory))
+            let points: Vec<_> = PointStream::from_blob(&node.id.get_on_disk_path(&self.directory))
                 ?
                 .collect();
             let num_points_for_lod =
