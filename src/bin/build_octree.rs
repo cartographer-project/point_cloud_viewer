@@ -114,13 +114,14 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
 
     for p in stream {
         let child_index = node.get_child_id_containing_point(&p.position);
-        if children[child_index as usize].is_none() {
-            children[child_index as usize] =
+        let array_index = child_index.as_u8() as usize;
+        if children[array_index].is_none() {
+            children[array_index] =
                 Some(NodeWriter::new(output_directory,
-                                     &node.get_child(child_index as u8),
+                                     &node.get_child(child_index),
                                      resolution));
         }
-        children[child_index as usize].as_mut().unwrap().write(&p);
+        children[array_index].as_mut().unwrap().write(&p);
     }
 
     // Remove the node file on disk. This is only save some disk space during processing - all
@@ -137,7 +138,7 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
         let c = c.unwrap();
 
         rv.push(SplittedNode {
-            node: node.get_child(child_index as u8),
+            node: node.get_child(octree::ChildIndex::from_u8(child_index as u8)),
             num_points: c.num_points,
         });
     }
@@ -185,7 +186,7 @@ fn subsample_children_into(output_directory: &Path,
     let mut parent_writer = NodeWriter::new(output_directory, &node, resolution);
     println!("Creating {} from subsampling children.", &node.id);
     for i in 0..8 {
-        let child = node.get_child(i);
+        let child = node.get_child(octree::ChildIndex::from_u8(i));
         let path = child.id.get_on_disk_path(output_directory);
         if !path.exists() {
             continue;
