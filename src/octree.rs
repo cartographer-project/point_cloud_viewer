@@ -28,6 +28,21 @@ use walkdir;
 
 pub const CURRENT_VERSION: i32 = 3;
 
+/// Represents a child of an octree Node.
+#[derive(Debug,PartialEq,Eq)]
+pub struct ChildIndex(u8);
+
+impl ChildIndex {
+    pub fn from_u8(index: u8) -> Self {
+        assert!(index < 8);
+        ChildIndex(index)
+    }
+
+    pub fn as_u8(&self) -> u8 {
+        self.0
+    }
+}
+
 /// A unique identifier to a node. Currently this is implemented as 'r' being the root and r[0-7]
 /// being the children, r[0-7][0-7] being the grand children and so on. The actual representation
 /// might change though.
@@ -59,27 +74,24 @@ impl NodeId {
     }
 
     /// Returns the NodeId for the corresponding 'child_index'.
-    fn get_child_id(&self, child_index: u8) -> Self {
-        assert!(child_index < 8);
+    fn get_child_id(&self, child_index: ChildIndex) -> Self {
         let mut child_name = self.name.clone();
-        child_name.push((child_index + '0' as u8) as char);
+        child_name.push((child_index.0 + '0' as u8) as char);
         NodeId::from_string(child_name)
     }
 
     /// The child index of this node in its parent.
-    // TODO(hrapp): Child index should be a newtype or an enum.
-    // TODO(hrapp): Should return None if this is the root.
-    fn child_index(&self) -> u8 {
-        let last_char = self.name.split_at(self.name.len() - 1).1.bytes().last().unwrap() as char;
-        match last_char {
-            '0' => 0,
-            '1' => 1,
-            '2' => 2,
-            '3' => 3,
-            '4' => 4,
-            '5' => 5,
-            '6' => 6,
-            '7' => 7,
+    fn child_index(&self) -> Option<ChildIndex> {
+        if self.level() == 0 { return None; }
+        match *self.name.as_bytes().last().unwrap() as char {
+            '0' => Some(ChildIndex(0)),
+            '1' => Some(ChildIndex(1)),
+            '2' => Some(ChildIndex(2)),
+            '3' => Some(ChildIndex(3)),
+            '4' => Some(ChildIndex(4)),
+            '5' => Some(ChildIndex(5)),
+            '6' => Some(ChildIndex(6)),
+            '7' => Some(ChildIndex(7)),
             _ => panic!("Invalid node name: {}", self.name),
         }
     }
@@ -129,20 +141,19 @@ impl Node {
         }
     }
 
-    pub fn get_child(&self, child_index: u8) -> Node {
+    pub fn get_child(&self, child_index: ChildIndex) -> Node {
         let child_bounding_cube = {
-            assert!(child_index < 8);
             let half_edge_length = self.bounding_cube.edge_length() / 2.;
             let mut min = self.bounding_cube.min();
-            if (child_index & 0b001) != 0 {
+            if (child_index.0 & 0b001) != 0 {
                 min.z += half_edge_length;
             }
 
-            if (child_index & 0b010) != 0 {
+            if (child_index.0 & 0b010) != 0 {
                 min.y += half_edge_length;
             }
 
-            if (child_index & 0b100) != 0 {
+            if (child_index.0 & 0b100) != 0 {
                 min.x += half_edge_length;
             }
             Cube::new(min, half_edge_length)
@@ -154,14 +165,14 @@ impl Node {
     }
 
     /// Returns the ChildId of the child containing 'v'.
-    pub fn get_child_id_containing_point(&self, v: &Vector3f) -> u8 {
+    pub fn get_child_id_containing_point(&self, v: &Vector3f) -> ChildIndex {
         // This is a bit flawed: it is not guaranteed that 'child_bounding_box.contains(&v)' is true
         // using this calculated index due to floating point precision.
         let center = self.bounding_cube.center();
         let gt_x = v.x > center.x;
         let gt_y = v.y > center.y;
         let gt_z = v.z > center.z;
-        (gt_x as u8) << 2 | (gt_y as u8) << 1 | gt_z as u8
+        ChildIndex((gt_x as u8) << 2 | (gt_y as u8) << 1 | gt_z as u8)
     }
 
     // TODO(hrapp): This function could use some testing.
@@ -172,7 +183,7 @@ impl Node {
         }
 
         let parent_cube = {
-            let child_index = self.id.child_index();
+            let child_index = self.id.child_index().unwrap().0;
             let mut min = self.bounding_cube.min();
             let edge_length = self.bounding_cube.edge_length();
             if (child_index & 0b001) != 0 {
@@ -338,7 +349,7 @@ impl Octree {
             };
 
             for child_index in 0..8 {
-                open.push(node_to_explore.get_child(child_index))
+                open.push(node_to_explore.get_child(ChildIndex(child_index)))
             }
 
             visible.push(VisibleNode {
@@ -410,11 +421,20 @@ impl Octree {
 
 #[cfg(test)]
 mod tests {
-    use super::NodeId;
+    use super::{ChildIndex, NodeId};
 
     #[test]
     fn test_parent_node_name() {
         assert_eq!(Some(NodeId::from_string("r12345".into())),
                    NodeId::from_string("r123456".into()).parent_id());
+    }
+
+    #[test]
+    fn test_child_index() {
+        assert_eq!(Some(ChildIndex(1)),
+                   NodeId::from_string("r123451".into()).child_index());
+        assert_eq!(Some(ChildIndex(7)),
+                   NodeId::from_string("r123457".into()).child_index());
+        assert_eq!(None, NodeId::from_string("r".into()).child_index());
     }
 }
