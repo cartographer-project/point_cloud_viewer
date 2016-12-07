@@ -368,7 +368,7 @@ mod tests {
 
     #[test]
     fn test_parent_node_name() {
-        assert_eq!(NodeId::from_string("r12345".into()),
+        assert_eq!(Some(NodeId::from_string("r12345".into())),
                    NodeId::from_string("r123456".into()).parent_id());
     }
 }
