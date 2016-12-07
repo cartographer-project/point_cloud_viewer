@@ -25,6 +25,11 @@ is useful in its own right.
 2. `cargo build --release`. The binaries will end up in `target/release/`. The
    server binaries includes the client files, so the server is stand alone.
 
+If you want to develop and change the `.proto` files you will also need to
+[install the code generation from
+rust-protobuf](https://github.com/stepancheg/rust-protobuf/). For now, the
+generated rust code is checked in and needs to be regenerated manually.
+
 ## Usage
 
 First, build an octree using `build_octree` from a point source like a PLY or

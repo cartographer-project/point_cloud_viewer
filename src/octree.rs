@@ -14,19 +14,19 @@
 
 use byteorder::{LittleEndian, ByteOrder};
 use errors::*;
-use json;
 use math::{CuboidLike, Cuboid, Cube, Matrix4f, Vector3f, Vector2f, Frustum};
 use point_stream::PointStream;
+use proto;
+use protobuf;
 use std::cmp;
 use std::collections::HashMap;
-use std::fs::{self, File};
-use std::io::Read;
-use std::path::{Path, PathBuf};
 use std::fmt;
+use std::fs::{self, File};
+use std::path::{Path, PathBuf};
 use std::result;
 use walkdir;
 
-pub const CURRENT_VERSION: i32 = 3;
+pub const CURRENT_VERSION: i32 = 4;
 
 /// Represents a child of an octree Node.
 #[derive(Debug,PartialEq,Eq)]
@@ -82,7 +82,9 @@ impl NodeId {
 
     /// The child index of this node in its parent.
     fn child_index(&self) -> Option<ChildIndex> {
-        if self.level() == 0 { return None; }
+        if self.level() == 0 {
+            return None;
+        }
         match *self.name.as_bytes().last().unwrap() as char {
             '0' => Some(ChildIndex(0)),
             '1' => Some(ChildIndex(1)),
@@ -268,23 +270,25 @@ pub enum UseLod {
 
 impl Octree {
     pub fn new(directory: PathBuf) -> Result<Self> {
-        let meta = {
-            let mut content = String::new();
-            File::open(&directory.join("meta.json"))?.read_to_string(&mut content)?;
-            json::parse(&content)?
-        };
-
-        match meta["version"].as_i32() {
-            None => return Err(ErrorKind::InvalidVersion(-1).into()),
-            Some(v) if v != CURRENT_VERSION => return Err(ErrorKind::InvalidVersion(v).into()),
-            _ => (), // Correct version.
+        // We used to use JSON earlier.
+        if directory.join("meta.json").exists() {
+            return Err(ErrorKind::InvalidVersion(3).into());
         }
 
-        let bounding_cube =
-            Cube::new(Vector3f::new(meta["bounding_cube"]["min_x"].as_f32().unwrap(),
-                                    meta["bounding_cube"]["min_y"].as_f32().unwrap(),
-                                    meta["bounding_cube"]["min_z"].as_f32().unwrap()),
-                      meta["bounding_cube"]["edge_length"].as_f32().unwrap());
+        let meta = {
+            let mut reader = File::open(&directory.join("meta.pb"))?;
+            protobuf::parse_from_reader::<proto::Meta>(&mut reader).chain_err(|| "Could not parse meta.pb")?
+        };
+
+        if meta.get_version() != CURRENT_VERSION {
+            return Err(ErrorKind::InvalidVersion(meta.get_version()).into());
+        }
+
+        let bounding_cube = {
+            let min = meta.get_bounding_cube().get_min();
+            Cube::new(Vector3f::new(min.get_x(), min.get_y(), min.get_z()),
+                      meta.get_bounding_cube().get_edge_length())
+        };
 
         let mut nodes = HashMap::new();
         for entry in walkdir::WalkDir::new(&directory).into_iter().filter_map(|e| e.ok()) {

@@ -12,29 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate byteorder;
+extern crate clap;
+extern crate pbr;
+extern crate point_viewer;
+extern crate protobuf;
+extern crate scoped_pool;
 #[macro_use]
 extern crate nom;
-extern crate clap;
-extern crate byteorder;
-extern crate point_viewer;
-extern crate scoped_pool;
-extern crate pbr;
-#[macro_use]
-extern crate json;
 
+use byteorder::{LittleEndian, WriteBytesExt};
+use pbr::ProgressBar;
 use point_viewer::errors::*;
 use point_viewer::math::{CuboidLike, Cube, Cuboid};
 use point_viewer::octree;
 use point_viewer::Point;
 use point_viewer::point_stream::PointStream;
+use point_viewer::proto;
 use point_viewer::pts::PtsPointStream;
-
-use byteorder::{LittleEndian, WriteBytesExt};
-use pbr::ProgressBar;
+use protobuf::core::Message;
 use scoped_pool::{Scope, Pool};
 use std::collections::HashSet;
 use std::fs::{self, File};
-use std::io::{BufWriter, Write, Stdout};
+use std::io::{BufWriter, Stdout};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
@@ -117,9 +117,7 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
         let array_index = child_index.as_u8() as usize;
         if children[array_index].is_none() {
             children[array_index] =
-                Some(NodeWriter::new(output_directory,
-                                     &node.get_child(child_index),
-                                     resolution));
+                Some(NodeWriter::new(output_directory, &node.get_child(child_index), resolution));
         }
         children[array_index].as_mut().unwrap().write(&p);
     }
@@ -286,20 +284,16 @@ fn main() {
 
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
-    let meta = object!{
-        "version" => octree::CURRENT_VERSION,
-        "resolution" => resolution,
-        "bounding_cube" => object!{
-            "min_x" => bounding_cube.min().x,
-            "min_y" => bounding_cube.min().y,
-            "min_z" => bounding_cube.min().z,
-            "edge_length" => bounding_cube.edge_length()
-        }
-    };
-    File::create(&output_directory.join("meta.json"))
-        .unwrap()
-        .write_all(&meta.pretty(4).as_bytes())
-        .unwrap();
+
+    let mut meta = proto::Meta::new();
+    meta.mut_bounding_cube().mut_min().set_x(bounding_cube.min().x);
+    meta.mut_bounding_cube().mut_min().set_y(bounding_cube.min().y);
+    meta.mut_bounding_cube().mut_min().set_z(bounding_cube.min().z);
+    meta.mut_bounding_cube().set_edge_length(bounding_cube.edge_length());
+    meta.set_resolution(resolution);
+    meta.set_version(octree::CURRENT_VERSION);
+    let mut meta_pb = File::create(&output_directory.join("meta.pb")).unwrap();
+    meta.write_to_writer(&mut meta_pb).unwrap();
 
     println!("Creating octree structure.");
     let pool = Pool::new(10);

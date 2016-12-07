@@ -16,9 +16,9 @@
 
 extern crate byteorder;
 extern crate cgmath;
-extern crate json;
 extern crate pbr;
 extern crate walkdir;
+extern crate protobuf;
 #[macro_use]
 extern crate error_chain;
 #[macro_use]
@@ -38,3 +38,5 @@ pub struct Point {
     pub g: u8,
     pub b: u8,
 }
+
+pub mod proto;
