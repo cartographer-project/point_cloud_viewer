@@ -28,7 +28,6 @@ pub mod math;
 pub mod octree;
 pub mod ply;
 pub mod pts;
-pub mod point_stream;
 pub mod errors;
 
 #[derive(Debug)]

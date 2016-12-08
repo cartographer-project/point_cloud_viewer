@@ -19,18 +19,18 @@ use std::io::{BufReader, BufRead};
 use std::path::Path;
 
 #[derive(Debug)]
-pub struct PtsPointStream {
+pub struct PtsIterator {
     data: BufReader<File>,
 }
 
-impl PtsPointStream {
+impl PtsIterator {
     pub fn new(filename: &Path) -> Self {
         let file = File::open(filename).unwrap();
-        PtsPointStream { data: BufReader::new(file) }
+        PtsIterator { data: BufReader::new(file) }
     }
 }
 
-impl Iterator for PtsPointStream {
+impl Iterator for PtsIterator {
     type Item = Point;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -21,71 +21,24 @@ extern crate scoped_pool;
 #[macro_use]
 extern crate nom;
 
-use byteorder::{LittleEndian, WriteBytesExt};
 use pbr::ProgressBar;
 use point_viewer::errors::*;
 use point_viewer::math::{CuboidLike, Cube, Cuboid};
 use point_viewer::octree;
 use point_viewer::Point;
-use point_viewer::point_stream::PointStream;
 use point_viewer::proto;
-use point_viewer::pts::PtsPointStream;
+use point_viewer::pts::PtsIterator;
+use point_viewer::ply::PlyIterator;
 use protobuf::core::Message;
 use scoped_pool::{Scope, Pool};
 use std::collections::HashSet;
 use std::fs::{self, File};
-use std::io::{BufWriter, Stdout};
+use std::io::Stdout;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
 const UPDATE_COUNT: i64 = 100000;
 const MAX_POINTS_PER_NODE: i64 = 100000;
-
-#[derive(Debug)]
-struct NodeWriter {
-    writer: BufWriter<File>,
-    path: PathBuf,
-    num_points: i64,
-}
-
-impl Drop for NodeWriter {
-    fn drop(&mut self) {
-        // If we did not write anything into this node, it should not exist.
-        if self.num_points == 0 {
-            // We are ignoring deletion errors here in case the file is already gone.
-            let _ = fs::remove_file(&self.path);
-        }
-
-        // TODO(hrapp): Add some sanity checks that we do not have nodes with ridiculously low
-        // amount of points laying around?
-    }
-}
-
-impl NodeWriter {
-    fn new(output_directory: &Path, node: &octree::Node, resolution: f64) -> Self {
-        // TODO: use this to fix-code encode the (x,y,z).
-        // let required_bytes = octree::required_bytes(bounding_cube, resolution);
-
-        let path = node.id.get_on_disk_path(output_directory);
-        NodeWriter {
-            writer: BufWriter::new(File::create(&path).unwrap()),
-            path: path,
-            num_points: 0,
-        }
-    }
-
-    pub fn write(&mut self, p: &Point) {
-        // Note that due to floating point rounding errors while calculating bounding boxes, it
-        // could be here that 'p' is not quite the bounding box of our node.
-        self.writer.write_f32::<LittleEndian>(p.position.x).unwrap();
-        self.writer.write_f32::<LittleEndian>(p.position.y).unwrap();
-        self.writer.write_f32::<LittleEndian>(p.position.z).unwrap();
-        self.writer.write_u8(p.r).unwrap();
-        self.writer.write_u8(p.g).unwrap();
-        self.writer.write_u8(p.b).unwrap();
-        self.num_points += 1;
-    }
-}
 
 struct SplittedNode {
     node: octree::Node,
@@ -97,8 +50,8 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
                                                 node: &octree::Node,
                                                 stream: PointIterator)
                                                 -> Vec<SplittedNode> {
-    let mut children: Vec<Option<NodeWriter>> = vec![None, None, None, None, None, None, None,
-                                                     None];
+    let mut children: Vec<Option<octree::NodeWriter>> = vec![None, None, None, None, None, None,
+                                                             None, None];
     match stream.size_hint().1 {
         Some(size) => {
             println!("Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",
@@ -116,17 +69,18 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
         let child_index = node.get_child_id_containing_point(&p.position);
         let array_index = child_index.as_u8() as usize;
         if children[array_index].is_none() {
-            children[array_index] =
-                Some(NodeWriter::new(output_directory, &node.get_child(child_index), resolution));
+            children[array_index] = Some(octree::NodeWriter::new(output_directory,
+                                                                 &node.get_child(child_index),
+                                                                 resolution));
         }
         children[array_index].as_mut().unwrap().write(&p);
     }
 
-    // Remove the node file on disk. This is only save some disk space during processing - all
-    // nodes will be rewritten by subsampling the children in the second step anyways. We also
-    // ignore file removing error. For example, we never write out the root, so it cannot be
-    // removed.
-    let _ = fs::remove_file(node.id.get_on_disk_path(output_directory));
+    // Remove the node file on disk by reopening the node and immediately dropping it again without
+    // writing a point. This only saves some disk space during processing - all nodes will be
+    // rewritten by subsampling the children in the second step anyways. We also ignore file
+    // removing error. For example, we never write out the root, so it cannot be removed.
+    octree::NodeWriter::new(output_directory, &node, resolution);
 
     let mut rv = Vec::new();
     for (child_index, c) in children.into_iter().enumerate() {
@@ -137,7 +91,7 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
 
         rv.push(SplittedNode {
             node: node.get_child(octree::ChildIndex::from_u8(child_index as u8)),
-            num_points: c.num_points,
+            num_points: c.num_written(),
         });
     }
     rv
@@ -159,10 +113,7 @@ fn split_node<'a, 'b, Points>(scope: &Scope<'a>,
     for child in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
         scope.recurse(move |scope| {
-            let blob_path = child.node.id.get_on_disk_path(output_directory);
-            let stream = PointStream::from_blob(&blob_path)
-                .chain_err(|| format!("Could not open {:?}", blob_path))
-                .unwrap();
+            let stream = octree::NodeIterator::from_disk(output_directory, &child.node.id).unwrap();
             split_node(scope,
                        output_directory,
                        resolution,
@@ -181,19 +132,22 @@ fn subsample_children_into(output_directory: &Path,
                            node: octree::Node,
                            resolution: f64)
                            -> Result<()> {
-    let mut parent_writer = NodeWriter::new(output_directory, &node, resolution);
+    let mut parent_writer = octree::NodeWriter::new(output_directory, &node, resolution);
     println!("Creating {} from subsampling children.", &node.id);
     for i in 0..8 {
         let child = node.get_child(octree::ChildIndex::from_u8(i));
-        let path = child.id.get_on_disk_path(output_directory);
-        if !path.exists() {
-            continue;
-        }
-        let points: Vec<_> = PointStream::from_blob(&path)
-            .chain_err(|| format!("Could not find {:?}", path))?
-            .collect();
-        let mut child_writer = NodeWriter::new(output_directory, &child, resolution);
-        for (idx, p) in points.into_iter().enumerate() {
+        let node_iterator = match octree::NodeIterator::from_disk(output_directory, &child.id) {
+            Ok(node_iterator) => node_iterator,
+            Err(Error(ErrorKind::NodeNotFound, _)) => continue,
+            Err(err) => return Err(err),
+        };
+
+        // We read all points into memory, because the new node writer will rewrite this child's
+        // file(s).
+        let points = node_iterator.collect::<Vec<Point>>().into_iter();
+
+        let mut child_writer = octree::NodeWriter::new(output_directory, &child, resolution);
+        for (idx, p) in points.enumerate() {
             if idx % 8 == 0 {
                 parent_writer.write(&p);
             } else {
@@ -213,8 +167,8 @@ enum InputFile {
 fn make_stream(input: &InputFile)
                -> (Box<Iterator<Item = Point>>, Option<pbr::ProgressBar<Stdout>>) {
     let stream: Box<Iterator<Item = Point>> = match *input {
-        InputFile::Ply(ref filename) => Box::new(PointStream::from_ply(filename)),
-        InputFile::Pts(ref filename) => Box::new(PtsPointStream::new(filename)),
+        InputFile::Ply(ref filename) => Box::new(PlyIterator::new(filename)),
+        InputFile::Pts(ref filename) => Box::new(PtsIterator::new(filename)),
     };
 
     let progress_bar = match stream.size_hint().1 {
