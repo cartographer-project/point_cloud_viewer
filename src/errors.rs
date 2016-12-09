@@ -28,5 +28,9 @@ error_chain! {
             The viewer might eventually be backwards compatible, but for now only \
             the currently created version is supported.", version, octree::CURRENT_VERSION)
         }
+
+        NodeNotFound {
+            description("The node does not exist.")
+        }
     }
 }

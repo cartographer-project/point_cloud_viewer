@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ::byteorder::{LittleEndian, ByteOrder};
-use ::math::Vector3f;
-use ::nom;
-use ::Point;
-use ::std::fs::File;
+use byteorder::{LittleEndian, ByteOrder};
+use math::Vector3f;
+use nom;
+use ply;
+use Point;
+use std::fs::File;
+use std::io::BufReader;
 use std::io::{SeekFrom, Read, Seek};
-use ::std::path::Path;
-use ::std::str;
+use std::path::Path;
+use std::str;
 
 // TODO(hrapp): nom is a PITA when working with streams instead of byte arrays. Maybe get rid of it
 // again?
@@ -184,12 +186,51 @@ pub fn open(ply_file: &Path) -> (File, i64) {
 }
 
 /// Read a single point (x, y, z, r, g, b) tuple out of 'data'.
-pub fn read_point<T: Read>(data: &mut T) -> Point {
+fn read_point<T: Read>(data: &mut T) -> Point {
     let mut bytes = [0u8; 15];
     data.read_exact(&mut bytes).unwrap();
     match point(&bytes) {
         nom::IResult::Done(_, h) => h,
         nom::IResult::Error(err) => panic!("Parsing error: {}", err),
         nom::IResult::Incomplete(_) => panic!("Parsing error: Unexpected end of data."),
+    }
+}
+
+/// Abstraction to read binary points from ply files into points.
+pub struct PlyIterator {
+    data: BufReader<File>,
+    num_points_read: i64,
+    pub num_total_points: i64,
+}
+
+impl PlyIterator {
+    pub fn new(ply_file: &Path) -> Self {
+        let (file, num_total_points) = ply::open(ply_file);
+        Self::from_reader_and_count(BufReader::new(file), num_total_points)
+    }
+
+    fn from_reader_and_count(data: BufReader<File>, num_total_points: i64) -> Self {
+        PlyIterator {
+            data: data,
+            num_total_points: num_total_points,
+            num_points_read: 0,
+        }
+    }
+}
+
+impl Iterator for PlyIterator {
+    type Item = Point;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.num_points_read >= self.num_total_points {
+            return None;
+        }
+        let point = ply::read_point(&mut self.data);
+        self.num_points_read += 1;
+        Some(point)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.num_total_points as usize, Some(self.num_total_points as usize))
     }
 }
