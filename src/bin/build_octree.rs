@@ -97,14 +97,13 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
     rv
 }
 
-fn split_node<'a, 'b, Points>(scope: &Scope<'a>,
-                              output_directory: &'b Path,
-                              resolution: f64,
-                              splitted_node: SplittedNode,
-                              stream: Points,
-                              leaf_nodes_sender: mpsc::Sender<octree::Node>)
-    where 'b: 'a,
-          Points: Iterator<Item = Point>
+fn split_node<'a, 'b: 'a, Points>(scope: &Scope<'a>,
+                                  output_directory: &'b Path,
+                                  resolution: f64,
+                                  splitted_node: SplittedNode,
+                                  stream: Points,
+                                  leaf_nodes_sender: mpsc::Sender<octree::Node>)
+    where Points: Iterator<Item = Point>
 {
     let children = split(output_directory, resolution, &splitted_node.node, stream);
     let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) = children.into_iter()

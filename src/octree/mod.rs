@@ -27,23 +27,7 @@ mod node;
 
 pub use self::node::{Node, NodeIterator, NodeId, NodeWriter, ChildIndex};
 
-pub const CURRENT_VERSION: i32 = 5;
-
-#[derive(Debug)]
-pub enum BytesPerCoordinate {
-    One,
-    Two,
-    Four,
-}
-
-pub fn required_bytes(bounding_cube: &Cube, resolution: f64) -> BytesPerCoordinate {
-    let min_bits = (bounding_cube.edge_length() as f64 / resolution).log2() as u32 + 1;
-    match min_bits {
-        0...8 => BytesPerCoordinate::One,
-        9...16 => BytesPerCoordinate::Two,
-        _ => BytesPerCoordinate::Four,
-    }
-}
+pub const CURRENT_VERSION: i32 = 6;
 
 #[derive(Debug)]
 pub struct VisibleNode {
@@ -109,8 +93,7 @@ impl Octree {
 
         let meta = {
             let mut reader = File::open(&directory.join("meta.pb"))?;
-            protobuf::parse_from_reader::<proto::Meta>(&mut reader)
-                .chain_err(|| "Could not parse meta.pb")?
+            protobuf::parse_from_reader::<proto::Meta>(&mut reader).chain_err(|| "Could not parse meta.pb")?
         };
 
         if meta.get_version() != CURRENT_VERSION {

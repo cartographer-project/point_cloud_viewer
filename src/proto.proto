@@ -34,3 +34,16 @@ message Meta {
   optional BoundingCube bounding_cube = 2;
   optional double resolution = 3;
 }
+
+message Node {
+  enum PositionEncoding {
+    Uint8 = 1;
+    Uint16 = 2;
+    Float32 = 3;
+  }
+
+  optional BoundingCube bounding_cube = 1;
+  optional PositionEncoding position_encoding = 2;
+  optional int64 num_points = 3;
+}
+
