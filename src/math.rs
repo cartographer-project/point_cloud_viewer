@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use cgmath;
-use cgmath::prelude::*;
 use std;
 
 // TODO(hrapp): collision-rs has nearly everything we need. The Frustum is missing a 'intersects'
@@ -22,6 +21,7 @@ use std;
 pub type Vector2f = cgmath::Vector2<f32>;
 pub type Vector3f = cgmath::Vector3<f32>;
 pub type Matrix4f = cgmath::Matrix4<f32>;
+pub use cgmath::prelude::*;
 
 pub trait CuboidLike {
     fn min(&self) -> Vector3f;
@@ -223,5 +223,14 @@ impl Cuboid {
             min: self.min,
             edge_length: edge_length,
         }
+    }
+}
+
+pub fn clamp(value: f32, low: f32, high: f32) -> f32
+{
+    if value < high {
+        value.max(low)
+    } else {
+        value.min(high)
     }
 }

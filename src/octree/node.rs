@@ -14,14 +14,22 @@
 
 use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 use errors::*;
-use math::{Cube, CuboidLike, Vector3f};
+use math::{Cube, CuboidLike, Vector3f, Zero, clamp};
+use num;
+use num_traits;
 use Point;
+use proto;
+use protobuf::{self, Message};
 use std::fmt;
 use std::fs::{self, File};
 use std::io::BufReader;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::result;
+
+const META_EXT: &'static str = ".pb";
+const POSITION_EXT: &'static str = "xyz";
+const COLOR_EXT: &'static str = "rgb";
 
 /// Represents a child of an octree Node.
 #[derive(Debug,PartialEq,Eq)]
@@ -197,22 +205,36 @@ pub struct NodeIterator {
     rgb_reader: BufReader<File>,
     num_points_read: i64,
     num_total_points: i64,
+    position_encoding: PositionEncoding,
+    bounding_cube: Cube,
 }
 
 impl NodeIterator {
     pub fn from_disk(directory: &Path, id: &NodeId) -> Result<Self> {
         let stem = id.get_stem(directory);
-        let xyz_path = stem.with_extension("xyz");
+        let xyz_path = stem.with_extension(META_EXT);
         if !xyz_path.exists() {
             return Err(ErrorKind::NodeNotFound.into());
         }
-        let xyz_file = File::open(&xyz_path).unwrap();
-        let num_total_points = fs::metadata(&xyz_path).unwrap().len() as i64 / 12;
+
+        let meta = {
+            let mut reader = File::open(&stem.with_extension(META_EXT))?;
+            protobuf::parse_from_reader::<proto::Node>(&mut reader).chain_err(|| "Could not parse node protobuf.")?
+        };
+
         Ok(NodeIterator {
-            xyz_reader: BufReader::new(xyz_file),
-            rgb_reader: BufReader::new(File::open(stem.with_extension("rgb")).unwrap()),
+            xyz_reader: BufReader::new(File::open(&stem.with_extension(POSITION_EXT))?),
+            rgb_reader: BufReader::new(File::open(stem.with_extension(COLOR_EXT))?),
             num_points_read: 0,
-            num_total_points: num_total_points,
+            num_total_points: meta.get_num_points(),
+            position_encoding: PositionEncoding::from_proto(&meta.get_position_encoding()),
+            // TODO(hrapp): Would be nice to have a from_proto and to_proto as a trait.
+            bounding_cube: {
+                let proto = meta.get_bounding_cube();
+                let min = proto.get_min();
+                Cube::new(Vector3f::new(min.get_x(), min.get_y(), min.get_z()),
+                          proto.get_edge_length())
+            },
         })
     }
 }
@@ -226,14 +248,46 @@ impl Iterator for NodeIterator {
         }
 
         let mut point = Point {
-            position: Vector3f::new(self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                                    self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                                    self.xyz_reader.read_f32::<LittleEndian>().unwrap()),
+            position: Vector3f::zero(),
             r: 0,
             g: 0,
             b: 0,
         };
 
+        match self.position_encoding {
+            PositionEncoding::Float32 => {
+                point.position.x = self.xyz_reader.read_f32::<LittleEndian>().unwrap();
+                point.position.y = self.xyz_reader.read_f32::<LittleEndian>().unwrap();
+                point.position.z = self.xyz_reader.read_f32::<LittleEndian>().unwrap();
+            }
+            PositionEncoding::Uint8 => {
+                let edge_length = self.bounding_cube.edge_length();
+                let min = self.bounding_cube.min();
+                point.position.x =
+                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.x, edge_length);
+                point.position.y =
+                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.y, edge_length);
+                point.position.z =
+                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.z, edge_length);
+            }
+            PositionEncoding::Uint16 => {
+                let edge_length = self.bounding_cube.edge_length();
+                let min = self.bounding_cube.min();
+                point.position.x =
+                    fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                                    min.x,
+                                    edge_length);
+                point.position.y =
+                    fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                                    min.y,
+                                    edge_length);
+                point.position.z =
+                    fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                                    min.z,
+                                    edge_length);
+            }
+
+        }
 
         point.r = self.rgb_reader.read_u8().unwrap();
         point.g = self.rgb_reader.read_u8().unwrap();
@@ -248,9 +302,61 @@ impl Iterator for NodeIterator {
 }
 
 #[derive(Debug)]
+pub enum PositionEncoding {
+    Uint8,
+    Uint16,
+    Float32,
+}
+
+impl PositionEncoding {
+    fn new(bounding_cube: &Cube, resolution: f64) -> PositionEncoding {
+        let min_bits = (bounding_cube.edge_length() as f64 / resolution).log2() as u32 + 1;
+        match min_bits {
+            0...8 => PositionEncoding::Uint8,
+            9...16 => PositionEncoding::Uint16,
+            _ => PositionEncoding::Float32,
+        }
+    }
+
+    fn from_proto(proto: &proto::Node_PositionEncoding) -> Self {
+        match *proto {
+            proto::Node_PositionEncoding::Uint8 => PositionEncoding::Uint8,
+            proto::Node_PositionEncoding::Uint16 => PositionEncoding::Uint16,
+            proto::Node_PositionEncoding::Float32 => PositionEncoding::Float32,
+        }
+    }
+
+    fn to_proto(&self) -> proto::Node_PositionEncoding {
+        match *self {
+            PositionEncoding::Uint8 => proto::Node_PositionEncoding::Uint8,
+            PositionEncoding::Uint16 => proto::Node_PositionEncoding::Uint16,
+            PositionEncoding::Float32 => proto::Node_PositionEncoding::Float32,
+        }
+    }
+}
+
+fn fixpoint_encode<T>(value: f32, min: f32, edge_length: f32) -> T
+    where T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast
+{
+    let value = clamp((value - min) / edge_length, 0., 1.) *
+                num::cast::<T, f32>(T::max_value()).unwrap();
+    num::cast(value).unwrap()
+}
+
+fn fixpoint_decode<T>(value: T, min: f32, edge_length: f32) -> f32
+    where T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast
+{
+    let max: f32 = num::cast(T::max_value()).unwrap();
+    let v: f32 = num::cast(value).unwrap();
+    v / max * edge_length + min
+}
+
+#[derive(Debug)]
 pub struct NodeWriter {
     xyz_writer: BufWriter<File>,
     rgb_writer: BufWriter<File>,
+    bounding_cube: Cube,
+    position_encoding: PositionEncoding,
     stem: PathBuf,
     num_written: i64,
 }
@@ -260,6 +366,16 @@ impl Drop for NodeWriter {
         // If we did not write anything into this node, it should not exist.
         if self.num_written == 0 {
             self.remove_all_files();
+        } else {
+            let mut proto = proto::Node::new();
+            proto.mut_bounding_cube().mut_min().set_x(self.bounding_cube.min().x);
+            proto.mut_bounding_cube().mut_min().set_y(self.bounding_cube.min().y);
+            proto.mut_bounding_cube().mut_min().set_z(self.bounding_cube.min().z);
+            proto.mut_bounding_cube().set_edge_length(self.bounding_cube.edge_length());
+            proto.set_position_encoding(self.position_encoding.to_proto());
+            proto.set_num_points(self.num_written);
+            let mut file = File::create(&self.stem.with_extension(META_EXT)).unwrap();
+            proto.write_to_writer(&mut file).unwrap();
         }
 
         // TODO(hrapp): Add some sanity checks that we do not have nodes with ridiculously low
@@ -269,24 +385,55 @@ impl Drop for NodeWriter {
 
 impl NodeWriter {
     pub fn new(output_directory: &Path, node: &Node, resolution: f64) -> Self {
-        // TODO: use this to fix-code encode the (x,y,z).
-        // let required_bytes = octree::required_bytes(bounding_cube, resolution);
 
         let stem = node.id.get_stem(output_directory);
         NodeWriter {
-            xyz_writer: BufWriter::new(File::create(&stem.with_extension("xyz")).unwrap()),
-            rgb_writer: BufWriter::new(File::create(&stem.with_extension("rgb")).unwrap()),
+            xyz_writer: BufWriter::new(File::create(&stem.with_extension(POSITION_EXT)).unwrap()),
+            rgb_writer: BufWriter::new(File::create(&stem.with_extension(COLOR_EXT)).unwrap()),
             stem: stem,
+            position_encoding: PositionEncoding::new(&node.bounding_cube, resolution),
+            bounding_cube: node.bounding_cube.clone(),
             num_written: 0,
         }
     }
 
     pub fn write(&mut self, p: &Point) {
         // Note that due to floating point rounding errors while calculating bounding boxes, it
-        // could be here that 'p' is not quite the bounding box of our node.
-        self.xyz_writer.write_f32::<LittleEndian>(p.position.x).unwrap();
-        self.xyz_writer.write_f32::<LittleEndian>(p.position.y).unwrap();
-        self.xyz_writer.write_f32::<LittleEndian>(p.position.z).unwrap();
+        // could be here that 'p' is not quite inside the bounding box of our node.
+        match self.position_encoding {
+            PositionEncoding::Float32 => {
+                self.xyz_writer.write_f32::<LittleEndian>(p.position.x).unwrap();
+                self.xyz_writer.write_f32::<LittleEndian>(p.position.y).unwrap();
+                self.xyz_writer.write_f32::<LittleEndian>(p.position.z).unwrap();
+            }
+            PositionEncoding::Uint8 => {
+                let edge_length = self.bounding_cube.edge_length();
+                let min = self.bounding_cube.min();
+                self.xyz_writer
+                    .write_u8(fixpoint_encode(p.position.x, min.x, edge_length))
+                    .unwrap();
+                self.xyz_writer
+                    .write_u8(fixpoint_encode(p.position.y, min.y, edge_length))
+                    .unwrap();
+                self.xyz_writer
+                    .write_u8(fixpoint_encode(p.position.z, min.z, edge_length))
+                    .unwrap();
+            }
+            PositionEncoding::Uint16 => {
+                let edge_length = self.bounding_cube.edge_length();
+                let min = self.bounding_cube.min();
+                self.xyz_writer
+                    .write_u16::<LittleEndian>(fixpoint_encode(p.position.x, min.x, edge_length))
+                    .unwrap();
+                self.xyz_writer
+                    .write_u16::<LittleEndian>(fixpoint_encode(p.position.y, min.y, edge_length))
+                    .unwrap();
+                self.xyz_writer
+                    .write_u16::<LittleEndian>(fixpoint_encode(p.position.z, min.z, edge_length))
+                    .unwrap();
+            }
+        }
+
         self.rgb_writer.write_u8(p.r).unwrap();
         self.rgb_writer.write_u8(p.g).unwrap();
         self.rgb_writer.write_u8(p.b).unwrap();
@@ -299,8 +446,9 @@ impl NodeWriter {
 
     fn remove_all_files(&self) {
         // We are ignoring deletion errors here in case the file is already gone.
-        let _ = fs::remove_file(&self.stem.with_extension("xyz"));
-        let _ = fs::remove_file(&self.stem.with_extension("rgb"));
+        let _ = fs::remove_file(&self.stem.with_extension(POSITION_EXT));
+        let _ = fs::remove_file(&self.stem.with_extension(COLOR_EXT));
+        let _ = fs::remove_file(&self.stem.with_extension(META_EXT));
     }
 }
 
