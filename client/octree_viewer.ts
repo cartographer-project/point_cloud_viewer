@@ -215,6 +215,7 @@ class NodeData {
     // THREE can no longer figure out the bounding box or the bounding sphere of
     // this node, since the 'position' attribute does not contain it. So we
     // help it out.
+    const SQR3 = 1.7320508075688772; 
     geometry.boundingBox = new THREE.Box3(
         nodeRenderData.min,
         new THREE.Vector3(
@@ -226,7 +227,7 @@ class NodeData {
             nodeRenderData.min.x + nodeRenderData.edgeLength / 2,
             nodeRenderData.min.y + nodeRenderData.edgeLength / 2,
             nodeRenderData.min.z + nodeRenderData.edgeLength / 2),
-        nodeRenderData.edgeLength / 2
+        nodeRenderData.edgeLength / 2 * SQR3
     );
 
     let material = commonMaterial.clone();
