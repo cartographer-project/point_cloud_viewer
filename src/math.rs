@@ -226,8 +226,7 @@ impl Cuboid {
     }
 }
 
-pub fn clamp(value: f32, low: f32, high: f32) -> f32
-{
+pub fn clamp(value: f32, low: f32, high: f32) -> f32 {
     if value < high {
         value.max(low)
     } else {

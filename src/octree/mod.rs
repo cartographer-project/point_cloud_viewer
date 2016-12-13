@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use byteorder::{LittleEndian, ByteOrder};
 use errors::*;
 use math::{CuboidLike, Cuboid, Cube, Matrix4f, Vector3f, Vector2f, Frustum};
 use proto;
@@ -21,13 +20,14 @@ use std::cmp;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::path::PathBuf;
+use std::io::{Read, BufReader};
 use walkdir;
 
 mod node;
 
-pub use self::node::{Node, NodeIterator, NodeId, NodeWriter, ChildIndex};
+pub use self::node::{Node, NodeIterator, NodeId, NodeWriter, ChildIndex, PositionEncoding};
 
-pub const CURRENT_VERSION: i32 = 6;
+pub const CURRENT_VERSION: i32 = 7;
 
 #[derive(Debug)]
 pub struct VisibleNode {
@@ -84,6 +84,13 @@ pub enum UseLod {
     Yes,
 }
 
+#[derive(Debug)]
+pub struct NodeData {
+    pub meta: node::NodeMeta,
+    pub position: Vec<u8>,
+    pub color: Vec<u8>,
+}
+
 impl Octree {
     pub fn new(directory: PathBuf) -> Result<Self> {
         // We used to use JSON earlier.
@@ -93,7 +100,8 @@ impl Octree {
 
         let meta = {
             let mut reader = File::open(&directory.join("meta.pb"))?;
-            protobuf::parse_from_reader::<proto::Meta>(&mut reader).chain_err(|| "Could not parse meta.pb")?
+            protobuf::parse_from_reader::<proto::Meta>(&mut reader)
+                .chain_err(|| "Could not parse meta.pb")?
         };
 
         if meta.get_version() != CURRENT_VERSION {
@@ -190,52 +198,55 @@ impl Octree {
         visible
     }
 
-    pub fn get_nodes_as_binary_blob(&self, nodes: &[NodesToBlob]) -> Result<(usize, Vec<u8>)> {
-        const NUM_BYTES_PER_POINT: usize = 4 * 3 + 4;
-
-        let mut num_points = 0;
-        let mut rv = Vec::new();
-        for node in nodes {
-            let points: Vec<_> = NodeIterator::from_disk(&self.directory, &node.id)?.collect();
+    pub fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
+        let meta = {
+            let mut meta = node::NodeMeta::from_disk(&self.directory, &node_id)?;
             let num_points_for_lod =
-                (points.len() as f32 / node.level_of_detail as f32).ceil() as usize;
+                (meta.num_points as f32 / level_of_detail as f32).ceil() as i64;
+            meta.num_points = num_points_for_lod;
+            meta
+        };
 
-            num_points += num_points_for_lod;
-            let mut pos = rv.len();
-            rv.resize(pos + 4 + NUM_BYTES_PER_POINT * num_points_for_lod, 0u8);
-            LittleEndian::write_u32(&mut rv[pos..],
-                                    (num_points_for_lod * NUM_BYTES_PER_POINT) as u32);
-            pos += 4;
+        // TODO(hrapp): If we'd randomize the points while writing, we could just read the
+        // first N points instead of reading everything and skipping over a few.
+        let position = {
+            let mut xyz_reader = BufReader::new(File::open(&meta.stem
+                .with_extension(node::POSITION_EXT))?);
+            let mut all_data = Vec::new();
+            xyz_reader.read_to_end(&mut all_data).chain_err(|| "Could not read position")?;
 
-            // Put positions.
-            for (idx, p) in points.iter().enumerate() {
-                if idx % node.level_of_detail as usize != 0 {
+            let mut position = Vec::new();
+            let bytes_per_point = meta.position_encoding.bytes_per_coordinate() * 3;
+            position.reserve(bytes_per_point * meta.num_points as usize);
+            for (idx, chunk) in all_data.chunks(bytes_per_point).enumerate() {
+                if idx % level_of_detail as usize != 0 {
                     continue;
                 }
-                LittleEndian::write_f32(&mut rv[pos..], p.position.x);
-                pos += 4;
-                LittleEndian::write_f32(&mut rv[pos..], p.position.y);
-                pos += 4;
-                LittleEndian::write_f32(&mut rv[pos..], p.position.z);
-                pos += 4;
+                position.extend(chunk);
             }
+            position
+        };
 
-            // Put colors.
-            for (idx, p) in points.iter().enumerate() {
-                if idx % node.level_of_detail as usize != 0 {
+        let color = {
+            let mut rgb_reader = BufReader::new(File::open(&meta.stem
+                    .with_extension(node::COLOR_EXT)).chain_err(|| "Could not read color")?);
+            let mut all_data = Vec::new();
+            rgb_reader.read_to_end(&mut all_data).chain_err(|| "Could not read color")?;
+            let mut color = Vec::new();
+            color.reserve(3 * meta.num_points as usize);
+            for (idx, chunk) in all_data.chunks(3).enumerate() {
+                if idx % level_of_detail as usize != 0 {
                     continue;
                 }
-                rv[pos] = p.r;
-                pos += 1;
-                rv[pos] = p.g;
-                pos += 1;
-                rv[pos] = p.b;
-                pos += 1;
-                rv[pos] = 255;
-                pos += 1;
+                color.extend(chunk);
             }
-        }
-        assert_eq!(4 * nodes.len() + NUM_BYTES_PER_POINT * num_points, rv.len());
-        Ok((num_points, rv))
+            color
+        };
+
+        Ok(NodeData {
+            position: position,
+            color: color,
+            meta: meta,
+        })
     }
 }

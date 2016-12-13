@@ -20,22 +20,26 @@ const KEY_L = 'L'.charCodeAt(0);
 
 let VERTEX_SHADER = `
 uniform float size;
-attribute vec4 color;
+uniform float edgeLength;
+uniform vec3 min;
 
-varying vec4 v_color;  // 'varying' vars are passed to the fragment shader
+attribute vec3 color;
+
+varying vec3 v_color;
 
 void main() {
   v_color = color / 255.;   // pass the color to the fragment shader
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * modelViewMatrix *
+    vec4(position * edgeLength + min, 1.0);
   gl_PointSize = size;
 }
 `;
 
 let FRAGMENT_SHADER = `
-varying vec4 v_color;
+varying vec3 v_color;
 
 void main() {
-  gl_FragColor = v_color;
+  gl_FragColor = vec4(v_color, 1.);
 }
 `;
 
@@ -61,14 +65,19 @@ function matrixToString(m: THREE.Matrix4): string {
   ].join(',');
 }
 
-class NodePoints {
-  constructor(public points: Float32Array, public colors: Uint8Array) {}
+class NodeRenderData {
+  constructor(
+      public min: THREE.Vector3,
+      public edgeLength: number,
+      public position: Float32Array|Uint16Array|Uint8Array,
+      public normalizePosition: boolean,
+      public color: Uint8Array) {}
 }
 
 class NodeLoader {
-  public load(scene: THREE.Scene, material: THREE.ShaderMaterial, entries: [
-    NodeData, number
-  ][]): Promise<void> {
+  public load(scene: THREE.Scene,
+              material: THREE.ShaderMaterial,
+              entries: [NodeData, number][]): Promise<void> {
     let query: string[] = [];
 
     for (const entry of entries) {
@@ -86,21 +95,65 @@ class NodeLoader {
 
     return window.fetch(request).then(data => data.arrayBuffer()).then(data => {
       let view = new DataView(data);
-      let numBytesRead = 0;
       let currentEntry = 0;
-      while (numBytesRead < data.byteLength) {
-        const numBytesInBlob =
+      let numBytesRead = 0;
+      while (entries[currentEntry] !== undefined) {
+        let min_x = view.getFloat32(numBytesRead, true /* littleEndian */);
+        numBytesRead += 4;
+        let min_y = view.getFloat32(numBytesRead, true /* littleEndian */);
+        numBytesRead += 4;
+        let min_z = view.getFloat32(numBytesRead, true /* littleEndian */);
+        numBytesRead += 4;
+        let edgeLength = view.getFloat32(numBytesRead, true /* littleEndian */);
+        numBytesRead += 4;
+
+        const numPoints =
             view.getUint32(numBytesRead, true /* littleEndian */);
         numBytesRead += 4;
-        const BytesPerPoint = 16;
-        const numPoints = numBytesInBlob / BytesPerPoint;
-        let points = new NodePoints(
-            new Float32Array(data, numBytesRead, numPoints * 3),
-            new Uint8Array(
-                data, numBytesRead + numPoints * 12, numPoints * 4));
+
+        const bytesPerCoordinate = view.getUint8(numBytesRead);
+        numBytesRead += 1;
+        if (numBytesRead % 4 != 0) {
+          numBytesRead += 4 - (numBytesRead % 4);
+        }
+
+        let position: Float32Array|Uint16Array|Uint8Array;
+        let normalizePosition: boolean;
+        switch (bytesPerCoordinate) {
+          case 4:
+            position = new Float32Array(data, numBytesRead, numPoints * 3);
+            normalizePosition = false;
+            break;
+
+          case 2:
+            position = new Uint16Array(data, numBytesRead, numPoints * 3);
+            normalizePosition = true;
+            break;
+
+          case 1:
+            position = new Uint8Array(data, numBytesRead, numPoints * 3);
+            normalizePosition = true;
+            break;
+
+          default:
+            console.log("Invalid bytesPerCoordinate: ", bytesPerCoordinate);
+        }
+        numBytesRead += numPoints * bytesPerCoordinate * 3;
+        if (numBytesRead % 4 != 0) {
+          numBytesRead += 4 - (numBytesRead % 4);
+        }
+
+        let color = new Uint8Array(data, numBytesRead, numPoints * 3);
+        numBytesRead += numPoints * 3;
+        if (numBytesRead % 4 != 0) {
+          numBytesRead += 4 - (numBytesRead % 4);
+        }
+
+        let render_data = new NodeRenderData(
+            new THREE.Vector3(min_x, min_y, min_z), edgeLength, position,
+            normalizePosition, color);
         let entry = entries[currentEntry];
-        entry[0].newData(scene, material, entry[1], points);
-        numBytesRead += numPoints * BytesPerPoint;
+        entry[0].newData(scene, material, entry[1], render_data);
         currentEntry += 1;
       }
     });
@@ -108,56 +161,81 @@ class NodeLoader {
 }
 
 class NodeData {
-  private displayedLevel: number;
-  private fetchingLevel: number;
+  private diplayedLevelOfDetail: number;
+  private fetchingLevelOfDetail: number;
   private threePoints: THREE.Points;
 
   constructor(public nodeName: string) {
-    this.displayedLevel = -1;
-    this.fetchingLevel = -1;
+    this.diplayedLevelOfDetail = -1;
+    this.fetchingLevelOfDetail = -1;
     this.threePoints = undefined;
   }
 
   public isUpToDate(lod: number) {
-    if (this.fetchingLevel === lod) {
+    if (this.fetchingLevelOfDetail === lod) {
       return true;
     }
-    if (this.fetchingLevel === -1 && this.displayedLevel === lod) {
+    if (this.fetchingLevelOfDetail === -1 && this.diplayedLevelOfDetail === lod) {
       return true;
     }
     return false;
   }
 
-  public startFetching(lod: number) { this.fetchingLevel = lod; }
+  public startFetching(lod: number) { this.fetchingLevelOfDetail = lod; }
 
   public newData(
-      scene: THREE.Scene, material: THREE.ShaderMaterial, lod: number,
-      nodePoints: NodePoints) {
+      scene: THREE.Scene, commonMaterial: THREE.ShaderMaterial, lod: number,
+      nodeRenderData: NodeRenderData) {
     // If this node contains no points.
-    if (nodePoints.points.length === 0) {
+    if (nodeRenderData.position.length === 0) {
       return;
     }
 
-    if (lod !== this.fetchingLevel) {
+    if (lod !== this.fetchingLevelOfDetail) {
       return;
     }
-    this.fetchingLevel = -1;
+    this.fetchingLevelOfDetail = -1;
 
-    if (this.displayedLevel === lod) {
+    if (this.diplayedLevelOfDetail === lod) {
       return;
     }
-    this.displayedLevel = lod;
+    this.diplayedLevelOfDetail = lod;
 
     if (this.threePoints !== undefined) {
       scene.remove(this.threePoints);
     }
 
     const geometry = new THREE.BufferGeometry();
-    // itemSize = 3 because there are 3 values (components) per vertex
+    // itemSize = 3 because there are 3 values (components) per vertex.
     geometry.addAttribute(
-        'position', new THREE.BufferAttribute(nodePoints.points, 3));
+        'position', new THREE.BufferAttribute(nodeRenderData.position, 3, nodeRenderData.normalizePosition));
     geometry.addAttribute(
-        'color', new THREE.BufferAttribute(nodePoints.colors, 4));
+        'color', new THREE.BufferAttribute(nodeRenderData.color, 3));
+
+    // THREE can no longer figure out the bounding box or the bounding sphere of
+    // this node, since the 'position' attribute does not contain it. So we
+    // help it out.
+    const SQR3 = 1.7320508075688772; 
+    geometry.boundingBox = new THREE.Box3(
+        nodeRenderData.min,
+        new THREE.Vector3(
+            nodeRenderData.min.x + nodeRenderData.edgeLength,
+            nodeRenderData.min.y + nodeRenderData.edgeLength,
+            nodeRenderData.min.z + nodeRenderData.edgeLength));
+    geometry.boundingSphere = new THREE.Sphere(
+        new THREE.Vector3(
+            nodeRenderData.min.x + nodeRenderData.edgeLength / 2,
+            nodeRenderData.min.y + nodeRenderData.edgeLength / 2,
+            nodeRenderData.min.z + nodeRenderData.edgeLength / 2),
+        nodeRenderData.edgeLength / 2 * SQR3
+    );
+
+    let material = commonMaterial.clone();
+    material.uniforms = {
+      min: { value: nodeRenderData.min },
+      edgeLength: { value: nodeRenderData.edgeLength },
+      size: commonMaterial.uniforms.size,
+    };
     this.threePoints = new THREE.Points(geometry, material);
     scene.add(this.threePoints);
   }
