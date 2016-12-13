@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate iron;
-extern crate json;
+extern crate byteorder;
 extern crate point_viewer;
 extern crate router;
+extern crate time;
 extern crate urlencoded;
 #[macro_use]
 extern crate clap;
-extern crate time;
+extern crate iron;
+extern crate json;
 
+use byteorder::{LittleEndian, WriteBytesExt};
 use iron::mime::Mime;
 use iron::prelude::*;
-use point_viewer::math::Matrix4f;
+use point_viewer::math::{Matrix4f, CuboidLike};
 use point_viewer::octree;
 use router::Router;
 use std::io::Read;
@@ -110,6 +111,23 @@ impl iron::Handler for VisibleNodes {
     }
 }
 
+// Javascript requires its arrays to be padded to 4 bytes.
+fn pad(input: &mut Vec<u8>) {
+    let pad = input.len() % 4;
+    if pad == 0 {
+        return;
+    }
+    for _ in 0..(4 - pad) {
+        input.push(0);
+    }
+}
+
+#[derive(Debug)]
+struct NodeToLoad {
+    id: octree::NodeId,
+    level_of_detail: i32,
+}
+
 struct NodesData {
     octree: Arc<RwLock<octree::Octree>>,
 }
@@ -121,27 +139,67 @@ impl iron::Handler for NodesData {
         // TODO(hrapp): This should not crash on error, but return a valid http response.
         req.body.read_to_string(&mut content).unwrap();
         let data = json::parse(&content).unwrap();
-        let nodes_to_load: Vec<_> = data.members()
+        let nodes_to_load = data.members()
             .map(|e| {
-                octree::NodesToBlob {
+                NodeToLoad {
                     id: octree::NodeId::from_string(e[0].as_str().unwrap().to_string()),
                     level_of_detail: e[1].as_i32().unwrap(),
                 }
-            })
-            .collect();
+            });
 
-        let blob = {
-            let octree = self.octree.read().unwrap();
-            let (num_points, blob) = itry!(octree.get_nodes_as_binary_blob(&nodes_to_load));
-            let duration_ms = (time::precise_time_ns() - start) as f32 / 1000000.;
-            println!("Got {} nodes with {} points ({}ms).",
-                     nodes_to_load.len(),
-                     num_points,
-                     duration_ms);
-            blob
-        };
+        // So this is godawful: We need to get data to the GPU without JavaScript herp-derping with
+        // it - because that will stall interaction. The straight forward approach would be to ship
+        // json with base64 encoded values - unfortunately base64 decoding in JavaScript yields a
+        // string which cannot be used as a buffer. So we would need to manually convert this into
+        // an Array with is very slow.
+        // The alternative is to binary encode the whole request and parse it on the client side,
+        // which requires careful constructing on the server and parsing on the client.
+        let mut reply_blob = Vec::<u8>::new();
+
+        let mut num_nodes_fetched = 0;
+        let mut num_points = 0;
+        let octree = self.octree.read().unwrap();
+        for node in nodes_to_load {
+            let mut node_data = octree.get_node_data(&node.id, node.level_of_detail).unwrap();
+
+            // Write the bounding box information.
+            let min = node_data.meta.bounding_cube.min();
+            reply_blob.write_f32::<LittleEndian>(min.x).unwrap();
+            reply_blob.write_f32::<LittleEndian>(min.y).unwrap();
+            reply_blob.write_f32::<LittleEndian>(min.z).unwrap();
+            reply_blob.write_f32::<LittleEndian>(node_data.meta.bounding_cube.edge_length())
+                .unwrap();
+
+            // Number of points.
+            reply_blob.write_u32::<LittleEndian>(node_data.meta.num_points as u32).unwrap();
+
+            // Position encoding.
+            let bytes_per_coordinate = node_data.meta.position_encoding.bytes_per_coordinate();
+            reply_blob.write_u8(bytes_per_coordinate as u8).unwrap();
+            assert!(bytes_per_coordinate * node_data.meta.num_points as usize * 3 ==
+                    node_data.position.len());
+            assert!(node_data.meta.num_points as usize * 3 == node_data.color.len());
+            pad(&mut reply_blob);
+
+
+            reply_blob.append(&mut node_data.position);
+            pad(&mut reply_blob);
+
+            reply_blob.append(&mut node_data.color);
+            pad(&mut reply_blob);
+
+            num_nodes_fetched += 1;
+            num_points += node_data.meta.num_points;
+        }
+
+        let duration_ms = (time::precise_time_ns() - start) as f32 / 1000000.;
+        println!("Got {} nodes with {} points ({}ms).",
+                 num_nodes_fetched,
+                 num_points,
+                 duration_ms);
+
         let content_type = "application/octet-stream".parse::<Mime>().unwrap();
-        Ok(Response::with((content_type, iron::status::Ok, blob)))
+        Ok(Response::with((content_type, iron::status::Ok, reply_blob)))
     }
 }
 
