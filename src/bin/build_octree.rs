@@ -18,8 +18,6 @@ extern crate pbr;
 extern crate point_viewer;
 extern crate protobuf;
 extern crate scoped_pool;
-#[macro_use]
-extern crate nom;
 
 use pbr::ProgressBar;
 use point_viewer::errors::*;
@@ -166,7 +164,7 @@ enum InputFile {
 fn make_stream(input: &InputFile)
                -> (Box<Iterator<Item = Point>>, Option<pbr::ProgressBar<Stdout>>) {
     let stream: Box<Iterator<Item = Point>> = match *input {
-        InputFile::Ply(ref filename) => Box::new(PlyIterator::new(filename)),
+        InputFile::Ply(ref filename) => Box::new(PlyIterator::new(filename).unwrap()),
         InputFile::Pts(ref filename) => Box::new(PtsIterator::new(filename)),
     };
 

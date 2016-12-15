@@ -21,6 +21,11 @@ error_chain! {
     }
 
     errors {
+        InvalidInput(msg: String) {
+            description("The input file is not supported or invalid")
+                display("{}", msg)
+        }
+
         InvalidVersion(version: i32) {
             description("invalid octree version on disk")
             display(

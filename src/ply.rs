@@ -14,22 +14,90 @@
 
 use byteorder::{LittleEndian, ByteOrder};
 use math::Vector3f;
-use nom;
-use ply;
 use Point;
 use std::fs::File;
-use std::io::BufReader;
-use std::io::{SeekFrom, Read, Seek};
+use std::io::{BufRead, BufReader, SeekFrom, Seek};
+use std::ops::Index;
 use std::path::Path;
 use std::str;
-
-// TODO(hrapp): nom is a PITA when working with streams instead of byte arrays. Maybe get rid of it
-// again?
+use errors::*;
 
 #[derive(Debug)]
 struct Header {
-    pub format: Format,
-    pub vertex: Element,
+    format: Format,
+    elements: Vec<Element>,
+}
+
+#[derive(Debug,Copy,Clone,PartialEq)]
+enum DataType {
+    Int8,
+    Uint8,
+    Int16,
+    Uint16,
+    Int32,
+    Uint32,
+    Float32,
+    Float64,
+}
+
+impl DataType {
+    fn from_str(input: &str) -> Result<Self> {
+        match input {
+            "float" | "float32" => Ok(DataType::Float32),
+            "double" | "float64" => Ok(DataType::Float64),
+            "char" | "int8" => Ok(DataType::Int8),
+            "uchar" | "uint8" => Ok(DataType::Uint8),
+            "short" | "int16" => Ok(DataType::Int16),
+            "ushort" | "uint16" => Ok(DataType::Uint16),
+            "int" | "int32" => Ok(DataType::Int32),
+            "uint" | "uint32" => Ok(DataType::Uint32),
+            _ => Err(ErrorKind::InvalidInput(format!("Invalid data type: {}", input)).into()),
+        }
+    }
+
+    fn size_in_bytes(&self) -> usize {
+        match *self {
+            DataType::Int8 => 1,
+            DataType::Uint8 => 1,
+            DataType::Int16 => 2,
+            DataType::Uint16 => 2,
+            DataType::Int32 => 4,
+            DataType::Uint32 => 4,
+            DataType::Float32 => 4,
+            DataType::Float64 => 8,
+        }
+    }
+
+    fn read<B: ByteOrder>(&self, slice: &[u8]) -> f32 {
+        match *self {
+            DataType::Int8 => (slice[0] as i8) as f32,
+            DataType::Uint8 => slice[0] as f32,
+            DataType::Int16 => B::read_u16(slice) as f32,
+            DataType::Uint16 => B::read_i16(slice) as f32,
+            DataType::Int32 => B::read_i32(slice) as f32,
+            DataType::Uint32 => B::read_u32(slice) as f32,
+            DataType::Float32 => B::read_f32(slice) as f32,
+            DataType::Float64 => B::read_f32(slice) as f32,
+        }
+    }
+}
+
+impl Header {
+    fn has_element(&self, name: &str) -> bool {
+        self.elements.iter().any(|e| e.name == name)
+    }
+}
+
+impl<'a> Index<&'a str> for Header {
+    type Output = Element;
+    fn index(&self, name: &'a str) -> &Self::Output {
+        for element in &self.elements {
+            if element.name == name {
+                return element;
+            }
+        }
+        panic!("Element {} does not exist.", name);
+    }
 }
 
 #[derive(Debug,PartialEq)]
@@ -39,15 +107,9 @@ enum Format {
     AsciiV1,
 }
 
-// TODO(hrapp): there are more, support them.
+// TODO(hrapp): Maybe support list properties too?
 #[derive(Debug)]
-enum DataType {
-    U8,
-    F8,
-}
-
-#[derive(Debug)]
-struct Property {
+struct ScalarProperty {
     name: String,
     data_type: DataType,
 }
@@ -56,165 +118,186 @@ struct Property {
 struct Element {
     name: String,
     count: i64,
-    properties: Vec<Property>,
+    properties: Vec<ScalarProperty>,
 }
 
-named!(comment<String>,
-    chain!(
-        tag!("comment ") ~
-        c: is_not!("\n") ~
-        tag!("\n"),
-        || {
-             String::from_utf8(c.into()).unwrap()
+impl<'a> Index<&'a str> for Element {
+    type Output = ScalarProperty;
+    fn index(&self, name: &'a str) -> &Self::Output {
+        for p in &self.properties {
+            if p.name == name {
+                return p;
+            }
         }
-    )
-);
-
-named!(format<Format>,
-    chain!(
-        tag!("format ") ~
-        format: alt!(
-            value!(Format::BinaryLittleEndianV1, tag!("binary_little_endian 1.0")) |
-            value!(Format::BinaryBigEndianV1, tag!("binary_big_endian 1.0")) |
-            value!(Format::AsciiV1, tag!("ascii 1.0"))
-        ) ~
-        tag!("\n"),
-        || format
-    )
-);
-
-named!(property<Property>,
-    chain!(
-        tag!("property ") ~
-        data_type: alt!(
-            value!(DataType::U8, tag!("uchar")) |
-            value!(DataType::F8, tag!("float"))
-        ) ~
-        tag!(" ") ~
-        name: is_not!("\n") ~
-        tag!("\n"),
-        || Property {
-                name: String::from_utf8(name.into()).unwrap(),
-                data_type: data_type
-        }
-    )
-);
-
-named!(element<Element>,
-    chain!(
-        tag!("element ") ~
-        name: is_not!(" ") ~
-        tag!(" ") ~
-        count: take_while!(nom::is_digit) ~
-        tag!("\n") ~
-        properties: many1!(property),
-        || Element {
-            name: String::from_utf8(name.into()).unwrap(),
-            count: str::from_utf8(count).unwrap().parse().unwrap(),
-            properties: properties,
-        }
-    )
-);
-
-named!(point<Point>,
-       chain!(
-           x: map!(take!(4), LittleEndian::read_f32) ~
-           y: map!(take!(4), LittleEndian::read_f32) ~
-           z: map!(take!(4), LittleEndian::read_f32) ~
-           r: map!(take!(1), |c: &[u8]| c[0]) ~
-           g: map!(take!(1), |c: &[u8]| c[0]) ~
-           b: map!(take!(1), |c: &[u8]| c[0]),
-           || Point {
-               position: Vector3f::new(x, y, z),
-               r: r,
-               g: g,
-               b: b,
-           }
-       )
-);
-
-named!(header<Header>,
-    chain!(
-       tag!("ply\n") ~
-// TODO(hrapp): These can come in any order. Did not figure out how to do that with NOM.
-       format: format ~
-       many0!(comment) ~
-// TODO(hrapp): There can be multiple elements and the name should be free formed.
-       vertex: element ~
-       tag!("end_header\n"),
-       || {
-           Header{
-               format: format,
-               vertex: vertex,
-           }
-       })
-);
-
-/// Opens a PLY file and checks that it is the correct format we support. Seeks in the file to the
-/// beginning of the binary data which must be (x, y, z, r, g, b) tuples.
-// TODO(hrapp): support more of PLY and maybe pull this out into a separate crate.
-pub fn open(ply_file: &Path) -> (File, i64) {
-    // hopefully, the header is shorter.
-    let mut header_bytes = vec![0u8; 4096];
-    let mut file = File::open(ply_file).unwrap();
-    file.read_exact(&mut header_bytes).unwrap();
-    let header = {
-        let (remaining_data, header) = match header(&header_bytes) {
-            nom::IResult::Done(r, h) => (r, h),
-            nom::IResult::Error(err) => panic!("Parsing error: {}", err),
-            nom::IResult::Incomplete(_) => panic!("Parsing error: Unexpected end of data."),
-        };
-
-        if header.format != Format::BinaryLittleEndianV1 {
-            panic!("Unsupported PLY format: {:?}", header.format);
-        }
-
-        if header.vertex.name != "vertex" && header.vertex.properties.len() != 6 &&
-           header.vertex.properties[0].name != "x" &&
-           header.vertex.properties[1].name != "y" &&
-           header.vertex.properties[2].name != "z" &&
-           header.vertex.properties[3].name != "red" &&
-           header.vertex.properties[4].name != "green" &&
-           header.vertex.properties[4].name != "blue" {
-            panic!("PLY must contain (x,y,z,red,green,blue) tuples.");
-        }
-        let offset = header_bytes.len() - remaining_data.len();
-        file.seek(SeekFrom::Start(offset as u64)).unwrap();
-        header
-    };
-    (file, header.vertex.count)
-}
-
-/// Read a single point (x, y, z, r, g, b) tuple out of 'data'.
-fn read_point<T: Read>(data: &mut T) -> Point {
-    let mut bytes = [0u8; 15];
-    data.read_exact(&mut bytes).unwrap();
-    match point(&bytes) {
-        nom::IResult::Done(_, h) => h,
-        nom::IResult::Error(err) => panic!("Parsing error: {}", err),
-        nom::IResult::Incomplete(_) => panic!("Parsing error: Unexpected end of data."),
+        panic!("Property does not exist!")
     }
 }
 
+impl Element {
+    fn has_property(&self, name: &str) -> bool {
+        self.properties.iter().any(|p| p.name == name)
+    }
+}
+
+fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
+    use errors::ErrorKind::InvalidInput;
+
+    let mut header_len = 0;
+    let mut line = String::new();
+    header_len += reader.read_line(&mut line)?;
+    if line.trim() != "ply" {
+        return Err(InvalidInput("Not a PLY file".to_string()).into());
+    }
+
+    let mut format = None;
+    let mut current_element = None;
+    let mut elements = Vec::new();
+    loop {
+        line.clear();
+        header_len += reader.read_line(&mut line)?;
+        let entries: Vec<&str> = line.trim().split_whitespace().collect();
+        match entries[0] {
+            "format" if entries.len() == 3 => {
+                if entries[2] != "1.0" {
+                    return Err(InvalidInput(format!("Invalid version: {}", entries[2])).into());
+                }
+                format = Some(match entries[1] {
+                    "ascii" => Format::AsciiV1,
+                    "binary_little_endian" => Format::BinaryLittleEndianV1,
+                    "binary_big_endian" => Format::BinaryBigEndianV1,
+                    _ => return Err(InvalidInput(format!("Invalid format: {}", entries[1])).into()),
+                });
+            }
+            "element" if entries.len() == 3 => {
+                if let Some(element) = current_element.take() {
+                    elements.push(element);
+                }
+                current_element = Some(Element {
+                    name: entries[1].to_string(),
+                    count: entries[2].parse::<i64>()
+                        .chain_err(|| InvalidInput(format!("Invalid count: {}", entries[2])))?,
+                    properties: Vec::new(),
+                });
+            }
+            "property" => {
+                if current_element.is_none() {
+                    return Err(InvalidInput(format!("property outside of element: {}", line))
+                        .into());
+                };
+                let property = match entries[1] {
+                    "list" if entries.len() == 5 => {
+                        // We do not support list properties.
+                        continue;
+                    }
+                    data_type_str if entries.len() == 3 => {
+                        let data_type = DataType::from_str(data_type_str)?;
+                        ScalarProperty {
+                            name: entries[2].to_string(),
+                            data_type: data_type,
+                        }
+                    }
+                    _ => return Err(InvalidInput(format!("Invalid line: {}", line)).into()),
+                };
+                current_element.as_mut().unwrap().properties.push(property);
+            }
+            "end_header" => break,
+            "comment" => (),
+            _ => return Err(InvalidInput(format!("Invalid line: {}", line)).into()),
+        }
+    }
+
+    if let Some(element) = current_element {
+        elements.push(element);
+    }
+
+    if format.is_none() {
+        return Err(InvalidInput("No format specified".into()).into());
+    }
+
+    Ok((Header {
+            elements: elements,
+            format: format.unwrap(),
+        },
+        header_len))
+}
+
+#[derive(Debug)]
+struct PointFormat {
+    position_data_type: DataType,
+    // None, if the file does not contain color.
+    color_data_type: Option<DataType>,
+}
+
+/// Opens a PLY file and checks that it is the correct format we support. Seeks in the file to the
+/// beginning of the binary data which must be (x, y, z, r, g, b) tuples.
+fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, PointFormat)> {
+    let mut file = File::open(ply_file).chain_err(|| "Could not open input file.")?;
+    let mut reader = BufReader::new(file);
+    let (header, header_len) = parse_header(&mut reader)?;
+    file = reader.into_inner();
+    file.seek(SeekFrom::Start(header_len as u64))?;
+
+    if !header.has_element("vertex") {
+        panic!("Header does not have element 'vertex'");
+    }
+
+    if header.format != Format::BinaryLittleEndianV1 {
+        panic!("Unsupported PLY format: {:?}", header.format);
+    }
+
+    let vertex = &header["vertex"];
+    if !vertex.has_property("x") || !vertex.has_property("y") || !vertex.has_property("z") {
+        panic!("PLY must contain properties 'x', 'y', 'z' for 'vertex'.");
+    }
+
+    let mut num_bytes_per_point = 0;
+    let position_data_type = header["vertex"]["x"].data_type;
+    num_bytes_per_point += position_data_type.size_in_bytes() * 3;
+
+    let color_data_type = {
+        if vertex.has_property("red") && vertex.has_property("green") &&
+           vertex.has_property("blue") {
+            Some(vertex["red"].data_type)
+        } else if vertex.has_property("r") && vertex.has_property("g") && vertex.has_property("b") {
+            Some(vertex["r"].data_type)
+        } else {
+            None
+        }
+    };
+    if let Some(ref data_type) = color_data_type {
+        num_bytes_per_point += data_type.size_in_bytes() * 3;
+    }
+
+    let point_format = PointFormat {
+        position_data_type: position_data_type,
+        color_data_type: color_data_type,
+    };
+
+    // We align the buffer of this 'BufReader' to points, so that we can index this buffer and know
+    // that it will always contain full points to parse.
+    Ok((BufReader::with_capacity(num_bytes_per_point * 1024, file),
+        header["vertex"].count,
+        point_format))
+}
+
+
 /// Abstraction to read binary points from ply files into points.
 pub struct PlyIterator {
-    data: BufReader<File>,
+    reader: BufReader<File>,
+    point_format: PointFormat,
     num_points_read: i64,
     pub num_total_points: i64,
 }
 
 impl PlyIterator {
-    pub fn new(ply_file: &Path) -> Self {
-        let (file, num_total_points) = ply::open(ply_file);
-        Self::from_reader_and_count(BufReader::new(file), num_total_points)
-    }
-
-    fn from_reader_and_count(data: BufReader<File>, num_total_points: i64) -> Self {
-        PlyIterator {
-            data: data,
+    pub fn new(ply_file: &Path) -> Result<Self> {
+        let (reader, num_total_points, point_format) = open(ply_file)?;
+        Ok(PlyIterator {
+            reader: reader,
+            point_format: point_format,
             num_total_points: num_total_points,
             num_points_read: 0,
-        }
+        })
     }
 }
 
@@ -225,8 +308,48 @@ impl Iterator for PlyIterator {
         if self.num_points_read >= self.num_total_points {
             return None;
         }
-        let point = ply::read_point(&mut self.data);
+
+        let mut nread = 0;
+        let point = {
+            // We made sure before that the internal buffer of 'reader' is aligned to the number of
+            // bytes for a single point, therefore we can access it here and know that we can
+            // always read into it and are sure that it contains at least a full point.
+            let buf = self.reader.fill_buf().unwrap();
+
+            let position = {
+                let data_type = &self.point_format.position_data_type;
+                let size_in_bytes = data_type.size_in_bytes();
+                let x = data_type.read::<LittleEndian>(&buf[nread..]);
+                nread += size_in_bytes;
+                let y = data_type.read::<LittleEndian>(&buf[nread..]);
+                nread += size_in_bytes;
+                let z = data_type.read::<LittleEndian>(&buf[nread..]);
+                nread += size_in_bytes;
+                Vector3f::new(x, y, z)
+            };
+
+            let mut r = 255;
+            let mut g = 255;
+            let mut b = 255;
+            if let Some(ref data_type) = self.point_format.color_data_type {
+                let size_in_bytes = data_type.size_in_bytes();
+                r = data_type.read::<LittleEndian>(&buf[nread..]) as u8;
+                nread += size_in_bytes;
+                g = data_type.read::<LittleEndian>(&buf[nread..]) as u8;
+                nread += size_in_bytes;
+                b = data_type.read::<LittleEndian>(&buf[nread..]) as u8;
+                nread += size_in_bytes;
+            };
+
+            Point {
+                position: position,
+                r: r,
+                g: g,
+                b: b,
+            }
+        };
         self.num_points_read += 1;
+        self.reader.consume(nread);
         Some(point)
     }
 
