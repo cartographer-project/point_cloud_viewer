@@ -13,10 +13,9 @@ is useful in its own right.
 ### Client
 
 1. Change into the client directory: `cd client`.
-2. Install npm: `sudo apt-get install npm` or equivalent for your system.
+2. Install npm. We strongly suggest using [nvm](https://github.com/creationix/nvm).
 3. Install javascript dependencies: `npm install`.
-4. Install typescript module dependencies: `npm run typings:install`.
-5. Build the client: `npm run build`.
+4. Build the client: `npm run build`.
 
 ### Server
 
