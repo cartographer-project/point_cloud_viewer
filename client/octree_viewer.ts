@@ -290,7 +290,7 @@ export class OctreeViewer {
     switch (event.keyCode) {
       case KEY_L:
         this.useLod = !this.useLod;
-      break;
+        break;
     }
   }
 
