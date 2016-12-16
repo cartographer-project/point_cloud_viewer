@@ -254,6 +254,8 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, PointFormat)> {
     let position_data_type = header["vertex"]["x"].data_type;
     num_bytes_per_point += position_data_type.size_in_bytes() * 3;
 
+    // TODO(hrapp): We silently assume that data types of (y, z) is that of x and similar for
+    // colors. Track this properly.
     let color_data_type = {
         if vertex.has_property("red") && vertex.has_property("green") &&
            vertex.has_property("blue") {
