@@ -20,15 +20,16 @@ const KEY_L = 'L'.charCodeAt(0);
 
 let VERTEX_SHADER = `
 uniform float size;
+uniform float alpha;
 uniform float edgeLength;
 uniform vec3 min;
 
 attribute vec3 color;
 
-varying vec3 v_color;
+varying vec4 v_color;
 
 void main() {
-  v_color = color / 255.;   // pass the color to the fragment shader
+  v_color = vec4(color / 255., alpha);
   gl_Position = projectionMatrix * modelViewMatrix *
     vec4(position * edgeLength + min, 1.0);
   gl_PointSize = size;
@@ -36,10 +37,10 @@ void main() {
 `;
 
 let FRAGMENT_SHADER = `
-varying vec3 v_color;
+varying vec4 v_color;
 
 void main() {
-  gl_FragColor = vec4(v_color, 1.);
+  gl_FragColor = v_color;
 }
 `;
 
@@ -235,6 +236,7 @@ class NodeData {
       min: { value: nodeRenderData.min },
       edgeLength: { value: nodeRenderData.edgeLength },
       size: commonMaterial.uniforms['size'],
+      alpha: commonMaterial.uniforms['alpha'],
     };
     this.threePoints = new THREE.Points(geometry, material);
     scene.add(this.threePoints);
@@ -251,21 +253,37 @@ export class OctreeViewer {
   private nodeLoader: NodeLoader;
   private batches: [NodeData, number][][] = [];
   private currentlyLoading: number;
+  private useTransparency: boolean;
 
   constructor(private scene: THREE.Scene) {
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         size: { value: 2. },
+        alpha: { value: 1. },
       },
       vertexShader: VERTEX_SHADER,
       fragmentShader: FRAGMENT_SHADER,
     });
+    this.useTransparency = false;
 
     window.addEventListener(
         'keydown', event => this.onKeyDown(<KeyboardEvent>event), false);
     this.useLod = true;
     this.nodeLoader = new NodeLoader();
     this.currentlyLoading = 0;
+  }
+
+  public alphaChanged() {
+    let newUseTransparency = this.material.uniforms['alpha'].value < 1;
+    if (newUseTransparency != this.useTransparency) {
+      this.material.transparent = newUseTransparency;
+      this.scene.traverse(function(node) {
+        if (node instanceof THREE.Points) {
+          node.material.transparent = newUseTransparency;
+        }
+      });
+    }
+    this.useTransparency = newUseTransparency;
   }
 
   private onKeyDown(event: KeyboardEvent) {
