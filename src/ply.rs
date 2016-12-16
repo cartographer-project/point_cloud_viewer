@@ -72,12 +72,12 @@ impl DataType {
         match *self {
             DataType::Int8 => (slice[0] as i8) as f32,
             DataType::Uint8 => slice[0] as f32,
-            DataType::Int16 => B::read_u16(slice) as f32,
-            DataType::Uint16 => B::read_i16(slice) as f32,
+            DataType::Int16 => B::read_i16(slice) as f32,
+            DataType::Uint16 => B::read_u16(slice) as f32,
             DataType::Int32 => B::read_i32(slice) as f32,
             DataType::Uint32 => B::read_u32(slice) as f32,
             DataType::Float32 => B::read_f32(slice) as f32,
-            DataType::Float64 => B::read_f32(slice) as f32,
+            DataType::Float64 => B::read_f64(slice) as f32,
         }
     }
 }
