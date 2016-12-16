@@ -23,8 +23,6 @@ extern crate protobuf;
 extern crate walkdir;
 #[macro_use]
 extern crate error_chain;
-#[macro_use]
-extern crate nom;
 
 pub mod math;
 pub mod octree;
