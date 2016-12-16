@@ -1,7 +1,0 @@
-{
-  "globalDependencies": {
-    "dat-gui": "registry:dt/dat-gui#0.5.0+20160317120654",
-    "three": "registry:dt/three#0.0.0+20161004170959",
-    "whatwg-fetch": "registry:dt/whatwg-fetch#0.0.0+20160524142046"
-  }
-}

@@ -234,7 +234,7 @@ class NodeData {
     material.uniforms = {
       min: { value: nodeRenderData.min },
       edgeLength: { value: nodeRenderData.edgeLength },
-      size: commonMaterial.uniforms.size,
+      size: commonMaterial.uniforms['size'],
     };
     this.threePoints = new THREE.Points(geometry, material);
     scene.add(this.threePoints);
@@ -285,7 +285,7 @@ export class OctreeViewer {
           credentials: 'same-origin',
         });
 
-    window.fetch(request).then(data => data.json()).then(nodes => {
+    window.fetch(request).then(data => data.json()).then((nodes: any) => {
       this.nodesUpdate(nodes);
     });
   }
