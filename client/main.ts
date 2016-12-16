@@ -55,8 +55,11 @@ class App {
     this.lastFrustumUpdateTime = 0;
     this.viewer = new OctreeViewer(this.scene);
     const gui = new dat.GUI();
-    gui.add(this.viewer.material.uniforms['size'], 'value');
-    gui.add(this.viewer, 'useLod');
+    gui.add(this.viewer.material.uniforms['size'], 'value').name("Point size");
+    gui.add(this.viewer.material.uniforms['alpha'], 'value', 0., 1.)
+        .name('Transparency')
+        .onChange(() => this.viewer.alphaChanged());
+    gui.add(this.viewer, 'useLod').name("Level of detail");
     window.addEventListener('resize', () => this.onWindowResize(), false);
     this.animate();
   }
