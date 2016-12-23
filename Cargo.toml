@@ -20,3 +20,6 @@ scoped-pool = "^0.1"
 time = "^0.1.35"
 urlencoded = "^0.3.0"
 walkdir = "^0.1.5"
+
+[profile.release]
+lto = true

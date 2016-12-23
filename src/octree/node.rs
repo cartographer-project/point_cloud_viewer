@@ -17,7 +17,7 @@ use errors::*;
 use math::{Cube, CuboidLike, Vector3f, Zero, clamp};
 use num;
 use num_traits;
-use Point;
+use {Point, InternalIterator};
 use proto;
 use protobuf::{self, Message};
 use std::fs::{self, File};
@@ -245,7 +245,6 @@ impl NodeMeta {
 pub struct NodeIterator {
     xyz_reader: BufReader<File>,
     rgb_reader: BufReader<File>,
-    num_points_read: i64,
     meta: NodeMeta,
 }
 
@@ -255,75 +254,71 @@ impl NodeIterator {
         Ok(NodeIterator {
             xyz_reader: BufReader::new(File::open(&meta.stem.with_extension(POSITION_EXT))?),
             rgb_reader: BufReader::new(File::open(&meta.stem.with_extension(COLOR_EXT))?),
-            num_points_read: 0,
             meta: meta,
         })
     }
 }
 
-impl Iterator for NodeIterator {
-    type Item = Point;
+impl InternalIterator for NodeIterator {
+    fn size_hint(&self) -> Option<usize> {
+        Some(self.meta.num_points as usize)
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.num_points_read >= self.meta.num_points {
-            return None;
-        }
-
-        let mut point = Point {
-            position: Vector3f::zero(),
-            r: 0,
-            g: 0,
-            b: 0,
-        };
+    fn for_each<F: FnMut(&Point)>(mut self, mut f: F) {
+            let mut point = Point {
+                position: Vector3f::zero(),
+                r: 0,
+                g: 0,
+                b: 0,
+            };
 
         let edge_length = self.meta.bounding_cube.edge_length();
         let min = self.meta.bounding_cube.min();
-        match self.meta.position_encoding {
-            PositionEncoding::Float32 => {
-                point.position.x = decode(self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                                          min.x,
-                                          edge_length);
-                point.position.y = decode(self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                                          min.y,
-                                          edge_length);
-                point.position.z = decode(self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                                          min.z,
-                                          edge_length);
-            }
-            PositionEncoding::Uint8 => {
-                point.position.x =
-                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.x, edge_length);
-                point.position.y =
-                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.y, edge_length);
-                point.position.z =
-                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.z, edge_length);
-            }
-            PositionEncoding::Uint16 => {
-                point.position.x =
-                    fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
-                                    min.x,
-                                    edge_length);
-                point.position.y =
-                    fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
-                                    min.y,
-                                    edge_length);
-                point.position.z =
-                    fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
-                                    min.z,
-                                    edge_length);
+        for _ in 0..self.meta.num_points {
+            // I tried pulling out this match by taking a function pointer to a 'decode_position'
+            // function. This replaces a branch per point vs a function call per point and turned
+            // out to be marginally slower.
+            match self.meta.position_encoding {
+                PositionEncoding::Float32 => {
+                    point.position.x = decode(self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    min.x,
+                    edge_length);
+                    point.position.y = decode(self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    min.y,
+                    edge_length);
+                    point.position.z = decode(self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    min.z,
+                    edge_length);
+                }
+                PositionEncoding::Uint8 => {
+                    point.position.x =
+                        fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.x, edge_length);
+                    point.position.y =
+                        fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.y, edge_length);
+                    point.position.z =
+                        fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.z, edge_length);
+                }
+                PositionEncoding::Uint16 => {
+                    point.position.x =
+                        fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                        min.x,
+                        edge_length);
+                    point.position.y =
+                        fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                        min.y,
+                        edge_length);
+                    point.position.z =
+                        fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                        min.z,
+                        edge_length);
+                }
             }
 
+            point.r = self.rgb_reader.read_u8().unwrap();
+            point.g = self.rgb_reader.read_u8().unwrap();
+            point.b = self.rgb_reader.read_u8().unwrap();
+            f(&point);
         }
-
-        point.r = self.rgb_reader.read_u8().unwrap();
-        point.g = self.rgb_reader.read_u8().unwrap();
-        point.b = self.rgb_reader.read_u8().unwrap();
-        self.num_points_read += 1;
-        Some(point)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.meta.num_points as usize, Some(self.meta.num_points as usize))
     }
 }
 

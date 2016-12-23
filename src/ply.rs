@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use Point;
 use byteorder::{LittleEndian, ByteOrder};
 use errors::*;
 use math::Vector3f;
+use {Point, InternalIterator};
 use std::fs::File;
 use std::io::{BufRead, BufReader, SeekFrom, Seek};
 use std::ops::Index;
@@ -335,7 +335,6 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
 pub struct PlyIterator {
     reader: BufReader<File>,
     readers: Vec<ReadingFn>,
-    num_points_read: i64,
     pub num_total_points: i64,
 }
 
@@ -346,44 +345,39 @@ impl PlyIterator {
                reader: reader,
                readers: readers,
                num_total_points: num_total_points,
-               num_points_read: 0,
            })
     }
 }
 
-impl Iterator for PlyIterator {
-    type Item = Point;
+impl InternalIterator for PlyIterator {
+    fn size_hint(&self) -> Option<usize> {
+        Some(self.num_total_points as usize)
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.num_points_read >= self.num_total_points {
-            return None;
-        }
-
-        let mut nread = 0;
-
-        // We made sure before that the internal buffer of 'reader' is aligned to the number of
-        // bytes for a single point, therefore we can access it here and know that we can
-        // always read into it and are sure that it contains at least a full point.
+    fn for_each<F: FnMut(&Point)>(mut self, mut func: F) {
         let mut point = Point {
             position: Vector3f::new(0., 0., 0.),
             r: 255,
             g: 255,
             b: 255,
         };
-        {
-            let buf = self.reader.fill_buf().unwrap();
-            for r in &self.readers {
-                let cnread = nread;
-                r(&mut nread, &buf[cnread..], &mut point);
+
+        for _ in 0..self.num_total_points {
+            let mut nread = 0;
+
+            // We made sure before that the internal buffer of 'reader' is aligned to the number of
+            // bytes for a single point, therefore we can access it here and know that we can always
+            // read into it and are sure that it contains at least a full point.
+            {
+                let buf = self.reader.fill_buf().unwrap();
+                for r in &self.readers {
+                    let cnread = nread;
+                    r(&mut nread, &buf[cnread..], &mut point);
+                }
             }
+
+            func(&point);
+            self.reader.consume(nread);
         }
-
-        self.num_points_read += 1;
-        self.reader.consume(nread);
-        Some(point)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.num_total_points as usize, Some(self.num_total_points as usize))
     }
 }

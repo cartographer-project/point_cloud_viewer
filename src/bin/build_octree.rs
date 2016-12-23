@@ -23,7 +23,7 @@ use pbr::ProgressBar;
 use point_viewer::errors::*;
 use point_viewer::math::{CuboidLike, Cube, Cuboid};
 use point_viewer::octree;
-use point_viewer::Point;
+use point_viewer::{Point, InternalIterator};
 use point_viewer::proto;
 use point_viewer::pts::PtsIterator;
 use point_viewer::ply::PlyIterator;
@@ -43,14 +43,16 @@ struct SplittedNode {
     num_points: i64,
 }
 
-fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
-                                                resolution: f64,
-                                                node: &octree::Node,
-                                                stream: PointIterator)
-                                                -> Vec<SplittedNode> {
+fn split<P>(output_directory: &Path,
+            resolution: f64,
+            node: &octree::Node,
+            stream: P)
+            -> Vec<SplittedNode>
+    where P: InternalIterator
+{
     let mut children: Vec<Option<octree::NodeWriter>> = vec![None, None, None, None, None, None,
                                                              None, None];
-    match stream.size_hint().1 {
+    match stream.size_hint() {
         Some(size) => {
             println!("Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",
                      node.id,
@@ -63,7 +65,7 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
         }
     };
 
-    for p in stream {
+    stream.for_each(|p| {
         let child_index = node.get_child_id_containing_point(&p.position);
         let array_index = child_index.as_u8() as usize;
         if children[array_index].is_none() {
@@ -72,7 +74,7 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
                                                                  resolution));
         }
         children[array_index].as_mut().unwrap().write(&p);
-    }
+    });
 
     // Remove the node file on disk by reopening the node and immediately dropping it again without
     // writing a point. This only saves some disk space during processing - all nodes will be
@@ -95,13 +97,13 @@ fn split<PointIterator: Iterator<Item = Point>>(output_directory: &Path,
     rv
 }
 
-fn split_node<'a, 'b: 'a, Points>(scope: &Scope<'a>,
-                                  output_directory: &'b Path,
-                                  resolution: f64,
-                                  splitted_node: SplittedNode,
-                                  stream: Points,
-                                  leaf_nodes_sender: mpsc::Sender<octree::Node>)
-    where Points: Iterator<Item = Point>
+fn split_node<'a, 'b: 'a, P>(scope: &Scope<'a>,
+                             output_directory: &'b Path,
+                             resolution: f64,
+                             splitted_node: SplittedNode,
+                             stream: P,
+                             leaf_nodes_sender: mpsc::Sender<octree::Node>)
+    where P: InternalIterator
 {
     let children = split(output_directory, resolution, &splitted_node.node, stream);
     let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) = children.into_iter()
@@ -141,10 +143,11 @@ fn subsample_children_into(output_directory: &Path,
 
         // We read all points into memory, because the new node writer will rewrite this child's
         // file(s).
-        let points = node_iterator.collect::<Vec<Point>>().into_iter();
+        let mut points = Vec::with_capacity(node_iterator.size_hint().unwrap());
+        node_iterator.for_each(|p| points.push((*p).clone()));
 
         let mut child_writer = octree::NodeWriter::new(output_directory, &child, resolution);
-        for (idx, p) in points.enumerate() {
+        for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
                 parent_writer.write(&p);
             } else {
@@ -161,14 +164,34 @@ enum InputFile {
     Pts(PathBuf),
 }
 
-fn make_stream(input: &InputFile)
-               -> (Box<Iterator<Item = Point>>, Option<pbr::ProgressBar<Stdout>>) {
-    let stream: Box<Iterator<Item = Point>> = match *input {
-        InputFile::Ply(ref filename) => Box::new(PlyIterator::new(filename).unwrap()),
-        InputFile::Pts(ref filename) => Box::new(PtsIterator::new(filename)),
+enum InputFileIterator {
+    Ply(PlyIterator),
+    Pts(PtsIterator),
+}
+
+impl InternalIterator for InputFileIterator {
+    fn size_hint(&self) -> Option<usize> {
+        match *self {
+            InputFileIterator::Ply(ref p) => p.size_hint(),
+            InputFileIterator::Pts(ref p) => p.size_hint(),
+        }
+    }
+
+    fn for_each<F: FnMut(&Point)>(self, f: F) {
+        match self {
+            InputFileIterator::Ply(p) => p.for_each(f),
+            InputFileIterator::Pts(p) => p.for_each(f),
+        }
+    }
+}
+
+fn make_stream(input: &InputFile) -> (InputFileIterator, Option<pbr::ProgressBar<Stdout>>) {
+    let stream = match *input {
+        InputFile::Ply(ref filename) => InputFileIterator::Ply(PlyIterator::new(filename).unwrap()),
+        InputFile::Pts(ref filename) => InputFileIterator::Pts(PtsIterator::new(filename)),
     };
 
-    let progress_bar = match stream.size_hint().1 {
+    let progress_bar = match stream.size_hint() {
         Some(size) => Some(ProgressBar::new(size as u64)),
         None => None,
     };
@@ -182,13 +205,13 @@ fn find_bounding_cube(input: &InputFile) -> (Cube, i64) {
     let (stream, mut progress_bar) = make_stream(input);
     progress_bar.as_mut().map(|pb| pb.message("Determining bounding box: "));
 
-    for p in stream {
+    stream.for_each(|p: &Point| {
         bounding_cube.update(&p.position);
         num_points += 1;
         if num_points % UPDATE_COUNT == 0 {
             progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
         }
-    }
+    });
     progress_bar.map(|mut f| f.finish());
     (bounding_cube.to_cube(), num_points)
 }
@@ -225,7 +248,6 @@ fn main() {
             other => panic!("Unknown input file format: {:?}", other),
         }
     };
-
 
     let (bounding_cube, num_points) = find_bounding_cube(&input);
 
