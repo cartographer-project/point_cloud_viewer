@@ -180,17 +180,13 @@ fn find_bounding_cube(input: &InputFile) -> (Cube, i64) {
     let mut num_points = 0i64;
     let mut bounding_cube = Cuboid::new();
     let (stream, mut progress_bar) = make_stream(input);
-    if let Some(ref mut progress_bar) = progress_bar {
-        progress_bar.message("Determining bounding box: ");
-    };
+    progress_bar.as_mut().map(|pb| pb.message("Determining bounding box: "));
 
     for p in stream {
         bounding_cube.update(&p.position);
         num_points += 1;
         if num_points % UPDATE_COUNT == 0 {
-            if let Some(ref mut progress_bar) = progress_bar {
-                progress_bar.add(UPDATE_COUNT as u64);
-            }
+            progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
         }
     }
     progress_bar.map(|mut f| f.finish());
