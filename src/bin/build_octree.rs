@@ -188,9 +188,7 @@ fn find_bounding_cube(input: &InputFile) -> (Cube, i64) {
         bounding_cube.update(&p.position);
         num_points += 1;
         if num_points % UPDATE_COUNT == 0 {
-            if let Some(ref mut progress_bar) = progress_bar {
-                progress_bar.add(UPDATE_COUNT as u64);
-            }
+            progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
         }
     }
     progress_bar.map(|mut f| f.finish());

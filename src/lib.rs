@@ -18,7 +18,6 @@ extern crate byteorder;
 extern crate cgmath;
 extern crate num;
 extern crate num_traits;
-extern crate pbr;
 extern crate protobuf;
 extern crate walkdir;
 #[macro_use]
