@@ -59,6 +59,7 @@ class App {
     gui.add(this.viewer.material.uniforms['alpha'], 'value', 0., 1.)
         .name('Transparency')
         .onChange(() => this.viewer.alphaChanged());
+    gui.add(this.viewer.material.uniforms['gamma'], 'value').name('Gamma');
     gui.add(this.viewer, 'useLod').name("Level of detail");
     window.addEventListener('resize', () => this.onWindowResize(), false);
     this.animate();

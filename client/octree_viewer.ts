@@ -20,6 +20,7 @@ const KEY_L = 'L'.charCodeAt(0);
 
 let VERTEX_SHADER = `
 uniform float size;
+uniform float gamma;
 uniform float alpha;
 uniform float edgeLength;
 uniform vec3 min;
@@ -29,7 +30,8 @@ attribute vec3 color;
 varying vec4 v_color;
 
 void main() {
-  v_color = vec4(color / 255., alpha);
+  vec3 corrected_color = pow(color / 255., vec3(1.0 / gamma));
+  v_color = vec4(corrected_color, alpha);
   gl_Position = projectionMatrix * modelViewMatrix *
     vec4(position * edgeLength + min, 1.0);
   gl_PointSize = size;
@@ -237,6 +239,7 @@ class NodeData {
       edgeLength: { value: nodeRenderData.edgeLength },
       size: commonMaterial.uniforms['size'],
       alpha: commonMaterial.uniforms['alpha'],
+      gamma: commonMaterial.uniforms['gamma'],
     };
     this.threePoints = new THREE.Points(geometry, material);
     scene.add(this.threePoints);
@@ -260,6 +263,7 @@ export class OctreeViewer {
       uniforms: {
         size: { value: 2. },
         alpha: { value: 1. },
+        gamma: { value: 1. },
       },
       vertexShader: VERTEX_SHADER,
       fragmentShader: FRAGMENT_SHADER,
