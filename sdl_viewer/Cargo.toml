@@ -1,0 +1,15 @@
+[package]
+authors = ["Holger Rapp <hrapp@google.com>"]
+name = "sdl_viewer"
+version = "0.1.0"
+
+[build-dependencies]
+gl_generator = "0.5.2"
+
+[dependencies]
+sdl2 = "0.30.0-beta"
+cgmath = "^0.14.0"
+time = "^0.1.35"
+
+[dependencies.point_viewer]
+path = ".."

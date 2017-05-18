@@ -83,6 +83,15 @@ class App {
     if (time - this.lastFrustumUpdateTime > 250 && this.needsUpdate) {
       this.camera.updateMatrixWorld(false);
       this.lastFrustumUpdateTime = time;
+      console.log("#hrapp camera.near", this.camera.near);
+      console.log("#hrapp camera.far", this.camera.far);
+      console.log("#hrapp this.zoom", this.camera.zoom);
+      console.log("#hrapp this.fov", this.camera.fov);
+      console.log("#hrapp this.aspect", this.camera.aspect);
+      console.log("#hrapp this.view", this.camera.view);
+      console.log("#hrapp this.filmOffset", this.camera.filmOffset);
+      console.log("#hrapp this.camera.projectionMatrix", this.camera.projectionMatrix);
+      console.log("#hrapp this.camera.matrixWorld", this.camera.matrixWorld);
       const matrix = new THREE.Matrix4().multiplyMatrices(
           this.camera.projectionMatrix, this.camera.matrixWorldInverse);
       this.viewer.frustumChanged(

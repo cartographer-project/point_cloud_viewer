@@ -3,9 +3,12 @@ authors = ["Holger Rapp <hrapp@google.com>"]
 name = "point_viewer"
 version = "0.1.0"
 
+[build-dependencies]
+gl_generator = "0.5.2"
+
 [dependencies]
 byteorder = "^0.5.3"
-cgmath = "^0.10.0"
+cgmath = "^0.14.0"
 clap = "^2.6.0"
 error-chain = "^0.7.1"
 iron = "^0.3.0"
