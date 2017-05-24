@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use byteorder::{LittleEndian, ByteOrder};
-use math::Vector3f;
 use Point;
+use byteorder::{LittleEndian, ByteOrder};
+use errors::*;
+use math::Vector3f;
 use std::fs::File;
 use std::io::{BufRead, BufReader, SeekFrom, Seek};
 use std::ops::Index;
 use std::path::Path;
 use std::str;
-use errors::*;
 
 #[derive(Debug)]
 struct Header {
@@ -52,32 +52,6 @@ impl DataType {
             "int" | "int32" => Ok(DataType::Int32),
             "uint" | "uint32" => Ok(DataType::Uint32),
             _ => Err(ErrorKind::InvalidInput(format!("Invalid data type: {}", input)).into()),
-        }
-    }
-
-    fn size_in_bytes(&self) -> usize {
-        match *self {
-            DataType::Int8 => 1,
-            DataType::Uint8 => 1,
-            DataType::Int16 => 2,
-            DataType::Uint16 => 2,
-            DataType::Int32 => 4,
-            DataType::Uint32 => 4,
-            DataType::Float32 => 4,
-            DataType::Float64 => 8,
-        }
-    }
-
-    fn read<B: ByteOrder>(&self, slice: &[u8]) -> f32 {
-        match *self {
-            DataType::Int8 => (slice[0] as i8) as f32,
-            DataType::Uint8 => slice[0] as f32,
-            DataType::Int16 => B::read_i16(slice) as f32,
-            DataType::Uint16 => B::read_u16(slice) as f32,
-            DataType::Int32 => B::read_i32(slice) as f32,
-            DataType::Uint32 => B::read_u32(slice) as f32,
-            DataType::Float32 => B::read_f32(slice) as f32,
-            DataType::Float64 => B::read_f64(slice) as f32,
         }
     }
 }
@@ -133,12 +107,6 @@ impl<'a> Index<&'a str> for Element {
     }
 }
 
-impl Element {
-    fn has_property(&self, name: &str) -> bool {
-        self.properties.iter().any(|p| p.name == name)
-    }
-}
-
 fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
     use errors::ErrorKind::InvalidInput;
 
@@ -162,27 +130,35 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
                     return Err(InvalidInput(format!("Invalid version: {}", entries[2])).into());
                 }
                 format = Some(match entries[1] {
-                    "ascii" => Format::AsciiV1,
-                    "binary_little_endian" => Format::BinaryLittleEndianV1,
-                    "binary_big_endian" => Format::BinaryBigEndianV1,
-                    _ => return Err(InvalidInput(format!("Invalid format: {}", entries[1])).into()),
-                });
+                                  "ascii" => Format::AsciiV1,
+                                  "binary_little_endian" => Format::BinaryLittleEndianV1,
+                                  "binary_big_endian" => Format::BinaryBigEndianV1,
+                                  _ => {
+                                      return Err(InvalidInput(format!("Invalid format: {}",
+                                                                      entries[1]))
+                                                         .into())
+                                  }
+                              });
             }
             "element" if entries.len() == 3 => {
                 if let Some(element) = current_element.take() {
                     elements.push(element);
                 }
-                current_element = Some(Element {
-                    name: entries[1].to_string(),
-                    count: entries[2].parse::<i64>()
-                        .chain_err(|| InvalidInput(format!("Invalid count: {}", entries[2])))?,
-                    properties: Vec::new(),
-                });
+                current_element =
+                    Some(Element {
+                             name: entries[1].to_string(),
+                             count: entries[2].parse::<i64>()
+                                 .chain_err(|| {
+                                                InvalidInput(format!("Invalid count: {}",
+                                                                     entries[2]))
+                                            })?,
+                             properties: Vec::new(),
+                         });
             }
             "property" => {
                 if current_element.is_none() {
                     return Err(InvalidInput(format!("property outside of element: {}", line))
-                        .into());
+                                   .into());
                 };
                 let property = match entries[1] {
                     "list" if entries.len() == 5 => {
@@ -198,7 +174,10 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
                     }
                     _ => return Err(InvalidInput(format!("Invalid line: {}", line)).into()),
                 };
-                current_element.as_mut().unwrap().properties.push(property);
+                current_element.as_mut()
+                    .unwrap()
+                    .properties
+                    .push(property);
             }
             "end_header" => break,
             "comment" => (),
@@ -221,16 +200,83 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
         header_len))
 }
 
-#[derive(Debug)]
-struct PointFormat {
-    position_data_type: DataType,
-    // None, if the file does not contain color.
-    color_data_type: Option<DataType>,
+
+type ReadingFunc = fn(nread: &mut usize, buf: &[u8], val: &mut Point);
+
+macro_rules! read_casted_property {
+    ($data_type:expr, point. $($property:ident).+, $size:ident ) => (
+        match $data_type {
+            DataType::Uint8 => {
+                $size += 1;
+                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
+                    point $( .$property )+ = buf[0] as _;
+                    *nread += 1;
+                }
+                _read_func
+            },
+            DataType::Int8 => {
+                $size += 1;
+                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
+                    point $( .$property )+ = buf[0] as _;
+                    *nread += 1;
+                }
+                _read_func
+            },
+            DataType::Uint16 => {
+                $size += 2;
+                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
+                    point $( .$property )+ = LittleEndian::read_u16(buf) as _;
+                    *nread += 2;
+                }
+                _read_func
+            },
+            DataType::Int16 => {
+                $size += 2;
+                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
+                    point $( .$property )+ = LittleEndian::read_i16(buf) as _;
+                    *nread += 2;
+                }
+                _read_func
+            },
+            DataType::Uint32 => {
+                $size += 4;
+                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
+                    point $( .$property )+ = LittleEndian::read_u32(buf) as _;
+                    *nread += 4;
+                }
+                _read_func
+            },
+            DataType::Int32 => {
+                $size += 4;
+                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
+                    point $( .$property )+ = LittleEndian::read_i32(buf) as _;
+                    *nread += 4;
+                }
+                _read_func
+            },
+            DataType::Float32 => {
+                $size += 4;
+                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
+                    point $( .$property )+ = LittleEndian::read_f32(buf) as _;
+                    *nread += 4;
+                }
+                _read_func
+            },
+            DataType::Float64 => {
+                $size += 8;
+                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
+                    point $( .$property )+ = LittleEndian::read_f64(buf) as _;
+                    *nread += 8;
+                }
+                _read_func
+            },
+        }
+    )
 }
 
 /// Opens a PLY file and checks that it is the correct format we support. Seeks in the file to the
 /// beginning of the binary data which must be (x, y, z, r, g, b) tuples.
-fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, PointFormat)> {
+fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFunc>)> {
     let mut file = File::open(ply_file).chain_err(|| "Could not open input file.")?;
     let mut reader = BufReader::new(file);
     let (header, header_len) = parse_header(&mut reader)?;
@@ -246,60 +292,75 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, PointFormat)> {
     }
 
     let vertex = &header["vertex"];
-    if !vertex.has_property("x") || !vertex.has_property("y") || !vertex.has_property("z") {
+    let mut seen_x = false;
+    let mut seen_y = false;
+    let mut seen_z = false;
+
+    let mut readers: Vec<ReadingFunc> = Vec::new();
+    let mut num_bytes_per_point = 0;
+
+    for prop in &vertex.properties {
+        match &prop.name as &str {
+            "x" => {
+                readers.push(read_casted_property!(prop.data_type,
+                                                   point.position.x,
+                                                   num_bytes_per_point));
+                seen_x = true;
+            }
+            "y" => {
+                readers.push(read_casted_property!(prop.data_type,
+                                                   point.position.y,
+                                                   num_bytes_per_point));
+                seen_y = true;
+            }
+            "z" => {
+                readers.push(read_casted_property!(prop.data_type,
+                                                   point.position.z,
+                                                   num_bytes_per_point));
+                seen_z = true;
+            }
+            "r" | "red" => {
+                readers.push(read_casted_property!(prop.data_type, point.r, num_bytes_per_point));
+            }
+            "g" | "green" => {
+                readers.push(read_casted_property!(prop.data_type, point.g, num_bytes_per_point));
+            }
+            "b" | "blue" => {
+                readers.push(read_casted_property!(prop.data_type, point.b, num_bytes_per_point));
+            }
+            other => println!("Ignoring property '{}' on 'vertex'.", other),
+        }
+    }
+
+    if !seen_x || !seen_y || !seen_z {
         panic!("PLY must contain properties 'x', 'y', 'z' for 'vertex'.");
     }
-
-    let mut num_bytes_per_point = 0;
-    let position_data_type = header["vertex"]["x"].data_type;
-    num_bytes_per_point += position_data_type.size_in_bytes() * 3;
-
-    // TODO(hrapp): We silently assume that data types of (y, z) is that of x and similar for
-    // colors. Track this properly.
-    let color_data_type = {
-        if vertex.has_property("red") && vertex.has_property("green") &&
-           vertex.has_property("blue") {
-            Some(vertex["red"].data_type)
-        } else if vertex.has_property("r") && vertex.has_property("g") && vertex.has_property("b") {
-            Some(vertex["r"].data_type)
-        } else {
-            None
-        }
-    };
-    if let Some(ref data_type) = color_data_type {
-        num_bytes_per_point += data_type.size_in_bytes() * 3;
-    }
-
-    let point_format = PointFormat {
-        position_data_type: position_data_type,
-        color_data_type: color_data_type,
-    };
 
     // We align the buffer of this 'BufReader' to points, so that we can index this buffer and know
     // that it will always contain full points to parse.
     Ok((BufReader::with_capacity(num_bytes_per_point * 1024, file),
         header["vertex"].count,
-        point_format))
+        readers))
 }
 
 
 /// Abstraction to read binary points from ply files into points.
 pub struct PlyIterator {
     reader: BufReader<File>,
-    point_format: PointFormat,
+    readers: Vec<ReadingFunc>,
     num_points_read: i64,
     pub num_total_points: i64,
 }
 
 impl PlyIterator {
     pub fn new(ply_file: &Path) -> Result<Self> {
-        let (reader, num_total_points, point_format) = open(ply_file)?;
+        let (reader, num_total_points, readers) = open(ply_file)?;
         Ok(PlyIterator {
-            reader: reader,
-            point_format: point_format,
-            num_total_points: num_total_points,
-            num_points_read: 0,
-        })
+               reader: reader,
+               readers: readers,
+               num_total_points: num_total_points,
+               num_points_read: 0,
+           })
     }
 }
 
@@ -312,44 +373,24 @@ impl Iterator for PlyIterator {
         }
 
         let mut nread = 0;
-        let point = {
-            // We made sure before that the internal buffer of 'reader' is aligned to the number of
-            // bytes for a single point, therefore we can access it here and know that we can
-            // always read into it and are sure that it contains at least a full point.
-            let buf = self.reader.fill_buf().unwrap();
 
-            let position = {
-                let data_type = &self.point_format.position_data_type;
-                let size_in_bytes = data_type.size_in_bytes();
-                let x = data_type.read::<LittleEndian>(&buf[nread..]);
-                nread += size_in_bytes;
-                let y = data_type.read::<LittleEndian>(&buf[nread..]);
-                nread += size_in_bytes;
-                let z = data_type.read::<LittleEndian>(&buf[nread..]);
-                nread += size_in_bytes;
-                Vector3f::new(x, y, z)
-            };
-
-            let mut r = 255;
-            let mut g = 255;
-            let mut b = 255;
-            if let Some(ref data_type) = self.point_format.color_data_type {
-                let size_in_bytes = data_type.size_in_bytes();
-                r = data_type.read::<LittleEndian>(&buf[nread..]) as u8;
-                nread += size_in_bytes;
-                g = data_type.read::<LittleEndian>(&buf[nread..]) as u8;
-                nread += size_in_bytes;
-                b = data_type.read::<LittleEndian>(&buf[nread..]) as u8;
-                nread += size_in_bytes;
-            };
-
-            Point {
-                position: position,
-                r: r,
-                g: g,
-                b: b,
-            }
+        // We made sure before that the internal buffer of 'reader' is aligned to the number of
+        // bytes for a single point, therefore we can access it here and know that we can
+        // always read into it and are sure that it contains at least a full point.
+        let mut point = Point {
+            position: Vector3f::new(0., 0., 0.),
+            r: 255,
+            g: 255,
+            b: 255,
         };
+        {
+            let buf = self.reader.fill_buf().unwrap();
+            for r in &self.readers {
+                let cnread = nread;
+                r(&mut nread, &buf[cnread..], &mut point);
+            }
+        }
+
         self.num_points_read += 1;
         self.reader.consume(nread);
         Some(point)
