@@ -29,7 +29,12 @@ pub mod ply;
 pub mod pts;
 pub mod errors;
 
-#[derive(Debug)]
+pub trait InternalIterator {
+    fn for_each<F: FnMut(&Point)>(self, F);
+    fn size_hint(&self) -> Option<usize>;
+}
+
+#[derive(Debug,Clone)]
 pub struct Point {
     pub position: math::Vector3f,
     pub r: u8,

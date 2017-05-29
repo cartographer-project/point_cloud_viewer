@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use math::Vector3f;
-use Point;
+use {InternalIterator, Point};
 use std::fs::File;
 use std::io::{BufReader, BufRead};
 use std::path::Path;
@@ -30,29 +30,33 @@ impl PtsIterator {
     }
 }
 
-impl Iterator for PtsIterator {
-    type Item = Point;
+impl InternalIterator for PtsIterator {
+    fn size_hint(&self) -> Option<usize> {
+        None
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn for_each<F: FnMut(&Point)>(mut self, mut f: F) {
+        let mut line = String::new();
         loop {
-            let mut line = String::new();
+            line.clear();
             self.data.read_line(&mut line).unwrap();
             if line.is_empty() {
-                return None;
+                break;
             }
 
             let parts: Vec<&str> = line.trim().split(|c| c == ' ' || c == ',').collect();
             if parts.len() != 7 {
                 continue;
             }
-            return Some(Point {
+            let p = Point {
                 position: Vector3f::new(parts[0].parse::<f32>().unwrap(),
                                         parts[1].parse::<f32>().unwrap(),
                                         parts[2].parse::<f32>().unwrap()),
                 r: parts[4].parse::<u8>().unwrap(),
                 g: parts[5].parse::<u8>().unwrap(),
                 b: parts[6].parse::<u8>().unwrap(),
-            });
+            };
+            f(&p);
         }
     }
 }
