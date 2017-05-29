@@ -206,15 +206,15 @@ type ReadingFn = fn(nread: &mut usize, buf: &[u8], val: &mut Point);
 // The two macros create a 'ReadingFn' that reads a value of '$data_type' out of a reader, assigns
 // it to '$property' (e.g. 'position.x') of 'point' while casting it to the correct type. I did not
 // find a way of doing this purely using generic programming, so I resorted to this macro.
-macro_rules! create_and_return_reading_function {
+macro_rules! create_and_return_reading_fn {
     ($data_type:expr, $($property:ident).+, $size:ident, $num_bytes:expr, $reading_fn:expr) => (
         {
             $size += $num_bytes;
-            fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
+            fn _read_fn(nread: &mut usize, buf: &[u8], point: &mut Point) {
                 point $( .$property )+ = $reading_fn(buf) as _;
                 *nread += $num_bytes;
             }
-            _read_func
+            _read_fn
         }
     )
 }
@@ -223,35 +223,35 @@ macro_rules! read_casted_property {
     ($data_type:expr, point. $($property:ident).+, &mut $size:ident) => (
         match $data_type {
             DataType::Uint8 => {
-                create_and_return_reading_function!($data_type, $($property).+, $size, 1,
+                create_and_return_reading_fn!($data_type, $($property).+, $size, 1,
                     |buf: &[u8]| buf[0])
             },
             DataType::Int8 => {
-                create_and_return_reading_function!($data_type, $($property).+, $size, 1,
+                create_and_return_reading_fn!($data_type, $($property).+, $size, 1,
                     |buf: &[u8]| buf[0])
             },
             DataType::Uint16 => {
-                create_and_return_reading_function!($data_type, $($property).+, $size, 2,
+                create_and_return_reading_fn!($data_type, $($property).+, $size, 2,
                     LittleEndian::read_u16)
             },
             DataType::Int16 => {
-                create_and_return_reading_function!($data_type, $($property).+, $size, 2,
+                create_and_return_reading_fn!($data_type, $($property).+, $size, 2,
                     LittleEndian::read_i16)
             },
             DataType::Uint32 => {
-                create_and_return_reading_function!($data_type, $($property).+, $size, 4,
+                create_and_return_reading_fn!($data_type, $($property).+, $size, 4,
                     LittleEndian::read_u32)
             },
             DataType::Int32 => {
-                create_and_return_reading_function!($data_type, $($property).+, $size, 4,
+                create_and_return_reading_fn!($data_type, $($property).+, $size, 4,
                     LittleEndian::read_i32)
             },
             DataType::Float32 => {
-                create_and_return_reading_function!($data_type, $($property).+, $size, 4,
+                create_and_return_reading_fn!($data_type, $($property).+, $size, 4,
                     LittleEndian::read_f32)
             },
             DataType::Float64 => {
-                create_and_return_reading_function!($data_type, $($property).+, $size, 8,
+                create_and_return_reading_fn!($data_type, $($property).+, $size, 8,
                     LittleEndian::read_f64)
             },
         }
