@@ -201,74 +201,58 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
 }
 
 
-type ReadingFunc = fn(nread: &mut usize, buf: &[u8], val: &mut Point);
+type ReadingFn = fn(nread: &mut usize, buf: &[u8], val: &mut Point);
+
+// The two macros create a 'ReadingFn' that reads a value of '$data_type' out of a reader, assigns
+// it to '$property' (e.g. 'position.x') of 'point' while casting it to the correct type. I did not
+// find a way of doing this purely using generic programming, so I resorted to this macro.
+macro_rules! create_and_return_reading_function {
+    ($data_type:expr, $($property:ident).+, $size:ident, $num_bytes:expr, $reading_fn:expr) => (
+        {
+            $size += $num_bytes;
+            fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
+                point $( .$property )+ = $reading_fn(buf) as _;
+                *nread += $num_bytes;
+            }
+            _read_func
+        }
+    )
+}
 
 macro_rules! read_casted_property {
-    ($data_type:expr, point. $($property:ident).+, $size:ident ) => (
+    ($data_type:expr, point. $($property:ident).+, &mut $size:ident) => (
         match $data_type {
             DataType::Uint8 => {
-                $size += 1;
-                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
-                    point $( .$property )+ = buf[0] as _;
-                    *nread += 1;
-                }
-                _read_func
+                create_and_return_reading_function!($data_type, $($property).+, $size, 1,
+                    |buf: &[u8]| buf[0])
             },
             DataType::Int8 => {
-                $size += 1;
-                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
-                    point $( .$property )+ = buf[0] as _;
-                    *nread += 1;
-                }
-                _read_func
+                create_and_return_reading_function!($data_type, $($property).+, $size, 1,
+                    |buf: &[u8]| buf[0])
             },
             DataType::Uint16 => {
-                $size += 2;
-                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
-                    point $( .$property )+ = LittleEndian::read_u16(buf) as _;
-                    *nread += 2;
-                }
-                _read_func
+                create_and_return_reading_function!($data_type, $($property).+, $size, 2,
+                    LittleEndian::read_u16)
             },
             DataType::Int16 => {
-                $size += 2;
-                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
-                    point $( .$property )+ = LittleEndian::read_i16(buf) as _;
-                    *nread += 2;
-                }
-                _read_func
+                create_and_return_reading_function!($data_type, $($property).+, $size, 2,
+                    LittleEndian::read_i16)
             },
             DataType::Uint32 => {
-                $size += 4;
-                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
-                    point $( .$property )+ = LittleEndian::read_u32(buf) as _;
-                    *nread += 4;
-                }
-                _read_func
+                create_and_return_reading_function!($data_type, $($property).+, $size, 4,
+                    LittleEndian::read_u32)
             },
             DataType::Int32 => {
-                $size += 4;
-                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
-                    point $( .$property )+ = LittleEndian::read_i32(buf) as _;
-                    *nread += 4;
-                }
-                _read_func
+                create_and_return_reading_function!($data_type, $($property).+, $size, 4,
+                    LittleEndian::read_i32)
             },
             DataType::Float32 => {
-                $size += 4;
-                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
-                    point $( .$property )+ = LittleEndian::read_f32(buf) as _;
-                    *nread += 4;
-                }
-                _read_func
+                create_and_return_reading_function!($data_type, $($property).+, $size, 4,
+                    LittleEndian::read_f32)
             },
             DataType::Float64 => {
-                $size += 8;
-                fn _read_func(nread: &mut usize, buf: &[u8], point: &mut Point) {
-                    point $( .$property )+ = LittleEndian::read_f64(buf) as _;
-                    *nread += 8;
-                }
-                _read_func
+                create_and_return_reading_function!($data_type, $($property).+, $size, 8,
+                    LittleEndian::read_f64)
             },
         }
     )
@@ -276,7 +260,7 @@ macro_rules! read_casted_property {
 
 /// Opens a PLY file and checks that it is the correct format we support. Seeks in the file to the
 /// beginning of the binary data which must be (x, y, z, r, g, b) tuples.
-fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFunc>)> {
+fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
     let mut file = File::open(ply_file).chain_err(|| "Could not open input file.")?;
     let mut reader = BufReader::new(file);
     let (header, header_len) = parse_header(&mut reader)?;
@@ -296,7 +280,7 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFunc>)> {
     let mut seen_y = false;
     let mut seen_z = false;
 
-    let mut readers: Vec<ReadingFunc> = Vec::new();
+    let mut readers: Vec<ReadingFn> = Vec::new();
     let mut num_bytes_per_point = 0;
 
     for prop in &vertex.properties {
@@ -304,31 +288,34 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFunc>)> {
             "x" => {
                 readers.push(read_casted_property!(prop.data_type,
                                                    point.position.x,
-                                                   num_bytes_per_point));
+                                                   &mut num_bytes_per_point));
                 seen_x = true;
             }
             "y" => {
                 readers.push(read_casted_property!(prop.data_type,
                                                    point.position.y,
-                                                   num_bytes_per_point));
+                                                   &mut num_bytes_per_point));
                 seen_y = true;
             }
             "z" => {
                 readers.push(read_casted_property!(prop.data_type,
                                                    point.position.z,
-                                                   num_bytes_per_point));
+                                                   &mut num_bytes_per_point));
                 seen_z = true;
             }
             "r" | "red" => {
-                readers.push(read_casted_property!(prop.data_type, point.r, num_bytes_per_point));
+                readers.push(read_casted_property!(prop.data_type, point.r, &mut num_bytes_per_point));
             }
             "g" | "green" => {
-                readers.push(read_casted_property!(prop.data_type, point.g, num_bytes_per_point));
+                readers.push(read_casted_property!(prop.data_type, point.g, &mut num_bytes_per_point));
             }
             "b" | "blue" => {
-                readers.push(read_casted_property!(prop.data_type, point.b, num_bytes_per_point));
+                readers.push(read_casted_property!(prop.data_type, point.b, &mut num_bytes_per_point));
             }
-            other => println!("Ignoring property '{}' on 'vertex'.", other),
+            other => {
+                // TODO(hrapp): Implement skipping of unknown properties.
+                panic!("Unknown property '{}' on 'vertex'.", other)
+            }
         }
     }
 
@@ -347,7 +334,7 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFunc>)> {
 /// Abstraction to read binary points from ply files into points.
 pub struct PlyIterator {
     reader: BufReader<File>,
-    readers: Vec<ReadingFunc>,
+    readers: Vec<ReadingFn>,
     num_points_read: i64,
     pub num_total_points: i64,
 }
