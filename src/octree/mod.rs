@@ -134,7 +134,7 @@ impl Octree {
             }
             let file_name = path.file_name().unwrap();
             let file_name_str = file_name.to_str().unwrap();
-            if !file_name_str.starts_with("r") && file_name_str.ends_with(".xyz") {
+            if !file_name_str.starts_with("r") && !file_name_str.ends_with(".xyz") {
                 continue;
             }
             let num_points = fs::metadata(path).unwrap().len() / 12;
