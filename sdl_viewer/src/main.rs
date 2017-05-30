@@ -1,10 +1,9 @@
-extern crate sdl2;
-
-extern crate point_viewer;
-extern crate time;
 extern crate cgmath;
+extern crate point_viewer;
+extern crate sdl2;
+extern crate time;
 
-use cgmath::{InnerSpace, Rad, Deg, Vector3, Vector2, Zero, Matrix4, Matrix, Array, One, Rotation,
+use cgmath::{InnerSpace, Rad, Deg, Vector3, Zero, Matrix4, Matrix, Array, One, Rotation,
              Rotation3, Decomposed, Transform, Quaternion, Angle};
 use point_viewer::math::CuboidLike;
 use point_viewer::octree;
@@ -18,7 +17,7 @@ use std::process;
 use std::ptr;
 use std::str;
 
-#[allow(non_upper_case_globals,clippy)]
+#[allow(non_upper_case_globals)]
 mod gl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
@@ -102,7 +101,11 @@ impl GlProgram {
 }
 
 impl Drop for GlProgram {
-    fn drop(&mut self) {}
+    fn drop(&mut self) {
+        unsafe {
+            gl::DeleteProgram(self.id);
+        }
+    }
 }
 
 // Constructs a projection matrix. Math lifted from ThreeJS.
@@ -137,17 +140,9 @@ fn make_projection_matrix<A: Into<Rad<f32>>>(near: f32,
     )
 }
 
-#[derive(Debug,PartialEq)]
-enum MouseState {
-    Rotating,
-    None,
-}
-
 #[derive(Debug)]
 struct Camera {
     movement_speed: f32,
-    mouse_state: MouseState,
-    rotate_start: Vector2<f32>,
     theta: Rad<f32>,
     phi: Rad<f32>,
 
@@ -174,8 +169,6 @@ impl Camera {
             moving_right: false,
             moving_down: false,
             moving_up: false,
-            mouse_state: MouseState::None,
-            rotate_start: Vector2::zero(),
             theta: Rad(0.),
             phi: Rad(0.),
             transform: Decomposed {
@@ -241,25 +234,9 @@ impl Camera {
         self.transform.rot = rotation_z * rotation_x;
     }
 
-    fn start_rotating(&mut self, x: i32, y: i32) {
-        self.mouse_state = MouseState::Rotating;
-        self.rotate_start.x = x as f32;
-        self.rotate_start.y = y as f32;
-    }
-
-    fn stop_rotating(&mut self) {
-        self.mouse_state = MouseState::None;
-    }
-
-    fn mouse_motion(&mut self, x: i32, y: i32) {
-        if self.mouse_state == MouseState::None {
-            return;
-        }
-        let end = Vector2::new(x as f32, y as f32);
-        let delta = end - self.rotate_start;
-        self.rotate_start = end;
-        self.theta -= Rad(2. * std::f32::consts::PI * delta.x / self.width as f32);
-        self.phi -= Rad(2. * std::f32::consts::PI * delta.y / self.height as f32);
+    fn mouse_drag(&mut self, delta_x: i32, delta_y: i32) {
+        self.theta -= Rad(2. * std::f32::consts::PI * delta_x as f32 / self.width as f32);
+        self.phi -= Rad(2. * std::f32::consts::PI * delta_y as f32 / self.height as f32);
     }
 
     fn mouse_wheel(&mut self, delta: i32) {
@@ -412,7 +389,7 @@ impl NodeView {
                            mem::transmute(&node_data.position[0]),
                            gl::STATIC_DRAW);
 
-            // Specify the layout of the vertex data
+            // Specify the layout of the vertex data.
             let pos_attr = gl::GetAttribLocation(program.id, c_str!("position"));
             gl::EnableVertexAttribArray(pos_attr as GLuint);
             gl::VertexAttribPointer(pos_attr as GLuint,
@@ -554,15 +531,12 @@ fn main() {
                         _ => (),
                     }
                 }
-                Event::MouseButtonDown { which: 0, x, y, .. } => {
-                    camera.start_rotating(x, y);
-                }
-                Event::MouseButtonUp { which: 0, .. } => {
-                    camera.stop_rotating();
-                }
-                Event::MouseMotion { x, y, .. } => {
-                    camera.mouse_motion(x, y);
-                }
+                Event::MouseMotion {
+                    xrel,
+                    yrel,
+                    mousestate,
+                    ..
+                } if mousestate.left() => camera.mouse_drag(xrel, yrel),
                 Event::MouseWheel { y, .. } => {
                     camera.mouse_wheel(y);
                 }
