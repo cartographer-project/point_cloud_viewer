@@ -148,7 +148,6 @@ impl Octree {
                              height: i32,
                              use_lod: UseLod)
                              -> Vec<VisibleNode> {
-                                 println!("#hrapp projection_matrix: {:#?}", projection_matrix);
         let frustum = Frustum::from_matrix(projection_matrix);
         let mut open = vec![Node::root_with_bounding_cube(self.bounding_cube.clone())];
 
