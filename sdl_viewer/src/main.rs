@@ -16,7 +16,8 @@ extern crate cgmath;
 extern crate point_viewer;
 extern crate sdl2;
 extern crate time;
-#[macro_use] extern crate sdl_viewer;
+#[macro_use]
+extern crate sdl_viewer;
 
 use cgmath::{Matrix4, Matrix, Array};
 use point_viewer::math::CuboidLike;
@@ -79,7 +80,12 @@ impl NodeDrawer {
         unsafe {
             gl::Uniform1f(self.u_edge_length,
                           node_view.meta.bounding_cube.edge_length());
-            gl::Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
+            gl::Uniform3fv(self.u_min,
+                           1,
+                           node_view.meta
+                               .bounding_cube
+                               .min()
+                               .as_ptr());
             gl::DrawArrays(gl::POINTS, 0, node_view.meta.num_points as i32);
         }
         node_view.meta.num_points
@@ -165,24 +171,24 @@ fn main() {
 
     const WINDOW_WIDTH: i32 = 800;
     const WINDOW_HEIGHT: i32 = 600;
-    let window = match video_subsystem
-              .window("sdl2_viewer", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
-              .position_centered()
-              .resizable()
-              .opengl()
-              .build() {
-        Ok(window) => window,
-        Err(err) => panic!("failed to create window: {}", err),
-    };
+    let window =
+        match video_subsystem.window("sdl2_viewer", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
+                  .position_centered()
+                  .resizable()
+                  .opengl()
+                  .build() {
+            Ok(window) => window,
+            Err(err) => panic!("failed to create window: {}", err),
+        };
 
-    let gl_attr = video_subsystem.gl_attr();
+    // We need to create a context now, only after can we actually legally load the gl functions
+    // and query 'gl_attr'.
+    let _context = window.gl_create_context().unwrap();
+    video_subsystem.gl_set_swap_interval(1);
 
     assert_eq!(gl_attr.context_profile(), GLProfile::Core);
 
-    gl::load_with(|s| {
-                      let ptr = video_subsystem.gl_get_proc_address(s);
-                      unsafe { std::mem::transmute(ptr) }
-                  });
+    gl::load_with(|s| unsafe { std::mem::transmute(video_subsystem.gl_get_proc_address(s)) });
 
     println!("SDL_GL_RED_SIZE: {}", gl_attr.red_size());
     println!("SDL_GL_GREEN_SIZE: {}", gl_attr.green_size());
@@ -207,12 +213,6 @@ fn main() {
              gl_attr.share_with_current_context());
     println!("SDL_GL_FRAMEBUFFER_SRGB_CAPABLE: {}",
              gl_attr.framebuffer_srgb_compatible());
-
-    // We need to keep the context alive while we are using SDL.
-    // TODO(hrapp): This seems to be required for Mac OS X and does not hurt on Linux, but to my
-    // understanding, a context should already be created at this point.
-    let _context = window.gl_create_context().unwrap();
-    video_subsystem.gl_set_swap_interval(1);
 
     let node_drawer = NodeDrawer::new();
 
@@ -258,12 +258,9 @@ fn main() {
                         _ => (),
                     }
                 }
-                Event::MouseMotion {
-                    xrel,
-                    yrel,
-                    mousestate,
-                    ..
-                } if mousestate.left() => camera.mouse_drag(xrel, yrel),
+                Event::MouseMotion { xrel, yrel, mousestate, .. } if mousestate.left() => {
+                    camera.mouse_drag(xrel, yrel)
+                }
                 Event::MouseWheel { y, .. } => {
                     camera.mouse_wheel(y);
                 }
