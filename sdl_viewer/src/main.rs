@@ -18,7 +18,7 @@ use std::process;
 use std::ptr;
 use std::str;
 
-#[allow(non_upper_case_globals)]
+#[allow(non_upper_case_globals,clippy)]
 mod gl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
@@ -48,9 +48,7 @@ pub fn compile_shader(code: &str, kind: GLenum) -> GLuint {
                                  ptr::null_mut(),
                                  buf.as_mut_ptr() as *mut GLchar);
             panic!("{}",
-                   str::from_utf8(&buf)
-                       .ok()
-                       .expect("ShaderInfoLog invalid UTF8"));
+                   str::from_utf8(&buf).expect("ShaderInfoLog invalid UTF8"));
         }
     }
     shader
@@ -77,9 +75,7 @@ pub fn link_program(vertex_shader_id: GLuint, fragment_shader_id: GLuint) -> GLu
                                   ptr::null_mut(),
                                   buf.as_mut_ptr() as *mut GLchar);
             panic!("{}",
-                   str::from_utf8(&buf)
-                       .ok()
-                       .expect("ProgramInfoLog invalid UTF8"));
+                   str::from_utf8(&buf).expect("ProgramInfoLog invalid UTF8"));
         }
         program
     }
@@ -296,7 +292,7 @@ impl GlBuffer {
 impl Drop for GlBuffer {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteBuffers(1, &mut self.id);
+            gl::DeleteBuffers(1, &self.id);
         }
     }
 }
@@ -324,8 +320,15 @@ impl GlVertexArray {
 impl Drop for GlVertexArray {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteVertexArrays(1, &mut self.id);
+            gl::DeleteVertexArrays(1, &self.id);
         }
+    }
+}
+
+// Unsafe macro to creat a static null-terminated c-string for interop with OpenGL.
+macro_rules! c_str {
+    ($s:expr) => {
+        concat!($s, "\0").as_ptr() as *const i8
     }
 }
 
@@ -349,11 +352,9 @@ impl NodeDrawer {
             gl::Enable(gl::PROGRAM_POINT_SIZE);
             gl::Enable(gl::DEPTH_TEST);
 
-            u_world_to_gl = gl::GetUniformLocation(program.id,
-                                                   CString::new("world_to_gl").unwrap().as_ptr());
-            u_edge_length = gl::GetUniformLocation(program.id,
-                                                   CString::new("edge_length").unwrap().as_ptr());
-            u_min = gl::GetUniformLocation(program.id, CString::new("min").unwrap().as_ptr());
+            u_world_to_gl = gl::GetUniformLocation(program.id, c_str!("world_to_gl"));
+            u_edge_length = gl::GetUniformLocation(program.id, c_str!("edge_length"));
+            u_min = gl::GetUniformLocation(program.id, c_str!("min"));
         }
         NodeDrawer {
             program,
@@ -365,10 +366,7 @@ impl NodeDrawer {
 
     fn update_world_to_gl(&self, matrix: &Matrix4<f32>) {
         unsafe {
-            gl::UniformMatrix4fv(self.u_world_to_gl,
-                                 1,
-                                 false as GLboolean,
-                                 mem::transmute(matrix.as_ptr()));
+            gl::UniformMatrix4fv(self.u_world_to_gl, 1, false as GLboolean, matrix.as_ptr());
         }
     }
 
@@ -377,9 +375,7 @@ impl NodeDrawer {
         unsafe {
             gl::Uniform1f(self.u_edge_length,
                           node_view.meta.bounding_cube.edge_length());
-            gl::Uniform3fv(self.u_min,
-                           1,
-                           mem::transmute(node_view.meta.bounding_cube.min().as_ptr()));
+            gl::Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
             gl::DrawArrays(gl::POINTS, 0, node_view.meta.num_points as i32);
         }
         node_view.meta.num_points
@@ -417,8 +413,7 @@ impl NodeView {
                            gl::STATIC_DRAW);
 
             // Specify the layout of the vertex data
-            let pos_attr = gl::GetAttribLocation(program.id,
-                                                 CString::new("position").unwrap().as_ptr());
+            let pos_attr = gl::GetAttribLocation(program.id, c_str!("position"));
             gl::EnableVertexAttribArray(pos_attr as GLuint);
             gl::VertexAttribPointer(pos_attr as GLuint,
                                     3,
@@ -432,8 +427,7 @@ impl NodeView {
                            node_data.color.len() as GLsizeiptr,
                            mem::transmute(&node_data.color[0]),
                            gl::STATIC_DRAW);
-            let color_attr = gl::GetAttribLocation(program.id,
-                                                   CString::new("color").unwrap().as_ptr());
+            let color_attr = gl::GetAttribLocation(program.id, c_str!("color"));
             gl::EnableVertexAttribArray(color_attr as GLuint);
             gl::VertexAttribPointer(color_attr as GLuint,
                                     3,
@@ -588,7 +582,7 @@ fn main() {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
             for view in &node_views {
-                num_points_drawn += node_drawer.draw(&view);
+                num_points_drawn += node_drawer.draw(view);
             }
         }
 
