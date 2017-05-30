@@ -1,313 +1,40 @@
+// Copyright 2016 The Cartographer Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 extern crate cgmath;
 extern crate point_viewer;
 extern crate sdl2;
 extern crate time;
+#[macro_use] extern crate sdl_viewer;
 
-use cgmath::{InnerSpace, Rad, Deg, Vector3, Zero, Matrix4, Matrix, Array, One, Rotation,
-             Rotation3, Decomposed, Transform, Quaternion, Angle};
+use cgmath::{Matrix4, Matrix, Array};
 use point_viewer::math::CuboidLike;
 use point_viewer::octree;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Scancode;
 use sdl2::video::GLProfile;
-use std::ffi::CString;
 use std::mem;
 use std::path::PathBuf;
 use std::process;
 use std::ptr;
 use std::str;
-
-#[allow(non_upper_case_globals)]
-mod gl {
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-}
-
-use gl::types::{GLint, GLuint, GLchar, GLenum, GLboolean, GLsizeiptr};
+use sdl_viewer::gl::types::{GLint, GLuint, GLboolean, GLsizeiptr};
+use sdl_viewer::{Camera, gl};
+use sdl_viewer::graphic::{GlProgram, GlVertexArray, GlBuffer};
 
 const FRAGMENT_SHADER: &'static str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER: &'static str = include_str!("../shaders/points.vs");
-
-// Found in glhelper (MIT License) crate and modified to our needs.
-pub fn compile_shader(code: &str, kind: GLenum) -> GLuint {
-    let shader;
-    unsafe {
-        shader = gl::CreateShader(kind);
-        let c_str = CString::new(code.as_bytes()).unwrap();
-        gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
-        gl::CompileShader(shader);
-        let mut status = gl::FALSE as GLint;
-        gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut status);
-        if status != (gl::TRUE as GLint) {
-            let mut len = 0;
-            gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
-            let mut buf = Vec::with_capacity(len as usize);
-            buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-            gl::GetShaderInfoLog(shader,
-                                 len,
-                                 ptr::null_mut(),
-                                 buf.as_mut_ptr() as *mut GLchar);
-            panic!("{}",
-                   str::from_utf8(&buf).expect("ShaderInfoLog invalid UTF8"));
-        }
-    }
-    shader
-}
-
-pub fn link_program(vertex_shader_id: GLuint, fragment_shader_id: GLuint) -> GLuint {
-    unsafe {
-        let program = gl::CreateProgram();
-        gl::AttachShader(program, vertex_shader_id);
-        gl::AttachShader(program, fragment_shader_id);
-        gl::LinkProgram(program);
-        gl::DetachShader(program, vertex_shader_id);
-        gl::DetachShader(program, fragment_shader_id);
-
-        let mut status = gl::FALSE as GLint;
-        gl::GetProgramiv(program, gl::LINK_STATUS, &mut status);
-        if status != (gl::TRUE as GLint) {
-            let mut len: GLint = 0;
-            gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
-            let mut buf = Vec::with_capacity(len as usize);
-            buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-            gl::GetProgramInfoLog(program,
-                                  len,
-                                  ptr::null_mut(),
-                                  buf.as_mut_ptr() as *mut GLchar);
-            panic!("{}",
-                   str::from_utf8(&buf).expect("ProgramInfoLog invalid UTF8"));
-        }
-        program
-    }
-}
-
-struct GlProgram {
-    id: GLuint,
-}
-
-impl GlProgram {
-    fn new(vertex_shader: &str, fragment_shader: &str) -> Self {
-        let vertex_shader_id = compile_shader(vertex_shader, gl::VERTEX_SHADER);
-        let fragment_shader_id = compile_shader(fragment_shader, gl::FRAGMENT_SHADER);
-        let id = link_program(vertex_shader_id, fragment_shader_id);
-
-        // TODO(hrapp): Pull out some saner abstractions around program compilation.
-        unsafe {
-            gl::DeleteShader(vertex_shader_id);
-            gl::DeleteShader(fragment_shader_id);
-        }
-
-        GlProgram { id }
-    }
-}
-
-impl Drop for GlProgram {
-    fn drop(&mut self) {
-        unsafe {
-            gl::DeleteProgram(self.id);
-        }
-    }
-}
-
-// Constructs a projection matrix. Math lifted from ThreeJS.
-fn make_projection_matrix<A: Into<Rad<f32>>>(near: f32,
-                                             far: f32,
-                                             fov: A,
-                                             zoom: f32,
-                                             aspect_ratio: f32)
-                                             -> Matrix4<f32> {
-    let top = 0.5 * near * fov.into().tan() / zoom;
-    let height = 2. * top;
-    let width = aspect_ratio * height;
-    let left = -0.5 * width;
-
-    let right = left + width;
-    let bottom = top - height;
-
-    // Matrix is column major.
-    let x = 2. * near / (right - left);
-    let y = 2. * near / (top - bottom);
-
-    let a = (right + left) / (right - left);
-    let b = (top + bottom) / (top - bottom);
-    let c = -(far + near) / (far - near);
-    let d = -2. * far * near / (far - near);
-
-    Matrix4::new(
-        x, 0., 0., 0., // Column 0
-        0., y, 0., 0., // Column 1
-        a, b, c, -1., // Column 2
-        0., 0., d, 0. // Column 3
-    )
-}
-
-#[derive(Debug)]
-struct Camera {
-    movement_speed: f32,
-    theta: Rad<f32>,
-    phi: Rad<f32>,
-
-    transform: Decomposed<Vector3<f32>, Quaternion<f32>>,
-    moving_backward: bool,
-    moving_forward: bool,
-    moving_left: bool,
-    moving_right: bool,
-    moving_down: bool,
-    moving_up: bool,
-
-    projection_matrix: Matrix4<f32>,
-    width: i32,
-    height: i32,
-}
-
-impl Camera {
-    fn new(width: i32, height: i32) -> Self {
-        let mut camera = Camera {
-            movement_speed: 1.5,
-            moving_backward: false,
-            moving_forward: false,
-            moving_left: false,
-            moving_right: false,
-            moving_down: false,
-            moving_up: false,
-            theta: Rad(0.),
-            phi: Rad(0.),
-            transform: Decomposed {
-                scale: 1.,
-                rot: Quaternion::one(),
-                disp: Vector3::new(0., 0., 150.),
-            },
-
-            // These will be set by set_size().
-            projection_matrix: One::one(),
-            width: 0,
-            height: 0,
-        };
-        camera.set_size(width, height);
-        camera
-    }
-
-    fn set_size(&mut self, width: i32, height: i32) {
-        self.width = width;
-        self.height = height;
-        self.projection_matrix =
-            make_projection_matrix(0.1, 10000., Deg(45.), 1., width as f32 / height as f32);
-        unsafe {
-            gl::Viewport(0, 0, width, height);
-        }
-    }
-
-    fn get_world_to_gl(&self) -> Matrix4<f32> {
-        let world_to_camera: Matrix4<f32> = self.transform.inverse_transform().unwrap().into();
-        self.projection_matrix * world_to_camera
-    }
-
-    fn update(&mut self) {
-        let mut pan = Vector3::zero();
-        if self.moving_right {
-            pan.x += 1.;
-        }
-        if self.moving_left {
-            pan.x -= 1.;
-        }
-        if self.moving_backward {
-            pan.z += 1.;
-        }
-        if self.moving_forward {
-            pan.z -= 1.;
-        }
-        if self.moving_up {
-            pan.y += 1.;
-        }
-        if self.moving_down {
-            pan.y -= 1.;
-        }
-
-        if pan.magnitude2() > 0. {
-            let translation = self.transform
-                .rot
-                .rotate_vector(pan.normalize() * self.movement_speed);
-            self.transform.disp += translation;
-        }
-
-        let rotation_z = Quaternion::from_angle_z(self.theta);
-        let rotation_x = Quaternion::from_angle_x(self.phi);
-        self.transform.rot = rotation_z * rotation_x;
-    }
-
-    fn mouse_drag(&mut self, delta_x: i32, delta_y: i32) {
-        self.theta -= Rad(2. * std::f32::consts::PI * delta_x as f32 / self.width as f32);
-        self.phi -= Rad(2. * std::f32::consts::PI * delta_y as f32 / self.height as f32);
-    }
-
-    fn mouse_wheel(&mut self, delta: i32) {
-        let sign = delta.signum() as f32;
-        self.movement_speed += sign * 0.1 * self.movement_speed;
-        self.movement_speed = self.movement_speed.max(0.1);
-    }
-}
-
-struct GlBuffer {
-    id: GLuint,
-}
-
-impl GlBuffer {
-    fn new() -> Self {
-        let mut id = 0;
-        unsafe {
-            gl::GenBuffers(1, &mut id);
-        }
-        GlBuffer { id }
-    }
-
-    fn bind(&self) {
-        unsafe {
-            gl::BindBuffer(gl::ARRAY_BUFFER, self.id);
-        }
-    }
-}
-
-impl Drop for GlBuffer {
-    fn drop(&mut self) {
-        unsafe {
-            gl::DeleteBuffers(1, &self.id);
-        }
-    }
-}
-
-struct GlVertexArray {
-    id: GLuint,
-}
-
-impl GlVertexArray {
-    fn new() -> Self {
-        let mut id = 0;
-        unsafe {
-            gl::GenVertexArrays(1, &mut id);
-        }
-        GlVertexArray { id }
-    }
-
-    fn bind(&self) {
-        unsafe {
-            gl::BindVertexArray(self.id);
-        }
-    }
-}
-
-impl Drop for GlVertexArray {
-    fn drop(&mut self) {
-        unsafe {
-            gl::DeleteVertexArrays(1, &self.id);
-        }
-    }
-}
-
-// Unsafe macro to creat a static null-terminated c-string for interop with OpenGL.
-macro_rules! c_str {
-    ($s:expr) => {
-        concat!($s, "\0").as_ptr() as *const i8
-    }
-}
 
 struct NodeDrawer {
     program: GlProgram,
