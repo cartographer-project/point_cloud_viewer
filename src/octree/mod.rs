@@ -19,13 +19,13 @@ use protobuf;
 use std::cmp;
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::io::{Read, BufReader};
 use walkdir;
 
 mod node;
 
-pub use self::node::{Node, NodeIterator, NodeId, NodeWriter, ChildIndex, PositionEncoding};
+pub use self::node::{Node, NodeIterator, NodeId, NodeWriter, ChildIndex, PositionEncoding, NodeMeta};
 
 pub const CURRENT_VERSION: i32 = 7;
 
@@ -92,7 +92,8 @@ pub struct NodeData {
 }
 
 impl Octree {
-    pub fn new(directory: PathBuf) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(directory: P) -> Result<Self> {
+        let directory = directory.as_ref();
         // We used to use JSON earlier.
         if directory.join("meta.json").exists() {
             return Err(ErrorKind::InvalidVersion(3).into());
