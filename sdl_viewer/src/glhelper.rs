@@ -18,8 +18,8 @@
 // This code here was extracted from the glhelper crate. We could not depend on it directly, since
 // we generate our own gl module which cannot be easily injected.
 
-use gl::types::{GLint, GLuint, GLchar, GLenum};
 use gl;
+use gl::types::{GLchar, GLenum, GLint, GLuint};
 use std::ffi::CString;
 use std::ptr;
 use std::str;
@@ -38,12 +38,16 @@ pub fn compile_shader(code: &str, kind: GLenum) -> GLuint {
             gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
             let mut buf = Vec::with_capacity(len as usize);
             buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-            gl::GetShaderInfoLog(shader,
-                                 len,
-                                 ptr::null_mut(),
-                                 buf.as_mut_ptr() as *mut GLchar);
-            panic!("{}",
-                   str::from_utf8(&buf).expect("ShaderInfoLog invalid UTF8"));
+            gl::GetShaderInfoLog(
+                shader,
+                len,
+                ptr::null_mut(),
+                buf.as_mut_ptr() as *mut GLchar,
+            );
+            panic!(
+                "{}",
+                str::from_utf8(&buf).expect("ShaderInfoLog invalid UTF8")
+            );
         }
     }
     shader
@@ -65,12 +69,16 @@ pub fn link_program(vertex_shader_id: GLuint, fragment_shader_id: GLuint) -> GLu
             gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
             let mut buf = Vec::with_capacity(len as usize);
             buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-            gl::GetProgramInfoLog(program,
-                                  len,
-                                  ptr::null_mut(),
-                                  buf.as_mut_ptr() as *mut GLchar);
-            panic!("{}",
-                   str::from_utf8(&buf).expect("ProgramInfoLog invalid UTF8"));
+            gl::GetProgramInfoLog(
+                program,
+                len,
+                ptr::null_mut(),
+                buf.as_mut_ptr() as *mut GLchar,
+            );
+            panic!(
+                "{}",
+                str::from_utf8(&buf).expect("ProgramInfoLog invalid UTF8")
+            );
         }
         program
     }

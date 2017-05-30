@@ -19,20 +19,20 @@ extern crate time;
 #[macro_use]
 extern crate sdl_viewer;
 
-use cgmath::{Matrix4, Matrix, Array};
+use cgmath::{Array, Matrix, Matrix4};
 use point_viewer::math::CuboidLike;
 use point_viewer::octree;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Scancode;
 use sdl2::video::GLProfile;
+use sdl_viewer::{Camera, gl};
+use sdl_viewer::gl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
+use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use std::mem;
 use std::path::PathBuf;
 use std::process;
 use std::ptr;
 use std::str;
-use sdl_viewer::gl::types::{GLint, GLuint, GLboolean, GLsizeiptr};
-use sdl_viewer::{Camera, gl};
-use sdl_viewer::graphic::{GlProgram, GlVertexArray, GlBuffer};
 
 const FRAGMENT_SHADER: &'static str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER: &'static str = include_str!("../shaders/points.vs");
@@ -78,14 +78,11 @@ impl NodeDrawer {
     fn draw(&self, node_view: &NodeView) -> i64 {
         node_view.vertex_array.bind();
         unsafe {
-            gl::Uniform1f(self.u_edge_length,
-                          node_view.meta.bounding_cube.edge_length());
-            gl::Uniform3fv(self.u_min,
-                           1,
-                           node_view.meta
-                               .bounding_cube
-                               .min()
-                               .as_ptr());
+            gl::Uniform1f(
+                self.u_edge_length,
+                node_view.meta.bounding_cube.edge_length(),
+            );
+            gl::Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
             gl::DrawArrays(gl::POINTS, 0, node_view.meta.num_points as i32);
         }
         node_view.meta.num_points
@@ -117,34 +114,42 @@ impl NodeView {
                 octree::PositionEncoding::Uint16 => (true, gl::UNSIGNED_SHORT),
                 octree::PositionEncoding::Float32 => (false, gl::FLOAT),
             };
-            gl::BufferData(gl::ARRAY_BUFFER,
-                           node_data.position.len() as GLsizeiptr,
-                           mem::transmute(&node_data.position[0]),
-                           gl::STATIC_DRAW);
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                node_data.position.len() as GLsizeiptr,
+                mem::transmute(&node_data.position[0]),
+                gl::STATIC_DRAW,
+            );
 
             // Specify the layout of the vertex data.
             let pos_attr = gl::GetAttribLocation(program.id, c_str!("position"));
             gl::EnableVertexAttribArray(pos_attr as GLuint);
-            gl::VertexAttribPointer(pos_attr as GLuint,
-                                    3,
-                                    data_type,
-                                    normalize as GLboolean,
-                                    0,
-                                    ptr::null());
+            gl::VertexAttribPointer(
+                pos_attr as GLuint,
+                3,
+                data_type,
+                normalize as GLboolean,
+                0,
+                ptr::null(),
+            );
 
             buffer_color.bind();
-            gl::BufferData(gl::ARRAY_BUFFER,
-                           node_data.color.len() as GLsizeiptr,
-                           mem::transmute(&node_data.color[0]),
-                           gl::STATIC_DRAW);
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                node_data.color.len() as GLsizeiptr,
+                mem::transmute(&node_data.color[0]),
+                gl::STATIC_DRAW,
+            );
             let color_attr = gl::GetAttribLocation(program.id, c_str!("color"));
             gl::EnableVertexAttribArray(color_attr as GLuint);
-            gl::VertexAttribPointer(color_attr as GLuint,
-                                    3,
-                                    gl::UNSIGNED_BYTE,
-                                    gl::FALSE as GLboolean,
-                                    0,
-                                    ptr::null());
+            gl::VertexAttribPointer(
+                color_attr as GLuint,
+                3,
+                gl::UNSIGNED_BYTE,
+                gl::FALSE as GLboolean,
+                0,
+                ptr::null(),
+            );
         }
         NodeView {
             vertex_array,
@@ -171,15 +176,15 @@ fn main() {
 
     const WINDOW_WIDTH: i32 = 800;
     const WINDOW_HEIGHT: i32 = 600;
-    let window =
-        match video_subsystem.window("sdl2_viewer", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
-                  .position_centered()
-                  .resizable()
-                  .opengl()
-                  .build() {
-            Ok(window) => window,
-            Err(err) => panic!("failed to create window: {}", err),
-        };
+    let window = match video_subsystem
+              .window("sdl2_viewer", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
+              .position_centered()
+              .resizable()
+              .opengl()
+              .build() {
+        Ok(window) => window,
+        Err(err) => panic!("failed to create window: {}", err),
+    };
 
     // We need to create a context now, only after can we actually legally load the gl functions
     // and query 'gl_attr'.
@@ -188,10 +193,12 @@ fn main() {
 
     assert_eq!(gl_attr.context_profile(), GLProfile::Core);
 
-    gl::load_with(|s| {
-                      let ptr = video_subsystem.gl_get_proc_address(s);
-                      unsafe { std::mem::transmute(ptr) }
-                  });
+    gl::load_with(
+        |s| {
+            let ptr = video_subsystem.gl_get_proc_address(s);
+            unsafe { std::mem::transmute(ptr) }
+        }
+    );
 
     let node_drawer = NodeDrawer::new();
 
@@ -237,9 +244,12 @@ fn main() {
                         _ => (),
                     }
                 }
-                Event::MouseMotion { xrel, yrel, mousestate, .. } if mousestate.left() => {
-                    camera.mouse_drag(xrel, yrel)
-                }
+                Event::MouseMotion {
+                    xrel,
+                    yrel,
+                    mousestate,
+                    ..
+                } if mousestate.left() => camera.mouse_drag(xrel, yrel),
                 Event::MouseWheel { y, .. } => {
                     camera.mouse_wheel(y);
                 }

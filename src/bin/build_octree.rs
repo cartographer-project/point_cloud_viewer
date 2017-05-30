@@ -20,15 +20,15 @@ extern crate protobuf;
 extern crate scoped_pool;
 
 use pbr::ProgressBar;
+use point_viewer::{InternalIterator, Point};
 use point_viewer::errors::*;
-use point_viewer::math::{CuboidLike, Cube, Cuboid};
+use point_viewer::math::{Cube, Cuboid, CuboidLike};
 use point_viewer::octree;
-use point_viewer::{Point, InternalIterator};
+use point_viewer::ply::PlyIterator;
 use point_viewer::proto;
 use point_viewer::pts::PtsIterator;
-use point_viewer::ply::PlyIterator;
 use protobuf::core::Message;
-use scoped_pool::{Scope, Pool};
+use scoped_pool::{Pool, Scope};
 use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::Stdout;
@@ -43,38 +43,49 @@ struct SplittedNode {
     num_points: i64,
 }
 
-fn split<P>(output_directory: &Path,
-            resolution: f64,
-            node: &octree::Node,
-            stream: P)
-            -> Vec<SplittedNode>
+fn split<P>(
+    output_directory: &Path,
+    resolution: f64,
+    node: &octree::Node,
+    stream: P,
+) -> Vec<SplittedNode>
     where P: InternalIterator
 {
-    let mut children: Vec<Option<octree::NodeWriter>> = vec![None, None, None, None, None, None,
-                                                             None, None];
+    let mut children: Vec<Option<octree::NodeWriter>> =
+        vec![None, None, None, None, None, None, None, None];
     match stream.size_hint() {
         Some(size) => {
-            println!("Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",
-                     node.id,
-                     size,
-                     size as f64 / MAX_POINTS_PER_NODE as f64)
+            println!(
+                "Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",
+                node.id,
+                size,
+                size as f64 / MAX_POINTS_PER_NODE as f64
+            )
         }
         None => {
-            println!("Splitting {} which has an unknown number of points.",
-                     node.id)
+            println!(
+                "Splitting {} which has an unknown number of points.",
+                node.id
+            )
         }
     };
 
-    stream.for_each(|p| {
-        let child_index = node.get_child_id_containing_point(&p.position);
-        let array_index = child_index.as_u8() as usize;
-        if children[array_index].is_none() {
-            children[array_index] = Some(octree::NodeWriter::new(output_directory,
-                                                                 &node.get_child(child_index),
-                                                                 resolution));
+    stream.for_each(
+        |p| {
+            let child_index = node.get_child_id_containing_point(&p.position);
+            let array_index = child_index.as_u8() as usize;
+            if children[array_index].is_none() {
+                children[array_index] = Some(
+                    octree::NodeWriter::new(
+                        output_directory,
+                        &node.get_child(child_index),
+                        resolution,
+                    )
+                );
+            }
+            children[array_index].as_mut().unwrap().write(&p);
         }
-        children[array_index].as_mut().unwrap().write(&p);
-    });
+    );
 
     // Remove the node file on disk by reopening the node and immediately dropping it again without
     // writing a point. This only saves some disk space during processing - all nodes will be
@@ -89,37 +100,47 @@ fn split<P>(output_directory: &Path,
         }
         let c = c.unwrap();
 
-        rv.push(SplittedNode {
-            node: node.get_child(octree::ChildIndex::from_u8(child_index as u8)),
-            num_points: c.num_written(),
-        });
+        rv.push(
+            SplittedNode {
+                node: node.get_child(octree::ChildIndex::from_u8(child_index as u8)),
+                num_points: c.num_written(),
+            }
+        );
     }
     rv
 }
 
-fn split_node<'a, 'b: 'a, P>(scope: &Scope<'a>,
-                             output_directory: &'b Path,
-                             resolution: f64,
-                             splitted_node: SplittedNode,
-                             stream: P,
-                             leaf_nodes_sender: mpsc::Sender<octree::Node>)
-    where P: InternalIterator
+fn split_node<'a, 'b: 'a, P>(
+    scope: &Scope<'a>,
+    output_directory: &'b Path,
+    resolution: f64,
+    splitted_node: SplittedNode,
+    stream: P,
+    leaf_nodes_sender: mpsc::Sender<octree::Node>,
+) where P: InternalIterator
 {
     let children = split(output_directory, resolution, &splitted_node.node, stream);
-    let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) = children.into_iter()
-        .partition(|n| n.num_points < MAX_POINTS_PER_NODE);
+    let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) =
+        children
+            .into_iter()
+            .partition(|n| n.num_points < MAX_POINTS_PER_NODE);
 
     for child in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
-        scope.recurse(move |scope| {
-            let stream = octree::NodeIterator::from_disk(output_directory, &child.node.id).unwrap();
-            split_node(scope,
-                       output_directory,
-                       resolution,
-                       child,
-                       stream,
-                       leaf_nodes_sender_clone);
-        });
+        scope.recurse(
+            move |scope| {
+                let stream = octree::NodeIterator::from_disk(output_directory, &child.node.id)
+                    .unwrap();
+                split_node(
+                    scope,
+                    output_directory,
+                    resolution,
+                    child,
+                    stream,
+                    leaf_nodes_sender_clone,
+                );
+            }
+        );
     }
 
     for splitted_node in leaf_nodes {
@@ -127,10 +148,11 @@ fn split_node<'a, 'b: 'a, P>(scope: &Scope<'a>,
     }
 }
 
-fn subsample_children_into(output_directory: &Path,
-                           node: octree::Node,
-                           resolution: f64)
-                           -> Result<()> {
+fn subsample_children_into(
+    output_directory: &Path,
+    node: octree::Node,
+    resolution: f64,
+) -> Result<()> {
     let mut parent_writer = octree::NodeWriter::new(output_directory, &node, resolution);
     println!("Creating {} from subsampling children.", &node.id);
     for i in 0..8 {
@@ -203,39 +225,50 @@ fn find_bounding_cube(input: &InputFile) -> (Cube, i64) {
     let mut num_points = 0i64;
     let mut bounding_cube = Cuboid::new();
     let (stream, mut progress_bar) = make_stream(input);
-    progress_bar.as_mut().map(|pb| pb.message("Determining bounding box: "));
+    progress_bar
+        .as_mut()
+        .map(|pb| pb.message("Determining bounding box: "));
 
-    stream.for_each(|p: &Point| {
-        bounding_cube.update(&p.position);
-        num_points += 1;
-        if num_points % UPDATE_COUNT == 0 {
-            progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
+    stream.for_each(
+        |p: &Point| {
+            bounding_cube.update(&p.position);
+            num_points += 1;
+            if num_points % UPDATE_COUNT == 0 {
+                progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
+            }
         }
-    });
+    );
     progress_bar.map(|mut f| f.finish());
     (bounding_cube.to_cube(), num_points)
 }
 
 fn main() {
     let matches = clap::App::new("build_octree")
-        .args(&[clap::Arg::with_name("output_directory")
+        .args(
+            &[
+                clap::Arg::with_name("output_directory")
                     .help("Output directory to write the octree into.")
                     .long("output_directory")
                     .required(true)
                     .takes_value(true),
                 clap::Arg::with_name("resolution")
-                    .help("Minimal precision that this point cloud should have. This decides \
-                           on the number of bits used to encode each node.")
+                    .help(
+                        "Minimal precision that this point cloud should have. This decides \
+                           on the number of bits used to encode each node."
+                    )
                     .long("resolution")
                     .default_value("0.001"),
                 clap::Arg::with_name("input")
                     .help("PLY/PTS file to parse for the points.")
                     .index(1)
-                    .required(true)])
+                    .required(true),
+            ]
+        )
         .get_matches();
 
     let output_directory = &PathBuf::from(matches.value_of("output_directory").unwrap());
-    let resolution = matches.value_of("resolution")
+    let resolution = matches
+        .value_of("resolution")
         .unwrap()
         .parse::<f64>()
         .expect("resolution could not be parsed as float.");
@@ -255,10 +288,17 @@ fn main() {
     let _ = fs::create_dir(output_directory);
 
     let mut meta = proto::Meta::new();
-    meta.mut_bounding_cube().mut_min().set_x(bounding_cube.min().x);
-    meta.mut_bounding_cube().mut_min().set_y(bounding_cube.min().y);
-    meta.mut_bounding_cube().mut_min().set_z(bounding_cube.min().z);
-    meta.mut_bounding_cube().set_edge_length(bounding_cube.edge_length());
+    meta.mut_bounding_cube()
+        .mut_min()
+        .set_x(bounding_cube.min().x);
+    meta.mut_bounding_cube()
+        .mut_min()
+        .set_y(bounding_cube.min().y);
+    meta.mut_bounding_cube()
+        .mut_min()
+        .set_z(bounding_cube.min().z);
+    meta.mut_bounding_cube()
+        .set_edge_length(bounding_cube.edge_length());
     meta.set_resolution(resolution);
     meta.set_version(octree::CURRENT_VERSION);
     let mut meta_pb = File::create(&output_directory.join("meta.pb")).unwrap();
@@ -268,19 +308,23 @@ fn main() {
     let pool = Pool::new(10);
 
     let (leaf_nodes_sender, leaf_nodes_receiver) = mpsc::channel();
-    pool.scoped(move |scope| {
-        let (root_stream, _) = make_stream(&input);
-        let root = SplittedNode {
-            node: octree::Node::root_with_bounding_cube(bounding_cube),
-            num_points: num_points,
-        };
-        split_node(scope,
-                   output_directory,
-                   resolution,
-                   root,
-                   root_stream,
-                   leaf_nodes_sender.clone());
-    });
+    pool.scoped(
+        move |scope| {
+            let (root_stream, _) = make_stream(&input);
+            let root = SplittedNode {
+                node: octree::Node::root_with_bounding_cube(bounding_cube),
+                num_points: num_points,
+            };
+            split_node(
+                scope,
+                output_directory,
+                resolution,
+                root,
+                root_stream,
+                leaf_nodes_sender.clone(),
+            );
+        }
+    );
 
     let mut deepest_level = 0usize;
     let mut leaf_nodes = Vec::<octree::Node>::new();
@@ -292,7 +336,9 @@ fn main() {
     // We start on the deepest level and work our way up the tree.
     for current_level in (0..deepest_level + 1).rev() {
         // All nodes on the same level can be subsampled in parallel.
-        let res = leaf_nodes.into_iter().partition(|n| n.level() == current_level);
+        let res = leaf_nodes
+            .into_iter()
+            .partition(|n| n.level() == current_level);
         leaf_nodes = res.1;
 
         let mut parent_ids = HashSet::new();
@@ -315,12 +361,14 @@ fn main() {
             subsample_nodes.push(parent);
         }
 
-        pool.scoped(move |scope| {
-            for node in subsample_nodes {
-                scope.execute(move || {
-                    subsample_children_into(output_directory, node, resolution).unwrap();
-                });
+        pool.scoped(
+            move |scope| for node in subsample_nodes {
+                scope.execute(
+                    move || {
+                        subsample_children_into(output_directory, node, resolution).unwrap();
+                    }
+                );
             }
-        });
+        );
     }
 }

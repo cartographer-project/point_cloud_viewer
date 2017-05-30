@@ -12,18 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::f32;
-use cgmath::{InnerSpace, Rad, Deg, Vector3, Zero, Matrix4, One, Rotation, Rotation3, Decomposed, Transform, Quaternion, Angle};
+use cgmath::{Angle, Decomposed, Deg, InnerSpace, Matrix4, One, Quaternion, Rad, Rotation,
+             Rotation3, Transform, Vector3, Zero};
 
 use gl;
+use std::f32;
 
 // Constructs a projection matrix. Math lifted from ThreeJS.
-fn make_projection_matrix<A: Into<Rad<f32>>>(near: f32,
-                                             far: f32,
-                                             fov: A,
-                                             zoom: f32,
-                                             aspect_ratio: f32)
-                                             -> Matrix4<f32> {
+fn make_projection_matrix<A: Into<Rad<f32>>>(
+    near: f32,
+    far: f32,
+    fov: A,
+    zoom: f32,
+    aspect_ratio: f32,
+) -> Matrix4<f32> {
     let top = 0.5 * near * fov.into().tan() / zoom;
     let height = 2. * top;
     let width = aspect_ratio * height;
@@ -42,10 +44,22 @@ fn make_projection_matrix<A: Into<Rad<f32>>>(near: f32,
     let d = -2. * far * near / (far - near);
 
     Matrix4::new(
-        x, 0., 0., 0., // Column 0
-        0., y, 0., 0., // Column 1
-        a, b, c, -1., // Column 2
-        0., 0., d, 0. // Column 3
+        x,
+        0.,
+        0.,
+        0., // Column 0
+        0.,
+        y,
+        0.,
+        0., // Column 1
+        a,
+        b,
+        c,
+        -1., // Column 2
+        0.,
+        0.,
+        d,
+        0., // Column 3
     )
 }
 
