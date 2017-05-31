@@ -49,5 +49,5 @@ Build with `cargo build --release`, run with `target/release/sdl_viewer <octree 
 
 This work was inspired through the following projects.
 
-- [Potree](https://potree.org)
-- [Megatree](https://wiki.ros.org/megatree)
+- [Potree](http://potree.org)
+- [Megatree](http://wiki.ros.org/megatree)
