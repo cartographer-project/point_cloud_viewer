@@ -5,7 +5,6 @@ main() {
     cargo test
 
     pushd web_viewer
-
     pushd client
     npm run build
     popd
