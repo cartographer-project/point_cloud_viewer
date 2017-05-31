@@ -3,14 +3,14 @@
 [![build status](https://travis-ci.org/googlecartographer/point_cloud_viewer.svg?branch=master)](https://travis-ci.org/googlecartographer/point_cloud_viewer) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/googlecartographer/point_cloud_viewer/blob/master/LICENSE)
 
 This is a standalone project to make viewing massive point clouds easy and convenient.
-It was build to serve the needs of the [Cartographer](http://github.com/googlecartographer) project, but is useful in its own right.
+It was build to serve the needs of the [Cartographer](https://github.com/googlecartographer) project, but is useful in its own right.
 
 ## Building
 
 The project consist of a root crate that can build and read octrees on disk and viewer binaries to visualize the data.
 
 First, install Rust: `curl https://sh.rustup.rs -sSf | sh`.
-See <http://rustup.rs> for details.
+See <https://rustup.rs> for details.
 
 ### Creating Octrees
 
@@ -22,7 +22,7 @@ For now, the generated rust code is checked in and needs to be regenerated manua
 
 ### Web Viewer
 
-The `web_viewer` consists of [TypeScript](http://www.typescriptlang.org) code running in the browser and a web server binary.
+The `web_viewer` consists of [TypeScript](https://www.typescriptlang.org) code running in the browser and a web server binary.
 
 To build,
 
@@ -39,7 +39,7 @@ The client files (HTML and JavaScript) are embedded in the `web_viewer` binary, 
 
 ### SDL client (experimental)
 
-This is a native client using [SDL2](http://libsdl.org).
+This is a native client using [SDL2](https://libsdl.org).
 It is a new tool and incomplete.
 For now, prefer the web viewer.
 
@@ -49,5 +49,5 @@ Build with `cargo build --release`, run with `target/release/sdl_viewer <octree 
 
 This work was inspired through the following projects.
 
-- [Potree](http://potree.org)
-- [Megatree](http://wiki.ros.org/megatree)
+- [Potree](https://potree.org)
+- [Megatree](https://wiki.ros.org/megatree)
