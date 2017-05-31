@@ -14,20 +14,17 @@
 
 [package]
 authors = ["Holger Rapp <hrapp@google.com>"]
-name = "point_viewer"
+name = "web_viewer"
 version = "0.1.0"
 
 [dependencies]
 byteorder = "^0.5.3"
-cgmath = "^0.14.0"
-error-chain = "^0.7.1"
-num = "0.1.36"
-num-traits = "0.1.36"
-pbr = "1.0.0-alpha.1"
-protobuf = "1.0.24"
-scoped-pool = "^0.1"
-walkdir = "^0.1.5"
 clap = "^2.6.0"
+iron = "^0.3.0"
+router = "^0.1.1"
+time = "^0.1.35"
+urlencoded = "^0.3.0"
+json = "0.11.3"
 
-[profile.release]
-lto = true
+[dependencies.point_viewer]
+path = ".."

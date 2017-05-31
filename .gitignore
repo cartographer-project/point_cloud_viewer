@@ -1,3 +1,5 @@
 /target
-client/node_modules
-client/typings
+/sdl_viewer/target
+/web_viewer/target
+/web_viewer/client/node_modules
+/web_viewer/client/typings
