@@ -188,31 +188,10 @@ fn main() {
 
     assert_eq!(gl_attr.context_profile(), GLProfile::Core);
 
-    gl::load_with(|s| unsafe { std::mem::transmute(video_subsystem.gl_get_proc_address(s)) });
-
-    println!("SDL_GL_RED_SIZE: {}", gl_attr.red_size());
-    println!("SDL_GL_GREEN_SIZE: {}", gl_attr.green_size());
-    println!("SDL_GL_BLUE_SIZE: {}", gl_attr.blue_size());
-    println!("SDL_GL_ALPHA_SIZE: {}", gl_attr.alpha_size());
-    println!("SDL_GL_BUFFER_SIZE: {}", gl_attr.buffer_size());
-    println!("SDL_GL_DOUBLEBUFFER: {}", gl_attr.double_buffer());
-    println!("SDL_GL_DEPTH_SIZE: {}", gl_attr.depth_size());
-    println!("SDL_GL_STENCIL_SIZE: {}", gl_attr.stencil_size());
-    println!("SDL_GL_STEREO: {}", gl_attr.stereo());
-    println!("SDL_GL_MULTISAMPLEBUFFERS: {}",
-             gl_attr.multisample_buffers());
-    println!("SDL_GL_MULTISAMPLESAMPLES: {}",
-             gl_attr.multisample_samples());
-    println!("SDL_GL_ACCELERATED_VISUAL: {}",
-             gl_attr.accelerated_visual());
-    println!("SDL_GL_CONTEXT_MAJOR_VERSION: {}",
-             gl_attr.context_major_version());
-    println!("SDL_GL_CONTEXT_MINOR_VERSION: {}",
-             gl_attr.context_minor_version());
-    println!("SDL_GL_SHARE_WITH_CURRENT_CONTEXT: {}",
-             gl_attr.share_with_current_context());
-    println!("SDL_GL_FRAMEBUFFER_SRGB_CAPABLE: {}",
-             gl_attr.framebuffer_srgb_compatible());
+    gl::load_with(|s| {
+                      let ptr = video_subsystem.gl_get_proc_address(s);
+                      unsafe { std::mem::transmute(ptr) }
+                  });
 
     let node_drawer = NodeDrawer::new();
 
