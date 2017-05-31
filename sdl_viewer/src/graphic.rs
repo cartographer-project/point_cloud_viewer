@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Higher level abstractions around core OpenGL concepts.
+//! Higher level abstractions around core OpenGL concepts.
 
-use std::str;
-
-use gl::types::GLuint;
 use gl;
+use gl::types::GLuint;
 use glhelper::{compile_shader, link_program};
+use std::str;
 
 pub struct GlProgram {
     pub id: GLuint,

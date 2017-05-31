@@ -1,0 +1,8 @@
+chain_indent = "Block"
+array_layout = "Block"
+fn_call_style = "Block"
+fn_args_layout = "Block"
+closure_block_indent_threshold = -1
+reorder_imports = true
+reorder_imported_names = true
+write_mode = "Overwrite"

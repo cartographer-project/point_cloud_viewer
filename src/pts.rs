@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use math::Vector3f;
 use {InternalIterator, Point};
+use math::Vector3f;
 use std::fs::File;
-use std::io::{BufReader, BufRead};
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 #[derive(Debug)]
@@ -49,9 +49,11 @@ impl InternalIterator for PtsIterator {
                 continue;
             }
             let p = Point {
-                position: Vector3f::new(parts[0].parse::<f32>().unwrap(),
-                                        parts[1].parse::<f32>().unwrap(),
-                                        parts[2].parse::<f32>().unwrap()),
+                position: Vector3f::new(
+                    parts[0].parse::<f32>().unwrap(),
+                    parts[1].parse::<f32>().unwrap(),
+                    parts[2].parse::<f32>().unwrap(),
+                ),
                 r: parts[4].parse::<u8>().unwrap(),
                 g: parts[5].parse::<u8>().unwrap(),
                 b: parts[6].parse::<u8>().unwrap(),

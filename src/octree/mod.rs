@@ -13,19 +13,20 @@
 // limitations under the License.
 
 use errors::*;
-use math::{CuboidLike, Cuboid, Cube, Matrix4f, Vector3f, Vector2f, Frustum};
+use math::{Cube, Cuboid, CuboidLike, Frustum, Matrix4f, Vector2f, Vector3f};
 use proto;
 use protobuf;
 use std::cmp;
 use std::collections::HashMap;
 use std::fs::{self, File};
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::io::{Read, BufReader};
 use walkdir;
 
 mod node;
 
-pub use self::node::{Node, NodeIterator, NodeId, NodeWriter, ChildIndex, PositionEncoding, NodeMeta};
+pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter,
+                     PositionEncoding};
 
 pub const CURRENT_VERSION: i32 = 7;
 
@@ -46,9 +47,11 @@ pub struct NodesToBlob {
 // that is impossible.
 fn project(m: &Matrix4f, p: &Vector3f) -> Vector3f {
     let d = 1. / (m[0][3] * p.x + m[1][3] * p.y + m[2][3] * p.z + m[3][3]);
-    Vector3f::new((m[0][0] * p.x + m[1][0] * p.y + m[2][0] * p.z + m[3][0]) * d,
-                  (m[0][1] * p.x + m[1][1] * p.y + m[2][1] * p.z + m[3][1]) * d,
-                  (m[0][2] * p.x + m[1][2] * p.y + m[2][2] * p.z + m[3][2]) * d)
+    Vector3f::new(
+        (m[0][0] * p.x + m[1][0] * p.y + m[2][0] * p.z + m[3][0]) * d,
+        (m[0][1] * p.x + m[1][1] * p.y + m[2][1] * p.z + m[3][1]) * d,
+        (m[0][2] * p.x + m[1][2] * p.y + m[2][2] * p.z + m[3][2]) * d,
+    )
 }
 
 fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i32) -> Vector2f {
@@ -56,18 +59,22 @@ fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i
     let min = bounding_cube.min();
     let max = bounding_cube.max();
     let mut rv = Cuboid::new();
-    for p in &[Vector3f::new(min.x, min.y, min.z),
-               Vector3f::new(max.x, min.y, min.z),
-               Vector3f::new(min.x, max.y, min.z),
-               Vector3f::new(max.x, max.y, min.z),
-               Vector3f::new(min.x, min.y, max.z),
-               Vector3f::new(max.x, min.y, max.z),
-               Vector3f::new(min.x, max.y, max.z),
-               Vector3f::new(max.x, max.y, max.z)] {
+    for p in &[
+        Vector3f::new(min.x, min.y, min.z),
+        Vector3f::new(max.x, min.y, min.z),
+        Vector3f::new(min.x, max.y, min.z),
+        Vector3f::new(max.x, max.y, min.z),
+        Vector3f::new(min.x, min.y, max.z),
+        Vector3f::new(max.x, min.y, max.z),
+        Vector3f::new(min.x, max.y, max.z),
+        Vector3f::new(max.x, max.y, max.z),
+    ] {
         rv.update(&project(matrix, &p));
     }
-    Vector2f::new((rv.max().x - rv.min().x) * (width as f32) / 2.,
-                  (rv.max().y - rv.min().y) * (height as f32) / 2.)
+    Vector2f::new(
+        (rv.max().x - rv.min().x) * (width as f32) / 2.,
+        (rv.max().y - rv.min().y) * (height as f32) / 2.,
+    )
 }
 
 #[derive(Debug)]
@@ -111,12 +118,16 @@ impl Octree {
 
         let bounding_cube = {
             let min = meta.get_bounding_cube().get_min();
-            Cube::new(Vector3f::new(min.get_x(), min.get_y(), min.get_z()),
-                      meta.get_bounding_cube().get_edge_length())
+            Cube::new(
+                Vector3f::new(min.get_x(), min.get_y(), min.get_z()),
+                meta.get_bounding_cube().get_edge_length(),
+            )
         };
 
         let mut nodes = HashMap::new();
-        for entry in walkdir::WalkDir::new(&directory).into_iter().filter_map(|e| e.ok()) {
+        for entry in walkdir::WalkDir::new(&directory)
+                .into_iter()
+                .filter_map(|e| e.ok()) {
             let path = entry.path();
             if path.file_name().is_none() {
                 continue;
@@ -127,27 +138,28 @@ impl Octree {
                 continue;
             }
             let num_points = fs::metadata(path).unwrap().len() / 12;
-            nodes.insert(NodeId::from_string(path.file_stem()
-                             .unwrap()
-                             .to_str()
-                             .unwrap()
-                             .to_owned()),
-                         num_points);
+            nodes.insert(
+                NodeId::from_string(path.file_stem().unwrap().to_str().unwrap().to_owned()),
+                num_points,
+            );
         }
 
-        Ok(Octree {
-            directory: directory.into(),
-            nodes: nodes,
-            bounding_cube: bounding_cube,
-        })
+        Ok(
+            Octree {
+                directory: directory.into(),
+                nodes: nodes,
+                bounding_cube: bounding_cube,
+            }
+        )
     }
 
-    pub fn get_visible_nodes(&self,
-                             projection_matrix: &Matrix4f,
-                             width: i32,
-                             height: i32,
-                             use_lod: UseLod)
-                             -> Vec<VisibleNode> {
+    pub fn get_visible_nodes(
+        &self,
+        projection_matrix: &Matrix4f,
+        width: i32,
+        height: i32,
+        use_lod: UseLod,
+    ) -> Vec<VisibleNode> {
         let frustum = Frustum::from_matrix(projection_matrix);
         let mut open = vec![Node::root_with_bounding_cube(self.bounding_cube.clone())];
 
@@ -160,10 +172,12 @@ impl Octree {
             }
             let num_points = *maybe_num_points.unwrap();
 
-            let pixels = size_in_pixels(&node_to_explore.bounding_cube,
-                                        projection_matrix,
-                                        width,
-                                        height);
+            let pixels = size_in_pixels(
+                &node_to_explore.bounding_cube,
+                projection_matrix,
+                width,
+                height,
+            );
             let visible_pixels = pixels.x * pixels.y;
             const MIN_PIXELS_SQ: f32 = 120.;
             const MIN_PIXELS_SIDE: f32 = 12.;
@@ -184,26 +198,30 @@ impl Octree {
                 open.push(node_to_explore.get_child(ChildIndex::from_u8(child_index)))
             }
 
-            visible.push(VisibleNode {
-                id: node_to_explore.id,
-                level_of_detail: level_of_detail,
-                pixels: pixels,
-            });
+            visible.push(
+                VisibleNode {
+                    id: node_to_explore.id,
+                    level_of_detail: level_of_detail,
+                    pixels: pixels,
+                }
+            );
         }
 
-        visible.sort_by(|a, b| {
-            let size_a = a.pixels.x * a.pixels.y;
-            let size_b = b.pixels.x * b.pixels.y;
-            size_b.partial_cmp(&size_a).unwrap()
-        });
+        visible.sort_by(
+            |a, b| {
+                let size_a = a.pixels.x * a.pixels.y;
+                let size_b = b.pixels.x * b.pixels.y;
+                size_b.partial_cmp(&size_a).unwrap()
+            }
+        );
         visible
     }
 
     pub fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
         let meta = {
             let mut meta = node::NodeMeta::from_disk(&self.directory, &node_id)?;
-            let num_points_for_lod =
-                (meta.num_points as f32 / level_of_detail as f32).ceil() as i64;
+            let num_points_for_lod = (meta.num_points as f32 / level_of_detail as f32).ceil() as
+                                     i64;
             meta.num_points = num_points_for_lod;
             meta
         };
@@ -211,10 +229,12 @@ impl Octree {
         // TODO(hrapp): If we'd randomize the points while writing, we could just read the
         // first N points instead of reading everything and skipping over a few.
         let position = {
-            let mut xyz_reader = BufReader::new(File::open(&meta.stem
-                .with_extension(node::POSITION_EXT))?);
+            let mut xyz_reader =
+                BufReader::new(File::open(&meta.stem.with_extension(node::POSITION_EXT))?);
             let mut all_data = Vec::new();
-            xyz_reader.read_to_end(&mut all_data).chain_err(|| "Could not read position")?;
+            xyz_reader
+                .read_to_end(&mut all_data)
+                .chain_err(|| "Could not read position")?;
 
             let mut position = Vec::new();
             let bytes_per_point = meta.position_encoding.bytes_per_coordinate() * 3;
@@ -229,10 +249,14 @@ impl Octree {
         };
 
         let color = {
-            let mut rgb_reader = BufReader::new(File::open(&meta.stem
-                    .with_extension(node::COLOR_EXT)).chain_err(|| "Could not read color")?);
+            let mut rgb_reader = BufReader::new(
+                File::open(&meta.stem.with_extension(node::COLOR_EXT))
+                    .chain_err(|| "Could not read color")?
+            );
             let mut all_data = Vec::new();
-            rgb_reader.read_to_end(&mut all_data).chain_err(|| "Could not read color")?;
+            rgb_reader
+                .read_to_end(&mut all_data)
+                .chain_err(|| "Could not read color")?;
             let mut color = Vec::new();
             color.reserve(3 * meta.num_points as usize);
             for (idx, chunk) in all_data.chunks(3).enumerate() {
@@ -244,10 +268,12 @@ impl Octree {
             color
         };
 
-        Ok(NodeData {
-            position: position,
-            color: color,
-            meta: meta,
-        })
+        Ok(
+            NodeData {
+                position: position,
+                color: color,
+                meta: meta,
+            }
+        )
     }
 }

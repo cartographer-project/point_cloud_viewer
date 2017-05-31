@@ -38,9 +38,11 @@ pub trait CuboidLike {
     fn center(&self) -> Vector3f {
         let min = self.min();
         let max = self.max();
-        Vector3f::new((min.x + max.x) / 2.,
-                      (min.y + max.y) / 2.,
-                      (min.z + max.z) / 2.)
+        Vector3f::new(
+            (min.x + max.x) / 2.,
+            (min.y + max.y) / 2.,
+            (min.z + max.z) / 2.,
+        )
     }
 
     /// The size of the box.
@@ -77,65 +79,71 @@ pub struct Frustum {
 impl Frustum {
     pub fn from_matrix(m: &Matrix4f) -> Self {
         Frustum {
-            planes: [Plane::new(Vector3f::new(m[0][3] - m[0][0],
-                                              m[1][3] - m[1][0],
-                                              m[2][3] - m[2][0]),
-                                m[3][3] - m[3][0]),
-                     Plane::new(Vector3f::new(m[0][3] + m[0][0],
-                                              m[1][3] + m[1][0],
-                                              m[2][3] + m[2][0]),
-                                m[3][3] + m[3][0]),
-                     Plane::new(Vector3f::new(m[0][3] + m[0][1],
-                                              m[1][3] + m[1][1],
-                                              m[2][3] + m[2][1]),
-                                m[3][3] + m[3][1]),
-                     Plane::new(Vector3f::new(m[0][3] - m[0][1],
-                                              m[1][3] - m[1][1],
-                                              m[2][3] - m[2][1]),
-                                m[3][3] - m[3][1]),
-                     Plane::new(Vector3f::new(m[0][3] - m[0][2],
-                                              m[1][3] - m[1][2],
-                                              m[2][3] - m[2][2]),
-                                m[3][3] - m[3][2]),
-                     Plane::new(Vector3f::new(m[0][3] + m[0][2],
-                                              m[1][3] + m[1][2],
-                                              m[2][3] + m[2][2]),
-                                m[3][3] + m[3][2])],
+            planes: [
+                Plane::new(
+                    Vector3f::new(m[0][3] - m[0][0], m[1][3] - m[1][0], m[2][3] - m[2][0]),
+                    m[3][3] - m[3][0],
+                ),
+                Plane::new(
+                    Vector3f::new(m[0][3] + m[0][0], m[1][3] + m[1][0], m[2][3] + m[2][0]),
+                    m[3][3] + m[3][0],
+                ),
+                Plane::new(
+                    Vector3f::new(m[0][3] + m[0][1], m[1][3] + m[1][1], m[2][3] + m[2][1]),
+                    m[3][3] + m[3][1],
+                ),
+                Plane::new(
+                    Vector3f::new(m[0][3] - m[0][1], m[1][3] - m[1][1], m[2][3] - m[2][1]),
+                    m[3][3] - m[3][1],
+                ),
+                Plane::new(
+                    Vector3f::new(m[0][3] - m[0][2], m[1][3] - m[1][2], m[2][3] - m[2][2]),
+                    m[3][3] - m[3][2],
+                ),
+                Plane::new(
+                    Vector3f::new(m[0][3] + m[0][2], m[1][3] + m[1][2], m[2][3] + m[2][2]),
+                    m[3][3] + m[3][2],
+                ),
+            ],
         }
     }
 
     pub fn intersects<C: CuboidLike>(&self, bb: &C) -> bool {
         for plane in &self.planes {
-            let p1 = Vector3f::new(if plane.normal.x > 0f32 {
-                                       bb.min().x
-                                   } else {
-                                       bb.max().x
-                                   },
-                                   if plane.normal.y > 0f32 {
-                                       bb.min().y
-                                   } else {
-                                       bb.max().y
-                                   },
-                                   if plane.normal.z > 0f32 {
-                                       bb.min().z
-                                   } else {
-                                       bb.max().z
-                                   });
-            let p2 = Vector3f::new(if plane.normal.x > 0f32 {
-                                       bb.max().x
-                                   } else {
-                                       bb.min().x
-                                   },
-                                   if plane.normal.y > 0f32 {
-                                       bb.max().y
-                                   } else {
-                                       bb.min().y
-                                   },
-                                   if plane.normal.z > 0f32 {
-                                       bb.max().z
-                                   } else {
-                                       bb.min().z
-                                   });
+            let p1 = Vector3f::new(
+                if plane.normal.x > 0f32 {
+                    bb.min().x
+                } else {
+                    bb.max().x
+                },
+                if plane.normal.y > 0f32 {
+                    bb.min().y
+                } else {
+                    bb.max().y
+                },
+                if plane.normal.z > 0f32 {
+                    bb.min().z
+                } else {
+                    bb.max().z
+                },
+            );
+            let p2 = Vector3f::new(
+                if plane.normal.x > 0f32 {
+                    bb.max().x
+                } else {
+                    bb.min().x
+                },
+                if plane.normal.y > 0f32 {
+                    bb.max().y
+                } else {
+                    bb.min().y
+                },
+                if plane.normal.z > 0f32 {
+                    bb.max().z
+                } else {
+                    bb.min().z
+                },
+            );
             let d1 = plane.get_distance(&p1);
             let d2 = plane.get_distance(&p2);
             if d1 < 0f32 && d2 < 0f32 {
@@ -175,9 +183,11 @@ impl CuboidLike for Cube {
     }
 
     fn max(&self) -> Vector3f {
-        Vector3f::new(self.min.x + self.edge_length,
-                      self.min.y + self.edge_length,
-                      self.min.z + self.edge_length)
+        Vector3f::new(
+            self.min.x + self.edge_length,
+            self.min.y + self.edge_length,
+            self.min.z + self.edge_length,
+        )
     }
 }
 

@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
+use {InternalIterator, Point};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use errors::*;
 use math::{Cube, CuboidLike, Vector3f, Zero, clamp};
 use num;
 use num_traits;
-use {Point, InternalIterator};
 use proto;
 use protobuf::{self, Message};
+use std::{fmt, result};
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
-use std::{fmt, result};
 
 pub const META_EXT: &'static str = "pb";
 pub const POSITION_EXT: &'static str = "xyz";
@@ -191,10 +191,12 @@ impl Node {
             }
             Cube::new(min, edge_length * 2.)
         };
-        Some(Node {
-            id: maybe_parent_id.unwrap(),
-            bounding_cube: parent_cube,
-        })
+        Some(
+            Node {
+                id: maybe_parent_id.unwrap(),
+                bounding_cube: parent_cube,
+            }
+        )
     }
 
     /// Returns the level of this node in the octree, with 0 being the root.
@@ -225,18 +227,22 @@ impl NodeMeta {
                 .chain_err(|| "Could not parse node protobuf.")?
         };
 
-        Ok(NodeMeta {
-            num_points: meta.get_num_points(),
-            position_encoding: PositionEncoding::from_proto(&meta.get_position_encoding()),
-            // TODO(hrapp): Would be nice to have a from_proto and to_proto as a trait.
-            bounding_cube: {
-                let proto = meta.get_bounding_cube();
-                let min = proto.get_min();
-                Cube::new(Vector3f::new(min.get_x(), min.get_y(), min.get_z()),
-                          proto.get_edge_length())
-            },
-            stem: stem,
-        })
+        Ok(
+            NodeMeta {
+                num_points: meta.get_num_points(),
+                position_encoding: PositionEncoding::from_proto(&meta.get_position_encoding()),
+                // TODO(hrapp): Would be nice to have a from_proto and to_proto as a trait.
+                bounding_cube: {
+                    let proto = meta.get_bounding_cube();
+                    let min = proto.get_min();
+                    Cube::new(
+                        Vector3f::new(min.get_x(), min.get_y(), min.get_z()),
+                        proto.get_edge_length(),
+                    )
+                },
+                stem: stem,
+            }
+        )
 
     }
 }
@@ -251,11 +257,13 @@ pub struct NodeIterator {
 impl NodeIterator {
     pub fn from_disk(directory: &Path, id: &NodeId) -> Result<Self> {
         let meta = NodeMeta::from_disk(directory, id)?;
-        Ok(NodeIterator {
-            xyz_reader: BufReader::new(File::open(&meta.stem.with_extension(POSITION_EXT))?),
-            rgb_reader: BufReader::new(File::open(&meta.stem.with_extension(COLOR_EXT))?),
-            meta: meta,
-        })
+        Ok(
+            NodeIterator {
+                xyz_reader: BufReader::new(File::open(&meta.stem.with_extension(POSITION_EXT))?),
+                rgb_reader: BufReader::new(File::open(&meta.stem.with_extension(COLOR_EXT))?),
+                meta: meta,
+            }
+        )
     }
 }
 
@@ -265,12 +273,12 @@ impl InternalIterator for NodeIterator {
     }
 
     fn for_each<F: FnMut(&Point)>(mut self, mut f: F) {
-            let mut point = Point {
-                position: Vector3f::zero(),
-                r: 0,
-                g: 0,
-                b: 0,
-            };
+        let mut point = Point {
+            position: Vector3f::zero(),
+            r: 0,
+            g: 0,
+            b: 0,
+        };
 
         let edge_length = self.meta.bounding_cube.edge_length();
         let min = self.meta.bounding_cube.min();
@@ -280,15 +288,21 @@ impl InternalIterator for NodeIterator {
             // out to be marginally slower.
             match self.meta.position_encoding {
                 PositionEncoding::Float32 => {
-                    point.position.x = decode(self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                    min.x,
-                    edge_length);
-                    point.position.y = decode(self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                    min.y,
-                    edge_length);
-                    point.position.z = decode(self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                    min.z,
-                    edge_length);
+                    point.position.x = decode(
+                        self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                        min.x,
+                        edge_length,
+                    );
+                    point.position.y = decode(
+                        self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                        min.y,
+                        edge_length,
+                    );
+                    point.position.z = decode(
+                        self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                        min.z,
+                        edge_length,
+                    );
                 }
                 PositionEncoding::Uint8 => {
                     point.position.x =
@@ -299,18 +313,21 @@ impl InternalIterator for NodeIterator {
                         fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.z, edge_length);
                 }
                 PositionEncoding::Uint16 => {
-                    point.position.x =
-                        fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                    point.position.x = fixpoint_decode(
+                        self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
                         min.x,
-                        edge_length);
-                    point.position.y =
-                        fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                        edge_length,
+                    );
+                    point.position.y = fixpoint_decode(
+                        self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
                         min.y,
-                        edge_length);
-                    point.position.z =
-                        fixpoint_decode(self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                        edge_length,
+                    );
+                    point.position.z = fixpoint_decode(
+                        self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
                         min.z,
-                        edge_length);
+                        edge_length,
+                    );
                 }
             }
 
@@ -406,10 +423,21 @@ impl Drop for NodeWriter {
             self.remove_all_files();
         } else {
             let mut proto = proto::Node::new();
-            proto.mut_bounding_cube().mut_min().set_x(self.bounding_cube.min().x);
-            proto.mut_bounding_cube().mut_min().set_y(self.bounding_cube.min().y);
-            proto.mut_bounding_cube().mut_min().set_z(self.bounding_cube.min().z);
-            proto.mut_bounding_cube().set_edge_length(self.bounding_cube.edge_length());
+            proto
+                .mut_bounding_cube()
+                .mut_min()
+                .set_x(self.bounding_cube.min().x);
+            proto
+                .mut_bounding_cube()
+                .mut_min()
+                .set_y(self.bounding_cube.min().y);
+            proto
+                .mut_bounding_cube()
+                .mut_min()
+                .set_z(self.bounding_cube.min().z);
+            proto
+                .mut_bounding_cube()
+                .set_edge_length(self.bounding_cube.edge_length());
             proto.set_position_encoding(self.position_encoding.to_proto());
             proto.set_num_points(self.num_written);
             let mut file = File::create(&self.stem.with_extension(META_EXT)).unwrap();
@@ -501,16 +529,22 @@ mod tests {
 
     #[test]
     fn test_parent_node_name() {
-        assert_eq!(Some(NodeId::from_string("r12345".into())),
-                   NodeId::from_string("r123456".into()).parent_id());
+        assert_eq!(
+            Some(NodeId::from_string("r12345".into())),
+            NodeId::from_string("r123456".into()).parent_id()
+        );
     }
 
     #[test]
     fn test_child_index() {
-        assert_eq!(Some(ChildIndex(1)),
-                   NodeId::from_string("r123451".into()).child_index());
-        assert_eq!(Some(ChildIndex(7)),
-                   NodeId::from_string("r123457".into()).child_index());
+        assert_eq!(
+            Some(ChildIndex(1)),
+            NodeId::from_string("r123451".into()).child_index()
+        );
+        assert_eq!(
+            Some(ChildIndex(7)),
+            NodeId::from_string("r123457".into()).child_index()
+        );
         assert_eq!(None, NodeId::from_string("r".into()).child_index());
     }
 }

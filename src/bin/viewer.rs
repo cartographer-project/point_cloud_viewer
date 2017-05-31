@@ -25,7 +25,7 @@ extern crate json;
 use byteorder::{LittleEndian, WriteBytesExt};
 use iron::mime::Mime;
 use iron::prelude::*;
-use point_viewer::math::{Matrix4f, CuboidLike};
+use point_viewer::math::{CuboidLike, Matrix4f};
 use point_viewer::octree;
 use router::Router;
 use std::io::Read;
@@ -69,22 +69,24 @@ impl iron::Handler for VisibleNodes {
                 .split(',')
                 .map(|s| s.parse::<f32>().unwrap())
                 .collect();
-            Matrix4f::new(e[0],
-                          e[1],
-                          e[2],
-                          e[3],
-                          e[4],
-                          e[5],
-                          e[6],
-                          e[7],
-                          e[8],
-                          e[9],
-                          e[10],
-                          e[11],
-                          e[12],
-                          e[13],
-                          e[14],
-                          e[15])
+            Matrix4f::new(
+                e[0],
+                e[1],
+                e[2],
+                e[3],
+                e[4],
+                e[5],
+                e[6],
+                e[7],
+                e[8],
+                e[9],
+                e[10],
+                e[11],
+                e[12],
+                e[13],
+                e[14],
+                e[15],
+            )
         };
         let use_lod = {
             let lod: i32 = query.get("use_lod").unwrap()[0].parse().unwrap();
@@ -100,7 +102,8 @@ impl iron::Handler for VisibleNodes {
             octree.get_visible_nodes(&matrix, width, height, use_lod)
         };
         let mut reply = String::from("[");
-        let visible_nodes_string = visible_nodes.iter()
+        let visible_nodes_string = visible_nodes
+            .iter()
             .map(|n| format!("[\"{}\", {}]", n.id, n.level_of_detail))
             .collect::<Vec<_>>()
             .join(",");
@@ -140,12 +143,14 @@ impl iron::Handler for NodesData {
         req.body.read_to_string(&mut content).unwrap();
         let data = json::parse(&content).unwrap();
         let nodes_to_load = data.members()
-            .map(|e| {
-                NodeToLoad {
-                    id: octree::NodeId::from_string(e[0].as_str().unwrap().to_string()),
-                    level_of_detail: e[1].as_i32().unwrap(),
+            .map(
+                |e| {
+                    NodeToLoad {
+                        id: octree::NodeId::from_string(e[0].as_str().unwrap().to_string()),
+                        level_of_detail: e[1].as_i32().unwrap(),
+                    }
                 }
-            });
+            );
 
         // So this is godawful: We need to get data to the GPU without JavaScript herp-derping with
         // it - because that will stall interaction. The straight forward approach would be to ship
@@ -160,24 +165,31 @@ impl iron::Handler for NodesData {
         let mut num_points = 0;
         let octree = self.octree.read().unwrap();
         for node in nodes_to_load {
-            let mut node_data = octree.get_node_data(&node.id, node.level_of_detail).unwrap();
+            let mut node_data = octree
+                .get_node_data(&node.id, node.level_of_detail)
+                .unwrap();
 
             // Write the bounding box information.
             let min = node_data.meta.bounding_cube.min();
             reply_blob.write_f32::<LittleEndian>(min.x).unwrap();
             reply_blob.write_f32::<LittleEndian>(min.y).unwrap();
             reply_blob.write_f32::<LittleEndian>(min.z).unwrap();
-            reply_blob.write_f32::<LittleEndian>(node_data.meta.bounding_cube.edge_length())
+            reply_blob
+                .write_f32::<LittleEndian>(node_data.meta.bounding_cube.edge_length())
                 .unwrap();
 
             // Number of points.
-            reply_blob.write_u32::<LittleEndian>(node_data.meta.num_points as u32).unwrap();
+            reply_blob
+                .write_u32::<LittleEndian>(node_data.meta.num_points as u32)
+                .unwrap();
 
             // Position encoding.
             let bytes_per_coordinate = node_data.meta.position_encoding.bytes_per_coordinate();
             reply_blob.write_u8(bytes_per_coordinate as u8).unwrap();
-            assert!(bytes_per_coordinate * node_data.meta.num_points as usize * 3 ==
-                    node_data.position.len());
+            assert!(
+                bytes_per_coordinate * node_data.meta.num_points as usize * 3 ==
+                node_data.position.len()
+            );
             assert!(node_data.meta.num_points as usize * 3 == node_data.color.len());
             pad(&mut reply_blob);
 
@@ -193,10 +205,12 @@ impl iron::Handler for NodesData {
         }
 
         let duration_ms = (time::precise_time_ns() - start) as f32 / 1000000.;
-        println!("Got {} nodes with {} points ({}ms).",
-                 num_nodes_fetched,
-                 num_points,
-                 duration_ms);
+        println!(
+            "Got {} nodes with {} points ({}ms).",
+            num_nodes_fetched,
+            num_points,
+            duration_ms
+        );
 
         let content_type = "application/octet-stream".parse::<Mime>().unwrap();
         Ok(Response::with((content_type, iron::status::Ok, reply_blob)))
@@ -205,14 +219,18 @@ impl iron::Handler for NodesData {
 
 fn main() {
     let matches = clap::App::new("server")
-        .args(&[clap::Arg::with_name("port")
+        .args(
+            &[
+                clap::Arg::with_name("port")
                     .help("Port to listen on for connections.")
                     .long("port")
                     .takes_value(true),
                 clap::Arg::with_name("octree_directory")
                     .help("Input directory of the octree directory to serve.")
                     .index(1)
-                    .required(true)])
+                    .required(true),
+            ]
+        )
         .get_matches();
 
     let port = value_t!(matches, "port", u16).unwrap_or(5433);
