@@ -150,7 +150,7 @@ fn split_node<'a, 'b: 'a, P>(
 
 fn subsample_children_into(
     output_directory: &Path,
-    node: octree::Node,
+    node: &octree::Node,
     resolution: f64,
 ) -> Result<()> {
     let mut parent_writer = octree::NodeWriter::new(output_directory, &node, resolution);
@@ -327,25 +327,27 @@ fn main() {
     );
 
     let mut deepest_level = 0usize;
-    let mut leaf_nodes = Vec::<octree::Node>::new();
+    let mut nodes_to_subsample = Vec::<octree::Node>::new();
     for leaf_node in leaf_nodes_receiver.into_iter() {
         deepest_level = std::cmp::max(deepest_level, leaf_node.level());
-        leaf_nodes.push(leaf_node);
+        nodes_to_subsample.push(leaf_node);
     }
 
     // We start on the deepest level and work our way up the tree.
     for current_level in (0..deepest_level + 1).rev() {
         // All nodes on the same level can be subsampled in parallel.
-        let res = leaf_nodes
+        let res = nodes_to_subsample
             .into_iter()
             .partition(|n| n.level() == current_level);
-        leaf_nodes = res.1;
+        nodes_to_subsample = res.1;
 
         let mut parent_ids = HashSet::new();
         let mut subsample_nodes = Vec::new();
         for node in res.0 {
             let maybe_parent = node.parent();
             if maybe_parent.is_none() {
+                // Only the root has no parents.
+                assert_eq!(node.level(), 0);
                 continue;
             }
             let parent = maybe_parent.unwrap();
@@ -353,16 +355,11 @@ fn main() {
                 continue;
             }
             parent_ids.insert(parent.id.clone());
-
-            let maybe_grand_parent = parent.parent();
-            if let Some(grand_parent) = maybe_grand_parent {
-                leaf_nodes.push(grand_parent);
-            }
             subsample_nodes.push(parent);
         }
 
         pool.scoped(
-            move |scope| for node in subsample_nodes {
+            |scope| for node in &subsample_nodes {
                 scope.execute(
                     move || {
                         subsample_children_into(output_directory, node, resolution).unwrap();
@@ -370,5 +367,9 @@ fn main() {
                 );
             }
         );
+
+        // The nodes that were just now created through sub-sampling will be required to create
+        // their parents.
+        nodes_to_subsample.extend(subsample_nodes.into_iter());
     }
 }
