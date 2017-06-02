@@ -237,7 +237,7 @@ impl NodeViewContainer {
         self.queued.clear();
     }
 
-    // Returns the 'NodeView' for 'node_id' if it is already, loaded, otherwise returns None, but
+    // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
     // registered the node for loading.
     fn get(&mut self, node_id: &octree::NodeId) -> Option<&NodeView> {
         match self.node_views.entry(node_id.clone()) {
@@ -362,7 +362,6 @@ fn main() {
         if camera.update() {
             use_level_of_detail = true;
             node_drawer.update_world_to_gl(&camera.get_world_to_gl());
-
             visible_nodes = octree.get_visible_nodes(
                 &camera.get_world_to_gl(),
                 camera.width,
@@ -381,10 +380,17 @@ fn main() {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
             for visible_node in &visible_nodes {
-                // TODO(sirver): Track a point budget here when moving, so that FPS does not go too
+                // TODO(sirver): Track a point budget here when moving, so that FPS never drops too
                 // low.
                 if let Some(view) = node_views.get(&visible_node.id) {
-                    num_points_drawn += node_drawer.draw(view, if use_level_of_detail { visible_node.level_of_detail } else { 1 });
+                    num_points_drawn += node_drawer.draw(
+                        view,
+                        if use_level_of_detail {
+                            visible_node.level_of_detail
+                        } else {
+                            1
+                        },
+                    );
                     num_nodes_drawn += 1;
                 }
             }
@@ -406,7 +412,7 @@ fn main() {
             num_frames = 0;
             last_log = now;
             println!(
-                "FPS: {:#?}, num_points: {} in {}/{} nodes.",
+                "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes should be shown.",
                 fps,
                 num_points_drawn,
                 num_nodes_drawn,
