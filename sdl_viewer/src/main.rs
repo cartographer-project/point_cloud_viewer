@@ -45,7 +45,7 @@ fn reshuffle(new_order: &[usize], old_data: Vec<u8>, bytes_per_point: usize) -> 
     let mut new_data = Vec::with_capacity(old_data.len());
     for point_index in new_order {
         let i = point_index * bytes_per_point;
-        new_data.extend(&old_data[i .. i + bytes_per_point]);
+        new_data.extend(&old_data[i..i + bytes_per_point]);
     }
     assert_eq!(old_data.len(), new_data.len());
     new_data
@@ -127,11 +127,15 @@ impl NodeView {
         let mut rng = thread_rng();
         rng.shuffle(&mut indices);
 
-        let position = reshuffle(&indices, node_data.position, match node_data.meta.position_encoding {
+        let position = reshuffle(
+            &indices,
+            node_data.position,
+            match node_data.meta.position_encoding {
                 octree::PositionEncoding::Uint8 => 3,
-                octree::PositionEncoding::Uint16 => 6, 
+                octree::PositionEncoding::Uint16 => 6,
                 octree::PositionEncoding::Float32 => 12,
-            });
+            },
+        );
         let color = reshuffle(&indices, node_data.color, 3);
 
         let buffer_position = GlBuffer::new();
@@ -312,7 +316,7 @@ fn main() {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
             for (i, visible_node) in visible_nodes.iter().enumerate() {
-                num_points_drawn += node_drawer.draw(&node_views[i], visible_node.level_of_detail );
+                num_points_drawn += node_drawer.draw(&node_views[i], visible_node.level_of_detail);
             }
         }
 
