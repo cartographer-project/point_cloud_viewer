@@ -18,6 +18,7 @@ extern crate sdl2;
 extern crate time;
 #[macro_use]
 extern crate sdl_viewer;
+extern crate clap;
 
 use cgmath::{Array, Matrix, Matrix4};
 use point_viewer::math::CuboidLike;
@@ -161,8 +162,19 @@ impl NodeView {
 }
 
 fn main() {
-    let directory = PathBuf::from("octree/");
-    let otree = octree::Octree::new(&directory).unwrap();
+    let matches = clap::App::new("sdl_viewer")
+        .args(
+            &[
+                clap::Arg::with_name("octree_directory")
+                    .help("Input directory of the octree directory to serve.")
+                    .index(1)
+                    .required(true),
+            ]
+        )
+        .get_matches();
+
+    let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
+    let otree = octree::Octree::new(&octree_directory).unwrap();
 
     let ctx = sdl2::init().unwrap();
     let video_subsystem = ctx.video().unwrap();

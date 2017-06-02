@@ -3,6 +3,7 @@ name = "sdl_viewer"
 version = "0.1.0"
 dependencies = [
  "cgmath 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "clap 2.24.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "gl_generator 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "point_viewer 0.1.0",
  "sdl2 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",

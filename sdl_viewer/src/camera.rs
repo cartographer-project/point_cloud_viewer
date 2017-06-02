@@ -166,6 +166,6 @@ impl Camera {
     pub fn mouse_wheel(&mut self, delta: i32) {
         let sign = delta.signum() as f32;
         self.movement_speed += sign * 0.1 * self.movement_speed;
-        self.movement_speed = self.movement_speed.max(0.1);
+        self.movement_speed = self.movement_speed.max(0.01);
     }
 }
