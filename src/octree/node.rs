@@ -243,7 +243,10 @@ impl NodeMeta {
                 stem: stem,
             }
         )
+    }
 
+    pub fn num_points_for_level_of_detail(&self, level_of_detail: i32) -> i64 {
+        (self.num_points as f32 / level_of_detail as f32).ceil() as i64
     }
 }
 

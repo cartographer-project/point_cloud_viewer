@@ -14,6 +14,7 @@
 
 extern crate cgmath;
 extern crate point_viewer;
+extern crate rand;
 extern crate sdl2;
 extern crate time;
 #[macro_use]
@@ -23,12 +24,13 @@ extern crate clap;
 use cgmath::{Array, Matrix, Matrix4};
 use point_viewer::math::CuboidLike;
 use point_viewer::octree;
+use rand::{Rng, thread_rng};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Scancode;
 use sdl2::video::GLProfile;
 use sdl_viewer::{Camera, gl};
 use sdl_viewer::gl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
-use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
+use sdl_viewer::graphic::{GlBuffer, GlBufferKind, GlProgram, GlVertexArray};
 use std::mem;
 use std::path::PathBuf;
 use std::process;
@@ -76,17 +78,21 @@ impl NodeDrawer {
         }
     }
 
-    fn draw(&self, node_view: &NodeView) -> i64 {
+    fn draw(&self, node_view: &NodeView, level_of_detail: i32) -> i64 {
         node_view.vertex_array.bind();
+        let num_points = node_view
+            .meta
+            .num_points_for_level_of_detail(level_of_detail);
         unsafe {
             gl::Uniform1f(
                 self.u_edge_length,
                 node_view.meta.bounding_cube.edge_length(),
             );
             gl::Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
-            gl::DrawArrays(gl::POINTS, 0, node_view.meta.num_points as i32);
+
+            gl::DrawElements(gl::POINTS, num_points as i32, gl::UNSIGNED_INT, ptr::null());
         }
-        node_view.meta.num_points
+        num_points
     }
 }
 
@@ -98,6 +104,7 @@ struct NodeView {
     vertex_array: GlVertexArray,
     _buffer_position: GlBuffer,
     _buffer_color: GlBuffer,
+    _element_buffer: GlBuffer,
 }
 
 impl NodeView {
@@ -105,10 +112,25 @@ impl NodeView {
         let vertex_array = GlVertexArray::new();
         vertex_array.bind();
 
-        let buffer_position = GlBuffer::new();
-        let buffer_color = GlBuffer::new();
+        let buffer_position = GlBuffer::new(GlBufferKind::ArrayBuffer);
+        let buffer_color = GlBuffer::new(GlBufferKind::ArrayBuffer);
+        let element_buffer = GlBuffer::new(GlBufferKind::ElementArrayBuffer);
+
+        // We draw the points in random order. This allows us to only draw the first N if we want
+        // to draw less.
+        let mut indices: Vec<i32> = (0..node_data.meta.num_points as i32).collect();
+        let mut rng = thread_rng();
+        rng.shuffle(&mut indices);
 
         unsafe {
+            element_buffer.bind();
+            gl::BufferData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                indices.len() as GLsizeiptr,
+                mem::transmute(&indices[0]),
+                gl::STATIC_DRAW,
+            );
+
             buffer_position.bind();
             let (normalize, data_type) = match node_data.meta.position_encoding {
                 octree::PositionEncoding::Uint8 => (true, gl::UNSIGNED_BYTE),
@@ -156,6 +178,7 @@ impl NodeView {
             vertex_array,
             _buffer_position: buffer_position,
             _buffer_color: buffer_color,
+            _element_buffer: element_buffer,
             meta: node_data.meta,
         }
     }
@@ -218,7 +241,9 @@ fn main() {
 
     let m = camera.get_world_to_gl();
     let mut node_views = Vec::new();
-    for node in otree.get_visible_nodes(&m, camera.width, camera.height, octree::UseLod::No) {
+    let visible_nodes = otree
+        .get_visible_nodes(&m, camera.width, camera.height, octree::UseLod::No);
+    for node in &visible_nodes {
         // We always request nodes at full resolution (i.e. not subsampled by the backend), because
         // we can just as effectively subsample the number of points we draw in the client.
         const ALL_POINTS_LOD: i32 = 1;
@@ -280,8 +305,8 @@ fn main() {
             gl::ClearColor(0., 1., 0., 1.);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-            for view in &node_views {
-                num_points_drawn += node_drawer.draw(view);
+            for (i, visible_node) in visible_nodes.iter().enumerate() {
+                num_points_drawn += node_drawer.draw(&node_views[i], visible_node.level_of_detail);
             }
         }
 
