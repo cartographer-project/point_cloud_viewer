@@ -220,9 +220,7 @@ impl Octree {
     pub fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
         let meta = {
             let mut meta = node::NodeMeta::from_disk(&self.directory, &node_id)?;
-            let num_points_for_lod = (meta.num_points as f32 / level_of_detail as f32).ceil() as
-                                     i64;
-            meta.num_points = num_points_for_lod;
+            meta.num_points = meta.num_points_for_level_of_detail(level_of_detail);
             meta
         };
 

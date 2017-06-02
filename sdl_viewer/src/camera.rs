@@ -78,6 +78,7 @@ pub struct Camera {
     theta: Rad<f32>,
     phi: Rad<f32>,
 
+    moved: bool,
     transform: Decomposed<Vector3<f32>, Quaternion<f32>>,
 
     projection_matrix: Matrix4<f32>,
@@ -93,6 +94,7 @@ impl Camera {
             moving_right: false,
             moving_down: false,
             moving_up: false,
+            moved: true,
             theta: Rad(0.),
             phi: Rad(0.),
             transform: Decomposed {
@@ -125,7 +127,12 @@ impl Camera {
         self.projection_matrix * world_to_camera
     }
 
-    pub fn update(&mut self) {
+    /// Update the camera position for the current frame. Returns true if the camera moved in this
+    /// step.
+    pub fn update(&mut self) -> bool {
+        let mut moved = self.moved;
+        self.moved = false;
+
         let mut pan = Vector3::zero();
         if self.moving_right {
             pan.x += 1.;
@@ -147,6 +154,7 @@ impl Camera {
         }
 
         if pan.magnitude2() > 0. {
+            moved = true;
             let translation = self.transform
                 .rot
                 .rotate_vector(pan.normalize() * self.movement_speed);
@@ -156,9 +164,11 @@ impl Camera {
         let rotation_z = Quaternion::from_angle_z(self.theta);
         let rotation_x = Quaternion::from_angle_x(self.phi);
         self.transform.rot = rotation_z * rotation_x;
+        moved
     }
 
     pub fn mouse_drag(&mut self, delta_x: i32, delta_y: i32) {
+        self.moved = true;
         self.theta -= Rad(2. * f32::consts::PI * delta_x as f32 / self.width as f32);
         self.phi -= Rad(2. * f32::consts::PI * delta_y as f32 / self.height as f32);
     }
