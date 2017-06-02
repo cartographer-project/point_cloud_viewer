@@ -31,6 +31,9 @@ use sdl2::video::GLProfile;
 use sdl_viewer::{Camera, gl};
 use sdl_viewer::gl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
+use std::collections::{HashMap, HashSet};
+use std::collections::VecDeque;
+use std::collections::hash_map::Entry;
 use std::mem;
 use std::path::PathBuf;
 use std::process;
@@ -194,6 +197,62 @@ impl NodeView {
     }
 }
 
+// Keeps track of the nodes that were requested in-order and loads then one by one on request.
+struct NodeViewContainer {
+    node_views: HashMap<octree::NodeId, NodeView>,
+    queue: VecDeque<octree::NodeId>,
+    queued: HashSet<octree::NodeId>,
+}
+
+impl NodeViewContainer {
+    fn new() -> Self {
+        NodeViewContainer {
+            node_views: HashMap::new(),
+            queue: VecDeque::new(),
+            queued: HashSet::new(),
+        }
+    }
+
+    // Loads the next most-important nodes data. Returns false if there are no more nodes queued
+    // for loading.
+    fn load_next_node(&mut self, octree: &octree::Octree, program: &GlProgram) -> bool {
+        // We always request nodes at full resolution (i.e. not subsampled by the backend), because
+        // we can just as effectively subsample the number of points we draw in the client.
+        const ALL_POINTS_LOD: i32 = 1;
+        if let Some(node_id) = self.queue.pop_front() {
+            self.queued.remove(&node_id);
+            let node_data = octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
+            self.node_views
+                .insert(node_id, NodeView::new(program, node_data));
+            true
+        } else {
+            false
+        }
+
+        // TODO(sirver): Use a LRU Cache to throw nodes out that we haven't used in a while.
+    }
+
+    fn reset_load_queue(&mut self) {
+        self.queue.clear();
+        self.queued.clear();
+    }
+
+    // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
+    // registered the node for loading.
+    fn get(&mut self, node_id: &octree::NodeId) -> Option<&NodeView> {
+        match self.node_views.entry(node_id.clone()) {
+            Entry::Vacant(e) => {
+                if !self.queued.contains(e.key()) {
+                    self.queue.push_back(e.key().clone());
+                    self.queued.insert(e.into_key());
+                }
+                None
+            }
+            Entry::Occupied(e) => Some(e.into_mut()),
+        }
+    }
+}
+
 fn main() {
     let matches = clap::App::new("sdl_viewer")
         .args(
@@ -246,24 +305,16 @@ fn main() {
     );
 
     let node_drawer = NodeDrawer::new();
+    let mut node_views = NodeViewContainer::new();
+    let mut visible_nodes = Vec::new();
 
     let mut camera = Camera::new(WINDOW_WIDTH, WINDOW_HEIGHT);
-
-    let m = camera.get_world_to_gl();
-    let mut node_views = Vec::new();
-    let visible_nodes = octree
-        .get_visible_nodes(&m, camera.width, camera.height, octree::UseLod::No);
-    for node in &visible_nodes {
-        // We always request nodes at full resolution (i.e. not subsampled by the backend), because
-        // we can just as effectively subsample the number of points we draw in the client.
-        const ALL_POINTS_LOD: i32 = 1;
-        let node_data = octree.get_node_data(&node.id, ALL_POINTS_LOD).unwrap();
-        node_views.push(NodeView::new(&node_drawer.program, node_data));
-    }
 
     let mut events = ctx.event_pump().unwrap();
     let mut num_frames = 0;
     let mut last_log = time::PreciseTime::now();
+    let mut force_load_all = false;
+    let mut use_level_of_detail = true;
     let mut main_loop = || {
         for event in events.poll_iter() {
             match event {
@@ -277,6 +328,7 @@ fn main() {
                         Scancode::D => camera.moving_right = true,
                         Scancode::Z => camera.moving_down = true,
                         Scancode::Q => camera.moving_up = true,
+                        Scancode::F => force_load_all = true,
                         _ => (),
                     }
                 }
@@ -307,17 +359,48 @@ fn main() {
             }
         }
 
-        camera.update();
-        node_drawer.update_world_to_gl(&camera.get_world_to_gl());
+        if camera.update() {
+            use_level_of_detail = true;
+            node_drawer.update_world_to_gl(&camera.get_world_to_gl());
+            visible_nodes = octree.get_visible_nodes(
+                &camera.get_world_to_gl(),
+                camera.width,
+                camera.height,
+                octree::UseLod::Yes,
+            );
+            node_views.reset_load_queue();
+        } else {
+            use_level_of_detail = false;
+        }
 
         let mut num_points_drawn = 0;
+        let mut num_nodes_drawn = 0;
         unsafe {
             gl::ClearColor(0., 1., 0., 1.);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-            for (i, visible_node) in visible_nodes.iter().enumerate() {
-                num_points_drawn += node_drawer.draw(&node_views[i], visible_node.level_of_detail);
+            for visible_node in &visible_nodes {
+                // TODO(sirver): Track a point budget here when moving, so that FPS never drops too
+                // low.
+                if let Some(view) = node_views.get(&visible_node.id) {
+                    num_points_drawn += node_drawer.draw(
+                        view,
+                        if use_level_of_detail {
+                            visible_node.level_of_detail
+                        } else {
+                            1
+                        },
+                    );
+                    num_nodes_drawn += 1;
+                }
             }
+        }
+        if force_load_all {
+            println!("Force loading all currently visible nodes.");
+            while node_views.load_next_node(&octree, &node_drawer.program) {}
+            force_load_all = false;
+        } else {
+            node_views.load_next_node(&octree, &node_drawer.program);
         }
 
         window.gl_swap_window();
@@ -328,7 +411,13 @@ fn main() {
             let fps = (num_frames * 1_000_000u32) as f32 / duration as f32;
             num_frames = 0;
             last_log = now;
-            println!("FPS: {:#?}, num_points: {}", fps, num_points_drawn);
+            println!(
+                "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes should be shown.",
+                fps,
+                num_points_drawn,
+                num_nodes_drawn,
+                visible_nodes.len()
+            );
         }
     };
 
