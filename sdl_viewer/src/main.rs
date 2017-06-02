@@ -203,7 +203,7 @@ fn main() {
         .get_matches();
 
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
-    let otree = octree::Octree::new(&octree_directory).unwrap();
+    let octree = octree::Octree::new(&octree_directory).unwrap();
 
     let ctx = sdl2::init().unwrap();
     let video_subsystem = ctx.video().unwrap();
@@ -247,13 +247,13 @@ fn main() {
 
     let m = camera.get_world_to_gl();
     let mut node_views = Vec::new();
-    let visible_nodes = otree
+    let visible_nodes = octree
         .get_visible_nodes(&m, camera.width, camera.height, octree::UseLod::No);
     for node in &visible_nodes {
         // We always request nodes at full resolution (i.e. not subsampled by the backend), because
         // we can just as effectively subsample the number of points we draw in the client.
         const ALL_POINTS_LOD: i32 = 1;
-        let node_data = otree.get_node_data(&node.id, ALL_POINTS_LOD).unwrap();
+        let node_data = octree.get_node_data(&node.id, ALL_POINTS_LOD).unwrap();
         node_views.push(NodeView::new(&node_drawer.program, node_data));
     }
 
