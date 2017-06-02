@@ -24,6 +24,7 @@ gl_generator = "0.5.2"
 sdl2 = "0.30.0-beta"
 cgmath = "^0.14.0"
 time = "^0.1.35"
+clap = "^2.6.0"
 
 [dependencies.point_viewer]
 path = ".."

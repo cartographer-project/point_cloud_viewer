@@ -218,7 +218,7 @@ impl iron::Handler for NodesData {
 }
 
 fn main() {
-    let matches = clap::App::new("server")
+    let matches = clap::App::new("web_viewer")
         .args(
             &[
                 clap::Arg::with_name("port")
