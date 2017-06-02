@@ -15,7 +15,7 @@
 //! Higher level abstractions around core OpenGL concepts.
 
 use gl;
-use gl::types::{GLenum, GLuint};
+use gl::types::GLuint;
 use glhelper::{compile_shader, link_program};
 use std::str;
 
@@ -47,34 +47,22 @@ impl Drop for GlProgram {
     }
 }
 
-pub enum GlBufferKind {
-    ElementArrayBuffer,
-    ArrayBuffer,
-}
-
 pub struct GlBuffer {
     id: GLuint,
-    kind: GLenum,
 }
 
 impl GlBuffer {
-    pub fn new(kind: GlBufferKind) -> Self {
+    pub fn new() -> Self {
         let mut id = 0;
         unsafe {
             gl::GenBuffers(1, &mut id);
         }
-        GlBuffer {
-            id,
-            kind: match kind {
-                GlBufferKind::ElementArrayBuffer => gl::ELEMENT_ARRAY_BUFFER,
-                GlBufferKind::ArrayBuffer => gl::ARRAY_BUFFER,
-            },
-        }
+        GlBuffer { id }
     }
 
     pub fn bind(&self) {
         unsafe {
-            gl::BindBuffer(self.kind, self.id);
+            gl::BindBuffer(gl::ARRAY_BUFFER, self.id);
         }
     }
 }

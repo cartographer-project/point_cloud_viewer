@@ -30,7 +30,7 @@ use sdl2::keyboard::Scancode;
 use sdl2::video::GLProfile;
 use sdl_viewer::{Camera, gl};
 use sdl_viewer::gl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
-use sdl_viewer::graphic::{GlBuffer, GlBufferKind, GlProgram, GlVertexArray};
+use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use std::mem;
 use std::path::PathBuf;
 use std::process;
@@ -39,6 +39,17 @@ use std::str;
 
 const FRAGMENT_SHADER: &'static str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER: &'static str = include_str!("../shaders/points.vs");
+
+fn reshuffle(new_order: &[usize], old_data: Vec<u8>, bytes_per_point: usize) -> Vec<u8> {
+    assert_eq!(new_order.len() * bytes_per_point, old_data.len());
+    let mut new_data = Vec::with_capacity(old_data.len());
+    for point_index in new_order {
+        let i = point_index * bytes_per_point;
+        new_data.extend(&old_data[i .. i + bytes_per_point]);
+    }
+    assert_eq!(old_data.len(), new_data.len());
+    new_data
+}
 
 struct NodeDrawer {
     program: GlProgram,
@@ -89,8 +100,7 @@ impl NodeDrawer {
                 node_view.meta.bounding_cube.edge_length(),
             );
             gl::Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
-
-            gl::DrawElements(gl::POINTS, num_points as i32, gl::UNSIGNED_INT, ptr::null());
+            gl::DrawArrays(gl::POINTS, 0, num_points as i32);
         }
         num_points
     }
@@ -104,7 +114,6 @@ struct NodeView {
     vertex_array: GlVertexArray,
     _buffer_position: GlBuffer,
     _buffer_color: GlBuffer,
-    _element_buffer: GlBuffer,
 }
 
 impl NodeView {
@@ -112,25 +121,23 @@ impl NodeView {
         let vertex_array = GlVertexArray::new();
         vertex_array.bind();
 
-        let buffer_position = GlBuffer::new(GlBufferKind::ArrayBuffer);
-        let buffer_color = GlBuffer::new(GlBufferKind::ArrayBuffer);
-        let element_buffer = GlBuffer::new(GlBufferKind::ElementArrayBuffer);
-
         // We draw the points in random order. This allows us to only draw the first N if we want
         // to draw less.
-        let mut indices: Vec<i32> = (0..node_data.meta.num_points as i32).collect();
+        let mut indices: Vec<usize> = (0..node_data.meta.num_points as usize).collect();
         let mut rng = thread_rng();
         rng.shuffle(&mut indices);
 
-        unsafe {
-            element_buffer.bind();
-            gl::BufferData(
-                gl::ELEMENT_ARRAY_BUFFER,
-                indices.len() as GLsizeiptr,
-                mem::transmute(&indices[0]),
-                gl::STATIC_DRAW,
-            );
+        let position = reshuffle(&indices, node_data.position, match node_data.meta.position_encoding {
+                octree::PositionEncoding::Uint8 => 3,
+                octree::PositionEncoding::Uint16 => 6, 
+                octree::PositionEncoding::Float32 => 12,
+            });
+        let color = reshuffle(&indices, node_data.color, 3);
 
+        let buffer_position = GlBuffer::new();
+        let buffer_color = GlBuffer::new();
+
+        unsafe {
             buffer_position.bind();
             let (normalize, data_type) = match node_data.meta.position_encoding {
                 octree::PositionEncoding::Uint8 => (true, gl::UNSIGNED_BYTE),
@@ -139,8 +146,8 @@ impl NodeView {
             };
             gl::BufferData(
                 gl::ARRAY_BUFFER,
-                node_data.position.len() as GLsizeiptr,
-                mem::transmute(&node_data.position[0]),
+                position.len() as GLsizeiptr,
+                mem::transmute(&position[0]),
                 gl::STATIC_DRAW,
             );
 
@@ -159,8 +166,8 @@ impl NodeView {
             buffer_color.bind();
             gl::BufferData(
                 gl::ARRAY_BUFFER,
-                node_data.color.len() as GLsizeiptr,
-                mem::transmute(&node_data.color[0]),
+                color.len() as GLsizeiptr,
+                mem::transmute(&color[0]),
                 gl::STATIC_DRAW,
             );
             let color_attr = gl::GetAttribLocation(program.id, c_str!("color"));
@@ -178,7 +185,6 @@ impl NodeView {
             vertex_array,
             _buffer_position: buffer_position,
             _buffer_color: buffer_color,
-            _element_buffer: element_buffer,
             meta: node_data.meta,
         }
     }
@@ -306,7 +312,7 @@ fn main() {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
             for (i, visible_node) in visible_nodes.iter().enumerate() {
-                num_points_drawn += node_drawer.draw(&node_views[i], visible_node.level_of_detail);
+                num_points_drawn += node_drawer.draw(&node_views[i], visible_node.level_of_detail );
             }
         }
 
