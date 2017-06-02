@@ -200,7 +200,7 @@ impl NodeView {
 // Keeps track of the nodes that were requested in-order and loads then one by one on request.
 struct NodeViewContainer {
     node_views: HashMap<octree::NodeId, NodeView>,
-    unloaded_nodes: VecDeque<octree::NodeId>,
+    queue: VecDeque<octree::NodeId>,
     queued: HashSet<octree::NodeId>,
 }
 
@@ -208,7 +208,7 @@ impl NodeViewContainer {
     fn new() -> Self {
         NodeViewContainer {
             node_views: HashMap::new(),
-            unloaded_nodes: VecDeque::new(),
+            queue: VecDeque::new(),
             queued: HashSet::new(),
         }
     }
@@ -219,7 +219,7 @@ impl NodeViewContainer {
         // We always request nodes at full resolution (i.e. not subsampled by the backend), because
         // we can just as effectively subsample the number of points we draw in the client.
         const ALL_POINTS_LOD: i32 = 1;
-        if let Some(node_id) = self.unloaded_nodes.pop_front() {
+        if let Some(node_id) = self.queue.pop_front() {
             self.queued.remove(&node_id);
             let node_data = octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
             self.node_views
@@ -233,7 +233,7 @@ impl NodeViewContainer {
     }
 
     fn reset_load_queue(&mut self) {
-        self.unloaded_nodes.clear();
+        self.queue.clear();
         self.queued.clear();
     }
 
@@ -243,7 +243,7 @@ impl NodeViewContainer {
         match self.node_views.entry(node_id.clone()) {
             Entry::Vacant(e) => {
                 if !self.queued.contains(e.key()) {
-                    self.unloaded_nodes.push_back(e.key().clone());
+                    self.queue.push_back(e.key().clone());
                     self.queued.insert(e.into_key());
                 }
                 None
