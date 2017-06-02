@@ -40,12 +40,12 @@ use std::str;
 const FRAGMENT_SHADER: &'static str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER: &'static str = include_str!("../shaders/points.vs");
 
-fn reshuffle(new_order: &[usize], old_data: Vec<u8>, bytes_per_point: usize) -> Vec<u8> {
-    assert_eq!(new_order.len() * bytes_per_point, old_data.len());
+fn reshuffle(new_order: &[usize], old_data: Vec<u8>, bytes_per_vertex: usize) -> Vec<u8> {
+    assert_eq!(new_order.len() * bytes_per_vertex, old_data.len());
     let mut new_data = Vec::with_capacity(old_data.len());
     for point_index in new_order {
-        let i = point_index * bytes_per_point;
-        new_data.extend(&old_data[i..i + bytes_per_point]);
+        let i = point_index * bytes_per_vertex;
+        new_data.extend(&old_data[i..i + bytes_per_vertex]);
     }
     assert_eq!(old_data.len(), new_data.len());
     new_data
