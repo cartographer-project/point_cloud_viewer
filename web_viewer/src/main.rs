@@ -146,7 +146,7 @@ impl iron::Handler for NodesData {
             .map(
                 |e| {
                     NodeToLoad {
-                        id: octree::NodeId::from_string(e[0].as_str().unwrap().to_string()),
+                        id: octree::NodeId::from_str(e[0].as_str().unwrap()),
                         level_of_detail: e[1].as_i32().unwrap(),
                     }
                 }

@@ -240,11 +240,11 @@ impl NodeViewContainer {
     // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
     // registered the node for loading.
     fn get(&mut self, node_id: &octree::NodeId) -> Option<&NodeView> {
-        match self.node_views.entry(node_id.clone()) {
-            Entry::Vacant(e) => {
-                if !self.queued.contains(e.key()) {
-                    self.queue.push_back(e.key().clone());
-                    self.queued.insert(e.into_key());
+        match self.node_views.entry(*node_id) {
+            Entry::Vacant(_) => {
+                if !self.queued.contains(&node_id) {
+                    self.queue.push_back(*node_id);
+                    self.queued.insert(*node_id);
                 }
                 None
             }
