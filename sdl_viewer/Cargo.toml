@@ -21,8 +21,9 @@ version = "0.1.0"
 gl_generator = "0.5.2"
 
 [dependencies]
-sdl2 = "0.30.0-beta"
 cgmath = "^0.14.0"
+rand = "0.3.15"
+sdl2 = "0.30.0-beta"
 time = "^0.1.35"
 clap = "^2.6.0"
 
