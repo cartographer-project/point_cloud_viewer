@@ -354,7 +354,7 @@ fn main() {
             if parent_ids.contains(&parent.id) {
                 continue;
             }
-            parent_ids.insert(parent.id.clone());
+            parent_ids.insert(parent.id);
             subsample_nodes.push(parent);
         }
 

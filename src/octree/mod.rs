@@ -139,7 +139,7 @@ impl Octree {
             }
             let num_points = fs::metadata(path).unwrap().len() / 12;
             nodes.insert(
-                NodeId::from_string(path.file_stem().unwrap().to_str().unwrap().to_owned()),
+                NodeId::from_str(path.file_stem().unwrap().to_str().unwrap()),
                 num_points,
             );
         }
@@ -219,7 +219,7 @@ impl Octree {
 
     pub fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
         let meta = {
-            let mut meta = node::NodeMeta::from_disk(&self.directory, &node_id)?;
+            let mut meta = node::NodeMeta::from_disk(&self.directory, node_id)?;
             meta.num_points = meta.num_points_for_level_of_detail(level_of_detail);
             meta
         };

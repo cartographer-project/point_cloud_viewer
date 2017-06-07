@@ -47,43 +47,58 @@ impl ChildIndex {
 /// A unique identifier to a node. Currently this is implemented as 'r' being the root and r[0-7]
 /// being the children, r[0-7][0-7] being the grand children and so on. The actual representation
 /// might change though.
-#[derive(Debug,Hash,Clone,PartialEq,Eq)]
+#[derive(Debug,Hash,Clone,Copy,PartialEq,Eq)]
 pub struct NodeId {
-    name: String,
+    // The root is level = 0, its children 1 and so on.
+    level: u8,
+    // The index of this node. Multiple nodes can have the same index, but none can have the same
+    // index and level.
+    index: usize,
 }
 
 impl fmt::Display for NodeId {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
-        self.name.fmt(formatter)
+        if self.level == 0 {
+            "r".fmt(formatter)
+        } else {
+            write!(
+                formatter,
+                "r{index:0width$o}",
+                index = self.index,
+                width = self.level as usize
+            )
+        }
     }
 }
 
 impl NodeId {
     /// Construct a NodeId. No checking is done if this is a valid Id.
-    pub fn from_string(name: String) -> Self {
-        NodeId { name: name }
-    }
-
-    /// Returns a string representation.
-    pub fn to_str(&self) -> &str {
-        &self.name
+    pub fn from_str(name: &str) -> Self {
+        let level = (name.len() - 1) as u8;
+        let index = if level > 0 {
+            usize::from_str_radix(&name[1..], 8).unwrap()
+        } else {
+            0
+        };
+        NodeId { level, index }
     }
 
     /// Returns the path on disk where the data for this node is saved.
     fn get_stem(&self, directory: &Path) -> PathBuf {
-        directory.join(&self.name)
+        directory.join(&self.to_string())
     }
 
     /// Returns the root node of the octree.
     fn root() -> Self {
-        NodeId::from_string("r".to_string())
+        NodeId { index: 0, level: 0 }
     }
 
     /// Returns the NodeId for the corresponding 'child_index'.
     fn get_child_id(&self, child_index: ChildIndex) -> Self {
-        let mut child_name = self.name.clone();
-        child_name.push((child_index.0 + '0' as u8) as char);
-        NodeId::from_string(child_name)
+        NodeId {
+            level: self.level + 1,
+            index: (self.index << 3) + child_index.0 as usize,
+        }
     }
 
     /// The child index of this node in its parent.
@@ -91,17 +106,7 @@ impl NodeId {
         if self.level() == 0 {
             return None;
         }
-        match *self.name.as_bytes().last().unwrap() as char {
-            '0' => Some(ChildIndex(0)),
-            '1' => Some(ChildIndex(1)),
-            '2' => Some(ChildIndex(2)),
-            '3' => Some(ChildIndex(3)),
-            '4' => Some(ChildIndex(4)),
-            '5' => Some(ChildIndex(5)),
-            '6' => Some(ChildIndex(6)),
-            '7' => Some(ChildIndex(7)),
-            _ => panic!("Invalid node name: {}", self.name),
-        }
+        Some(ChildIndex(self.index as u8 & 7))
     }
 
     /// Returns the parents id or None if this is the root.
@@ -109,13 +114,17 @@ impl NodeId {
         if self.level() == 0 {
             return None;
         }
-        let parent_name = self.name.split_at(self.name.len() - 1).0.to_string();
-        Some(NodeId::from_string(parent_name))
+        Some(
+            NodeId {
+                level: self.level - 1,
+                index: (self.index >> 3),
+            }
+        )
     }
 
     /// Returns the level of this node in the octree, with 0 being the root.
     fn level(&self) -> usize {
-        self.name.len() - 1
+        self.level as usize
     }
 }
 
@@ -533,8 +542,8 @@ mod tests {
     #[test]
     fn test_parent_node_name() {
         assert_eq!(
-            Some(NodeId::from_string("r12345".into())),
-            NodeId::from_string("r123456".into()).parent_id()
+            Some(NodeId::from_str("r12345")),
+            NodeId::from_str("r123456").parent_id()
         );
     }
 
@@ -542,12 +551,12 @@ mod tests {
     fn test_child_index() {
         assert_eq!(
             Some(ChildIndex(1)),
-            NodeId::from_string("r123451".into()).child_index()
+            NodeId::from_str("r123451").child_index()
         );
         assert_eq!(
             Some(ChildIndex(7)),
-            NodeId::from_string("r123457".into()).child_index()
+            NodeId::from_str("r123457").child_index()
         );
-        assert_eq!(None, NodeId::from_string("r".into()).child_index());
+        assert_eq!(None, NodeId::from_str("r").child_index());
     }
 }
