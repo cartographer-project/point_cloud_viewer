@@ -557,6 +557,6 @@ mod tests {
             Some(ChildIndex(7)),
             NodeId::from_str("r123457").child_index()
         );
-        assert_eq!(None, NodeId::from_str("r".into()).child_index());
+        assert_eq!(None, NodeId::from_str("r").child_index());
     }
 }
