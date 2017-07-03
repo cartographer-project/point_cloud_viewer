@@ -28,7 +28,6 @@ class App {
   private viewer: OctreeViewer;
   private renderer: THREE.WebGLRenderer;
   private lastFrustumUpdateTime: number;
-  private needsUpdate: boolean;
 
   public run() {
     let renderArea = document.getElementById('renderArea');
@@ -69,18 +68,15 @@ class App {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.needsUpdate = true;
   }
 
 
   public animate() {
     requestAnimationFrame(() => this.animate());
 
-    if (this.controller.update()) {
-      this.needsUpdate = true;
-    }
+    this.controller.update();
     const time = now();
-    if (time - this.lastFrustumUpdateTime > 250 && this.needsUpdate) {
+    if (time - this.lastFrustumUpdateTime > 250) {
       this.camera.updateMatrixWorld(false);
       this.lastFrustumUpdateTime = time;
       const matrix = new THREE.Matrix4().multiplyMatrices(
@@ -88,7 +84,6 @@ class App {
       this.viewer.frustumChanged(
           matrix, this.renderer.context.canvas.width,
           this.renderer.context.canvas.height);
-      this.needsUpdate = false;
     }
 
     // TODO(hrapp): delete invisible nodes and free memory again.
