@@ -264,6 +264,19 @@ macro_rules! read_casted_property {
     )
 }
 
+// Similar, but creates a function that just advances the read pointer.
+macro_rules! create_skip_fn {
+    (&mut $size:ident, $num_bytes:expr) => (
+        {
+            $size += $num_bytes;
+            fn _read_fn(nread: &mut usize, _: &[u8], _: &mut Point) {
+                *nread += $num_bytes;
+            }
+            _read_fn
+        }
+    )
+}
+
 /// Opens a PLY file and checks that it is the correct format we support. Seeks in the file to the
 /// beginning of the binary data which must be (x, y, z, r, g, b) tuples.
 fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
@@ -335,8 +348,16 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
                     .push(read_casted_property!(prop.data_type, point.b, &mut num_bytes_per_point));
             }
             other => {
-                // TODO(hrapp): Implement skipping of unknown properties.
-                panic!("Unknown property '{}' on 'vertex'.", other)
+                println!("Will ignore property '{}' on 'vertex'.", other);
+                use self::DataType::*;
+                match prop.data_type {
+                    Uint8 | Int8 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 1)),
+                    Uint16 | Int16 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 2)),
+                    Uint32 | Int32 | Float32 => {
+                        readers.push(create_skip_fn!(&mut num_bytes_per_point, 4))
+                    }
+                    Float64 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 8)),
+                }
             }
         }
     }
@@ -363,8 +384,8 @@ pub struct PlyIterator {
 }
 
 impl PlyIterator {
-    pub fn new(ply_file: &Path) -> Result<Self> {
-        let (reader, num_total_points, readers) = open(ply_file)?;
+    pub fn new<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
+        let (reader, num_total_points, readers) = open(ply_file.as_ref())?;
         Ok(
             PlyIterator {
                 reader: reader,
@@ -405,5 +426,37 @@ impl InternalIterator for PlyIterator {
             func(&point);
             self.reader.consume(nread);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn points_from_file<P: AsRef<Path>>(path: P) -> Vec<Point> {
+        let iterator = PlyIterator::new(path).unwrap();
+        let mut points = Vec::new();
+        iterator.for_each(|p| { points.push(p.clone()); });
+        points
+    }
+
+    #[test]
+    fn test_xyz_f32_rgb_u8_le() {
+        let points = points_from_file("src/test_data/xyz_f32_rgb_u8_le.ply");
+        assert_eq!(8, points.len());
+        assert_eq!(points[0].position.x, 1.);
+        assert_eq!(points[7].position.x, 22.);
+        assert_eq!(points[0].r, 255);
+        assert_eq!(points[7].r, 234);
+    }
+
+    #[test]
+    fn test_xyz_f32_rgba_u8_le() {
+        let points = points_from_file("src/test_data/xyz_f32_rgba_u8_le.ply");
+        assert_eq!(8, points.len());
+        assert_eq!(points[0].position.x, 1.);
+        assert_eq!(points[7].position.x, 22.);
+        assert_eq!(points[0].r, 255);
+        assert_eq!(points[7].r, 227);
     }
 }
