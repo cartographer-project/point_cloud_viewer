@@ -62,9 +62,7 @@ export class FirstPersonController {
         'mousedown', event => this.onMouseDown(<MouseEvent>event), false);
   }
 
-  public update(): boolean {
-    let updated = false;
-
+  public update() {
     let pan = new THREE.Vector3(0, 0, 0);
     if (this.moveRight) {
       pan.x += 1;
@@ -87,7 +85,6 @@ export class FirstPersonController {
 
     if (pan.lengthSq() > 0 || Math.abs(this.thetaDelta) > 0 ||
         Math.abs(this.phiDelta)) {
-      updated = true;
       this.object.rotation.order = 'ZYX';
 
       this.object.matrixWorld.applyToVector3Array([pan.x, pan.y, pan.z]);
@@ -105,7 +102,6 @@ export class FirstPersonController {
       this.thetaDelta = 0;
       this.phiDelta = 0;
     }
-    return updated;
   }
 
   private setMoving(keyCode: number, state: boolean) {
