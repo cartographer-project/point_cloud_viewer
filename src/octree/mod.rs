@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use bytes::{Buf, IntoBuf};
 use errors::*;
 use math::{Cube, Cuboid, CuboidLike, Frustum, Matrix4f, Vector2f, Vector3f};
+use prost::Message;
 use proto;
-use protobuf;
 use std::cmp;
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -107,20 +108,25 @@ impl Octree {
         }
 
         let meta = {
-            let mut reader = File::open(&directory.join("meta.pb"))?;
-            protobuf::parse_from_reader::<proto::Meta>(&mut reader)
+            let mut data = Vec::new();
+            File::open(&directory.join("meta.pb"))?
+                .read_to_end(&mut data)?;
+            let len = data.len();
+            proto::Meta::decode(&mut Buf::take(data.into_buf(), len))
                 .chain_err(|| "Could not parse meta.pb")?
         };
 
-        if meta.get_version() != CURRENT_VERSION {
-            return Err(ErrorKind::InvalidVersion(meta.get_version()).into());
+        let version = meta.version.unwrap();
+        if version != CURRENT_VERSION {
+            return Err(ErrorKind::InvalidVersion(version).into());
         }
 
         let bounding_cube = {
-            let min = meta.get_bounding_cube().get_min();
+            let bounding_cube = meta.bounding_cube.unwrap();
+            let min = bounding_cube.min.unwrap();
             Cube::new(
-                Vector3f::new(min.get_x(), min.get_y(), min.get_z()),
-                meta.get_bounding_cube().get_edge_length(),
+                Vector3f::new(min.x.unwrap(), min.y.unwrap(), min.z.unwrap()),
+                bounding_cube.edge_length.unwrap(),
             )
         };
 
