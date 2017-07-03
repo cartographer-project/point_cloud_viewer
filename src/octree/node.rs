@@ -14,15 +14,16 @@
 
 use {InternalIterator, Point};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use bytes::{Buf, IntoBuf};
 use errors::*;
 use math::{Cube, CuboidLike, Vector3f, Zero, clamp};
 use num;
 use num_traits;
+use prost::Message;
 use proto;
-use protobuf::{self, Message};
 use std::{fmt, result};
 use std::fs::{self, File};
-use std::io::{BufReader, BufWriter};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 pub const META_EXT: &'static str = "pb";
@@ -231,22 +232,30 @@ impl NodeMeta {
         }
 
         let meta = {
-            let mut reader = File::open(&stem.with_extension(META_EXT))?;
-            protobuf::parse_from_reader::<proto::Node>(&mut reader)
+            let mut data = Vec::new();
+            File::open(&stem.with_extension(META_EXT))?
+                .read_to_end(&mut data)?;
+            let len = data.len();
+            proto::Node::decode(&mut Buf::take(data.into_buf(), len))
                 .chain_err(|| "Could not parse node protobuf.")?
         };
 
         Ok(
             NodeMeta {
-                num_points: meta.get_num_points(),
-                position_encoding: PositionEncoding::from_proto(&meta.get_position_encoding()),
+                num_points: meta.num_points.unwrap(),
+                position_encoding: PositionEncoding::from_proto(
+                    proto::node::PositionEncoding::from_i32(
+                        meta.position_encoding.unwrap(),
+                    )
+                            .unwrap()
+                ),
                 // TODO(hrapp): Would be nice to have a from_proto and to_proto as a trait.
                 bounding_cube: {
-                    let proto = meta.get_bounding_cube();
-                    let min = proto.get_min();
+                    let proto = meta.bounding_cube.unwrap();
+                    let min = proto.min.unwrap();
                     Cube::new(
-                        Vector3f::new(min.get_x(), min.get_y(), min.get_z()),
-                        proto.get_edge_length(),
+                        Vector3f::new(min.x.unwrap(), min.y.unwrap(), min.z.unwrap()),
+                        proto.edge_length.unwrap(),
                     )
                 },
                 stem: stem,
@@ -368,19 +377,19 @@ impl PositionEncoding {
         }
     }
 
-    fn from_proto(proto: &proto::Node_PositionEncoding) -> Self {
-        match *proto {
-            proto::Node_PositionEncoding::Uint8 => PositionEncoding::Uint8,
-            proto::Node_PositionEncoding::Uint16 => PositionEncoding::Uint16,
-            proto::Node_PositionEncoding::Float32 => PositionEncoding::Float32,
+    fn from_proto(proto: proto::node::PositionEncoding) -> Self {
+        match proto {
+            proto::node::PositionEncoding::Uint8 => PositionEncoding::Uint8,
+            proto::node::PositionEncoding::Uint16 => PositionEncoding::Uint16,
+            proto::node::PositionEncoding::Float32 => PositionEncoding::Float32,
         }
     }
 
-    fn to_proto(&self) -> proto::Node_PositionEncoding {
+    fn to_proto(&self) -> proto::node::PositionEncoding {
         match *self {
-            PositionEncoding::Uint8 => proto::Node_PositionEncoding::Uint8,
-            PositionEncoding::Uint16 => proto::Node_PositionEncoding::Uint16,
-            PositionEncoding::Float32 => proto::Node_PositionEncoding::Float32,
+            PositionEncoding::Uint8 => proto::node::PositionEncoding::Uint8,
+            PositionEncoding::Uint16 => proto::node::PositionEncoding::Uint16,
+            PositionEncoding::Float32 => proto::node::PositionEncoding::Float32,
         }
     }
 
@@ -434,26 +443,28 @@ impl Drop for NodeWriter {
         if self.num_written == 0 {
             self.remove_all_files();
         } else {
-            let mut proto = proto::Node::new();
-            proto
-                .mut_bounding_cube()
-                .mut_min()
-                .set_x(self.bounding_cube.min().x);
-            proto
-                .mut_bounding_cube()
-                .mut_min()
-                .set_y(self.bounding_cube.min().y);
-            proto
-                .mut_bounding_cube()
-                .mut_min()
-                .set_z(self.bounding_cube.min().z);
-            proto
-                .mut_bounding_cube()
-                .set_edge_length(self.bounding_cube.edge_length());
-            proto.set_position_encoding(self.position_encoding.to_proto());
-            proto.set_num_points(self.num_written);
-            let mut file = File::create(&self.stem.with_extension(META_EXT)).unwrap();
-            proto.write_to_writer(&mut file).unwrap();
+            let proto = proto::Node {
+                bounding_cube: Some(
+                    proto::BoundingCube {
+                        min: Some(
+                            proto::Vector3f {
+                                x: Some(self.bounding_cube.min().x),
+                                y: Some(self.bounding_cube.min().y),
+                                z: Some(self.bounding_cube.min().z),
+                            }
+                        ),
+                        edge_length: Some(self.bounding_cube.edge_length()),
+                    }
+                ),
+                position_encoding: Some(self.position_encoding.to_proto() as i32),
+                num_points: Some(self.num_written),
+            };
+            let mut buf = Vec::new();
+            proto.encode(&mut buf).unwrap();
+            File::create(&self.stem.with_extension(META_EXT))
+                .unwrap()
+                .write_all(&buf)
+                .unwrap();
         }
 
         // TODO(hrapp): Add some sanity checks that we do not have nodes with ridiculously low

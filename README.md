@@ -17,9 +17,6 @@ See <https://rustup.rs> for details.
 In the root of the repo, run `cargo build --release`.
 Then use `target/release/build_octree` to generate an octree out of a PLY file.
 
-If you want to develop and change the `.proto` files you will also need to [install the code generation from rust-protobuf](https://github.com/stepancheg/rust-protobuf/).
-For now, the generated rust code is checked in and needs to be regenerated manually.
-
 ### Web Viewer
 
 The `web_viewer` consists of [TypeScript](https://www.typescriptlang.org) code running in the browser and a web server binary.

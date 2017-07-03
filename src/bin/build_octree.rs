@@ -16,8 +16,8 @@ extern crate byteorder;
 extern crate clap;
 extern crate pbr;
 extern crate point_viewer;
-extern crate protobuf;
 extern crate scoped_pool;
+extern crate prost;
 
 use pbr::ProgressBar;
 use point_viewer::{InternalIterator, Point};
@@ -27,11 +27,11 @@ use point_viewer::octree;
 use point_viewer::ply::PlyIterator;
 use point_viewer::proto;
 use point_viewer::pts::PtsIterator;
-use protobuf::core::Message;
+use prost::Message;
 use scoped_pool::{Pool, Scope};
 use std::collections::HashSet;
 use std::fs::{self, File};
-use std::io::Stdout;
+use std::io::{Stdout, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
@@ -287,22 +287,28 @@ fn main() {
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    let mut meta = proto::Meta::new();
-    meta.mut_bounding_cube()
-        .mut_min()
-        .set_x(bounding_cube.min().x);
-    meta.mut_bounding_cube()
-        .mut_min()
-        .set_y(bounding_cube.min().y);
-    meta.mut_bounding_cube()
-        .mut_min()
-        .set_z(bounding_cube.min().z);
-    meta.mut_bounding_cube()
-        .set_edge_length(bounding_cube.edge_length());
-    meta.set_resolution(resolution);
-    meta.set_version(octree::CURRENT_VERSION);
-    let mut meta_pb = File::create(&output_directory.join("meta.pb")).unwrap();
-    meta.write_to_writer(&mut meta_pb).unwrap();
+    let meta = proto::Meta {
+        bounding_cube: Some(
+            proto::BoundingCube {
+                min: Some(
+                    proto::Vector3f {
+                        x: Some(bounding_cube.min().x),
+                        y: Some(bounding_cube.min().y),
+                        z: Some(bounding_cube.min().z),
+                    }
+                ),
+                edge_length: Some(bounding_cube.edge_length()),
+            }
+        ),
+        resolution: Some(resolution),
+        version: Some(octree::CURRENT_VERSION),
+    };
+    let mut encoded = Vec::new();
+    meta.encode(&mut encoded).unwrap();
+    File::create(&output_directory.join("meta.pb"))
+        .unwrap()
+        .write_all(&encoded)
+        .unwrap();
 
     println!("Creating octree structure.");
     let pool = Pool::new(10);
