@@ -213,7 +213,7 @@ type ReadingFn = fn(nread: &mut usize, buf: &[u8], val: &mut Point);
 // it to '$property' (e.g. 'position.x') of 'point' while casting it to the correct type. I did not
 // find a way of doing this purely using generic programming, so I resorted to this macro.
 macro_rules! create_and_return_reading_fn {
-    ($data_type:expr, $($property:ident).+, $size:ident, $num_bytes:expr, $reading_fn:expr) => (
+    ($($property:ident).+, $size:ident, $num_bytes:expr, $reading_fn:expr) => (
         {
             $size += $num_bytes;
             fn _read_fn(nread: &mut usize, buf: &[u8], point: &mut Point) {
@@ -229,37 +229,51 @@ macro_rules! read_casted_property {
     ($data_type:expr, point. $($property:ident).+, &mut $size:ident) => (
         match $data_type {
             DataType::Uint8 => {
-                create_and_return_reading_fn!($data_type, $($property).+, $size, 1,
+                create_and_return_reading_fn!($($property).+, $size, 1,
                     |buf: &[u8]| buf[0])
             },
             DataType::Int8 => {
-                create_and_return_reading_fn!($data_type, $($property).+, $size, 1,
+                create_and_return_reading_fn!($($property).+, $size, 1,
                     |buf: &[u8]| buf[0])
             },
             DataType::Uint16 => {
-                create_and_return_reading_fn!($data_type, $($property).+, $size, 2,
+                create_and_return_reading_fn!($($property).+, $size, 2,
                     LittleEndian::read_u16)
             },
             DataType::Int16 => {
-                create_and_return_reading_fn!($data_type, $($property).+, $size, 2,
+                create_and_return_reading_fn!($($property).+, $size, 2,
                     LittleEndian::read_i16)
             },
             DataType::Uint32 => {
-                create_and_return_reading_fn!($data_type, $($property).+, $size, 4,
+                create_and_return_reading_fn!($($property).+, $size, 4,
                     LittleEndian::read_u32)
             },
             DataType::Int32 => {
-                create_and_return_reading_fn!($data_type, $($property).+, $size, 4,
+                create_and_return_reading_fn!($($property).+, $size, 4,
                     LittleEndian::read_i32)
             },
             DataType::Float32 => {
-                create_and_return_reading_fn!($data_type, $($property).+, $size, 4,
+                create_and_return_reading_fn!($($property).+, $size, 4,
                     LittleEndian::read_f32)
             },
             DataType::Float64 => {
-                create_and_return_reading_fn!($data_type, $($property).+, $size, 8,
+                create_and_return_reading_fn!($($property).+, $size, 8,
                     LittleEndian::read_f64)
             },
+        }
+    )
+}
+
+// Similar to 'create_and_return_reading_fn', but creates a function that just advances the read
+// pointer.
+macro_rules! create_skip_fn {
+    (&mut $size:ident, $num_bytes:expr) => (
+        {
+            $size += $num_bytes;
+            fn _read_fn(nread: &mut usize, _: &[u8], _: &mut Point) {
+                *nread += $num_bytes;
+            }
+            _read_fn
         }
     )
 }
@@ -335,8 +349,16 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
                     .push(read_casted_property!(prop.data_type, point.b, &mut num_bytes_per_point));
             }
             other => {
-                // TODO(hrapp): Implement skipping of unknown properties.
-                panic!("Unknown property '{}' on 'vertex'.", other)
+                println!("Will ignore property '{}' on 'vertex'.", other);
+                use self::DataType::*;
+                match prop.data_type {
+                    Uint8 | Int8 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 1)),
+                    Uint16 | Int16 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 2)),
+                    Uint32 | Int32 | Float32 => {
+                        readers.push(create_skip_fn!(&mut num_bytes_per_point, 4))
+                    }
+                    Float64 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 8)),
+                }
             }
         }
     }
@@ -363,8 +385,8 @@ pub struct PlyIterator {
 }
 
 impl PlyIterator {
-    pub fn new(ply_file: &Path) -> Result<Self> {
-        let (reader, num_total_points, readers) = open(ply_file)?;
+    pub fn new<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
+        let (reader, num_total_points, readers) = open(ply_file.as_ref())?;
         Ok(
             PlyIterator {
                 reader: reader,
@@ -405,5 +427,37 @@ impl InternalIterator for PlyIterator {
             func(&point);
             self.reader.consume(nread);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn points_from_file<P: AsRef<Path>>(path: P) -> Vec<Point> {
+        let iterator = PlyIterator::new(path).unwrap();
+        let mut points = Vec::new();
+        iterator.for_each(|p| { points.push(p.clone()); });
+        points
+    }
+
+    #[test]
+    fn test_xyz_f32_rgb_u8_le() {
+        let points = points_from_file("src/test_data/xyz_f32_rgb_u8_le.ply");
+        assert_eq!(8, points.len());
+        assert_eq!(points[0].position.x, 1.);
+        assert_eq!(points[7].position.x, 22.);
+        assert_eq!(points[0].r, 255);
+        assert_eq!(points[7].r, 234);
+    }
+
+    #[test]
+    fn test_xyz_f32_rgba_u8_le() {
+        let points = points_from_file("src/test_data/xyz_f32_rgba_u8_le.ply");
+        assert_eq!(8, points.len());
+        assert_eq!(points[0].position.x, 1.);
+        assert_eq!(points[7].position.x, 22.);
+        assert_eq!(points[0].r, 255);
+        assert_eq!(points[7].r, 227);
     }
 }
