@@ -110,6 +110,25 @@ fn split<P>(
     rv
 }
 
+fn should_split_node(node: &SplittedNode, resolution: f64) -> bool {
+    if node.num_points <= MAX_POINTS_PER_NODE {
+        return false;
+    }
+    if node.node.bounding_cube.edge_length() as f64 <= resolution {
+        // TODO(hrapp): If the data has billion of points in this small spot, performance will
+        // greatly suffer if we display it. Drop points?
+        println!(
+            "Node {} which has {} points ({:.2}x MAX_POINTS_PER_NODE) \
+            is too small to be split, keeping all points.",
+            node.node.id,
+            node.num_points,
+            node.num_points as f64 / MAX_POINTS_PER_NODE as f64
+        );
+        return false;
+    }
+    true
+}
+
 fn split_node<'a, 'b: 'a, P>(
     scope: &Scope<'a>,
     output_directory: &'b Path,
@@ -123,7 +142,7 @@ fn split_node<'a, 'b: 'a, P>(
     let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) =
         children
             .into_iter()
-            .partition(|n| n.num_points < MAX_POINTS_PER_NODE);
+            .partition(|n| !should_split_node(n, resolution));
 
     for child in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
