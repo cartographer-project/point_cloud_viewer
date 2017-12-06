@@ -376,7 +376,7 @@ fn main() {
         let mut num_points_drawn = 0;
         let mut num_nodes_drawn = 0;
         unsafe {
-            gl::ClearColor(0., 1., 0., 1.);
+            gl::ClearColor(0., 0., 0., 1.);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
             for visible_node in &visible_nodes {
