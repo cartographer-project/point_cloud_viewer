@@ -60,6 +60,8 @@ struct NodeDrawer {
     // Uniforms locations.
     u_world_to_gl: GLint,
     u_edge_length: GLint,
+    u_size: GLint,
+    u_gamma: GLint,
     u_min: GLint,
 }
 
@@ -68,6 +70,8 @@ impl NodeDrawer {
         let program = GlProgram::new(VERTEX_SHADER, FRAGMENT_SHADER);
         let u_world_to_gl;
         let u_edge_length;
+        let u_size;
+        let u_gamma;
         let u_min;
         unsafe {
             gl::UseProgram(program.id);
@@ -76,12 +80,16 @@ impl NodeDrawer {
 
             u_world_to_gl = gl::GetUniformLocation(program.id, c_str!("world_to_gl"));
             u_edge_length = gl::GetUniformLocation(program.id, c_str!("edge_length"));
+            u_size = gl::GetUniformLocation(program.id, c_str!("size"));
+            u_gamma = gl::GetUniformLocation(program.id, c_str!("gamma"));
             u_min = gl::GetUniformLocation(program.id, c_str!("min"));
         }
         NodeDrawer {
             program,
             u_world_to_gl,
             u_edge_length,
+            u_size,
+            u_gamma,
             u_min,
         }
     }
@@ -92,7 +100,7 @@ impl NodeDrawer {
         }
     }
 
-    fn draw(&self, node_view: &NodeView, level_of_detail: i32) -> i64 {
+    fn draw(&self, node_view: &NodeView, level_of_detail: i32, point_size: f32, gamma: f32) -> i64 {
         node_view.vertex_array.bind();
         let num_points = node_view
             .meta
@@ -102,6 +110,8 @@ impl NodeDrawer {
                 self.u_edge_length,
                 node_view.meta.bounding_cube.edge_length(),
             );
+            gl::Uniform1f( self.u_size, point_size);
+            gl::Uniform1f( self.u_gamma, gamma);
             gl::Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
             gl::DrawArrays(gl::POINTS, 0, num_points as i32);
         }
@@ -315,6 +325,8 @@ fn main() {
     let mut last_log = time::PreciseTime::now();
     let mut force_load_all = false;
     let mut use_level_of_detail = true;
+    let mut point_size = 2.;
+    let mut gamma = 1.;
     let mut main_loop = || {
         for event in events.poll_iter() {
             match event {
@@ -329,6 +341,10 @@ fn main() {
                         Scancode::Z => camera.moving_down = true,
                         Scancode::Q => camera.moving_up = true,
                         Scancode::F => force_load_all = true,
+                        Scancode::Num7 => gamma -= 0.1,
+                        Scancode::Num8 => gamma += 0.1,
+                        Scancode::Num9 => point_size -= 0.1,
+                        Scancode::Num0 => point_size += 0.1,
                         _ => (),
                     }
                 }
@@ -390,6 +406,7 @@ fn main() {
                         } else {
                             1
                         },
+                        point_size, gamma
                     );
                     num_nodes_drawn += 1;
                 }
