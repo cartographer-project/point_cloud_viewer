@@ -400,7 +400,10 @@ fn main() {
             while node_views.load_next_node(&octree, &node_drawer.program) {}
             force_load_all = false;
         } else {
-            node_views.load_next_node(&octree, &node_drawer.program);
+            // TODO(happ): this is arbitrary - how fast should we load stuff?
+            for _ in 0..10 {
+                node_views.load_next_node(&octree, &node_drawer.program);
+            }
         }
 
         window.gl_swap_window();
