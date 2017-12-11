@@ -40,8 +40,150 @@ use std::process;
 use std::ptr;
 use std::str;
 
-const FRAGMENT_SHADER: &'static str = include_str!("../shaders/points.fs");
-const VERTEX_SHADER: &'static str = include_str!("../shaders/points.vs");
+const FRAGMENT_SHADER_POINTS: &'static str = include_str!("../shaders/points.fs");
+const VERTEX_SHADER_POINTS: &'static str = include_str!("../shaders/points.vs");
+
+const FRAGMENT_SHADER_OUTLINED_BOX: &'static str = include_str!("../shaders/outlinedBox.fs");
+const VERTEX_SHADER_OUTLINED_BOX: &'static str = include_str!("../shaders/outlinedBox.vs");
+
+struct OutlinedBoxDrawer
+{
+    program: GlProgram,
+
+    // Uniforms locations.
+    u_transform: GLint,
+    u_color: GLint,
+
+    // vertex array and buffers
+    vertex_array: GlVertexArray,
+    _buffer_position: GlBuffer,
+    _buffer_indices: GlBuffer,
+}
+
+impl OutlinedBoxDrawer {
+    fn new() -> Self {
+        let program = GlProgram::new(VERTEX_SHADER_OUTLINED_BOX, FRAGMENT_SHADER_OUTLINED_BOX);  
+        let u_transform;
+        let u_color;
+    
+        unsafe {
+            gl::UseProgram(program.id);
+            u_transform = gl::GetUniformLocation(program.id, c_str!("transform"));
+            u_color = gl::GetUniformLocation(program.id, c_str!("color"));          // TODO: doesn't exist in the shader yet
+        }
+
+        let vertex_array = GlVertexArray::new();
+        vertex_array.bind();
+
+        // vertex buffer: define 8 vertices of the box
+        let _buffer_position = GlBuffer::new();
+        _buffer_position.bind(gl::ARRAY_BUFFER);
+        let vertices: [f32; 3*8] = [
+            -1.0, -1.0, 1.0,
+            1.0, -1.0, 1.0,
+            1.0,  1.0, 1.0,
+            -1.0,  1.0, 1.0,
+            -1.0, -1.0, -1.0,
+            1.0, -1.0, -1.0,
+            1.0,  1.0, -1.0,
+            -1.0,  1.0, -1.0,
+        ];
+        unsafe {
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                (vertices.len() * 4) as GLsizeiptr,     // TODO: replace by mem::size_of::<f32>
+                mem::transmute(&vertices[0]),
+                gl::STATIC_DRAW,
+            );
+        }
+
+        // define index buffer for 24 edges of the box
+        let _buffer_indices = GlBuffer::new();
+        _buffer_indices.bind(gl::ELEMENT_ARRAY_BUFFER);
+        let indices: [i32; 24] = [
+            0,1, 1,2, 2,3, 3,0,		// front
+		    4,5, 5,6, 6,7, 7,4,		// back
+		    1,5, 6,2,				// right
+		    4,0, 3,7,				// left
+        ];
+        unsafe {
+            gl::BufferData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                (indices.len() * 4) as GLsizeiptr,      // TODO: replace by mem::size_of::<f32>
+                mem::transmute(&indices[0]),
+                gl::STATIC_DRAW,
+            );
+        }
+
+        unsafe{
+            let pos_attr = gl::GetAttribLocation(program.id, c_str!("aPos"));
+            gl::EnableVertexAttribArray(pos_attr as GLuint);
+            gl::VertexAttribPointer(
+                pos_attr as GLuint,
+                3,
+                gl::FLOAT,
+                gl::FALSE,
+                3*4,                // TODO: replace by 3 * sizeof(f32)
+                ptr::null(),
+            );
+        }
+        OutlinedBoxDrawer {
+            program,
+            u_transform,
+            u_color,
+            vertex_array,
+            _buffer_position,
+            _buffer_indices
+        }        
+    }
+
+    fn update_transform(&self, matrix: &Matrix4<f32>) {
+
+        // create scale matrix for testing    
+        let s = 10.0;
+        let mxScale = Matrix4::new(
+            s,
+            0.,
+            0.,
+            0., // Column 0
+            0.,
+            s,
+            0.,
+            0., // Column 1
+            0.,
+            0.,
+            s,
+            0., // Column 2
+            0.,
+            0.,
+            0.,
+            1., // Column 3
+        );
+        let mx = matrix * mxScale;
+        unsafe {
+            gl::UseProgram(self.program.id);
+            gl::UniformMatrix4fv(self.u_transform, 1, false as GLboolean, mx.as_ptr());
+        }
+    }
+
+    fn update_color(&self, color: &Vec<f32>) {
+        unsafe {
+            gl::UseProgram(self.program.id);
+            gl::Uniform4fv(self.u_color, 1, color.as_ptr());
+        }
+    }
+
+    fn draw(&self) {
+        self.vertex_array.bind();
+
+        unsafe {
+            gl::UseProgram(self.program.id);
+            gl::Enable(gl::DEPTH_TEST);
+            gl::DrawElements(gl::LINES, 24, gl::UNSIGNED_INT, ptr::null());
+        }
+    }
+
+}
 
 fn reshuffle(new_order: &[usize], old_data: Vec<u8>, bytes_per_vertex: usize) -> Vec<u8> {
     assert_eq!(new_order.len() * bytes_per_vertex, old_data.len());
@@ -67,7 +209,7 @@ struct NodeDrawer {
 
 impl NodeDrawer {
     fn new() -> Self {
-        let program = GlProgram::new(VERTEX_SHADER, FRAGMENT_SHADER);
+        let program = GlProgram::new(VERTEX_SHADER_POINTS, FRAGMENT_SHADER_POINTS);
         let u_world_to_gl;
         let u_edge_length;
         let u_size;
@@ -75,8 +217,6 @@ impl NodeDrawer {
         let u_min;
         unsafe {
             gl::UseProgram(program.id);
-            gl::Enable(gl::PROGRAM_POINT_SIZE);
-            gl::Enable(gl::DEPTH_TEST);
 
             u_world_to_gl = gl::GetUniformLocation(program.id, c_str!("world_to_gl"));
             u_edge_length = gl::GetUniformLocation(program.id, c_str!("edge_length"));
@@ -96,6 +236,7 @@ impl NodeDrawer {
 
     fn update_world_to_gl(&self, matrix: &Matrix4<f32>) {
         unsafe {
+            gl::UseProgram(self.program.id);            
             gl::UniformMatrix4fv(self.u_world_to_gl, 1, false as GLboolean, matrix.as_ptr());
         }
     }
@@ -106,6 +247,10 @@ impl NodeDrawer {
             .meta
             .num_points_for_level_of_detail(level_of_detail);
         unsafe {
+            gl::UseProgram(self.program.id);
+            gl::Enable(gl::PROGRAM_POINT_SIZE);
+            gl::Enable(gl::DEPTH_TEST);
+
             gl::Uniform1f(
                 self.u_edge_length,
                 node_view.meta.bounding_cube.edge_length(),
@@ -113,7 +258,10 @@ impl NodeDrawer {
             gl::Uniform1f( self.u_size, point_size);
             gl::Uniform1f( self.u_gamma, gamma);
             gl::Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
+
             gl::DrawArrays(gl::POINTS, 0, num_points as i32);
+
+            gl::Disable(gl::PROGRAM_POINT_SIZE);
         }
         num_points
     }
@@ -131,6 +279,10 @@ struct NodeView {
 
 impl NodeView {
     fn new(program: &GlProgram, node_data: octree::NodeData) -> Self {
+        unsafe{
+            gl::UseProgram(program.id);
+        }
+
         let vertex_array = GlVertexArray::new();
         vertex_array.bind();
 
@@ -155,7 +307,7 @@ impl NodeView {
         let buffer_color = GlBuffer::new();
 
         unsafe {
-            buffer_position.bind();
+            buffer_position.bind(gl::ARRAY_BUFFER);
             let (normalize, data_type) = match node_data.meta.position_encoding {
                 octree::PositionEncoding::Uint8 => (true, gl::UNSIGNED_BYTE),
                 octree::PositionEncoding::Uint16 => (true, gl::UNSIGNED_SHORT),
@@ -180,7 +332,7 @@ impl NodeView {
                 ptr::null(),
             );
 
-            buffer_color.bind();
+            buffer_color.bind(gl::ARRAY_BUFFER);
             gl::BufferData(
                 gl::ARRAY_BUFFER,
                 color.len() as GLsizeiptr,
@@ -318,6 +470,8 @@ fn main() {
     let mut node_views = NodeViewContainer::new();
     let mut visible_nodes = Vec::new();
 
+    let outlined_box_drawer = OutlinedBoxDrawer::new();
+
     let mut camera = Camera::new(WINDOW_WIDTH, WINDOW_HEIGHT);
 
     let mut events = ctx.event_pump().unwrap();
@@ -422,6 +576,10 @@ fn main() {
                 node_views.load_next_node(&octree, &node_drawer.program);
             }
         }
+
+        // draw outline
+        outlined_box_drawer.update_transform(&camera.get_world_to_gl());
+        outlined_box_drawer.draw();
 
         window.gl_swap_window();
         num_frames += 1;
