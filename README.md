@@ -25,7 +25,7 @@ To build,
 
 1. Change into the web viewer's client directory: `cd web_viewer/client`.
 2. Install npm. We strongly suggest using [nvm](https://github.com/creationix/nvm). On Mac `brew install nvm`. 
-3. Install node version 8 `nvm install 8`. Change to the web viewer's client directory `cd client`, then set node version to 8, `nvm use 8`. 
+3. Install node version 8: `nvm install 8`. Change to the web viewer's client directory: `cd client`, then set node version to 8: `nvm use 8`. 
 4. Install javascript dependencies: `npm install`.
 5. Build the client: `npm run build`.
 
