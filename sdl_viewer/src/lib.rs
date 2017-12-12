@@ -33,3 +33,6 @@ pub mod gl {
 pub mod graphic;
 
 pub use camera::Camera;
+
+pub mod boxdrawer;
+
