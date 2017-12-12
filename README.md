@@ -44,6 +44,9 @@ Install SDL2. For example, on Mac `brew install sdl2`. (This requires Homebrew, 
 
 Build with `cargo build --release`, run with `target/release/sdl_viewer <octree directory>`.
 
+In the point cloud viewer, navigate with keys A, W, D, S. Rotate using the touchpad. Keys 9 and 0 make points smaller and larger, keys 7 and 8 make points darker and brighter. 
+
+
 ## Prior art
 
 This work was inspired through the following projects.
