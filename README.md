@@ -38,8 +38,6 @@ The client files (HTML and JavaScript) are embedded in the `web_viewer` binary, 
 ### SDL client (experimental)
 
 This is a native client using [SDL2](https://libsdl.org).
-It is a new tool and incomplete.
-For now, prefer the web viewer.
 
 1. Install SDL2. For example, on Mac `brew install sdl2`. (This requires Homebrew, https://brew.sh)
 2. Change to the sdl viewer's directory: `cd sdl_viewer/`. 
