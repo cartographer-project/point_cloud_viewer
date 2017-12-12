@@ -40,7 +40,7 @@ This is a native client using [SDL2](https://libsdl.org).
 It is a new tool and incomplete.
 For now, prefer the web viewer.
 
-Install SDL2. For example, on the mac `brew install sdl2`. (This requires Homebrew, https://brew.sh)
+Install SDL2. For example, on Mac `brew install sdl2`. (This requires Homebrew, https://brew.sh)
 
 Build with `cargo build --release`, run with `target/release/sdl_viewer <octree directory>`.
 
