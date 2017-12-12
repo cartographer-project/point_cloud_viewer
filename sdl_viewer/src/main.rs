@@ -69,7 +69,7 @@ impl OutlinedBoxDrawer {
         unsafe {
             gl::UseProgram(program.id);
             u_transform = gl::GetUniformLocation(program.id, c_str!("transform"));
-            u_color = gl::GetUniformLocation(program.id, c_str!("color"));          // TODO: doesn't exist in the shader yet
+            u_color = gl::GetUniformLocation(program.id, c_str!("color"));
         }
 
         let vertex_array = GlVertexArray::new();
@@ -141,7 +141,7 @@ impl OutlinedBoxDrawer {
 
         // create scale matrix for testing    
         let s = 10.0;
-        let mxScale = Matrix4::new(
+        let mx_scale = Matrix4::new(
             s,
             0.,
             0.,
@@ -159,7 +159,7 @@ impl OutlinedBoxDrawer {
             0.,
             1., // Column 3
         );
-        let mx = matrix * mxScale;
+        let mx = matrix * mx_scale;
         unsafe {
             gl::UseProgram(self.program.id);
             gl::UniformMatrix4fv(self.u_transform, 1, false as GLboolean, mx.as_ptr());
@@ -579,6 +579,8 @@ fn main() {
 
         // draw outline
         outlined_box_drawer.update_transform(&camera.get_world_to_gl());
+        let color = vec![1.,1.,0.,1.];
+        outlined_box_drawer.update_color(&color);
         outlined_box_drawer.draw();
 
         window.gl_swap_window();
