@@ -40,11 +40,12 @@ This is a native client using [SDL2](https://libsdl.org).
 It is a new tool and incomplete.
 For now, prefer the web viewer.
 
-Install SDL2. For example, on Mac `brew install sdl2`. (This requires Homebrew, https://brew.sh)
+1. Install SDL2. For example, on Mac `brew install sdl2`. (This requires Homebrew, https://brew.sh)
+2. Change to the sdl viewer's directory: `cd sdl_viewer/`. 
+3. Build with `cargo build --release`. 
+4. Run with `target/release/sdl_viewer <octree directory>`.
 
-Build with `cargo build --release`, run with `target/release/sdl_viewer <octree directory>`.
-
-In the point cloud viewer, navigate with keys A, W, D, S. Rotate using the touchpad. Keys 9 and 0 make points smaller and larger, keys 7 and 8 make points darker and brighter. 
+In the point cloud viewer, navigate with keys A, W, D, S. Rotate using touchpad. Keys 9 and 0 make points smaller and larger, keys 7 and 8 make points darker and brighter. 
 
 
 ## Prior art
