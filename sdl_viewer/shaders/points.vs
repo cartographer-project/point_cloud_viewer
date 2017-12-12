@@ -4,6 +4,8 @@ precision mediump float;
 
 uniform mat4 world_to_gl;
 uniform float edge_length;
+uniform float size;
+uniform float gamma;
 uniform vec3 min;
 
 attribute vec3 position;
@@ -12,9 +14,9 @@ attribute vec3 color;
 varying vec4 v_color;
 
 void main() {
-  v_color = vec4(color / 255., 1.);
-  // TODO(hrapp): Support point size as a uniform.
-  gl_PointSize = 2.;
+  vec3 corrected_color = pow(color / 255., vec3(1.0 / gamma));
+  v_color = vec4(corrected_color, 1.);
+  gl_PointSize = size;
   // TODO(hrapp): In the WebGL viewer, we are CPU bound, so doing the decoding
   // on the GPU made sense. In the native viewer, the CPU is mostly idle, so
   // pre-decoding this on the CPU might be more performant.
