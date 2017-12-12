@@ -21,7 +21,7 @@ extern crate time;
 extern crate sdl_viewer;
 extern crate clap;
 
-use cgmath::{Array, Matrix, Matrix4};
+use cgmath::{Array, Matrix, Matrix4, Vector3};
 use point_viewer::math::CuboidLike;
 use point_viewer::octree;
 use rand::{Rng, thread_rng};
@@ -43,6 +43,27 @@ use std::str;
 
 const FRAGMENT_SHADER_POINTS: &'static str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER_POINTS: &'static str = include_str!("../shaders/points.vs");
+
+fn drawOutlinedBox(outlined_box_drawer: &OutlinedBoxDrawer, projection_view_matrix: &Matrix4<f32>, node_view: &NodeView)
+{
+    let half_edge_length = node_view.meta.bounding_cube.edge_length() / 2.0;
+    let min_cube_pos = node_view.meta.bounding_cube.min();
+
+    // create scale matrix   
+    let mx_scale = Matrix4::from_scale(half_edge_length);
+    
+    // create translation matrix
+    let half_edge_vector = Vector3::new(half_edge_length,half_edge_length,half_edge_length);
+    let mx_translation = Matrix4::from_translation(min_cube_pos + half_edge_vector);
+    
+    let mx = projection_view_matrix * mx_translation * mx_scale;
+    outlined_box_drawer.update_transform(&mx);
+
+    let color = vec![1.,1.,0.,1.];
+    outlined_box_drawer.update_color(&color);
+
+    outlined_box_drawer.draw();
+}
 
 fn reshuffle(new_order: &[usize], old_data: Vec<u8>, bytes_per_vertex: usize) -> Vec<u8> {
     assert_eq!(new_order.len() * bytes_per_vertex, old_data.len());
@@ -422,6 +443,7 @@ fn main() {
                         point_size, gamma
                     );
                     num_nodes_drawn += 1;
+                    drawOutlinedBox(&outlined_box_drawer, &camera.get_world_to_gl(), view);
                 }
             }
         }
@@ -435,12 +457,6 @@ fn main() {
                 node_views.load_next_node(&octree, &node_drawer.program);
             }
         }
-
-        // draw outline
-        outlined_box_drawer.update_transform(&camera.get_world_to_gl());
-        let color = vec![1.,1.,0.,1.];
-        outlined_box_drawer.update_color(&color);
-        outlined_box_drawer.draw();
 
         window.gl_swap_window();
         num_frames += 1;

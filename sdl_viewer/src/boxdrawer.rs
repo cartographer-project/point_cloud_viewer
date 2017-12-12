@@ -116,31 +116,9 @@ impl OutlinedBoxDrawer {
     }
 
     pub fn update_transform(&self, matrix: &Matrix4<f32>) {
-
-        // create scale matrix for testing    
-        let s = 10.0;
-        let mx_scale = Matrix4::new(
-            s,
-            0.,
-            0.,
-            0., // Column 0
-            0.,
-            s,
-            0.,
-            0., // Column 1
-            0.,
-            0.,
-            s,
-            0., // Column 2
-            0.,
-            0.,
-            0.,
-            1., // Column 3
-        );
-        let mx = matrix * mx_scale;
         unsafe {
             gl::UseProgram(self.program.id);
-            gl::UniformMatrix4fv(self.u_transform, 1, false as GLboolean, mx.as_ptr());
+            gl::UniformMatrix4fv(self.u_transform, 1, false as GLboolean, matrix.as_ptr());
         }
     }
 
