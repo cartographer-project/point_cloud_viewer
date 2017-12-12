@@ -24,9 +24,10 @@ The `web_viewer` consists of [TypeScript](https://www.typescriptlang.org) code r
 To build,
 
 1. Change into the web viewer's client directory: `cd web_viewer/client`.
-2. Install npm. We strongly suggest using [nvm](https://github.com/creationix/nvm).
-3. Install javascript dependencies: `npm install`.
-4. Build the client: `npm run build`.
+2. Install npm. We strongly suggest using [nvm](https://github.com/creationix/nvm). On Mac `brew install nvm`. 
+3. Install node version 8 `nvm install 8`. Change to the web viewer's client directory `cd client`, then set node version to 8, `nvm use 8`. 
+4. Install javascript dependencies: `npm install`.
+5. Build the client: `npm run build`.
 
 Then build the server: `cargo build --release`.
 Serve up the octree using `web_viewer/target/release/web_viewer <octree directory>`, open Chrome to <http://localhost:5433>, navigate with WASD and left-click-drag on the mouse.
