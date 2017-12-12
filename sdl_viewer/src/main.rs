@@ -358,6 +358,7 @@ fn main() {
     let mut num_frames = 0;
     let mut last_log = time::PreciseTime::now();
     let mut force_load_all = false;
+    let mut show_octree_nodes = false;
     let mut use_level_of_detail = true;
     let mut point_size = 2.;
     let mut gamma = 1.;
@@ -375,6 +376,7 @@ fn main() {
                         Scancode::Z => camera.moving_down = true,
                         Scancode::Q => camera.moving_up = true,
                         Scancode::F => force_load_all = true,
+                        Scancode::O => show_octree_nodes = !show_octree_nodes,
                         Scancode::Num7 => gamma -= 0.1,
                         Scancode::Num8 => gamma += 0.1,
                         Scancode::Num9 => point_size -= 0.1,
@@ -443,7 +445,9 @@ fn main() {
                         point_size, gamma
                     );
                     num_nodes_drawn += 1;
-                    drawOutlinedBox(&outlined_box_drawer, &camera.get_world_to_gl(), view);
+                    if show_octree_nodes {
+                        drawOutlinedBox(&outlined_box_drawer, &camera.get_world_to_gl(), view);
+                    }
                 }
             }
         }
