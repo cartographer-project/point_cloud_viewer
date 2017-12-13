@@ -22,6 +22,8 @@ extern crate sdl_viewer;
 extern crate clap;
 
 use cgmath::{Array, Matrix, Matrix4, Vector3};
+use cgmath::{Angle, Decomposed, Deg, InnerSpace, One, Quaternion, Rad, Rotation,
+             Rotation3, Transform, Zero};
 use point_viewer::math::CuboidLike;
 use point_viewer::octree;
 use rand::{Rng, thread_rng};
@@ -44,7 +46,30 @@ use std::str;
 const FRAGMENT_SHADER_POINTS: &'static str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER_POINTS: &'static str = include_str!("../shaders/points.vs");
 
-fn drawOutlinedBox(outlined_box_drawer: &OutlinedBoxDrawer, projection_view_matrix: &Matrix4<f32>, node_view: &NodeView, color_intensity: f32)
+fn draw_octree_debug_view(outlined_box_drawer: &OutlinedBoxDrawer, camera: &Camera, _visible_nodes: &Vec<octree::VisibleNode>, node_views: &NodeViewContainer)
+{
+    unsafe {
+        gl::Viewport(800 / 2, 0, 800 / 2, 600 / 2);
+        gl::Enable(gl::SCISSOR_TEST);
+        gl::Scissor(800 / 2, 0, 800 / 2, 600 / 2);
+
+        gl::ClearColor(0.1, 0.1, 0.3, 1.0);
+        gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+    }
+
+    // for visible_node in &_visible_nodes {
+    //     if let Some(view) = node_views.get(&visible_node.id) {
+    //         draw_outlined_box(&outlined_box_drawer, &camera.get_world_to_gl(), view, 1.);
+    //     }
+    // }
+
+    unsafe {
+        gl::Disable(gl::SCISSOR_TEST);
+        gl::Viewport(0, 0, 800, 600);
+    }
+}
+
+fn draw_outlined_box(outlined_box_drawer: &OutlinedBoxDrawer, projection_view_matrix: &Matrix4<f32>, node_view: &NodeView, color: &Vec<f32>)
 {
     let half_edge_length = node_view.meta.bounding_cube.edge_length() / 2.0;
     let min_cube_pos = node_view.meta.bounding_cube.min();
@@ -59,7 +84,6 @@ fn drawOutlinedBox(outlined_box_drawer: &OutlinedBoxDrawer, projection_view_matr
     let mx = projection_view_matrix * mx_translation * mx_scale;
     outlined_box_drawer.update_transform(&mx);
 
-    let color = vec![color_intensity,color_intensity,0.,1.];
     outlined_box_drawer.update_color(&color);
 
     outlined_box_drawer.draw();
@@ -353,6 +377,7 @@ fn main() {
     let outlined_box_drawer = OutlinedBoxDrawer::new();
 
     let mut camera = Camera::new(WINDOW_WIDTH, WINDOW_HEIGHT);
+    let mut camera_octree = Camera::new(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
 
     let mut events = ctx.event_pump().unwrap();
     let mut num_frames = 0;
@@ -407,6 +432,7 @@ fn main() {
                 }
                 Event::Window { win_event: WindowEvent::SizeChanged(w, h), .. } => {
                     camera.set_size(w, h);
+                    camera_octree.set_size(w / 2, h / 2);
                 }
                 _ => (),
             }
@@ -452,8 +478,9 @@ fn main() {
                         println!("max points in all visible views {}", max_number_of_points_per_node);
                     }
                     if show_octree_nodes {
-                        let ratio = num_points_drawn as f32 / max_number_of_points_per_node as f32;
-                        drawOutlinedBox(&outlined_box_drawer, &camera.get_world_to_gl(), view, ratio);
+                        let color_intensity = num_points_drawn as f32 / max_number_of_points_per_node as f32;
+                        let color = vec![color_intensity,color_intensity,0.,1.];
+                        draw_outlined_box(&outlined_box_drawer, &camera.get_world_to_gl(), view, &color);
                     }
                 }
             }
@@ -467,6 +494,40 @@ fn main() {
             for _ in 0..10 {
                 node_views.load_next_node(&octree, &node_drawer.program);
             }
+        }
+
+        //draw_octree_debug_view(&outlined_box_drawer, &camera_octree, &visible_nodes, &node_views);
+
+        unsafe {
+            let x = camera_octree.width;
+            let y = 0;
+            gl::Viewport(x, y, camera_octree.width, camera_octree.height);
+            gl::Enable(gl::SCISSOR_TEST);
+            gl::Scissor(x, y, camera_octree.width, camera_octree.height);
+
+            gl::ClearColor(0.2, 0.2, 0.3, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+        }
+
+        for visible_node in &visible_nodes {
+            if let Some(view) = node_views.get(&visible_node.id) {
+                let color = vec![0.7,0.7,0.,1.];
+                draw_outlined_box(&outlined_box_drawer, &camera_octree.get_world_to_gl(), view, &color);
+            }
+        }
+        
+        // frustum
+        let color = vec![0.4,1.,0.4,1.];
+        outlined_box_drawer.update_color(&color);
+        let mx_inv_camera:  Matrix4<f32> = camera.get_world_to_gl().inverse_transform().unwrap().into();
+        let mx_camera_octree = camera_octree.get_world_to_gl();
+        let mx = mx_camera_octree * mx_inv_camera;
+        outlined_box_drawer.update_transform(&mx);
+        outlined_box_drawer.draw();
+
+        unsafe {
+            gl::Disable(gl::SCISSOR_TEST);
+            gl::Viewport(0, 0, camera.width, camera.height);
         }
 
         window.gl_swap_window();
