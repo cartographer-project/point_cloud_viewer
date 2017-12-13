@@ -44,7 +44,7 @@ use std::str;
 const FRAGMENT_SHADER_POINTS: &'static str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER_POINTS: &'static str = include_str!("../shaders/points.vs");
 
-fn drawOutlinedBox(outlined_box_drawer: &OutlinedBoxDrawer, projection_view_matrix: &Matrix4<f32>, node_view: &NodeView)
+fn drawOutlinedBox(outlined_box_drawer: &OutlinedBoxDrawer, projection_view_matrix: &Matrix4<f32>, node_view: &NodeView, color_intensity: f32)
 {
     let half_edge_length = node_view.meta.bounding_cube.edge_length() / 2.0;
     let min_cube_pos = node_view.meta.bounding_cube.min();
@@ -59,7 +59,7 @@ fn drawOutlinedBox(outlined_box_drawer: &OutlinedBoxDrawer, projection_view_matr
     let mx = projection_view_matrix * mx_translation * mx_scale;
     outlined_box_drawer.update_transform(&mx);
 
-    let color = vec![1.,1.,0.,1.];
+    let color = vec![color_intensity,color_intensity,0.,1.];
     outlined_box_drawer.update_color(&color);
 
     outlined_box_drawer.draw();
@@ -362,6 +362,7 @@ fn main() {
     let mut use_level_of_detail = true;
     let mut point_size = 2.;
     let mut gamma = 1.;
+    let mut max_number_of_points_per_node = 0;
     let mut main_loop = || {
         for event in events.poll_iter() {
             match event {
@@ -435,7 +436,7 @@ fn main() {
                 // TODO(sirver): Track a point budget here when moving, so that FPS never drops too
                 // low.
                 if let Some(view) = node_views.get(&visible_node.id) {
-                    num_points_drawn += node_drawer.draw(
+                    let node_points_drawn = node_drawer.draw(
                         view,
                         if use_level_of_detail {
                             visible_node.level_of_detail
@@ -444,9 +445,15 @@ fn main() {
                         },
                         point_size, gamma
                     );
+                    num_points_drawn += node_points_drawn;
                     num_nodes_drawn += 1;
+                    if max_number_of_points_per_node < node_points_drawn {
+                        max_number_of_points_per_node = node_points_drawn;
+                        println!("max points in all visible views {}", max_number_of_points_per_node);
+                    }
                     if show_octree_nodes {
-                        drawOutlinedBox(&outlined_box_drawer, &camera.get_world_to_gl(), view);
+                        let ratio = num_points_drawn as f32 / max_number_of_points_per_node as f32;
+                        drawOutlinedBox(&outlined_box_drawer, &camera.get_world_to_gl(), view, ratio);
                     }
                 }
             }
