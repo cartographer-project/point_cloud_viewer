@@ -60,9 +60,9 @@ impl GlBuffer {
         GlBuffer { id }
     }
 
-    pub fn bind(&self) {
+    pub fn bind(&self, buffer_type: GLuint) {
         unsafe {
-            gl::BindBuffer(gl::ARRAY_BUFFER, self.id);
+            gl::BindBuffer(buffer_type, self.id);
         }
     }
 }

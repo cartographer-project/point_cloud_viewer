@@ -21,7 +21,9 @@ extern crate time;
 extern crate sdl_viewer;
 extern crate clap;
 
-use cgmath::{Array, Matrix, Matrix4};
+use cgmath::{Array, Matrix, Matrix4, Vector3};
+use cgmath::{Angle, Decomposed, Deg, InnerSpace, One, Quaternion, Rad, Rotation,
+             Rotation3, Transform, Zero};
 use point_viewer::math::CuboidLike;
 use point_viewer::octree;
 use rand::{Rng, thread_rng};
@@ -29,6 +31,7 @@ use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Scancode;
 use sdl2::video::GLProfile;
 use sdl_viewer::{Camera, gl};
+use sdl_viewer::boxdrawer::OutlinedBoxDrawer;
 use sdl_viewer::gl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use std::collections::{HashMap, HashSet};
@@ -40,8 +43,64 @@ use std::process;
 use std::ptr;
 use std::str;
 
-const FRAGMENT_SHADER: &'static str = include_str!("../shaders/points.fs");
-const VERTEX_SHADER: &'static str = include_str!("../shaders/points.vs");
+const FRAGMENT_SHADER_POINTS: &'static str = include_str!("../shaders/points.fs");
+const VERTEX_SHADER_POINTS: &'static str = include_str!("../shaders/points.vs");
+
+fn draw_octree_debug_view(_outlined_box_drawer: &OutlinedBoxDrawer, _camera: &Camera, _camera_octree: &Camera, _visible_nodes: &Vec<octree::VisibleNode>, _node_views: &mut NodeViewContainer)
+{
+    unsafe {
+        let x = _camera_octree.width;
+        let y = 0;
+        gl::Viewport(x, y, _camera_octree.width, _camera_octree.height);
+        gl::Scissor(x, y, _camera_octree.width, _camera_octree.height);
+        gl::Enable(gl::SCISSOR_TEST);
+
+        gl::ClearColor(0.3, 0.3, 0.4, 1.0);
+        gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+    }
+
+    let mx_camera_octree: Matrix4<f32> = _camera_octree.get_world_to_gl();
+    for visible_node in _visible_nodes {
+        if let Some(_view) = _node_views.get(&visible_node.id) {
+            let color = vec![1.,1.,0.,1.];
+            draw_outlined_box(&_outlined_box_drawer, &mx_camera_octree, _view, &color);
+        }
+    }
+    
+    // frustum
+    let color = vec![1.,0.,1.,1.,1.];
+    _outlined_box_drawer.update_color(&color);
+    let mx_inv_camera:  Matrix4<f32> = _camera.get_world_to_gl().inverse_transform().unwrap().into();
+    let mx = mx_camera_octree * mx_inv_camera;
+    _outlined_box_drawer.update_transform(&mx);
+    _outlined_box_drawer.draw();
+
+    unsafe {
+        gl::Disable(gl::SCISSOR_TEST);
+        gl::Scissor(0, 0, _camera.width, _camera.height);
+        gl::Viewport(0, 0, _camera.width, _camera.height);
+    }
+}
+
+fn draw_outlined_box(outlined_box_drawer: &OutlinedBoxDrawer, projection_view_matrix: &Matrix4<f32>, node_view: &NodeView, color: &Vec<f32>)
+{
+    let half_edge_length = node_view.meta.bounding_cube.edge_length() / 2.0;
+    let min_cube_pos = node_view.meta.bounding_cube.min();
+
+    // create scale matrix   
+    let mx_scale = Matrix4::from_scale(half_edge_length);
+    
+    // create translation matrix
+    let half_edge_vector = Vector3::new(half_edge_length,half_edge_length,half_edge_length);
+    let mx_translation = Matrix4::from_translation(min_cube_pos + half_edge_vector);
+    
+    let mx = projection_view_matrix * mx_translation * mx_scale;
+    outlined_box_drawer.update_transform(&mx);
+
+    outlined_box_drawer.update_color(&color);
+
+    outlined_box_drawer.draw();
+}
 
 fn reshuffle(new_order: &[usize], old_data: Vec<u8>, bytes_per_vertex: usize) -> Vec<u8> {
     assert_eq!(new_order.len() * bytes_per_vertex, old_data.len());
@@ -67,7 +126,7 @@ struct NodeDrawer {
 
 impl NodeDrawer {
     fn new() -> Self {
-        let program = GlProgram::new(VERTEX_SHADER, FRAGMENT_SHADER);
+        let program = GlProgram::new(VERTEX_SHADER_POINTS, FRAGMENT_SHADER_POINTS);
         let u_world_to_gl;
         let u_edge_length;
         let u_size;
@@ -75,8 +134,6 @@ impl NodeDrawer {
         let u_min;
         unsafe {
             gl::UseProgram(program.id);
-            gl::Enable(gl::PROGRAM_POINT_SIZE);
-            gl::Enable(gl::DEPTH_TEST);
 
             u_world_to_gl = gl::GetUniformLocation(program.id, c_str!("world_to_gl"));
             u_edge_length = gl::GetUniformLocation(program.id, c_str!("edge_length"));
@@ -96,6 +153,7 @@ impl NodeDrawer {
 
     fn update_world_to_gl(&self, matrix: &Matrix4<f32>) {
         unsafe {
+            gl::UseProgram(self.program.id);            
             gl::UniformMatrix4fv(self.u_world_to_gl, 1, false as GLboolean, matrix.as_ptr());
         }
     }
@@ -106,6 +164,10 @@ impl NodeDrawer {
             .meta
             .num_points_for_level_of_detail(level_of_detail);
         unsafe {
+            gl::UseProgram(self.program.id);
+            gl::Enable(gl::PROGRAM_POINT_SIZE);
+            gl::Enable(gl::DEPTH_TEST);
+
             gl::Uniform1f(
                 self.u_edge_length,
                 node_view.meta.bounding_cube.edge_length(),
@@ -113,7 +175,10 @@ impl NodeDrawer {
             gl::Uniform1f( self.u_size, point_size);
             gl::Uniform1f( self.u_gamma, gamma);
             gl::Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
+
             gl::DrawArrays(gl::POINTS, 0, num_points as i32);
+
+            gl::Disable(gl::PROGRAM_POINT_SIZE);
         }
         num_points
     }
@@ -131,6 +196,10 @@ struct NodeView {
 
 impl NodeView {
     fn new(program: &GlProgram, node_data: octree::NodeData) -> Self {
+        unsafe{
+            gl::UseProgram(program.id);
+        }
+
         let vertex_array = GlVertexArray::new();
         vertex_array.bind();
 
@@ -155,7 +224,7 @@ impl NodeView {
         let buffer_color = GlBuffer::new();
 
         unsafe {
-            buffer_position.bind();
+            buffer_position.bind(gl::ARRAY_BUFFER);
             let (normalize, data_type) = match node_data.meta.position_encoding {
                 octree::PositionEncoding::Uint8 => (true, gl::UNSIGNED_BYTE),
                 octree::PositionEncoding::Uint16 => (true, gl::UNSIGNED_SHORT),
@@ -180,7 +249,7 @@ impl NodeView {
                 ptr::null(),
             );
 
-            buffer_color.bind();
+            buffer_color.bind(gl::ARRAY_BUFFER);
             gl::BufferData(
                 gl::ARRAY_BUFFER,
                 color.len() as GLsizeiptr,
@@ -318,15 +387,21 @@ fn main() {
     let mut node_views = NodeViewContainer::new();
     let mut visible_nodes = Vec::new();
 
+    let outlined_box_drawer = OutlinedBoxDrawer::new();
+
     let mut camera = Camera::new(WINDOW_WIDTH, WINDOW_HEIGHT);
+    let mut camera_octree = Camera::new(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
 
     let mut events = ctx.event_pump().unwrap();
     let mut num_frames = 0;
     let mut last_log = time::PreciseTime::now();
     let mut force_load_all = false;
+    let mut show_octree_nodes = false;
+    let mut show_octree_view = false;
     let mut use_level_of_detail = true;
     let mut point_size = 2.;
     let mut gamma = 1.;
+    let mut max_number_of_points_per_node = 0;
     let mut main_loop = || {
         for event in events.poll_iter() {
             match event {
@@ -341,6 +416,8 @@ fn main() {
                         Scancode::Z => camera.moving_down = true,
                         Scancode::Q => camera.moving_up = true,
                         Scancode::F => force_load_all = true,
+                        Scancode::O => show_octree_nodes = !show_octree_nodes,
+                        Scancode::P => show_octree_view = !show_octree_view,
                         Scancode::Num7 => gamma -= 0.1,
                         Scancode::Num8 => gamma += 0.1,
                         Scancode::Num9 => point_size -= 0.1,
@@ -370,6 +447,7 @@ fn main() {
                 }
                 Event::Window { win_event: WindowEvent::SizeChanged(w, h), .. } => {
                     camera.set_size(w, h);
+                    camera_octree.set_size(w / 2, h / 2);
                 }
                 _ => (),
             }
@@ -392,6 +470,7 @@ fn main() {
         let mut num_points_drawn = 0;
         let mut num_nodes_drawn = 0;
         unsafe {
+            gl::Viewport(0, 0, camera.width, camera.height);
             gl::ClearColor(0., 0., 0., 1.);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
@@ -399,7 +478,7 @@ fn main() {
                 // TODO(sirver): Track a point budget here when moving, so that FPS never drops too
                 // low.
                 if let Some(view) = node_views.get(&visible_node.id) {
-                    num_points_drawn += node_drawer.draw(
+                    let node_points_drawn = node_drawer.draw(
                         view,
                         if use_level_of_detail {
                             visible_node.level_of_detail
@@ -408,7 +487,16 @@ fn main() {
                         },
                         point_size, gamma
                     );
+                    num_points_drawn += node_points_drawn;
                     num_nodes_drawn += 1;
+                    if max_number_of_points_per_node < node_points_drawn {
+                        max_number_of_points_per_node = node_points_drawn;
+                    }
+                    if show_octree_nodes {
+                        let color_intensity = num_points_drawn as f32 / max_number_of_points_per_node as f32;
+                        let color = vec![color_intensity,color_intensity,0.,1.];
+                        draw_outlined_box(&outlined_box_drawer, &camera.get_world_to_gl(), view, &color);
+                    }
                 }
             }
         }
@@ -421,6 +509,10 @@ fn main() {
             for _ in 0..10 {
                 node_views.load_next_node(&octree, &node_drawer.program);
             }
+        }
+
+        if show_octree_view {
+            draw_octree_debug_view(&outlined_box_drawer, &camera, &camera_octree, &visible_nodes, &mut node_views);
         }
 
         window.gl_swap_window();
