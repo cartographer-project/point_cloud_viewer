@@ -117,9 +117,6 @@ impl Camera {
         self.height = height;
         self.projection_matrix =
             make_projection_matrix(0.1, 10000., Deg(45.), 1., width as f32 / height as f32);
-        unsafe {
-            gl::Viewport(0, 0, width, height);
-        }
     }
 
     pub fn get_world_to_gl(&self) -> Matrix4<f32> {
