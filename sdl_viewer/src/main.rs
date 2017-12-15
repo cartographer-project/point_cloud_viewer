@@ -39,6 +39,7 @@ use std::path::PathBuf;
 use std::process;
 use std::ptr;
 use std::str;
+use std::sync::mpsc::{Receiver, Sender, self};
 
 const FRAGMENT_SHADER: &'static str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER: &'static str = include_str!("../shaders/points.vs");
@@ -225,7 +226,7 @@ impl NodeViewContainer {
 
     // Loads the next most-important nodes data. Returns false if there are no more nodes queued
     // for loading.
-    fn load_next_node(&mut self, octree: &octree::Octree, program: &GlProgram) -> bool {
+    fn load_next_node(&mut self, octree: &octree::Octree, program: &GlProgram, sender: &mut Sender<Vec<octree::NodeId>>) -> bool {
         // We always request nodes at full resolution (i.e. not subsampled by the backend), because
         // we can just as effectively subsample the number of points we draw in the client.
         const ALL_POINTS_LOD: i32 = 1;
@@ -234,12 +235,21 @@ impl NodeViewContainer {
             let node_data = octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
             self.node_views
                 .insert(node_id, NodeView::new(program, node_data));
+
+            sender.send(vec![node_id]).unwrap();      // loader thread must be alive at this point
             true
         } else {
             false
         }
 
         // TODO(sirver): Use a LRU Cache to throw nodes out that we haven't used in a while.
+    }
+
+    fn euqueue_nodes_for_loading(&self, _visible_nodes: &Vec<octree::VisibleNode>, sender: &mut Sender<Vec<octree::NodeId>>) {
+        for visible_node in &_visible_nodes {
+            let Some(view) = self.node_views.get(&visible_node.id);
+        }
+        //sender.send(nodes).unwrap();
     }
 
     fn reset_load_queue(&mut self) {
@@ -259,6 +269,21 @@ impl NodeViewContainer {
                 None
             }
             Entry::Occupied(e) => Some(e.into_mut()),
+        }
+    }
+}
+
+struct FromDiscLoader {
+    receiver: Receiver<Vec<octree::NodeId>>,
+    sender: Sender<(octree::NodeId, octree::NodeData)>,
+}
+
+impl FromDiscLoader{
+    fn run(self) {
+        for node_ids in self.receiver.into_iter() {
+            for n in node_ids {
+                println!("node_id {}", n); 
+            }
         }
     }
 }
@@ -327,6 +352,12 @@ fn main() {
     let mut use_level_of_detail = true;
     let mut point_size = 2.;
     let mut gamma = 1.;
+    let (mut node_id_sender, node_id_receiver) = mpsc::channel();
+    let (node_data_sender, node_data_receiver) = mpsc::channel();
+    let from_disc_loader = FromDiscLoader{receiver:node_id_receiver, sender:node_data_sender};
+    let join_handle = std::thread::spawn(||{ 
+        from_disc_loader.run();
+     });
     let mut main_loop = || {
         for event in events.poll_iter() {
             match event {
@@ -385,6 +416,7 @@ fn main() {
                 octree::UseLod::Yes,
             );
             node_views.reset_load_queue();
+            node_views.euqueue_nodes_for_loading(&visible_nodes, &mut node_id_sender);
         } else {
             use_level_of_detail = false;
         }
@@ -414,12 +446,12 @@ fn main() {
         }
         if force_load_all {
             println!("Force loading all currently visible nodes.");
-            while node_views.load_next_node(&octree, &node_drawer.program) {}
+            while node_views.load_next_node(&octree, &node_drawer.program, &mut node_id_sender) {}
             force_load_all = false;
         } else {
             // TODO(happ): this is arbitrary - how fast should we load stuff?
             for _ in 0..10 {
-                node_views.load_next_node(&octree, &node_drawer.program);
+                node_views.load_next_node(&octree, &node_drawer.program, &mut node_id_sender);
             }
         }
 
