@@ -32,7 +32,6 @@ use sdl_viewer::{Camera, gl};
 use sdl_viewer::gl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use std::collections::{HashMap, HashSet};
-use std::collections::VecDeque;
 use std::collections::hash_map::Entry;
 use std::mem;
 use std::path::PathBuf;
@@ -224,7 +223,7 @@ impl NodeViewContainer {
     }
 
     // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
-    // registered the node for loading.
+    // registered the node for loading in the worker thread
     fn get(&mut self, node_id: &octree::NodeId, program: &GlProgram, sender: &mut Sender<octree::NodeId>, receiver: &mut Receiver<(octree::NodeId, octree::NodeData)>) -> Option<&NodeView> {
         while let Ok((node_id, node_data)) = receiver.try_recv() {
             self.queued.remove(&node_id);
@@ -241,6 +240,22 @@ impl NodeViewContainer {
                 None
             }
             Entry::Occupied(e) => Some(e.into_mut()),
+        }
+    }
+
+    // Enqueues all nodes loading
+    fn enqueue_all_nodes_for_loading(&mut self, visible_nodes: &Vec<octree::VisibleNode>, sender: &mut Sender<octree::NodeId>) {
+        for visible_node in visible_nodes {
+            let node_id = visible_node.id;
+            match self.node_views.entry(node_id) {
+                Entry::Vacant(_) => {
+                    if !self.queued.contains(&node_id) {
+                        self.queued.insert(node_id);
+                        sender.send(node_id).unwrap();
+                    }
+                }
+                Entry::Occupied(e) => {},
+            }
         }
     }
 }
@@ -331,7 +346,7 @@ fn main() {
     let (mut node_id_sender, node_id_receiver) = mpsc::channel();
     let (node_data_sender, mut node_data_receiver) = mpsc::channel();
     let from_disc_loader = FromDiscLoader{receiver:node_id_receiver, sender:node_data_sender, octree: octree.clone()};
-    let join_handle = std::thread::spawn(||{ 
+    std::thread::spawn(||{ 
         from_disc_loader.run();
      });
     let mut main_loop = || {
@@ -393,6 +408,12 @@ fn main() {
             );
         } else {
             use_level_of_detail = false;
+        }
+
+        if force_load_all {
+            println!("Force loading all currently visible nodes.");
+            node_views.enqueue_all_nodes_for_loading(&visible_nodes, &mut node_id_sender);          
+            force_load_all = false;
         }
 
         let mut num_points_drawn = 0;
