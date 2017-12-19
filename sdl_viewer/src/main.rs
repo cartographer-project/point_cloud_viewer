@@ -212,7 +212,6 @@ impl NodeView {
 // Keeps track of the nodes that were requested in-order and loads then one by one on request.
 struct NodeViewContainer {
     node_views: HashMap<octree::NodeId, NodeView>,
-    queue: VecDeque<octree::NodeId>,
     queued: HashSet<octree::NodeId>,
 }
 
@@ -220,13 +219,8 @@ impl NodeViewContainer {
     fn new() -> Self {
         NodeViewContainer {
             node_views: HashMap::new(),
-            queue: VecDeque::new(),
             queued: HashSet::new(),
         }
-    }
-
-    fn reset_load_queue(&mut self) {
-        self.queue.clear();
     }
 
     // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
@@ -241,7 +235,6 @@ impl NodeViewContainer {
         match self.node_views.entry(*node_id) {
             Entry::Vacant(_) => {
                 if !self.queued.contains(&node_id) && self.queued.len() < 10 {
-                    self.queue.push_back(*node_id);
                     self.queued.insert(*node_id);
                     sender.send(*node_id).unwrap();
                 }
@@ -398,8 +391,6 @@ fn main() {
                 camera.height,
                 octree::UseLod::Yes,
             );
-            node_views.reset_load_queue();
-            //node_views.enqueue_nodes_for_loading(&visible_nodes);
         } else {
             use_level_of_detail = false;
         }
@@ -427,16 +418,6 @@ fn main() {
                 }
             }
         }
-        // if force_load_all {
-        //     println!("Force loading all currently visible nodes.");
-        //     while node_views.load_next_node(&octree, &node_drawer.program) {}
-        //     force_load_all = false;
-        // } else {
-        //     // TODO(happ): this is arbitrary - how fast should we load stuff?
-        //     for _ in 0..10 {
-        //         node_views.load_next_node(&octree, &node_drawer.program);
-        //     }
-        // }
 
         window.gl_swap_window();
         num_frames += 1;
