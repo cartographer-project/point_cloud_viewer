@@ -211,21 +211,27 @@ impl NodeView {
 // Keeps track of the nodes that were requested in-order and loads then one by one on request.
 struct NodeViewContainer {
     node_views: HashMap<octree::NodeId, NodeView>,
-    requested: HashSet<octree::NodeId>,
+    requested: HashSet<octree::NodeId>,     // The node_ids that the I/O thread is currently loading.
+    // Communication with the I/O thread.
     node_id_sender: Sender<octree::NodeId>,
     node_data_receiver: Receiver<(octree::NodeId, octree::NodeData)>,
 }
 
 impl NodeViewContainer {
     fn new(octree: Arc<octree::Octree>) -> Self {
+        // Expensive I/O is performed by an I/O thread. Communication is realized through channels.
         let (node_id_sender, node_id_receiver) = mpsc::channel();
         let (node_data_sender, node_data_receiver) = mpsc::channel();
-        std::thread::spawn(move||{ 
+        std::thread::spawn(move||{
+            // Loads the next node data in the receiver queue.
             for node_id in node_id_receiver.into_iter() {
+                // We always request nodes at full resolution (i.e. not subsampled by the backend), because
+                // we can just as effectively subsample the number of points we draw in the client.
                 const ALL_POINTS_LOD: i32 = 1;                
                 let node_data = octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
+                // TODO: reshuffle?
                 node_data_sender.send((node_id, node_data)).unwrap();
-            }
+            } 
         });
         NodeViewContainer {
             node_views: HashMap::new(),
@@ -236,17 +242,20 @@ impl NodeViewContainer {
     }
 
     // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
-    // requested the node for loading in the worker thread
+    // requested the node for loading in the I/O thread
     fn get_or_request(&mut self, node_id: &octree::NodeId, program: &GlProgram) -> Option<&NodeView> {
         while let Ok((node_id, node_data)) = self.node_data_receiver.try_recv() {
+            // Put loaded node into hash map.
             self.requested.remove(&node_id);
             self.node_views
                 .insert(node_id, NodeView::new(program, node_data));
+            // TODO(sirver): Use a LRU Cache to throw nodes out that we haven't used in a while.
         }
 
         match self.node_views.entry(*node_id) {
             Entry::Vacant(_) => {
-                // limit the number of requested nodes because on camera move requested nodes might not be in the frustum anymore
+                // Limit the number of requested nodes because after a camera move
+                // requested nodes might not be in the frustum anymore.
                 if !self.requested.contains(&node_id) && self.requested.len() < 10 {  
                     self.requested.insert(*node_id);
                     self.node_id_sender.send(*node_id).unwrap();
@@ -257,7 +266,7 @@ impl NodeViewContainer {
         }
     }
 
-    fn request_all_nodes(&mut self, visible_nodes: &[octree::VisibleNode]) {
+    fn request_all(&mut self, visible_nodes: &[octree::VisibleNode]) {
         for visible_node in visible_nodes {
             let node_id = visible_node.id;
             match self.node_views.entry(node_id) {
@@ -401,7 +410,7 @@ fn main() {
 
         if force_load_all {
             println!("Force loading all currently visible nodes.");
-            node_views.request_all_nodes(&visible_nodes);          
+            node_views.request_all(&visible_nodes);          
             force_load_all = false;
         }
 
