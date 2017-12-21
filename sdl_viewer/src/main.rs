@@ -223,7 +223,7 @@ impl NodeViewContainer {
     }
 
     // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
-    // registered the node for loading in the worker thread
+    // requested the node for loading in the worker thread
     fn get(&mut self, node_id: &octree::NodeId, program: &GlProgram, sender: &mut Sender<octree::NodeId>, receiver: &mut Receiver<(octree::NodeId, octree::NodeData)>) -> Option<&NodeView> {
         while let Ok((node_id, node_data)) = receiver.try_recv() {
             self.queued.remove(&node_id);
@@ -233,7 +233,8 @@ impl NodeViewContainer {
 
         match self.node_views.entry(*node_id) {
             Entry::Vacant(_) => {
-                if !self.queued.contains(&node_id) && self.queued.len() < 10 {
+                // limit the number of requested nodes because on camera move requested nodes might not be in the frustum anymore
+                if !self.queued.contains(&node_id) && self.queued.len() < 10 {  
                     self.queued.insert(*node_id);
                     sender.send(*node_id).unwrap();
                 }
@@ -254,7 +255,7 @@ impl NodeViewContainer {
                         sender.send(node_id).unwrap();
                     }
                 }
-                Entry::Occupied(e) => {},
+                Entry::Occupied(_) => {},
             }
         }
     }
@@ -269,9 +270,6 @@ struct FromDiscLoader {
 impl FromDiscLoader {
     fn run(self) {
         for node_id in self.receiver.into_iter() {
-            //println!("loading node_id {}", node_id);
-
-            // load data
             const ALL_POINTS_LOD: i32 = 1;                
             let node_data = self.octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
             self.sender.send((node_id, node_data)).unwrap();
