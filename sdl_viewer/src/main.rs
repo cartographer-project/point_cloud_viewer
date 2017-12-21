@@ -266,9 +266,8 @@ impl NodeViewContainer {
         }
     }
 
-    fn request_all(&mut self, visible_nodes: &[octree::NodeId]) {
-        for visible_node in visible_nodes {
-            let node_id = visible_node.id;
+    fn request_all(&mut self, node_ids: &[octree::NodeId]) {
+        for &node_id in node_ids {
             match self.node_views.entry(node_id) {
                 Entry::Vacant(_) => {
                     if !self.requested.contains(&node_id) {
