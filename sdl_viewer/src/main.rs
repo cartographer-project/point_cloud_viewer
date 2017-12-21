@@ -266,7 +266,7 @@ impl NodeViewContainer {
         }
     }
 
-    fn request_all(&mut self, visible_nodes: &[octree::VisibleNode]) {
+    fn request_all(&mut self, visible_nodes: &[octree::NodeId]) {
         for visible_node in visible_nodes {
             let node_id = visible_node.id;
             match self.node_views.entry(node_id) {
@@ -410,7 +410,8 @@ fn main() {
 
         if force_load_all {
             println!("Force loading all currently visible nodes.");
-            node_views.request_all(&visible_nodes);          
+            let visible_node_ids: Vec<_> = visible_nodes.iter().map(|n|{n.id}).collect();
+            node_views.request_all(&visible_node_ids);
             force_load_all = false;
         }
 
