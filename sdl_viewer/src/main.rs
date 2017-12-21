@@ -211,22 +211,35 @@ impl NodeView {
 // Keeps track of the nodes that were requested in-order and loads then one by one on request.
 struct NodeViewContainer {
     node_views: HashMap<octree::NodeId, NodeView>,
-    queued: HashSet<octree::NodeId>,
+    requested: HashSet<octree::NodeId>,
+    node_id_sender: Sender<octree::NodeId>,
+    node_data_receiver: Receiver<(octree::NodeId, octree::NodeData)>,
 }
 
 impl NodeViewContainer {
-    fn new() -> Self {
+    fn new(octree: Arc<octree::Octree>) -> Self {
+        let (node_id_sender, node_id_receiver) = mpsc::channel();
+        let (node_data_sender, node_data_receiver) = mpsc::channel();
+        std::thread::spawn(move||{ 
+            for node_id in node_id_receiver.into_iter() {
+                const ALL_POINTS_LOD: i32 = 1;                
+                let node_data = octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
+                node_data_sender.send((node_id, node_data)).unwrap();
+            }
+        });
         NodeViewContainer {
             node_views: HashMap::new(),
-            queued: HashSet::new(),
+            requested: HashSet::new(),
+            node_id_sender: node_id_sender,
+            node_data_receiver: node_data_receiver,
         }
     }
 
     // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
     // requested the node for loading in the worker thread
-    fn get(&mut self, node_id: &octree::NodeId, program: &GlProgram, sender: &mut Sender<octree::NodeId>, receiver: &mut Receiver<(octree::NodeId, octree::NodeData)>) -> Option<&NodeView> {
-        while let Ok((node_id, node_data)) = receiver.try_recv() {
-            self.queued.remove(&node_id);
+    fn get_or_request(&mut self, node_id: &octree::NodeId, program: &GlProgram) -> Option<&NodeView> {
+        while let Ok((node_id, node_data)) = self.node_data_receiver.try_recv() {
+            self.requested.remove(&node_id);
             self.node_views
                 .insert(node_id, NodeView::new(program, node_data));
         }
@@ -234,9 +247,9 @@ impl NodeViewContainer {
         match self.node_views.entry(*node_id) {
             Entry::Vacant(_) => {
                 // limit the number of requested nodes because on camera move requested nodes might not be in the frustum anymore
-                if !self.queued.contains(&node_id) && self.queued.len() < 10 {  
-                    self.queued.insert(*node_id);
-                    sender.send(*node_id).unwrap();
+                if !self.requested.contains(&node_id) && self.requested.len() < 10 {  
+                    self.requested.insert(*node_id);
+                    self.node_id_sender.send(*node_id).unwrap();
                 }
                 None
             }
@@ -244,35 +257,18 @@ impl NodeViewContainer {
         }
     }
 
-    // Enqueues all nodes loading
-    fn enqueue_all_nodes_for_loading(&mut self, visible_nodes: &Vec<octree::VisibleNode>, sender: &mut Sender<octree::NodeId>) {
+    fn request_all_nodes(&mut self, visible_nodes: &[octree::VisibleNode]) {
         for visible_node in visible_nodes {
             let node_id = visible_node.id;
             match self.node_views.entry(node_id) {
                 Entry::Vacant(_) => {
-                    if !self.queued.contains(&node_id) {
-                        self.queued.insert(node_id);
-                        sender.send(node_id).unwrap();
+                    if !self.requested.contains(&node_id) {
+                        self.requested.insert(node_id);
+                        self.node_id_sender.send(node_id).unwrap();
                     }
                 }
                 Entry::Occupied(_) => {},
             }
-        }
-    }
-}
-
-struct FromDiscLoader {
-    receiver: Receiver<octree::NodeId>,
-    sender: Sender<(octree::NodeId, octree::NodeData)>,
-    octree: Arc<octree::Octree>,
-}
-
-impl FromDiscLoader {
-    fn run(self) {
-        for node_id in self.receiver.into_iter() {
-            const ALL_POINTS_LOD: i32 = 1;                
-            let node_data = self.octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
-            self.sender.send((node_id, node_data)).unwrap();
         }
     }
 }
@@ -329,7 +325,7 @@ fn main() {
     );
 
     let node_drawer = NodeDrawer::new();
-    let mut node_views = NodeViewContainer::new();
+    let mut node_views = NodeViewContainer::new(octree.clone());
     let mut visible_nodes = Vec::new();
 
     let mut camera = Camera::new(WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -341,12 +337,7 @@ fn main() {
     let mut use_level_of_detail = true;
     let mut point_size = 2.;
     let mut gamma = 1.;
-    let (mut node_id_sender, node_id_receiver) = mpsc::channel();
-    let (node_data_sender, mut node_data_receiver) = mpsc::channel();
-    let from_disc_loader = FromDiscLoader{receiver:node_id_receiver, sender:node_data_sender, octree: octree.clone()};
-    std::thread::spawn(||{ 
-        from_disc_loader.run();
-     });
+
     let mut main_loop = || {
         for event in events.poll_iter() {
             match event {
@@ -410,7 +401,7 @@ fn main() {
 
         if force_load_all {
             println!("Force loading all currently visible nodes.");
-            node_views.enqueue_all_nodes_for_loading(&visible_nodes, &mut node_id_sender);          
+            node_views.request_all_nodes(&visible_nodes);          
             force_load_all = false;
         }
 
@@ -423,7 +414,7 @@ fn main() {
             for visible_node in &visible_nodes {
                 // TODO(sirver): Track a point budget here when moving, so that FPS never drops too
                 // low.
-                if let Some(view) = node_views.get(&visible_node.id, &node_drawer.program, &mut node_id_sender, &mut node_data_receiver) {
+                if let Some(view) = node_views.get_or_request(&visible_node.id, &node_drawer.program) {
                     num_points_drawn += node_drawer.draw(
                         view,
                         if use_level_of_detail {
