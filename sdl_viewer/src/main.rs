@@ -211,7 +211,8 @@ impl NodeView {
 // Keeps track of the nodes that were requested in-order and loads then one by one on request.
 struct NodeViewContainer {
     node_views: HashMap<octree::NodeId, NodeView>,
-    requested: HashSet<octree::NodeId>,     // The node_ids that the I/O thread is currently loading.
+    // The node_ids that the I/O thread is currently loading.
+    requested: HashSet<octree::NodeId>,
     // Communication with the I/O thread.
     node_id_sender: Sender<octree::NodeId>,
     node_data_receiver: Receiver<(octree::NodeId, octree::NodeData)>,
@@ -219,7 +220,8 @@ struct NodeViewContainer {
 
 impl NodeViewContainer {
     fn new(octree: Arc<octree::Octree>) -> Self {
-        // Expensive I/O is performed by an I/O thread. Communication is realized through channels.
+        // We perform I/O in a separate thread in order to not block the main thread while loading.
+        // Data sharing is done through channels.
         let (node_id_sender, node_id_receiver) = mpsc::channel();
         let (node_data_sender, node_data_receiver) = mpsc::channel();
         std::thread::spawn(move||{
@@ -229,7 +231,7 @@ impl NodeViewContainer {
                 // we can just as effectively subsample the number of points we draw in the client.
                 const ALL_POINTS_LOD: i32 = 1;                
                 let node_data = octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
-                // TODO: reshuffle?
+                // TODO(hrapp): reshuffle
                 node_data_sender.send((node_id, node_data)).unwrap();
             } 
         });
