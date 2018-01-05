@@ -8,9 +8,7 @@ rust:
   - nightly
 matrix:
   allow_failures:
-    - rust:
-      - beta
-      - nightly
+    - rust: beta nightly
 
 install:
   - bash ci/install.sh
