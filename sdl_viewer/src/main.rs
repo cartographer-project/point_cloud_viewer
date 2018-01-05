@@ -32,13 +32,14 @@ use sdl_viewer::{Camera, gl};
 use sdl_viewer::gl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use std::collections::{HashMap, HashSet};
-use std::collections::VecDeque;
 use std::collections::hash_map::Entry;
 use std::mem;
 use std::path::PathBuf;
 use std::process;
 use std::ptr;
 use std::str;
+use std::sync::mpsc::{Receiver, Sender, self};
+use std::sync::Arc;
 
 const FRAGMENT_SHADER: &'static str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER: &'static str = include_str!("../shaders/points.vs");
@@ -210,55 +211,74 @@ impl NodeView {
 // Keeps track of the nodes that were requested in-order and loads then one by one on request.
 struct NodeViewContainer {
     node_views: HashMap<octree::NodeId, NodeView>,
-    queue: VecDeque<octree::NodeId>,
-    queued: HashSet<octree::NodeId>,
+    // The node_ids that the I/O thread is currently loading.
+    requested: HashSet<octree::NodeId>,
+    // Communication with the I/O thread.
+    node_id_sender: Sender<octree::NodeId>,
+    node_data_receiver: Receiver<(octree::NodeId, octree::NodeData)>,
 }
 
 impl NodeViewContainer {
-    fn new() -> Self {
+    fn new(octree: Arc<octree::Octree>) -> Self {
+        // We perform I/O in a separate thread in order to not block the main thread while loading.
+        // Data sharing is done through channels.
+        let (node_id_sender, node_id_receiver) = mpsc::channel();
+        let (node_data_sender, node_data_receiver) = mpsc::channel();
+        std::thread::spawn(move||{
+            // Loads the next node data in the receiver queue.
+            for node_id in node_id_receiver.into_iter() {
+                // We always request nodes at full resolution (i.e. not subsampled by the backend), because
+                // we can just as effectively subsample the number of points we draw in the client.
+                const ALL_POINTS_LOD: i32 = 1;                
+                let node_data = octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
+                // TODO(hrapp): reshuffle
+                node_data_sender.send((node_id, node_data)).unwrap();
+            } 
+        });
         NodeViewContainer {
             node_views: HashMap::new(),
-            queue: VecDeque::new(),
-            queued: HashSet::new(),
+            requested: HashSet::new(),
+            node_id_sender: node_id_sender,
+            node_data_receiver: node_data_receiver,
         }
-    }
-
-    // Loads the next most-important nodes data. Returns false if there are no more nodes queued
-    // for loading.
-    fn load_next_node(&mut self, octree: &octree::Octree, program: &GlProgram) -> bool {
-        // We always request nodes at full resolution (i.e. not subsampled by the backend), because
-        // we can just as effectively subsample the number of points we draw in the client.
-        const ALL_POINTS_LOD: i32 = 1;
-        if let Some(node_id) = self.queue.pop_front() {
-            self.queued.remove(&node_id);
-            let node_data = octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
-            self.node_views
-                .insert(node_id, NodeView::new(program, node_data));
-            true
-        } else {
-            false
-        }
-
-        // TODO(sirver): Use a LRU Cache to throw nodes out that we haven't used in a while.
-    }
-
-    fn reset_load_queue(&mut self) {
-        self.queue.clear();
-        self.queued.clear();
     }
 
     // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
-    // registered the node for loading.
-    fn get(&mut self, node_id: &octree::NodeId) -> Option<&NodeView> {
+    // requested the node for loading in the I/O thread
+    fn get_or_request(&mut self, node_id: &octree::NodeId, program: &GlProgram) -> Option<&NodeView> {
+        while let Ok((node_id, node_data)) = self.node_data_receiver.try_recv() {
+            // Put loaded node into hash map.
+            self.requested.remove(&node_id);
+            self.node_views
+                .insert(node_id, NodeView::new(program, node_data));
+            // TODO(sirver): Use a LRU Cache to throw nodes out that we haven't used in a while.
+        }
+
         match self.node_views.entry(*node_id) {
             Entry::Vacant(_) => {
-                if !self.queued.contains(&node_id) {
-                    self.queue.push_back(*node_id);
-                    self.queued.insert(*node_id);
+                // Limit the number of requested nodes because after a camera move
+                // requested nodes might not be in the frustum anymore.
+                if !self.requested.contains(&node_id) && self.requested.len() < 10 {  
+                    self.requested.insert(*node_id);
+                    self.node_id_sender.send(*node_id).unwrap();
                 }
                 None
             }
             Entry::Occupied(e) => Some(e.into_mut()),
+        }
+    }
+
+    fn request_all(&mut self, node_ids: &[octree::NodeId]) {
+        for &node_id in node_ids {
+            match self.node_views.entry(node_id) {
+                Entry::Vacant(_) => {
+                    if !self.requested.contains(&node_id) {
+                        self.requested.insert(node_id);
+                        self.node_id_sender.send(node_id).unwrap();
+                    }
+                }
+                Entry::Occupied(_) => {},
+            }
         }
     }
 }
@@ -276,7 +296,7 @@ fn main() {
         .get_matches();
 
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
-    let octree = octree::Octree::new(&octree_directory).unwrap();
+    let octree = Arc::new(octree::Octree::new(&octree_directory).unwrap());
 
     let ctx = sdl2::init().unwrap();
     let video_subsystem = ctx.video().unwrap();
@@ -315,7 +335,7 @@ fn main() {
     );
 
     let node_drawer = NodeDrawer::new();
-    let mut node_views = NodeViewContainer::new();
+    let mut node_views = NodeViewContainer::new(octree.clone());
     let mut visible_nodes = Vec::new();
 
     let mut camera = Camera::new(WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -327,6 +347,7 @@ fn main() {
     let mut use_level_of_detail = true;
     let mut point_size = 2.;
     let mut gamma = 1.;
+
     let mut main_loop = || {
         for event in events.poll_iter() {
             match event {
@@ -384,9 +405,15 @@ fn main() {
                 camera.height,
                 octree::UseLod::Yes,
             );
-            node_views.reset_load_queue();
         } else {
             use_level_of_detail = false;
+        }
+
+        if force_load_all {
+            println!("Force loading all currently visible nodes.");
+            let visible_node_ids: Vec<_> = visible_nodes.iter().map(|n|{n.id}).collect();
+            node_views.request_all(&visible_node_ids);
+            force_load_all = false;
         }
 
         let mut num_points_drawn = 0;
@@ -398,7 +425,7 @@ fn main() {
             for visible_node in &visible_nodes {
                 // TODO(sirver): Track a point budget here when moving, so that FPS never drops too
                 // low.
-                if let Some(view) = node_views.get(&visible_node.id) {
+                if let Some(view) = node_views.get_or_request(&visible_node.id, &node_drawer.program) {
                     num_points_drawn += node_drawer.draw(
                         view,
                         if use_level_of_detail {
@@ -410,16 +437,6 @@ fn main() {
                     );
                     num_nodes_drawn += 1;
                 }
-            }
-        }
-        if force_load_all {
-            println!("Force loading all currently visible nodes.");
-            while node_views.load_next_node(&octree, &node_drawer.program) {}
-            force_load_all = false;
-        } else {
-            // TODO(happ): this is arbitrary - how fast should we load stuff?
-            for _ in 0..10 {
-                node_views.load_next_node(&octree, &node_drawer.program);
             }
         }
 
