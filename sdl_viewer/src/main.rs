@@ -35,7 +35,6 @@ use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
 use std::mem;
 use std::path::PathBuf;
-use std::process;
 use std::ptr;
 use std::str;
 use std::sync::mpsc::{Receiver, Sender, self};
@@ -344,17 +343,17 @@ fn main() {
     let mut num_frames = 0;
     let mut last_log = time::PreciseTime::now();
     let mut force_load_all = false;
-    let mut use_level_of_detail = true;
+    let mut use_level_of_detail;
     let mut point_size = 2.;
     let mut gamma = 1.;
 
-    let mut main_loop = || {
+    'outer_loop: loop {
         for event in events.poll_iter() {
             match event {
-                Event::Quit { .. } => process::exit(1),
+                Event::Quit { .. } => break 'outer_loop,
                 Event::KeyDown { scancode: Some(code), .. } => {
                     match code {
-                        Scancode::Escape => process::exit(1),
+                        Scancode::Escape => break 'outer_loop,
                         Scancode::W => camera.moving_forward = true,
                         Scancode::S => camera.moving_backward = true,
                         Scancode::A => camera.moving_left = true,
@@ -456,9 +455,5 @@ fn main() {
                 visible_nodes.len()
             );
         }
-    };
-
-    loop {
-        main_loop();
     }
 }
