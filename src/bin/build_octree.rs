@@ -311,16 +311,16 @@ fn main() {
             proto::BoundingCube {
                 min: Some(
                     proto::Vector3f {
-                        x: Some(bounding_cube.min().x),
-                        y: Some(bounding_cube.min().y),
-                        z: Some(bounding_cube.min().z),
+                        x: bounding_cube.min().x,
+                        y: bounding_cube.min().y,
+                        z: bounding_cube.min().z,
                     }
                 ),
-                edge_length: Some(bounding_cube.edge_length()),
+                edge_length: bounding_cube.edge_length(),
             }
         ),
-        resolution: Some(resolution),
-        version: Some(octree::CURRENT_VERSION),
+        resolution: resolution,
+        version: octree::CURRENT_VERSION,
     };
     let mut encoded = Vec::new();
     meta.encode(&mut encoded).unwrap();
