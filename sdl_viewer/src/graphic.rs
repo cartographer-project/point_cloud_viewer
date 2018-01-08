@@ -49,20 +49,29 @@ impl Drop for GlProgram {
 
 pub struct GlBuffer {
     id: GLuint,
+    buffer_type: GLuint,
 }
 
 impl GlBuffer {
-    pub fn new() -> Self {
+    pub fn new_array_buffer() -> Self {
         let mut id = 0;
         unsafe {
             gl::GenBuffers(1, &mut id);
         }
-        GlBuffer { id }
+        GlBuffer { id, buffer_type: gl::ARRAY_BUFFER }
+    }
+
+    pub fn new_element_array_buffer() -> Self {
+        let mut id = 0;
+        unsafe {
+            gl::GenBuffers(1, &mut id);
+        }
+        GlBuffer { id, buffer_type: gl::ELEMENT_ARRAY_BUFFER }
     }
 
     pub fn bind(&self) {
         unsafe {
-            gl::BindBuffer(gl::ARRAY_BUFFER, self.id);
+            gl::BindBuffer(self.buffer_type, self.id);
         }
     }
 }
