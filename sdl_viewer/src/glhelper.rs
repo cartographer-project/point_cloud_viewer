@@ -18,27 +18,27 @@
 // This code here was extracted from the glhelper crate. We could not depend on it directly, since
 // we generate our own gl module which cannot be easily injected.
 
-use gl;
-use gl::types::{GLchar, GLenum, GLint, GLuint};
+use opengl;
+use opengl::types::{GLchar, GLenum, GLint, GLuint};
 use std::ffi::CString;
 use std::ptr;
 use std::str;
 
-pub fn compile_shader(code: &str, kind: GLenum) -> GLuint {
+pub fn compile_shader(gl: &opengl::Gl, code: &str, kind: GLenum) -> GLuint {
     let shader;
     unsafe {
-        shader = gl::CreateShader(kind);
+        shader = gl.CreateShader(kind);
         let c_str = CString::new(code.as_bytes()).unwrap();
-        gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
-        gl::CompileShader(shader);
-        let mut status = gl::FALSE as GLint;
-        gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut status);
-        if status != (gl::TRUE as GLint) {
+        gl.ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
+        gl.CompileShader(shader);
+        let mut status = opengl::FALSE as GLint;
+        gl.GetShaderiv(shader, opengl::COMPILE_STATUS, &mut status);
+        if status != (opengl::TRUE as GLint) {
             let mut len = 0;
-            gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
+            gl.GetShaderiv(shader, opengl::INFO_LOG_LENGTH, &mut len);
             let mut buf = Vec::with_capacity(len as usize);
             buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-            gl::GetShaderInfoLog(
+            gl.GetShaderInfoLog(
                 shader,
                 len,
                 ptr::null_mut(),
@@ -53,23 +53,23 @@ pub fn compile_shader(code: &str, kind: GLenum) -> GLuint {
     shader
 }
 
-pub fn link_program(vertex_shader_id: GLuint, fragment_shader_id: GLuint) -> GLuint {
+pub fn link_program(gl: &opengl::Gl, vertex_shader_id: GLuint, fragment_shader_id: GLuint) -> GLuint {
     unsafe {
-        let program = gl::CreateProgram();
-        gl::AttachShader(program, vertex_shader_id);
-        gl::AttachShader(program, fragment_shader_id);
-        gl::LinkProgram(program);
-        gl::DetachShader(program, vertex_shader_id);
-        gl::DetachShader(program, fragment_shader_id);
+        let program = gl.CreateProgram();
+        gl.AttachShader(program, vertex_shader_id);
+        gl.AttachShader(program, fragment_shader_id);
+        gl.LinkProgram(program);
+        gl.DetachShader(program, vertex_shader_id);
+        gl.DetachShader(program, fragment_shader_id);
 
-        let mut status = gl::FALSE as GLint;
-        gl::GetProgramiv(program, gl::LINK_STATUS, &mut status);
-        if status != (gl::TRUE as GLint) {
+        let mut status = opengl::FALSE as GLint;
+        gl.GetProgramiv(program, opengl::LINK_STATUS, &mut status);
+        if status != (opengl::TRUE as GLint) {
             let mut len: GLint = 0;
-            gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
+            gl.GetProgramiv(program, opengl::INFO_LOG_LENGTH, &mut len);
             let mut buf = Vec::with_capacity(len as usize);
             buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-            gl::GetProgramInfoLog(
+            gl.GetProgramInfoLog(
                 program,
                 len,
                 ptr::null_mut(),

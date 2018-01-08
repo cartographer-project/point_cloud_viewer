@@ -14,8 +14,7 @@
 
 use cgmath::{Angle, Decomposed, Deg, InnerSpace, Matrix4, One, Quaternion, Rad, Rotation,
              Rotation3, Transform, Vector3, Zero};
-
-use gl;
+use opengl;
 use std::f32;
 
 // Constructs a projection matrix. Math lifted from ThreeJS.
@@ -85,7 +84,7 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(width: i32, height: i32) -> Self {
+    pub fn new(gl: &opengl::Gl, width: i32, height: i32) -> Self {
         let mut camera = Camera {
             movement_speed: 1.5,
             moving_backward: false,
@@ -108,17 +107,17 @@ impl Camera {
             width: 0,
             height: 0,
         };
-        camera.set_size(width, height);
+        camera.set_size(gl, width, height);
         camera
     }
 
-    pub fn set_size(&mut self, width: i32, height: i32) {
+    pub fn set_size(&mut self, gl: &opengl::Gl, width: i32, height: i32) {
         self.width = width;
         self.height = height;
         self.projection_matrix =
             make_projection_matrix(0.1, 10000., Deg(45.), 1., width as f32 / height as f32);
         unsafe {
-            gl::Viewport(0, 0, width, height);
+            gl.Viewport(0, 0, width, height);
         }
     }
 
