@@ -116,7 +116,7 @@ impl Octree {
                 .chain_err(|| "Could not parse meta.pb")?
         };
 
-        let version = meta.version.unwrap();
+        let version = meta.version;
         if version != CURRENT_VERSION {
             return Err(ErrorKind::InvalidVersion(version).into());
         }
@@ -125,8 +125,8 @@ impl Octree {
             let bounding_cube = meta.bounding_cube.unwrap();
             let min = bounding_cube.min.unwrap();
             Cube::new(
-                Vector3f::new(min.x.unwrap(), min.y.unwrap(), min.z.unwrap()),
-                bounding_cube.edge_length.unwrap(),
+                Vector3f::new(min.x, min.y, min.z),
+                bounding_cube.edge_length,
             )
         };
 
