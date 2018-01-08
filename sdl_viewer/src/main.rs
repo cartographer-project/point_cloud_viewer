@@ -29,6 +29,8 @@ use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Scancode;
 use sdl2::video::GLProfile;
 use sdl_viewer::{Camera, gl};
+use sdl_viewer::box_drawer::BoxDrawer;
+use sdl_viewer::color::YELLOW;
 use sdl_viewer::gl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use std::collections::{HashMap, HashSet};
@@ -75,8 +77,6 @@ impl NodeDrawer {
         let u_min;
         unsafe {
             gl::UseProgram(program.id);
-            gl::Enable(gl::PROGRAM_POINT_SIZE);
-            gl::Enable(gl::DEPTH_TEST);
 
             u_world_to_gl = gl::GetUniformLocation(program.id, c_str!("world_to_gl"));
             u_edge_length = gl::GetUniformLocation(program.id, c_str!("edge_length"));
@@ -96,6 +96,7 @@ impl NodeDrawer {
 
     fn update_world_to_gl(&self, matrix: &Matrix4<f32>) {
         unsafe {
+            gl::UseProgram(self.program.id);            
             gl::UniformMatrix4fv(self.u_world_to_gl, 1, false as GLboolean, matrix.as_ptr());
         }
     }
@@ -106,6 +107,10 @@ impl NodeDrawer {
             .meta
             .num_points_for_level_of_detail(level_of_detail);
         unsafe {
+            gl::UseProgram(self.program.id);
+            gl::Enable(gl::PROGRAM_POINT_SIZE);
+            gl::Enable(gl::DEPTH_TEST);
+
             gl::Uniform1f(
                 self.u_edge_length,
                 node_view.meta.bounding_cube.edge_length(),
@@ -113,7 +118,10 @@ impl NodeDrawer {
             gl::Uniform1f( self.u_size, point_size);
             gl::Uniform1f( self.u_gamma, gamma);
             gl::Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
+
             gl::DrawArrays(gl::POINTS, 0, num_points as i32);
+
+            gl::Disable(gl::PROGRAM_POINT_SIZE);
         }
         num_points
     }
@@ -131,6 +139,10 @@ struct NodeView {
 
 impl NodeView {
     fn new(program: &GlProgram, node_data: octree::NodeData) -> Self {
+        unsafe{
+            gl::UseProgram(program.id);
+        }
+
         let vertex_array = GlVertexArray::new();
         vertex_array.bind();
 
@@ -151,8 +163,8 @@ impl NodeView {
         );
         let color = reshuffle(&indices, node_data.color, 3);
 
-        let buffer_position = GlBuffer::new();
-        let buffer_color = GlBuffer::new();
+        let buffer_position = GlBuffer::new_array_buffer();
+        let buffer_color = GlBuffer::new_array_buffer();
 
         unsafe {
             buffer_position.bind();
@@ -337,12 +349,17 @@ fn main() {
     let mut node_views = NodeViewContainer::new(octree.clone());
     let mut visible_nodes = Vec::new();
 
+    let box_drawer = BoxDrawer::new();
+    let octree_box_color = YELLOW;
+    let mut show_octree_nodes = false;
+
     let mut camera = Camera::new(WINDOW_WIDTH, WINDOW_HEIGHT);
 
     let mut events = ctx.event_pump().unwrap();
     let mut num_frames = 0;
     let mut last_log = time::PreciseTime::now();
     let mut force_load_all = false;
+    let mut show_octree_nodes = false;
     let mut use_level_of_detail;
     let mut point_size = 2.;
     let mut gamma = 1.;
@@ -361,6 +378,7 @@ fn main() {
                         Scancode::Z => camera.moving_down = true,
                         Scancode::Q => camera.moving_up = true,
                         Scancode::F => force_load_all = true,
+                        Scancode::O => show_octree_nodes = !show_octree_nodes,
                         Scancode::Num7 => gamma -= 0.1,
                         Scancode::Num8 => gamma += 0.1,
                         Scancode::Num9 => point_size -= 0.1,
@@ -435,6 +453,11 @@ fn main() {
                         point_size, gamma
                     );
                     num_nodes_drawn += 1;
+
+                    // debug drawer
+                    if show_octree_nodes {
+                        box_drawer.draw_outlines(&view.meta.bounding_cube, &camera.get_world_to_gl(), &octree_box_color);
+                    }
                 }
             }
         }

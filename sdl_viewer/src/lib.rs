@@ -13,6 +13,7 @@
 // limitations under the License.
 
 extern crate cgmath;
+extern crate point_viewer;
 
 /// Unsafe macro to create a static null-terminated c-string for interop with OpenGL.
 #[macro_export]
@@ -29,6 +30,11 @@ mod camera;
 pub mod gl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
+
+pub mod box_drawer;
+pub mod color;
+// TODO(tschiwietz,hrapp): Use 'Color' in the 'Point' struct in point_cloud_viewer/src/lib.rs (top level crate)
+// instead of using single variables for r,g,b
 
 pub mod graphic;
 
