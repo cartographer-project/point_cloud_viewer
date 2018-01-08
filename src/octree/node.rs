@@ -242,20 +242,19 @@ impl NodeMeta {
 
         Ok(
             NodeMeta {
-                num_points: meta.num_points.unwrap(),
+                num_points: meta.num_points,
                 position_encoding: PositionEncoding::from_proto(
                     proto::node::PositionEncoding::from_i32(
-                        meta.position_encoding.unwrap(),
-                    )
-                            .unwrap()
-                ),
+                        meta.position_encoding,
+                    ).unwrap()
+                )?,
                 // TODO(hrapp): Would be nice to have a from_proto and to_proto as a trait.
                 bounding_cube: {
                     let proto = meta.bounding_cube.unwrap();
                     let min = proto.min.unwrap();
                     Cube::new(
-                        Vector3f::new(min.x.unwrap(), min.y.unwrap(), min.z.unwrap()),
-                        proto.edge_length.unwrap(),
+                        Vector3f::new(min.x, min.y, min.z),
+                        proto.edge_length,
                     )
                 },
                 stem: stem,
@@ -377,11 +376,14 @@ impl PositionEncoding {
         }
     }
 
-    fn from_proto(proto: proto::node::PositionEncoding) -> Self {
+    // TODO(sirver): Returning a Result here makes this function more expensive than needed - since
+    // we require stack space for the full Result. This shuold be fixable to moving to failure.
+    fn from_proto(proto: proto::node::PositionEncoding) -> Result<Self> {
         match proto {
-            proto::node::PositionEncoding::Uint8 => PositionEncoding::Uint8,
-            proto::node::PositionEncoding::Uint16 => PositionEncoding::Uint16,
-            proto::node::PositionEncoding::Float32 => PositionEncoding::Float32,
+            proto::node::PositionEncoding::Invalid => Err(ErrorKind::InvalidInput("Invalid PositionEncoding".to_string()).into()),
+            proto::node::PositionEncoding::Uint8 => Ok(PositionEncoding::Uint8),
+            proto::node::PositionEncoding::Uint16 => Ok(PositionEncoding::Uint16),
+            proto::node::PositionEncoding::Float32 => Ok(PositionEncoding::Float32),
         }
     }
 
@@ -448,16 +450,16 @@ impl Drop for NodeWriter {
                     proto::BoundingCube {
                         min: Some(
                             proto::Vector3f {
-                                x: Some(self.bounding_cube.min().x),
-                                y: Some(self.bounding_cube.min().y),
-                                z: Some(self.bounding_cube.min().z),
+                                x: self.bounding_cube.min().x,
+                                y: self.bounding_cube.min().y,
+                                z: self.bounding_cube.min().z,
                             }
                         ),
-                        edge_length: Some(self.bounding_cube.edge_length()),
+                        edge_length: self.bounding_cube.edge_length(),
                     }
                 ),
-                position_encoding: Some(self.position_encoding.to_proto() as i32),
-                num_points: Some(self.num_written),
+                position_encoding: self.position_encoding.to_proto() as i32,
+                num_points: self.num_written,
             };
             let mut buf = Vec::new();
             proto.encode(&mut buf).unwrap();

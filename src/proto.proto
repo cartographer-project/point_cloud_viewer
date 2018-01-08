@@ -14,36 +14,36 @@
  * limitations under the License.
  */
 
-syntax = "proto2";
+syntax = "proto3";
 
 package point_cloud_viewer.proto;
 
 message Vector3f {
-  optional float x = 1;
-  optional float y = 2;
-  optional float z = 3;
+  float x = 1;
+  float y = 2;
+  float z = 3;
 }
 
 message BoundingCube {
-  optional Vector3f min = 1;
-  optional float edge_length = 2;
+  Vector3f min = 1;
+  float edge_length = 2;
 }
 
 message Meta {
-  optional int32 version = 1;
-  optional BoundingCube bounding_cube = 2;
-  optional double resolution = 3;
+  int32 version = 1;
+  BoundingCube bounding_cube = 2;
+  double resolution = 3;
 }
 
 message Node {
   enum PositionEncoding {
+    INVALID = 0;
     Uint8 = 1;
     Uint16 = 2;
     Float32 = 3;
   }
 
-  optional BoundingCube bounding_cube = 1;
-  optional PositionEncoding position_encoding = 2;
-  optional int64 num_points = 3;
+  BoundingCube bounding_cube = 1;
+  PositionEncoding position_encoding = 2;
+  int64 num_points = 3;
 }
-
