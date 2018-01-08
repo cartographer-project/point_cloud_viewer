@@ -359,7 +359,6 @@ fn main() {
     let mut num_frames = 0;
     let mut last_log = time::PreciseTime::now();
     let mut force_load_all = false;
-    let mut show_octree_nodes = false;
     let mut use_level_of_detail;
     let mut point_size = 2.;
     let mut gamma = 1.;
