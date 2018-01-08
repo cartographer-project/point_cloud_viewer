@@ -79,10 +79,10 @@ impl BoxDrawer {
         let _buffer_indices = GlBuffer::new_element_array_buffer();
         _buffer_indices.bind();
         let line_indices: [[i32; 2]; 12] = [
-            [0, 1], [1, 2], [2, 3], [3, 0],		// front quad
-            [4, 5], [5, 6], [6, 7], [7, 4],		// back back
-            [1, 5], [6, 2],				        // right quad
-            [4, 0], [3, 7],				        // left quad
+            [0, 1], [1, 2], [2, 3], [3, 0],     // front quad
+            [4, 5], [5, 6], [6, 7], [7, 4],     // back back
+            [1, 5], [6, 2],                     // right quad
+            [4, 0], [3, 7],                     // left quad
         ];
         unsafe {
             gl::BufferData(
