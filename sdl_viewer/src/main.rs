@@ -139,7 +139,7 @@ struct NodeView {
 
 impl NodeView {
     fn new(program: &GlProgram, node_data: octree::NodeData) -> Self {
-        unsafe{
+        unsafe {
             gl::UseProgram(program.id);
         }
 
