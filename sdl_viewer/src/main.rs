@@ -439,6 +439,9 @@ fn main() {
                 camera.height,
                 octree::UseLod::Yes,
             );
+            if visible_nodes.len() > cache_size {
+                visible_nodes.truncate(cache_size);
+            }
         } else {
             use_level_of_detail = false;
         }
