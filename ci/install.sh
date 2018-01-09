@@ -13,10 +13,10 @@ install_javascript_stuff() {
   popd
 }
 
-install_point_cloud_viewer_deps() {
+# install_point_cloud_viewer_deps() {
   # sudo apt-get install libsdl2-2.0
   # sudo apt-get install libsdl2-dev
-}
+# }
 
 main() {
     install_javascript_stuff
