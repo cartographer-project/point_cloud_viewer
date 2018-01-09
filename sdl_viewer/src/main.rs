@@ -13,6 +13,7 @@
 // limitations under the License.
 
 extern crate cgmath;
+extern crate lru_cache;
 extern crate point_viewer;
 extern crate rand;
 extern crate sdl2;
@@ -22,6 +23,7 @@ extern crate sdl_viewer;
 extern crate clap;
 
 use cgmath::{Array, Matrix, Matrix4};
+use lru_cache::LruCache;
 use point_viewer::math::CuboidLike;
 use point_viewer::octree;
 use rand::{Rng, thread_rng};
@@ -33,8 +35,7 @@ use sdl_viewer::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use sdl_viewer::box_drawer::BoxDrawer;
 use sdl_viewer::color::YELLOW;
 use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
-use std::collections::{HashMap, HashSet};
-use std::collections::hash_map::Entry;
+use std::collections::HashSet;
 use std::mem;
 use std::path::PathBuf;
 use std::ptr;
@@ -135,6 +136,7 @@ struct NodeView<'a> {
     vertex_array: GlVertexArray<'a>,
     _buffer_position: GlBuffer<'a>,
     _buffer_color: GlBuffer<'a>,
+    used_memory: usize,
 }
 
 impl<'a> NodeView<'a> {
@@ -215,13 +217,14 @@ impl<'a> NodeView<'a> {
             _buffer_position: buffer_position,
             _buffer_color: buffer_color,
             meta: node_data.meta,
+            used_memory: position.len() + color.len(),
         }
     }
 }
 
 // Keeps track of the nodes that were requested in-order and loads then one by one on request.
 struct NodeViewContainer<'a> {
-    node_views: HashMap<octree::NodeId, NodeView<'a>>,
+    node_views: LruCache<octree::NodeId, NodeView<'a>>,
     // The node_ids that the I/O thread is currently loading.
     requested: HashSet<octree::NodeId>,
     // Communication with the I/O thread.
@@ -247,7 +250,7 @@ impl<'a> NodeViewContainer<'a> {
             }
         });
         NodeViewContainer {
-            node_views: HashMap::new(),
+            cache: LruCache::new(10000),
             requested: HashSet::new(),
             node_id_sender: node_id_sender,
             node_data_receiver: node_data_receiver,
@@ -260,37 +263,39 @@ impl<'a> NodeViewContainer<'a> {
         while let Ok((node_id, node_data)) = self.node_data_receiver.try_recv() {
             // Put loaded node into hash map.
             self.requested.remove(&node_id);
-            self.node_views
-                .insert(node_id, NodeView::new(program, node_data));
-            // TODO(sirver): Use a LRU Cache to throw nodes out that we haven't used in a while.
+            self.cache.insert(node_id, NodeView::new(program, node_data));
         }
 
-        match self.node_views.entry(*node_id) {
-            Entry::Vacant(_) => {
-                // Limit the number of requested nodes because after a camera move
-                // requested nodes might not be in the frustum anymore.
-                if !self.requested.contains(&node_id) && self.requested.len() < 10 {
-                    self.requested.insert(*node_id);
-                    self.node_id_sender.send(*node_id).unwrap();
-                }
-                None
+        if !self.cache.contains_key(node_id) {
+            // Limit the number of requested nodes because after a camera move
+            // requested nodes might not be in the frustum anymore.
+            if !self.requested.contains(&node_id) && self.requested.len() < 10 {  
+                self.requested.insert(*node_id);
+                self.node_id_sender.send(*node_id).unwrap();
             }
-            Entry::Occupied(e) => Some(e.into_mut()),
+            None
+        } else {
+            self.cache.get_mut(node_id).map(|f| f as &NodeView)
         }
     }
 
     fn request_all(&mut self, node_ids: &[octree::NodeId]) {
         for &node_id in node_ids {
-            match self.node_views.entry(node_id) {
-                Entry::Vacant(_) => {
-                    if !self.requested.contains(&node_id) {
-                        self.requested.insert(node_id);
-                        self.node_id_sender.send(node_id).unwrap();
-                    }
+            if !self.cache.contains_key(&node_id) {
+                if !self.requested.contains(&node_id) {
+                    self.requested.insert(node_id);
+                    self.node_id_sender.send(node_id).unwrap();
                 }
-                Entry::Occupied(_) => {},
             }
         }
+    }
+
+    fn get_used_memory(&self) -> usize {
+        let mut used_memory = 0;
+        for (_node_id, node_view) in self.cache.iter() {
+            used_memory += node_view.used_memory;
+        }
+        used_memory
     }
 }
 
@@ -470,11 +475,12 @@ fn main() {
             num_frames = 0;
             last_log = now;
             println!(
-                "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes should be shown.",
+                "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes should be shown, Cache {} GB",
                 fps,
                 num_points_drawn,
                 num_nodes_drawn,
-                visible_nodes.len()
+                visible_nodes.len(),
+                node_views.get_used_memory() as f32 / 1024. / 1024. / 1024.,
             );
         }
     }
