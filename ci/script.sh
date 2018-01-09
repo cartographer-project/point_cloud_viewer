@@ -9,6 +9,11 @@ main() {
     npm run build
     popd
 
+    pushd sdl_viewer
+    cargo build --verbose
+    cargo test
+    popd
+
     cargo build --verbose
     cargo test
     popd
