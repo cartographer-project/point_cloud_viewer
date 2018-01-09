@@ -11,19 +11,14 @@ install_javascript_stuff() {
   pushd web_viewer/client
   npm install
   popd
-
-  sudo apt-get install libsdl2-2.0
-  sudo apt-get install libsdl2-dev
 }
-
-# install_point_cloud_viewer_deps() {
-  # sudo apt-get install libsdl2-2.0
-  # sudo apt-get install libsdl2-dev
-# }
 
 main() {
     install_javascript_stuff
-    # install_point_cloud_viewer_deps
+    sudo apt-get update
+    sudo apt-get install -y \
+        libsdl2-2.0 \
+        libsdl2-dev
 }
 
 main
