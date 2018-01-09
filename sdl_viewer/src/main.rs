@@ -232,8 +232,8 @@ struct NodeViewContainer<'a> {
     node_data_receiver: Receiver<(octree::NodeId, octree::NodeData)>,
 }
 
-impl<'a> NodeViewContainer<'a> {
-    fn new(octree: Arc<octree::Octree>) -> Self {
+impl<'a> NodeViewContainer {
+    fn new(octree: Arc<octree::Octree>, cache_size: usize) -> Self {
         // We perform I/O in a separate thread in order to not block the main thread while loading.
         // Data sharing is done through channels.
         let (node_id_sender, node_id_receiver) = mpsc::channel();
@@ -249,8 +249,9 @@ impl<'a> NodeViewContainer<'a> {
                 node_data_sender.send((node_id, node_data)).unwrap();
             }
         });
+        println!("Cache size {}", cache_size);
         NodeViewContainer {
-            cache: LruCache::new(10000),
+            cache: LruCache::new(cache_size),
             requested: HashSet::new(),
             node_id_sender: node_id_sender,
             node_data_receiver: node_data_receiver,
@@ -307,9 +308,21 @@ fn main() {
                     .help("Input directory of the octree directory to serve.")
                     .index(1)
                     .required(true),
+                clap::Arg::with_name("cache_size")
+                    .help("Maximum number of octree nodes to store in GPU memory")
+                    .required(false)
             ]
         )
         .get_matches();
+
+    // cache size
+    let mut cache_size = 10000;
+    if let Some(cache_size_str) = matches.value_of("cache_size") {
+        cache_size = cache_size_str.parse().unwrap();
+        if cache_size < 5000 {
+            cache_size = 5000;
+        }
+    }
 
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
     let octree = Arc::new(octree::Octree::new(&octree_directory).unwrap());
@@ -351,7 +364,7 @@ fn main() {
     );
 
     let node_drawer = NodeDrawer::new(&gl);
-    let mut node_views = NodeViewContainer::new(octree.clone());
+    let mut node_views = NodeViewContainer::new(octree.clone(), cache_size);
     let mut visible_nodes = Vec::new();
 
     let box_drawer = BoxDrawer::new(&gl);
