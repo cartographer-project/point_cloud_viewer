@@ -13,6 +13,7 @@
 // limitations under the License.
 
 extern crate cgmath;
+extern crate lru_cache;
 extern crate point_viewer;
 extern crate rand;
 extern crate sdl2;
@@ -22,6 +23,7 @@ extern crate sdl_viewer;
 extern crate clap;
 
 use cgmath::{Array, Matrix, Matrix4};
+use lru_cache::LruCache;
 use point_viewer::math::CuboidLike;
 use point_viewer::octree;
 use rand::{Rng, thread_rng};
@@ -33,8 +35,8 @@ use sdl_viewer::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use sdl_viewer::box_drawer::BoxDrawer;
 use sdl_viewer::color::YELLOW;
 use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
-use std::collections::{HashMap, HashSet};
-use std::collections::hash_map::Entry;
+use std::cmp;
+use std::collections::HashSet;
 use std::mem;
 use std::path::PathBuf;
 use std::ptr;
@@ -135,6 +137,7 @@ struct NodeView<'a> {
     vertex_array: GlVertexArray<'a>,
     _buffer_position: GlBuffer<'a>,
     _buffer_color: GlBuffer<'a>,
+    used_memory_bytes: usize,
 }
 
 impl<'a> NodeView<'a> {
@@ -215,13 +218,14 @@ impl<'a> NodeView<'a> {
             _buffer_position: buffer_position,
             _buffer_color: buffer_color,
             meta: node_data.meta,
+            used_memory_bytes: position.len() + color.len(),
         }
     }
 }
 
 // Keeps track of the nodes that were requested in-order and loads then one by one on request.
 struct NodeViewContainer<'a> {
-    node_views: HashMap<octree::NodeId, NodeView<'a>>,
+    node_views: LruCache<octree::NodeId, NodeView<'a>>,
     // The node_ids that the I/O thread is currently loading.
     requested: HashSet<octree::NodeId>,
     // Communication with the I/O thread.
@@ -230,7 +234,7 @@ struct NodeViewContainer<'a> {
 }
 
 impl<'a> NodeViewContainer<'a> {
-    fn new(octree: Arc<octree::Octree>) -> Self {
+    fn new(octree: Arc<octree::Octree>, max_nodes_in_memory: usize) -> Self {
         // We perform I/O in a separate thread in order to not block the main thread while loading.
         // Data sharing is done through channels.
         let (node_id_sender, node_id_receiver) = mpsc::channel();
@@ -247,7 +251,7 @@ impl<'a> NodeViewContainer<'a> {
             }
         });
         NodeViewContainer {
-            node_views: HashMap::new(),
+            node_views: LruCache::new(max_nodes_in_memory),
             requested: HashSet::new(),
             node_id_sender: node_id_sender,
             node_data_receiver: node_data_receiver,
@@ -260,37 +264,35 @@ impl<'a> NodeViewContainer<'a> {
         while let Ok((node_id, node_data)) = self.node_data_receiver.try_recv() {
             // Put loaded node into hash map.
             self.requested.remove(&node_id);
-            self.node_views
-                .insert(node_id, NodeView::new(program, node_data));
-            // TODO(sirver): Use a LRU Cache to throw nodes out that we haven't used in a while.
+            self.node_views.insert(node_id, NodeView::new(program, node_data));
         }
 
-        match self.node_views.entry(*node_id) {
-            Entry::Vacant(_) => {
-                // Limit the number of requested nodes because after a camera move
-                // requested nodes might not be in the frustum anymore.
-                if !self.requested.contains(&node_id) && self.requested.len() < 10 {
-                    self.requested.insert(*node_id);
-                    self.node_id_sender.send(*node_id).unwrap();
-                }
-                None
-            }
-            Entry::Occupied(e) => Some(e.into_mut()),
+        if self.node_views.contains_key(node_id) {
+            return self.node_views.get_mut(node_id).map(|f| f as &NodeView)
         }
+        
+        // Limit the number of requested nodes because after a camera move
+        // requested nodes might not be in the frustum anymore.
+        if !self.requested.contains(&node_id) && self.requested.len() < 10 {  
+            self.requested.insert(*node_id);
+            self.node_id_sender.send(*node_id).unwrap();
+        }
+        None
     }
 
     fn request_all(&mut self, node_ids: &[octree::NodeId]) {
         for &node_id in node_ids {
-            match self.node_views.entry(node_id) {
-                Entry::Vacant(_) => {
-                    if !self.requested.contains(&node_id) {
-                        self.requested.insert(node_id);
-                        self.node_id_sender.send(node_id).unwrap();
-                    }
+            if !self.node_views.contains_key(&node_id) {
+                if !self.requested.contains(&node_id) {
+                    self.requested.insert(node_id);
+                    self.node_id_sender.send(node_id).unwrap();
                 }
-                Entry::Occupied(_) => {},
             }
         }
+    }
+
+    fn get_used_memory_bytes(&self) -> usize {
+        self.node_views.iter().map(|(_, node_view)| node_view.used_memory_bytes).sum()
     }
 }
 
@@ -302,9 +304,20 @@ fn main() {
                     .help("Input directory of the octree directory to serve.")
                     .index(1)
                     .required(true),
+                clap::Arg::with_name("cache_size_mb")
+                    .help("Maximum cache size in MB for octree nodes in GPU memory. The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.")
+                    .required(false)
             ]
         )
         .get_matches();
+
+    // Maximum number of MB for the octree node cache in range 1..16 GB. The default is 2 GB
+    let max_mb_nodes = {
+        let value = matches.value_of("cache_size_mb").unwrap_or("2000").parse().unwrap();
+        cmp::min(cmp::max(value, 1000), 16000)
+    };
+    // Assuming about 200 KB per octree node on average
+    let max_nodes_in_memory = max_mb_nodes * 5;
 
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
     let octree = Arc::new(octree::Octree::new(&octree_directory).unwrap());
@@ -346,7 +359,7 @@ fn main() {
     );
 
     let node_drawer = NodeDrawer::new(&gl);
-    let mut node_views = NodeViewContainer::new(octree.clone());
+    let mut node_views = NodeViewContainer::new(octree.clone(), max_nodes_in_memory);
     let mut visible_nodes = Vec::new();
 
     let box_drawer = BoxDrawer::new(&gl);
@@ -421,6 +434,7 @@ fn main() {
                 camera.height,
                 octree::UseLod::Yes,
             );
+            visible_nodes.truncate(max_nodes_in_memory);
         } else {
             use_level_of_detail = false;
         }
@@ -470,11 +484,12 @@ fn main() {
             num_frames = 0;
             last_log = now;
             println!(
-                "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes should be shown.",
+                "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes should be shown, Cache {} MB",
                 fps,
                 num_points_drawn,
                 num_nodes_drawn,
-                visible_nodes.len()
+                visible_nodes.len(),
+                node_views.get_used_memory_bytes() as f32 / 1024. / 1024.,
             );
         }
     }
