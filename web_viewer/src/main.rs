@@ -26,7 +26,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use iron::mime::Mime;
 use iron::prelude::*;
 use point_viewer::math::{CuboidLike, Matrix4f};
-use point_viewer::octree;
+use point_viewer::octree::{self, Octree};
 use router::Router;
 use std::io::Read;
 use std::path::PathBuf;
@@ -57,7 +57,7 @@ fn app_bundle_source_map(_: &mut Request) -> IronResult<Response> {
 }
 
 struct VisibleNodes {
-    octree: Arc<RwLock<octree::Octree>>,
+    octree: Arc<RwLock<octree::OnDiskOctree>>,
 }
 
 impl iron::Handler for VisibleNodes {
@@ -135,7 +135,7 @@ struct NodeToLoad {
 }
 
 struct NodesData {
-    octree: Arc<RwLock<octree::Octree>>,
+    octree: Arc<RwLock<octree::OnDiskOctree>>,
 }
 
 impl iron::Handler for NodesData {
@@ -230,7 +230,7 @@ fn main() {
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
 
     let otree = {
-        let otree = match octree::Octree::new(octree_directory) {
+        let otree = match octree::OnDiskOctree::new(octree_directory) {
             Ok(otree) => otree,
             Err(err) => panic!("Could not load octree: {}", err),
         };

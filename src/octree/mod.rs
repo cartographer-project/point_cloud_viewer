@@ -78,7 +78,7 @@ fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i
 }
 
 #[derive(Debug)]
-pub struct Octree {
+pub struct OnDiskOctree {
     directory: PathBuf,
     // Maps from node id to number of points.
     nodes: HashMap<NodeId, u64>,
@@ -91,6 +91,18 @@ pub enum UseLod {
     Yes,
 }
 
+pub trait Octree: Send + Sync {
+    fn get_visible_nodes(
+        &self,
+        projection_matrix: &Matrix4f,
+        width: i32,
+        height: i32,
+        use_lod: UseLod,
+    ) -> Vec<VisibleNode>;
+
+    fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData>;
+}
+
 #[derive(Debug)]
 pub struct NodeData {
     pub meta: node::NodeMeta,
@@ -98,7 +110,7 @@ pub struct NodeData {
     pub color: Vec<u8>,
 }
 
-impl Octree {
+impl OnDiskOctree {
     pub fn new<P: AsRef<Path>>(directory: P) -> Result<Self> {
         let directory = directory.as_ref();
         // We used to use JSON earlier.
@@ -147,14 +159,16 @@ impl Octree {
             );
         }
 
-        Ok(Octree {
+        Ok(OnDiskOctree {
             directory: directory.into(),
             nodes: nodes,
             bounding_cube: bounding_cube,
         })
     }
+}
 
-    pub fn get_visible_nodes(
+impl Octree for OnDiskOctree {
+    fn get_visible_nodes(
         &self,
         projection_matrix: &Matrix4f,
         width: i32,
@@ -215,7 +229,7 @@ impl Octree {
         visible
     }
 
-    pub fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
+    fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
         let meta = {
             let mut meta = node::NodeMeta::from_disk(&self.directory, node_id)?;
             meta.num_points = meta.num_points_for_level_of_detail(level_of_detail);
