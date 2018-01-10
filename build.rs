@@ -17,7 +17,7 @@ fn main() {
     // https://github.com/stepancheg/rust-protobuf/issues/117
     // https://github.com/rust-lang/rust/issues/18810.
     // We open the file, add 'mod proto { }' around the contents and write it back. This allows us
-    // to !include the file in lib.rs and have a proper proto.rs.
+    // to include! the file in lib.rs and have a proper proto module.
     let proto_path = Path::new(&out_dir).join("proto.rs");
     let mut contents = String::new();
     File::open(&proto_path)
