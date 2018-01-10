@@ -15,10 +15,11 @@ install_javascript_stuff() {
 
 main() {
     install_javascript_stuff
-    sudo apt-get update
+
     sudo apt-get install -y \
         libsdl2-2.0 \
-        libsdl2-dev
+        libsdl2-dev \
+        libc-dev
 }
 
 main
