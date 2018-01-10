@@ -15,6 +15,8 @@ install_javascript_stuff() {
 
 main() {
     install_javascript_stuff
+
+    cargo install protobuf
 }
 
 main

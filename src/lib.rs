@@ -15,15 +15,12 @@
 #![recursion_limit = "1024"]
 
 extern crate byteorder;
-extern crate bytes;
 extern crate cgmath;
 #[macro_use]
 extern crate error_chain;
 extern crate num;
 extern crate num_traits;
-extern crate prost;
-#[macro_use]
-extern crate prost_derive;
+extern crate protobuf;
 extern crate walkdir;
 
 pub mod math;
@@ -45,6 +42,4 @@ pub struct Point {
     pub b: u8,
 }
 
-pub mod proto {
-    include!(concat!(env!("OUT_DIR"), "/proto.rs"));
-}
+include!(concat!(env!("OUT_DIR"), "/proto.rs"));

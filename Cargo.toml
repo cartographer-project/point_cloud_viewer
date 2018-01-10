@@ -18,21 +18,19 @@ name = "point_viewer"
 version = "0.1.0"
 
 [build-dependencies]		
-prost-build = { git = "https://github.com/danburkert/prost", rev = "b35dd5eb2f16c20c00198476e0075f624d8d466b" }
+protoc-rust = "1.4.3"
 
 [dependencies]
 byteorder = "^0.5.3"
-bytes = "0.4.4"
 cgmath = "^0.14.0"
 clap = "^2.6.0"
 error-chain = "0.11.0"
 num = "0.1.36"
 num-traits = "0.1.36"
 pbr = "1.0.0-alpha.1"
-prost = { git = "https://github.com/danburkert/prost", rev = "b35dd5eb2f16c20c00198476e0075f624d8d466b" }
-prost-derive = { git = "https://github.com/danburkert/prost", rev = "b35dd5eb2f16c20c00198476e0075f624d8d466b" }
 scoped-pool = "^0.1"
 walkdir = "^0.1.5"
+protobuf = "1.4.3"
 
 [profile.release]
 lto = true

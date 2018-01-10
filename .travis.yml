@@ -14,8 +14,9 @@ matrix:
 addons:
   apt:
     packages:
-      - libsdl2-dev
       - libc-dev
+      - libsdl2-dev
+      - protobuf-compiler
 
 install:
   - bash ci/install.sh
