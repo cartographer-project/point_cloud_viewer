@@ -94,35 +94,34 @@ impl<'a> NodeDrawer<'a> {
         }
     }
 
-    fn update_world_to_gl(&self, gl: &opengl::Gl, matrix: &Matrix4<f32>) {
-        // NOCOM(#sirver): use program.gl?
+    fn update_world_to_gl(&self, matrix: &Matrix4<f32>) {
         unsafe {
-            gl.UseProgram(self.program.id);            
-            gl.UniformMatrix4fv(self.u_world_to_gl, 1, false as GLboolean, matrix.as_ptr());
+            self.program.gl.UseProgram(self.program.id);            
+            self.program.gl.UniformMatrix4fv(self.u_world_to_gl, 1, false as GLboolean, matrix.as_ptr());
         }
     }
 
-    fn draw(&self, gl: &opengl::Gl, node_view: &NodeView, level_of_detail: i32, point_size: f32, gamma: f32) -> i64 {
+    fn draw(&self, node_view: &NodeView, level_of_detail: i32, point_size: f32, gamma: f32) -> i64 {
         node_view.vertex_array.bind();
         let num_points = node_view
             .meta
             .num_points_for_level_of_detail(level_of_detail);
         unsafe {
-            gl.UseProgram(self.program.id);
-            gl.Enable(opengl::PROGRAM_POINT_SIZE);
-            gl.Enable(opengl::DEPTH_TEST);
+            self.program.gl.UseProgram(self.program.id);
+            self.program.gl.Enable(opengl::PROGRAM_POINT_SIZE);
+            self.program.gl.Enable(opengl::DEPTH_TEST);
 
-            gl.Uniform1f(
+            self.program.gl.Uniform1f(
                 self.u_edge_length,
                 node_view.meta.bounding_cube.edge_length(),
             );
-            gl.Uniform1f( self.u_size, point_size);
-            gl.Uniform1f( self.u_gamma, gamma);
-            gl.Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
+            self.program.gl.Uniform1f( self.u_size, point_size);
+            self.program.gl.Uniform1f( self.u_gamma, gamma);
+            self.program.gl.Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
 
-            gl.DrawArrays(opengl::POINTS, 0, num_points as i32);
+            self.program.gl.DrawArrays(opengl::POINTS, 0, num_points as i32);
 
-            gl.Disable(opengl::PROGRAM_POINT_SIZE);
+            self.program.gl.Disable(opengl::PROGRAM_POINT_SIZE);
         }
         num_points
     }
@@ -415,7 +414,7 @@ fn main() {
 
         if camera.update() {
             use_level_of_detail = true;
-            node_drawer.update_world_to_gl(&gl, &camera.get_world_to_gl());
+            node_drawer.update_world_to_gl(&camera.get_world_to_gl());
             visible_nodes = octree.get_visible_nodes(
                 &camera.get_world_to_gl(),
                 camera.width,
@@ -444,7 +443,6 @@ fn main() {
                 // low.
                 if let Some(view) = node_views.get_or_request(&visible_node.id, &node_drawer.program) {
                     num_points_drawn += node_drawer.draw(
-                        &gl,
                         view,
                         if use_level_of_detail {
                             visible_node.level_of_detail

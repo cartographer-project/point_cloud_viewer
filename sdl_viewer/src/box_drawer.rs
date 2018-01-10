@@ -25,7 +25,6 @@ const FRAGMENT_SHADER_OUTLINED_BOX: &'static str = include_str!("../shaders/box_
 const VERTEX_SHADER_OUTLINED_BOX: &'static str = include_str!("../shaders/box_drawer_outline.vs");
 
 pub struct BoxDrawer<'a> {
-    gl: &'a opengl::Gl,
     outline_program: GlProgram<'a>,
 
     // Uniforms locations.
@@ -107,7 +106,6 @@ impl<'a> BoxDrawer<'a> {
             );
         }
         BoxDrawer {
-            gl,
             outline_program,
             u_transform,
             u_color,
@@ -122,16 +120,16 @@ impl<'a> BoxDrawer<'a> {
         self.vertex_array.bind();
 
         unsafe {
-            self.gl.UseProgram(self.outline_program.id);
-            self.gl.UniformMatrix4fv(self.u_transform, 1, false as GLboolean, transform.as_ptr());
-            self.gl.Uniform4f(
+            self.outline_program.gl.UseProgram(self.outline_program.id);
+            self.outline_program.gl.UniformMatrix4fv(self.u_transform, 1, false as GLboolean, transform.as_ptr());
+            self.outline_program.gl.Uniform4f(
                 self.u_color,
                 color.red,
                 color.green,
                 color.blue,
                 color.alpha,
             );
-            self.gl.DrawElements(opengl::LINES, 24, opengl::UNSIGNED_INT, ptr::null());
+            self.outline_program.gl.DrawElements(opengl::LINES, 24, opengl::UNSIGNED_INT, ptr::null());
         }
     }
 
