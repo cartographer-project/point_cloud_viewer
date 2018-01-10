@@ -14,100 +14,102 @@
 
 //! Higher level abstractions around core OpenGL concepts.
 
-use gl;
-use gl::types::GLuint;
+use opengl::{self, Gl};
+use opengl::types::GLuint;
 use glhelper::{compile_shader, link_program};
 use std::str;
 
-pub struct GlProgram {
+pub struct GlProgram<'a> {
+    pub gl: &'a Gl,
     pub id: GLuint,
 }
 
-impl GlProgram {
-    pub fn new(vertex_shader: &str, fragment_shader: &str) -> Self {
-        let vertex_shader_id = compile_shader(vertex_shader, gl::VERTEX_SHADER);
-        let fragment_shader_id = compile_shader(fragment_shader, gl::FRAGMENT_SHADER);
-        let id = link_program(vertex_shader_id, fragment_shader_id);
+impl<'a> GlProgram<'a> {
+    pub fn new(gl: &'a opengl::Gl, vertex_shader: &str, fragment_shader: &str) -> Self {
+        let vertex_shader_id = compile_shader(gl, vertex_shader, opengl::VERTEX_SHADER);
+        let fragment_shader_id = compile_shader(gl, fragment_shader, opengl::FRAGMENT_SHADER);
+        let id = link_program(gl, vertex_shader_id, fragment_shader_id);
 
         // TODO(hrapp): Pull out some saner abstractions around program compilation.
         unsafe {
-            gl::DeleteShader(vertex_shader_id);
-            gl::DeleteShader(fragment_shader_id);
+            gl.DeleteShader(vertex_shader_id);
+            gl.DeleteShader(fragment_shader_id);
         }
-
-        GlProgram { id }
+        GlProgram { gl, id }
     }
 }
 
-impl Drop for GlProgram {
+impl<'a> Drop for GlProgram<'a> {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteProgram(self.id);
+            self.gl.DeleteProgram(self.id);
         }
     }
 }
 
-pub struct GlBuffer {
+pub struct GlBuffer<'a> {
+    gl: &'a Gl,
     id: GLuint,
     buffer_type: GLuint,
 }
 
-impl GlBuffer {
-    pub fn new_array_buffer() -> Self {
+impl<'a> GlBuffer<'a> {
+    pub fn new_array_buffer(gl: &'a opengl::Gl) -> Self {
         let mut id = 0;
         unsafe {
-            gl::GenBuffers(1, &mut id);
+            gl.GenBuffers(1, &mut id);
         }
-        GlBuffer { id, buffer_type: gl::ARRAY_BUFFER }
+        GlBuffer { gl, id, buffer_type: opengl::ARRAY_BUFFER }
     }
 
-    pub fn new_element_array_buffer() -> Self {
+    pub fn new_element_array_buffer(gl: &'a opengl::Gl) -> Self {
         let mut id = 0;
         unsafe {
-            gl::GenBuffers(1, &mut id);
+            gl.GenBuffers(1, &mut id);
         }
-        GlBuffer { id, buffer_type: gl::ELEMENT_ARRAY_BUFFER }
+        GlBuffer { gl, id, buffer_type: opengl::ELEMENT_ARRAY_BUFFER }
     }
 
     pub fn bind(&self) {
         unsafe {
-            gl::BindBuffer(self.buffer_type, self.id);
+            self.gl.BindBuffer(self.buffer_type, self.id);
         }
     }
 }
 
-impl Drop for GlBuffer {
+impl<'a> Drop for GlBuffer<'a> {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteBuffers(1, &self.id);
+            self.gl.DeleteBuffers(1, &self.id);
         }
     }
 }
 
-pub struct GlVertexArray {
+pub struct GlVertexArray<'a> {
+    gl: &'a Gl,
     id: GLuint,
 }
 
-impl GlVertexArray {
-    pub fn new() -> Self {
+impl<'a> GlVertexArray<'a> {
+    pub fn new(gl: &'a Gl) -> Self {
         let mut id = 0;
         unsafe {
-            gl::GenVertexArrays(1, &mut id);
+            gl.GenVertexArrays(1, &mut id);
         }
-        GlVertexArray { id }
+        GlVertexArray { gl, id }
     }
 
     pub fn bind(&self) {
         unsafe {
-            gl::BindVertexArray(self.id);
+            self.gl.BindVertexArray(self.id);
         }
     }
 }
 
-impl Drop for GlVertexArray {
+impl<'a> Drop for GlVertexArray<'a> {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteVertexArrays(1, &self.id);
+            self.gl.DeleteVertexArrays(1, &self.id);
         }
     }
 }

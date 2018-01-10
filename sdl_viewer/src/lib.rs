@@ -27,7 +27,7 @@ mod glhelper;
 mod camera;
 
 #[allow(non_upper_case_globals)]
-pub mod gl {
+pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 

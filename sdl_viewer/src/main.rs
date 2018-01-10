@@ -28,10 +28,10 @@ use rand::{Rng, thread_rng};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Scancode;
 use sdl2::video::GLProfile;
-use sdl_viewer::{Camera, gl};
+use sdl_viewer::{Camera, opengl};
+use sdl_viewer::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use sdl_viewer::box_drawer::BoxDrawer;
 use sdl_viewer::color::YELLOW;
-use sdl_viewer::gl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
@@ -56,8 +56,8 @@ fn reshuffle(new_order: &[usize], old_data: Vec<u8>, bytes_per_vertex: usize) ->
     new_data
 }
 
-struct NodeDrawer {
-    program: GlProgram,
+struct NodeDrawer<'a> {
+    program: GlProgram<'a>,
 
     // Uniforms locations.
     u_world_to_gl: GLint,
@@ -67,22 +67,22 @@ struct NodeDrawer {
     u_min: GLint,
 }
 
-impl NodeDrawer {
-    fn new() -> Self {
-        let program = GlProgram::new(VERTEX_SHADER, FRAGMENT_SHADER);
+impl<'a> NodeDrawer<'a> {
+    fn new(gl: &'a opengl::Gl) -> Self {
+        let program = GlProgram::new(gl, VERTEX_SHADER, FRAGMENT_SHADER);
         let u_world_to_gl;
         let u_edge_length;
         let u_size;
         let u_gamma;
         let u_min;
         unsafe {
-            gl::UseProgram(program.id);
+            gl.UseProgram(program.id);
 
-            u_world_to_gl = gl::GetUniformLocation(program.id, c_str!("world_to_gl"));
-            u_edge_length = gl::GetUniformLocation(program.id, c_str!("edge_length"));
-            u_size = gl::GetUniformLocation(program.id, c_str!("size"));
-            u_gamma = gl::GetUniformLocation(program.id, c_str!("gamma"));
-            u_min = gl::GetUniformLocation(program.id, c_str!("min"));
+            u_world_to_gl = gl.GetUniformLocation(program.id, c_str!("world_to_gl"));
+            u_edge_length = gl.GetUniformLocation(program.id, c_str!("edge_length"));
+            u_size = gl.GetUniformLocation(program.id, c_str!("size"));
+            u_gamma = gl.GetUniformLocation(program.id, c_str!("gamma"));
+            u_min = gl.GetUniformLocation(program.id, c_str!("min"));
         }
         NodeDrawer {
             program,
@@ -96,8 +96,8 @@ impl NodeDrawer {
 
     fn update_world_to_gl(&self, matrix: &Matrix4<f32>) {
         unsafe {
-            gl::UseProgram(self.program.id);            
-            gl::UniformMatrix4fv(self.u_world_to_gl, 1, false as GLboolean, matrix.as_ptr());
+            self.program.gl.UseProgram(self.program.id);            
+            self.program.gl.UniformMatrix4fv(self.u_world_to_gl, 1, false as GLboolean, matrix.as_ptr());
         }
     }
 
@@ -107,43 +107,43 @@ impl NodeDrawer {
             .meta
             .num_points_for_level_of_detail(level_of_detail);
         unsafe {
-            gl::UseProgram(self.program.id);
-            gl::Enable(gl::PROGRAM_POINT_SIZE);
-            gl::Enable(gl::DEPTH_TEST);
+            self.program.gl.UseProgram(self.program.id);
+            self.program.gl.Enable(opengl::PROGRAM_POINT_SIZE);
+            self.program.gl.Enable(opengl::DEPTH_TEST);
 
-            gl::Uniform1f(
+            self.program.gl.Uniform1f(
                 self.u_edge_length,
                 node_view.meta.bounding_cube.edge_length(),
             );
-            gl::Uniform1f( self.u_size, point_size);
-            gl::Uniform1f( self.u_gamma, gamma);
-            gl::Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
+            self.program.gl.Uniform1f( self.u_size, point_size);
+            self.program.gl.Uniform1f( self.u_gamma, gamma);
+            self.program.gl.Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
 
-            gl::DrawArrays(gl::POINTS, 0, num_points as i32);
+            self.program.gl.DrawArrays(opengl::POINTS, 0, num_points as i32);
 
-            gl::Disable(gl::PROGRAM_POINT_SIZE);
+            self.program.gl.Disable(opengl::PROGRAM_POINT_SIZE);
         }
         num_points
     }
 }
 
-struct NodeView {
+struct NodeView<'a> {
     meta: octree::NodeMeta,
 
     // The buffers are bound by 'vertex_array', so we never refer to them. But they must outlive
     // this 'NodeView'.
-    vertex_array: GlVertexArray,
-    _buffer_position: GlBuffer,
-    _buffer_color: GlBuffer,
+    vertex_array: GlVertexArray<'a>,
+    _buffer_position: GlBuffer<'a>,
+    _buffer_color: GlBuffer<'a>,
 }
 
-impl NodeView {
-    fn new(program: &GlProgram, node_data: octree::NodeData) -> Self {
+impl<'a> NodeView<'a> {
+    fn new(program: &'a GlProgram, node_data: octree::NodeData) -> Self {
         unsafe {
-            gl::UseProgram(program.id);
+            program.gl.UseProgram(program.id);
         }
 
-        let vertex_array = GlVertexArray::new();
+        let vertex_array = GlVertexArray::new(program.gl);
         vertex_array.bind();
 
         // We draw the points in random order. This allows us to only draw the first N if we want
@@ -163,27 +163,27 @@ impl NodeView {
         );
         let color = reshuffle(&indices, node_data.color, 3);
 
-        let buffer_position = GlBuffer::new_array_buffer();
-        let buffer_color = GlBuffer::new_array_buffer();
+        let buffer_position = GlBuffer::new_array_buffer(program.gl);
+        let buffer_color = GlBuffer::new_array_buffer(program.gl);
 
         unsafe {
             buffer_position.bind();
             let (normalize, data_type) = match node_data.meta.position_encoding {
-                octree::PositionEncoding::Uint8 => (true, gl::UNSIGNED_BYTE),
-                octree::PositionEncoding::Uint16 => (true, gl::UNSIGNED_SHORT),
-                octree::PositionEncoding::Float32 => (false, gl::FLOAT),
+                octree::PositionEncoding::Uint8 => (true, opengl::UNSIGNED_BYTE),
+                octree::PositionEncoding::Uint16 => (true, opengl::UNSIGNED_SHORT),
+                octree::PositionEncoding::Float32 => (false, opengl::FLOAT),
             };
-            gl::BufferData(
-                gl::ARRAY_BUFFER,
+            program.gl.BufferData(
+                opengl::ARRAY_BUFFER,
                 position.len() as GLsizeiptr,
                 mem::transmute(&position[0]),
-                gl::STATIC_DRAW,
+                opengl::STATIC_DRAW,
             );
 
             // Specify the layout of the vertex data.
-            let pos_attr = gl::GetAttribLocation(program.id, c_str!("position"));
-            gl::EnableVertexAttribArray(pos_attr as GLuint);
-            gl::VertexAttribPointer(
+            let pos_attr = program.gl.GetAttribLocation(program.id, c_str!("position"));
+            program.gl.EnableVertexAttribArray(pos_attr as GLuint);
+            program.gl.VertexAttribPointer(
                 pos_attr as GLuint,
                 3,
                 data_type,
@@ -193,19 +193,19 @@ impl NodeView {
             );
 
             buffer_color.bind();
-            gl::BufferData(
-                gl::ARRAY_BUFFER,
+            program.gl.BufferData(
+                opengl::ARRAY_BUFFER,
                 color.len() as GLsizeiptr,
                 mem::transmute(&color[0]),
-                gl::STATIC_DRAW,
+                opengl::STATIC_DRAW,
             );
-            let color_attr = gl::GetAttribLocation(program.id, c_str!("color"));
-            gl::EnableVertexAttribArray(color_attr as GLuint);
-            gl::VertexAttribPointer(
+            let color_attr = program.gl.GetAttribLocation(program.id, c_str!("color"));
+            program.gl.EnableVertexAttribArray(color_attr as GLuint);
+            program.gl.VertexAttribPointer(
                 color_attr as GLuint,
                 3,
-                gl::UNSIGNED_BYTE,
-                gl::FALSE as GLboolean,
+                opengl::UNSIGNED_BYTE,
+                opengl::FALSE as GLboolean,
                 0,
                 ptr::null(),
             );
@@ -220,8 +220,8 @@ impl NodeView {
 }
 
 // Keeps track of the nodes that were requested in-order and loads then one by one on request.
-struct NodeViewContainer {
-    node_views: HashMap<octree::NodeId, NodeView>,
+struct NodeViewContainer<'a> {
+    node_views: HashMap<octree::NodeId, NodeView<'a>>,
     // The node_ids that the I/O thread is currently loading.
     requested: HashSet<octree::NodeId>,
     // Communication with the I/O thread.
@@ -229,7 +229,7 @@ struct NodeViewContainer {
     node_data_receiver: Receiver<(octree::NodeId, octree::NodeData)>,
 }
 
-impl NodeViewContainer {
+impl<'a> NodeViewContainer<'a> {
     fn new(octree: Arc<octree::Octree>) -> Self {
         // We perform I/O in a separate thread in order to not block the main thread while loading.
         // Data sharing is done through channels.
@@ -240,11 +240,11 @@ impl NodeViewContainer {
             for node_id in node_id_receiver.into_iter() {
                 // We always request nodes at full resolution (i.e. not subsampled by the backend), because
                 // we can just as effectively subsample the number of points we draw in the client.
-                const ALL_POINTS_LOD: i32 = 1;                
+                const ALL_POINTS_LOD: i32 = 1;
                 let node_data = octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
                 // TODO(hrapp): reshuffle
                 node_data_sender.send((node_id, node_data)).unwrap();
-            } 
+            }
         });
         NodeViewContainer {
             node_views: HashMap::new(),
@@ -256,7 +256,7 @@ impl NodeViewContainer {
 
     // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
     // requested the node for loading in the I/O thread
-    fn get_or_request(&mut self, node_id: &octree::NodeId, program: &GlProgram) -> Option<&NodeView> {
+    fn get_or_request(&mut self, node_id: &octree::NodeId, program: &'a GlProgram) -> Option<&NodeView> {
         while let Ok((node_id, node_data)) = self.node_data_receiver.try_recv() {
             // Put loaded node into hash map.
             self.requested.remove(&node_id);
@@ -269,7 +269,7 @@ impl NodeViewContainer {
             Entry::Vacant(_) => {
                 // Limit the number of requested nodes because after a camera move
                 // requested nodes might not be in the frustum anymore.
-                if !self.requested.contains(&node_id) && self.requested.len() < 10 {  
+                if !self.requested.contains(&node_id) && self.requested.len() < 10 {
                     self.requested.insert(*node_id);
                     self.node_id_sender.send(*node_id).unwrap();
                 }
@@ -338,22 +338,22 @@ fn main() {
 
     assert_eq!(gl_attr.context_profile(), GLProfile::Core);
 
-    gl::load_with(
+    let gl = opengl::Gl::load_with(
         |s| {
             let ptr = video_subsystem.gl_get_proc_address(s);
             unsafe { std::mem::transmute(ptr) }
         }
     );
 
-    let node_drawer = NodeDrawer::new();
+    let node_drawer = NodeDrawer::new(&gl);
     let mut node_views = NodeViewContainer::new(octree.clone());
     let mut visible_nodes = Vec::new();
 
-    let box_drawer = BoxDrawer::new();
+    let box_drawer = BoxDrawer::new(&gl);
     let octree_box_color = YELLOW;
     let mut show_octree_nodes = false;
 
-    let mut camera = Camera::new(WINDOW_WIDTH, WINDOW_HEIGHT);
+    let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
 
     let mut events = ctx.event_pump().unwrap();
     let mut num_frames = 0;
@@ -406,7 +406,7 @@ fn main() {
                     camera.mouse_wheel(y);
                 }
                 Event::Window { win_event: WindowEvent::SizeChanged(w, h), .. } => {
-                    camera.set_size(w, h);
+                    camera.set_size(&gl, w, h);
                 }
                 _ => (),
             }
@@ -435,8 +435,8 @@ fn main() {
         let mut num_points_drawn = 0;
         let mut num_nodes_drawn = 0;
         unsafe {
-            gl::ClearColor(0., 0., 0., 1.);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+            gl.ClearColor(0., 0., 0., 1.);
+            gl.Clear(opengl::COLOR_BUFFER_BIT | opengl::DEPTH_BUFFER_BIT);
 
             for visible_node in &visible_nodes {
                 // TODO(sirver): Track a point budget here when moving, so that FPS never drops too
