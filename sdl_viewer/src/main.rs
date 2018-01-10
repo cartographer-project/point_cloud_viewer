@@ -268,7 +268,7 @@ impl<'a> NodeViewContainer {
         }
 
         if self.node_views.contains_key(node_id) {
-            return { self.node_views.get_mut(node_id).map(|f| f as &NodeView) }
+            return self.node_views.get_mut(node_id).map(|f| f as &NodeView)
         }
         
         // Limit the number of requested nodes because after a camera move
@@ -292,11 +292,7 @@ impl<'a> NodeViewContainer {
     }
 
     fn get_used_memory_bytes(&self) -> usize {
-        let mut used_memory_bytes = 0;
-        for (_node_id, node_view) in self.node_views.iter() {
-            used_memory_bytes += node_view.used_memory_bytes;
-        }
-        used_memory_bytes
+        self.node_views.iter().map(|(_, node_view)| node_view.used_memory_bytes).sum()
     }
 }
 
@@ -309,14 +305,17 @@ fn main() {
                     .index(1)
                     .required(true),
                 clap::Arg::with_name("cache_size_mb")
-                    .help("Maximum cache size in MB for octree nodes in GPU memory")
+                    .help("Maximum cache size in MB for octree nodes in GPU memory. The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.")
                     .required(false)
             ]
         )
         .get_matches();
 
     // Maximum number of MB for the octree node cache in range 1..16 GB. The default is 2 GB
-    let max_mb_nodes: usize = cmp::min(cmp::max(1000, matches.value_of("cache_size_mb").unwrap_or("2000").parse().unwrap()), 16000);
+    let max_mb_nodes = {
+        let value = matches.value_of("cache_size_mb").unwrap_or("2000").parse().unwrap();
+        cmp::min(cmp::max(value, 1000), 16000)
+    };
     // Assuming about 200 KB per octree node on average
     let max_nodes_in_memory = max_mb_nodes * 5;
 
