@@ -35,6 +35,7 @@ use sdl_viewer::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use sdl_viewer::box_drawer::BoxDrawer;
 use sdl_viewer::color::YELLOW;
 use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
+use std::cmp;
 use std::collections::HashSet;
 use std::mem;
 use std::path::PathBuf;
@@ -136,7 +137,7 @@ struct NodeView<'a> {
     vertex_array: GlVertexArray<'a>,
     _buffer_position: GlBuffer<'a>,
     _buffer_color: GlBuffer<'a>,
-    used_memory: usize,
+    used_memory_bytes: usize,
 }
 
 impl<'a> NodeView<'a> {
@@ -217,7 +218,7 @@ impl<'a> NodeView<'a> {
             _buffer_position: buffer_position,
             _buffer_color: buffer_color,
             meta: node_data.meta,
-            used_memory: position.len() + color.len(),
+            used_memory_bytes: position.len() + color.len(),
         }
     }
 }
@@ -233,7 +234,7 @@ struct NodeViewContainer<'a> {
 }
 
 impl<'a> NodeViewContainer {
-    fn new(octree: Arc<octree::Octree>, cache_size: usize) -> Self {
+    fn new(octree: Arc<octree::Octree>, max_nodes_in_memory: usize) -> Self {
         // We perform I/O in a separate thread in order to not block the main thread while loading.
         // Data sharing is done through channels.
         let (node_id_sender, node_id_receiver) = mpsc::channel();
@@ -249,9 +250,8 @@ impl<'a> NodeViewContainer {
                 node_data_sender.send((node_id, node_data)).unwrap();
             }
         });
-        println!("Cache size {}", cache_size);
         NodeViewContainer {
-            cache: LruCache::new(cache_size),
+            node_views: LruCache::new(max_nodes_in_memory),
             requested: HashSet::new(),
             node_id_sender: node_id_sender,
             node_data_receiver: node_data_receiver,
@@ -264,25 +264,25 @@ impl<'a> NodeViewContainer {
         while let Ok((node_id, node_data)) = self.node_data_receiver.try_recv() {
             // Put loaded node into hash map.
             self.requested.remove(&node_id);
-            self.cache.insert(node_id, NodeView::new(program, node_data));
+            self.node_views.insert(node_id, NodeView::new(program, node_data));
         }
 
-        if !self.cache.contains_key(node_id) {
-            // Limit the number of requested nodes because after a camera move
-            // requested nodes might not be in the frustum anymore.
-            if !self.requested.contains(&node_id) && self.requested.len() < 10 {  
-                self.requested.insert(*node_id);
-                self.node_id_sender.send(*node_id).unwrap();
-            }
-            None
-        } else {
-            self.cache.get_mut(node_id).map(|f| f as &NodeView)
+        if self.node_views.contains_key(node_id) {
+            return { self.node_views.get_mut(node_id).map(|f| f as &NodeView) }
         }
+        
+        // Limit the number of requested nodes because after a camera move
+        // requested nodes might not be in the frustum anymore.
+        if !self.requested.contains(&node_id) && self.requested.len() < 10 {  
+            self.requested.insert(*node_id);
+            self.node_id_sender.send(*node_id).unwrap();
+        }
+        None
     }
 
     fn request_all(&mut self, node_ids: &[octree::NodeId]) {
         for &node_id in node_ids {
-            if !self.cache.contains_key(&node_id) {
+            if !self.node_views.contains_key(&node_id) {
                 if !self.requested.contains(&node_id) {
                     self.requested.insert(node_id);
                     self.node_id_sender.send(node_id).unwrap();
@@ -291,12 +291,12 @@ impl<'a> NodeViewContainer {
         }
     }
 
-    fn get_used_memory(&self) -> usize {
-        let mut used_memory = 0;
-        for (_node_id, node_view) in self.cache.iter() {
-            used_memory += node_view.used_memory;
+    fn get_used_memory_bytes(&self) -> usize {
+        let mut used_memory_bytes = 0;
+        for (_node_id, node_view) in self.node_views.iter() {
+            used_memory_bytes += node_view.used_memory_bytes;
         }
-        used_memory
+        used_memory_bytes
     }
 }
 
@@ -308,21 +308,17 @@ fn main() {
                     .help("Input directory of the octree directory to serve.")
                     .index(1)
                     .required(true),
-                clap::Arg::with_name("cache_size")
-                    .help("Maximum number of octree nodes to store in GPU memory")
+                clap::Arg::with_name("cache_size_mb")
+                    .help("Maximum cache size in MB for octree nodes in GPU memory")
                     .required(false)
             ]
         )
         .get_matches();
 
-    // cache size
-    let mut cache_size = 10000;
-    if let Some(cache_size_str) = matches.value_of("cache_size") {
-        cache_size = cache_size_str.parse().unwrap();
-        if cache_size < 5000 {
-            cache_size = 5000;
-        }
-    }
+    // Maximum number of MB for the octree node cache in range 1..16 GB. The default is 2 GB
+    let max_mb_nodes: usize = cmp::min(cmp::max(1000, matches.value_of("cache_size_mb").unwrap_or("2000").parse().unwrap()), 16000);
+    // Assuming about 200 KB per octree node on average
+    let max_nodes_in_memory = max_mb_nodes * 5;
 
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
     let octree = Arc::new(octree::Octree::new(&octree_directory).unwrap());
@@ -364,7 +360,7 @@ fn main() {
     );
 
     let node_drawer = NodeDrawer::new(&gl);
-    let mut node_views = NodeViewContainer::new(octree.clone(), cache_size);
+    let mut node_views = NodeViewContainer::new(octree.clone(), max_nodes_in_memory);
     let mut visible_nodes = Vec::new();
 
     let box_drawer = BoxDrawer::new(&gl);
@@ -439,9 +435,7 @@ fn main() {
                 camera.height,
                 octree::UseLod::Yes,
             );
-            if visible_nodes.len() > cache_size {
-                visible_nodes.truncate(cache_size);
-            }
+            visible_nodes.truncate(max_nodes_in_memory);
         } else {
             use_level_of_detail = false;
         }
@@ -491,12 +485,12 @@ fn main() {
             num_frames = 0;
             last_log = now;
             println!(
-                "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes should be shown, Cache {} GB",
+                "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes should be shown, Cache {} MB",
                 fps,
                 num_points_drawn,
                 num_nodes_drawn,
                 visible_nodes.len(),
-                node_views.get_used_memory() as f32 / 1024. / 1024. / 1024.,
+                node_views.get_used_memory_bytes() as f32 / 1024. / 1024.,
             );
         }
     }
