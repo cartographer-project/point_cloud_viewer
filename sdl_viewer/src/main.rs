@@ -233,7 +233,7 @@ struct NodeViewContainer<'a> {
     node_data_receiver: Receiver<(octree::NodeId, octree::NodeData)>,
 }
 
-impl<'a> NodeViewContainer {
+impl<'a> NodeViewContainer<'a> {
     fn new(octree: Arc<octree::Octree>, max_nodes_in_memory: usize) -> Self {
         // We perform I/O in a separate thread in order to not block the main thread while loading.
         // Data sharing is done through channels.
