@@ -13,14 +13,14 @@
 // limitations under the License.
 
 extern crate byteorder;
-extern crate point_viewer;
-extern crate router;
-extern crate time;
-extern crate urlencoded;
 #[macro_use]
 extern crate clap;
 extern crate iron;
 extern crate json;
+extern crate point_viewer;
+extern crate router;
+extern crate time;
+extern crate urlencoded;
 
 use byteorder::{LittleEndian, WriteBytesExt};
 use iron::mime::Mime;
@@ -37,7 +37,6 @@ const INDEX_HTML: &'static str = include_str!("../client/index.html");
 const APP_BUNDLE: &'static str = include_str!("../target/app_bundle.js");
 const APP_BUNDLE_MAP: &'static str = include_str!("../target/app_bundle.js.map");
 
-
 fn index(_: &mut Request) -> IronResult<Response> {
     let content_type = "text/html".parse::<Mime>().unwrap();
     Ok(Response::with((content_type, iron::status::Ok, INDEX_HTML)))
@@ -50,7 +49,11 @@ fn app_bundle(_: &mut Request) -> IronResult<Response> {
 
 fn app_bundle_source_map(_: &mut Request) -> IronResult<Response> {
     let content_type = "text/html".parse::<Mime>().unwrap();
-    Ok(Response::with((content_type, iron::status::Ok, APP_BUNDLE_MAP)))
+    Ok(Response::with((
+        content_type,
+        iron::status::Ok,
+        APP_BUNDLE_MAP,
+    )))
 }
 
 struct VisibleNodes {
@@ -142,15 +145,10 @@ impl iron::Handler for NodesData {
         // TODO(hrapp): This should not crash on error, but return a valid http response.
         req.body.read_to_string(&mut content).unwrap();
         let data = json::parse(&content).unwrap();
-        let nodes_to_load = data.members()
-            .map(
-                |e| {
-                    NodeToLoad {
-                        id: octree::NodeId::from_str(e[0].as_str().unwrap()),
-                        level_of_detail: e[1].as_i32().unwrap(),
-                    }
-                }
-            );
+        let nodes_to_load = data.members().map(|e| NodeToLoad {
+            id: octree::NodeId::from_str(e[0].as_str().unwrap()),
+            level_of_detail: e[1].as_i32().unwrap(),
+        });
 
         // So this is godawful: We need to get data to the GPU without JavaScript herp-derping with
         // it - because that will stall interaction. The straight forward approach would be to ship
@@ -187,12 +185,11 @@ impl iron::Handler for NodesData {
             let bytes_per_coordinate = node_data.meta.position_encoding.bytes_per_coordinate();
             reply_blob.write_u8(bytes_per_coordinate as u8).unwrap();
             assert!(
-                bytes_per_coordinate * node_data.meta.num_points as usize * 3 ==
-                node_data.position.len()
+                bytes_per_coordinate * node_data.meta.num_points as usize * 3
+                    == node_data.position.len()
             );
             assert!(node_data.meta.num_points as usize * 3 == node_data.color.len());
             pad(&mut reply_blob);
-
 
             reply_blob.append(&mut node_data.position);
             pad(&mut reply_blob);
@@ -207,9 +204,7 @@ impl iron::Handler for NodesData {
         let duration_ms = (time::precise_time_ns() - start) as f32 / 1000000.;
         println!(
             "Got {} nodes with {} points ({}ms).",
-            num_nodes_fetched,
-            num_points,
-            duration_ms
+            num_nodes_fetched, num_points, duration_ms
         );
 
         let content_type = "application/octet-stream".parse::<Mime>().unwrap();
@@ -219,18 +214,16 @@ impl iron::Handler for NodesData {
 
 fn main() {
     let matches = clap::App::new("web_viewer")
-        .args(
-            &[
-                clap::Arg::with_name("port")
-                    .help("Port to listen on for connections.")
-                    .long("port")
-                    .takes_value(true),
-                clap::Arg::with_name("octree_directory")
-                    .help("Input directory of the octree directory to serve.")
-                    .index(1)
-                    .required(true),
-            ]
-        )
+        .args(&[
+            clap::Arg::with_name("port")
+                .help("Port to listen on for connections.")
+                .long("port")
+                .takes_value(true),
+            clap::Arg::with_name("octree_directory")
+                .help("Input directory of the octree directory to serve.")
+                .index(1)
+                .required(true),
+        ])
         .get_matches();
 
     let port = value_t!(matches, "port", u16).unwrap_or(5433);
@@ -248,8 +241,18 @@ fn main() {
     router.get("/", index);
     router.get("/app_bundle.js", app_bundle);
     router.get("/app_bundle.js.map", app_bundle_source_map);
-    router.get("/visible_nodes", VisibleNodes { octree: otree.clone() });
-    router.post("/nodes_data", NodesData { octree: otree.clone() });
+    router.get(
+        "/visible_nodes",
+        VisibleNodes {
+            octree: otree.clone(),
+        },
+    );
+    router.post(
+        "/nodes_data",
+        NodesData {
+            octree: otree.clone(),
+        },
+    );
 
     println!("Listening on port {}.", port);
     Iron::new(router).http(("0.0.0.0", port)).unwrap();

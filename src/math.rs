@@ -51,7 +51,7 @@ pub trait CuboidLike {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 struct Plane {
     normal: Vector3f,
     w: f32,
@@ -154,8 +154,7 @@ impl Frustum {
     }
 }
 
-
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Cuboid {
     min: Vector3f,
     max: Vector3f,
@@ -171,7 +170,7 @@ impl CuboidLike for Cuboid {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Cube {
     min: Vector3f,
     edge_length: f32,

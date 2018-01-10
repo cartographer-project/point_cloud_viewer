@@ -17,14 +17,14 @@
 extern crate byteorder;
 extern crate bytes;
 extern crate cgmath;
+#[macro_use]
+extern crate error_chain;
 extern crate num;
 extern crate num_traits;
 extern crate prost;
 #[macro_use]
 extern crate prost_derive;
 extern crate walkdir;
-#[macro_use]
-extern crate error_chain;
 
 pub mod math;
 pub mod octree;
@@ -37,7 +37,7 @@ pub trait InternalIterator {
     fn size_hint(&self) -> Option<usize>;
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Point {
     pub position: math::Vector3f,
     pub r: u8,

@@ -28,7 +28,7 @@ struct Header {
     elements: Vec<Element>,
 }
 
-#[derive(Debug,Copy,Clone,PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum DataType {
     Int8,
     Uint8,
@@ -74,7 +74,7 @@ impl<'a> Index<&'a str> for Header {
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Format {
     BinaryLittleEndianV1,
     BinaryBigEndianV1,
@@ -129,42 +129,29 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
                 if entries[2] != "1.0" {
                     return Err(InvalidInput(format!("Invalid version: {}", entries[2])).into());
                 }
-                format = Some(
-                    match entries[1] {
-                        "ascii" => Format::AsciiV1,
-                        "binary_little_endian" => Format::BinaryLittleEndianV1,
-                        "binary_big_endian" => Format::BinaryBigEndianV1,
-                        _ => {
-                            return Err(
-                                InvalidInput(format!("Invalid format: {}", entries[1]))
-                                    .into()
-                            )
-                        }
-                    }
-                );
+                format = Some(match entries[1] {
+                    "ascii" => Format::AsciiV1,
+                    "binary_little_endian" => Format::BinaryLittleEndianV1,
+                    "binary_big_endian" => Format::BinaryBigEndianV1,
+                    _ => return Err(InvalidInput(format!("Invalid format: {}", entries[1])).into()),
+                });
             }
             "element" if entries.len() == 3 => {
                 if let Some(element) = current_element.take() {
                     elements.push(element);
                 }
-                current_element = Some(
-                    Element {
-                        name: entries[1].to_string(),
-                        count:
-                            entries[2]
-                                .parse::<i64>()
-                                .chain_err(
-                                    || InvalidInput(format!("Invalid count: {}", entries[2])),
-                                )?,
-                        properties: Vec::new(),
-                    }
-                );
+                current_element = Some(Element {
+                    name: entries[1].to_string(),
+                    count: entries[2]
+                        .parse::<i64>()
+                        .chain_err(|| InvalidInput(format!("Invalid count: {}", entries[2])))?,
+                    properties: Vec::new(),
+                });
             }
             "property" => {
                 if current_element.is_none() {
                     return Err(
-                        InvalidInput(format!("property outside of element: {}", line))
-                            .into()
+                        InvalidInput(format!("property outside of element: {}", line)).into(),
                     );
                 };
                 let property = match entries[1] {
@@ -197,15 +184,14 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
         return Err(InvalidInput("No format specified".into()).into());
     }
 
-    Ok(
-        (Header {
-             elements: elements,
-             format: format.unwrap(),
-         },
-         header_len)
-    )
+    Ok((
+        Header {
+            elements: elements,
+            format: format.unwrap(),
+        },
+        header_len,
+    ))
 }
-
 
 type ReadingFn = fn(nread: &mut usize, buf: &[u8], val: &mut Point);
 
@@ -281,8 +267,7 @@ macro_rules! create_skip_fn {
 /// Opens a PLY file and checks that it is the correct format we support. Seeks in the file to the
 /// beginning of the binary data which must be (x, y, z, r, g, b) tuples.
 fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
-    let mut file = File::open(ply_file)
-        .chain_err(|| "Could not open input file.")?;
+    let mut file = File::open(ply_file).chain_err(|| "Could not open input file.")?;
     let mut reader = BufReader::new(file);
     let (header, header_len) = parse_header(&mut reader)?;
     file = reader.into_inner();
@@ -307,46 +292,49 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
     for prop in &vertex.properties {
         match &prop.name as &str {
             "x" => {
-                readers.push(
-                    read_casted_property!(
-                        prop.data_type,
-                        point.position.x,
-                        &mut num_bytes_per_point
-                    )
-                );
+                readers.push(read_casted_property!(
+                    prop.data_type,
+                    point.position.x,
+                    &mut num_bytes_per_point
+                ));
                 seen_x = true;
             }
             "y" => {
-                readers.push(
-                    read_casted_property!(
-                        prop.data_type,
-                        point.position.y,
-                        &mut num_bytes_per_point
-                    )
-                );
+                readers.push(read_casted_property!(
+                    prop.data_type,
+                    point.position.y,
+                    &mut num_bytes_per_point
+                ));
                 seen_y = true;
             }
             "z" => {
-                readers.push(
-                    read_casted_property!(
-                        prop.data_type,
-                        point.position.z,
-                        &mut num_bytes_per_point
-                    )
-                );
+                readers.push(read_casted_property!(
+                    prop.data_type,
+                    point.position.z,
+                    &mut num_bytes_per_point
+                ));
                 seen_z = true;
             }
             "r" | "red" => {
-                readers
-                    .push(read_casted_property!(prop.data_type, point.r, &mut num_bytes_per_point));
+                readers.push(read_casted_property!(
+                    prop.data_type,
+                    point.r,
+                    &mut num_bytes_per_point
+                ));
             }
             "g" | "green" => {
-                readers
-                    .push(read_casted_property!(prop.data_type, point.g, &mut num_bytes_per_point));
+                readers.push(read_casted_property!(
+                    prop.data_type,
+                    point.g,
+                    &mut num_bytes_per_point
+                ));
             }
             "b" | "blue" => {
-                readers
-                    .push(read_casted_property!(prop.data_type, point.b, &mut num_bytes_per_point));
+                readers.push(read_casted_property!(
+                    prop.data_type,
+                    point.b,
+                    &mut num_bytes_per_point
+                ));
             }
             other => {
                 println!("Will ignore property '{}' on 'vertex'.", other);
@@ -369,13 +357,12 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
 
     // We align the buffer of this 'BufReader' to points, so that we can index this buffer and know
     // that it will always contain full points to parse.
-    Ok(
-        (BufReader::with_capacity(num_bytes_per_point * 1024, file),
-         header["vertex"].count,
-         readers)
-    )
+    Ok((
+        BufReader::with_capacity(num_bytes_per_point * 1024, file),
+        header["vertex"].count,
+        readers,
+    ))
 }
-
 
 /// Abstraction to read binary points from ply files into points.
 pub struct PlyIterator {
@@ -387,13 +374,11 @@ pub struct PlyIterator {
 impl PlyIterator {
     pub fn new<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
         let (reader, num_total_points, readers) = open(ply_file.as_ref())?;
-        Ok(
-            PlyIterator {
-                reader: reader,
-                readers: readers,
-                num_total_points: num_total_points,
-            }
-        )
+        Ok(PlyIterator {
+            reader: reader,
+            readers: readers,
+            num_total_points: num_total_points,
+        })
     }
 }
 
@@ -437,7 +422,9 @@ mod tests {
     fn points_from_file<P: AsRef<Path>>(path: P) -> Vec<Point> {
         let iterator = PlyIterator::new(path).unwrap();
         let mut points = Vec::new();
-        iterator.for_each(|p| { points.push(p.clone()); });
+        iterator.for_each(|p| {
+            points.push(p.clone());
+        });
         points
     }
 

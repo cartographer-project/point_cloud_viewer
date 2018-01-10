@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 // Entries follow GL semantics: they are in [0.; 1.] with 1. being fully saturated.
 #[derive(Debug, Copy, Clone)]
 pub struct Color {

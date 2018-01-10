@@ -53,7 +53,11 @@ pub fn compile_shader(gl: &opengl::Gl, code: &str, kind: GLenum) -> GLuint {
     shader
 }
 
-pub fn link_program(gl: &opengl::Gl, vertex_shader_id: GLuint, fragment_shader_id: GLuint) -> GLuint {
+pub fn link_program(
+    gl: &opengl::Gl,
+    vertex_shader_id: GLuint,
+    fragment_shader_id: GLuint,
+) -> GLuint {
     unsafe {
         let program = gl.CreateProgram();
         gl.AttachShader(program, vertex_shader_id);

@@ -109,8 +109,7 @@ impl Octree {
 
         let meta = {
             let mut data = Vec::new();
-            File::open(&directory.join("meta.pb"))?
-                .read_to_end(&mut data)?;
+            File::open(&directory.join("meta.pb"))?.read_to_end(&mut data)?;
             let len = data.len();
             proto::Meta::decode(&mut Buf::take(data.into_buf(), len))
                 .chain_err(|| "Could not parse meta.pb")?
@@ -132,8 +131,9 @@ impl Octree {
 
         let mut nodes = HashMap::new();
         for entry in walkdir::WalkDir::new(&directory)
-                .into_iter()
-                .filter_map(|e| e.ok()) {
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
             let path = entry.path();
             if path.file_name().is_none() {
                 continue;
@@ -150,13 +150,11 @@ impl Octree {
             );
         }
 
-        Ok(
-            Octree {
-                directory: directory.into(),
-                nodes: nodes,
-                bounding_cube: bounding_cube,
-            }
-        )
+        Ok(Octree {
+            directory: directory.into(),
+            nodes: nodes,
+            bounding_cube: bounding_cube,
+        })
     }
 
     pub fn get_visible_nodes(
@@ -187,8 +185,9 @@ impl Octree {
             let visible_pixels = pixels.x * pixels.y;
             const MIN_PIXELS_SQ: f32 = 120.;
             const MIN_PIXELS_SIDE: f32 = 12.;
-            if pixels.x < MIN_PIXELS_SIDE || pixels.y < MIN_PIXELS_SIDE ||
-               visible_pixels < MIN_PIXELS_SQ {
+            if pixels.x < MIN_PIXELS_SIDE || pixels.y < MIN_PIXELS_SIDE
+                || visible_pixels < MIN_PIXELS_SQ
+            {
                 continue;
             }
 
@@ -204,22 +203,18 @@ impl Octree {
                 open.push(node_to_explore.get_child(ChildIndex::from_u8(child_index)))
             }
 
-            visible.push(
-                VisibleNode {
-                    id: node_to_explore.id,
-                    level_of_detail: level_of_detail,
-                    pixels: pixels,
-                }
-            );
+            visible.push(VisibleNode {
+                id: node_to_explore.id,
+                level_of_detail: level_of_detail,
+                pixels: pixels,
+            });
         }
 
-        visible.sort_by(
-            |a, b| {
-                let size_a = a.pixels.x * a.pixels.y;
-                let size_b = b.pixels.x * b.pixels.y;
-                size_b.partial_cmp(&size_a).unwrap()
-            }
-        );
+        visible.sort_by(|a, b| {
+            let size_a = a.pixels.x * a.pixels.y;
+            let size_b = b.pixels.x * b.pixels.y;
+            size_b.partial_cmp(&size_a).unwrap()
+        });
         visible
     }
 
@@ -253,10 +248,9 @@ impl Octree {
         };
 
         let color = {
-            let mut rgb_reader = BufReader::new(
-                File::open(&meta.stem.with_extension(node::COLOR_EXT))
-                    .chain_err(|| "Could not read color")?
-            );
+            let mut rgb_reader =
+                BufReader::new(File::open(&meta.stem.with_extension(node::COLOR_EXT))
+                    .chain_err(|| "Could not read color")?);
             let mut all_data = Vec::new();
             rgb_reader
                 .read_to_end(&mut all_data)
@@ -272,12 +266,10 @@ impl Octree {
             color
         };
 
-        Ok(
-            NodeData {
-                position: position,
-                color: color,
-                meta: meta,
-            }
-        )
+        Ok(NodeData {
+            position: position,
+            color: color,
+            meta: meta,
+        })
     }
 }
