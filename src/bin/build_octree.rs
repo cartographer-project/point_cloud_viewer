@@ -16,8 +16,8 @@ extern crate byteorder;
 extern crate clap;
 extern crate pbr;
 extern crate point_viewer;
-extern crate scoped_pool;
 extern crate prost;
+extern crate scoped_pool;
 
 use pbr::ProgressBar;
 use point_viewer::{InternalIterator, Point};
@@ -49,43 +49,36 @@ fn split<P>(
     node: &octree::Node,
     stream: P,
 ) -> Vec<SplittedNode>
-    where P: InternalIterator
+where
+    P: InternalIterator,
 {
     let mut children: Vec<Option<octree::NodeWriter>> =
         vec![None, None, None, None, None, None, None, None];
     match stream.size_hint() {
-        Some(size) => {
-            println!(
-                "Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",
-                node.id,
-                size,
-                size as f64 / MAX_POINTS_PER_NODE as f64
-            )
-        }
-        None => {
-            println!(
-                "Splitting {} which has an unknown number of points.",
-                node.id
-            )
-        }
+        Some(size) => println!(
+            "Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",
+            node.id,
+            size,
+            size as f64 / MAX_POINTS_PER_NODE as f64
+        ),
+        None => println!(
+            "Splitting {} which has an unknown number of points.",
+            node.id
+        ),
     };
 
-    stream.for_each(
-        |p| {
-            let child_index = node.get_child_id_containing_point(&p.position);
-            let array_index = child_index.as_u8() as usize;
-            if children[array_index].is_none() {
-                children[array_index] = Some(
-                    octree::NodeWriter::new(
-                        output_directory,
-                        &node.get_child(child_index),
-                        resolution,
-                    )
-                );
-            }
-            children[array_index].as_mut().unwrap().write(&p);
+    stream.for_each(|p| {
+        let child_index = node.get_child_id_containing_point(&p.position);
+        let array_index = child_index.as_u8() as usize;
+        if children[array_index].is_none() {
+            children[array_index] = Some(octree::NodeWriter::new(
+                output_directory,
+                &node.get_child(child_index),
+                resolution,
+            ));
         }
-    );
+        children[array_index].as_mut().unwrap().write(&p);
+    });
 
     // Remove the node file on disk by reopening the node and immediately dropping it again without
     // writing a point. This only saves some disk space during processing - all nodes will be
@@ -100,12 +93,10 @@ fn split<P>(
         }
         let c = c.unwrap();
 
-        rv.push(
-            SplittedNode {
-                node: node.get_child(octree::ChildIndex::from_u8(child_index as u8)),
-                num_points: c.num_written(),
-            }
-        );
+        rv.push(SplittedNode {
+            node: node.get_child(octree::ChildIndex::from_u8(child_index as u8)),
+            num_points: c.num_written(),
+        });
     }
     rv
 }
@@ -119,7 +110,7 @@ fn should_split_node(node: &SplittedNode, resolution: f64) -> bool {
         // greatly suffer if we display it. Drop points?
         println!(
             "Node {} which has {} points ({:.2}x MAX_POINTS_PER_NODE) \
-            is too small to be split, keeping all points.",
+             is too small to be split, keeping all points.",
             node.node.id,
             node.num_points,
             node.num_points as f64 / MAX_POINTS_PER_NODE as f64
@@ -136,30 +127,27 @@ fn split_node<'a, 'b: 'a, P>(
     splitted_node: SplittedNode,
     stream: P,
     leaf_nodes_sender: mpsc::Sender<octree::Node>,
-) where P: InternalIterator
+) where
+    P: InternalIterator,
 {
     let children = split(output_directory, resolution, &splitted_node.node, stream);
-    let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) =
-        children
-            .into_iter()
-            .partition(|n| !should_split_node(n, resolution));
+    let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) = children
+        .into_iter()
+        .partition(|n| !should_split_node(n, resolution));
 
     for child in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
-        scope.recurse(
-            move |scope| {
-                let stream = octree::NodeIterator::from_disk(output_directory, &child.node.id)
-                    .unwrap();
-                split_node(
-                    scope,
-                    output_directory,
-                    resolution,
-                    child,
-                    stream,
-                    leaf_nodes_sender_clone,
-                );
-            }
-        );
+        scope.recurse(move |scope| {
+            let stream = octree::NodeIterator::from_disk(output_directory, &child.node.id).unwrap();
+            split_node(
+                scope,
+                output_directory,
+                resolution,
+                child,
+                stream,
+                leaf_nodes_sender_clone,
+            );
+        });
     }
 
     for splitted_node in leaf_nodes {
@@ -248,41 +236,37 @@ fn find_bounding_cube(input: &InputFile) -> (Cube, i64) {
         .as_mut()
         .map(|pb| pb.message("Determining bounding box: "));
 
-    stream.for_each(
-        |p: &Point| {
-            bounding_cube.update(&p.position);
-            num_points += 1;
-            if num_points % UPDATE_COUNT == 0 {
-                progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
-            }
+    stream.for_each(|p: &Point| {
+        bounding_cube.update(&p.position);
+        num_points += 1;
+        if num_points % UPDATE_COUNT == 0 {
+            progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
         }
-    );
+    });
     progress_bar.map(|mut f| f.finish());
     (bounding_cube.to_cube(), num_points)
 }
 
 fn main() {
     let matches = clap::App::new("build_octree")
-        .args(
-            &[
-                clap::Arg::with_name("output_directory")
-                    .help("Output directory to write the octree into.")
-                    .long("output_directory")
-                    .required(true)
-                    .takes_value(true),
-                clap::Arg::with_name("resolution")
-                    .help(
-                        "Minimal precision that this point cloud should have. This decides \
-                           on the number of bits used to encode each node."
-                    )
-                    .long("resolution")
-                    .default_value("0.001"),
-                clap::Arg::with_name("input")
-                    .help("PLY/PTS file to parse for the points.")
-                    .index(1)
-                    .required(true),
-            ]
-        )
+        .args(&[
+            clap::Arg::with_name("output_directory")
+                .help("Output directory to write the octree into.")
+                .long("output_directory")
+                .required(true)
+                .takes_value(true),
+            clap::Arg::with_name("resolution")
+                .help(
+                    "Minimal precision that this point cloud should have. This decides \
+                     on the number of bits used to encode each node.",
+                )
+                .long("resolution")
+                .default_value("0.001"),
+            clap::Arg::with_name("input")
+                .help("PLY/PTS file to parse for the points.")
+                .index(1)
+                .required(true),
+        ])
         .get_matches();
 
     let output_directory = &PathBuf::from(matches.value_of("output_directory").unwrap());
@@ -307,18 +291,14 @@ fn main() {
     let _ = fs::create_dir(output_directory);
 
     let meta = proto::Meta {
-        bounding_cube: Some(
-            proto::BoundingCube {
-                min: Some(
-                    proto::Vector3f {
-                        x: bounding_cube.min().x,
-                        y: bounding_cube.min().y,
-                        z: bounding_cube.min().z,
-                    }
-                ),
-                edge_length: bounding_cube.edge_length(),
-            }
-        ),
+        bounding_cube: Some(proto::BoundingCube {
+            min: Some(proto::Vector3f {
+                x: bounding_cube.min().x,
+                y: bounding_cube.min().y,
+                z: bounding_cube.min().z,
+            }),
+            edge_length: bounding_cube.edge_length(),
+        }),
         resolution: resolution,
         version: octree::CURRENT_VERSION,
     };
@@ -333,23 +313,21 @@ fn main() {
     let pool = Pool::new(10);
 
     let (leaf_nodes_sender, leaf_nodes_receiver) = mpsc::channel();
-    pool.scoped(
-        move |scope| {
-            let (root_stream, _) = make_stream(&input);
-            let root = SplittedNode {
-                node: octree::Node::root_with_bounding_cube(bounding_cube),
-                num_points: num_points,
-            };
-            split_node(
-                scope,
-                output_directory,
-                resolution,
-                root,
-                root_stream,
-                leaf_nodes_sender.clone(),
-            );
-        }
-    );
+    pool.scoped(move |scope| {
+        let (root_stream, _) = make_stream(&input);
+        let root = SplittedNode {
+            node: octree::Node::root_with_bounding_cube(bounding_cube),
+            num_points: num_points,
+        };
+        split_node(
+            scope,
+            output_directory,
+            resolution,
+            root,
+            root_stream,
+            leaf_nodes_sender.clone(),
+        );
+    });
 
     let mut deepest_level = 0usize;
     let mut nodes_to_subsample = Vec::<octree::Node>::new();
@@ -383,15 +361,13 @@ fn main() {
             subsample_nodes.push(parent);
         }
 
-        pool.scoped(
-            |scope| for node in &subsample_nodes {
-                scope.execute(
-                    move || {
-                        subsample_children_into(output_directory, node, resolution).unwrap();
-                    }
-                );
+        pool.scoped(|scope| {
+            for node in &subsample_nodes {
+                scope.execute(move || {
+                    subsample_children_into(output_directory, node, resolution).unwrap();
+                });
             }
-        );
+        });
 
         // The nodes that were just now created through sub-sampling will be required to create
         // their parents.

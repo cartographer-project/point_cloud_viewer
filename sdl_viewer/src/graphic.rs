@@ -59,7 +59,11 @@ impl<'a> GlBuffer<'a> {
         unsafe {
             gl.GenBuffers(1, &mut id);
         }
-        GlBuffer { gl, id, buffer_type: opengl::ARRAY_BUFFER }
+        GlBuffer {
+            gl,
+            id,
+            buffer_type: opengl::ARRAY_BUFFER,
+        }
     }
 
     pub fn new_element_array_buffer(gl: &'a opengl::Gl) -> Self {
@@ -67,7 +71,11 @@ impl<'a> GlBuffer<'a> {
         unsafe {
             gl.GenBuffers(1, &mut id);
         }
-        GlBuffer { gl, id, buffer_type: opengl::ELEMENT_ARRAY_BUFFER }
+        GlBuffer {
+            gl,
+            id,
+            buffer_type: opengl::ELEMENT_ARRAY_BUFFER,
+        }
     }
 
     pub fn bind(&self) {

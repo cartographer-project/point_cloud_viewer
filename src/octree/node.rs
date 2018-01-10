@@ -16,7 +16,7 @@ use {InternalIterator, Point};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, IntoBuf};
 use errors::*;
-use math::{Cube, CuboidLike, Vector3f, Zero, clamp};
+use math::{clamp, Cube, CuboidLike, Vector3f, Zero};
 use num;
 use num_traits;
 use prost::Message;
@@ -31,7 +31,7 @@ pub const POSITION_EXT: &'static str = "xyz";
 pub const COLOR_EXT: &'static str = "rgb";
 
 /// Represents a child of an octree Node.
-#[derive(Debug,PartialEq,Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ChildIndex(u8);
 
 impl ChildIndex {
@@ -48,7 +48,7 @@ impl ChildIndex {
 /// A unique identifier to a node. Currently this is implemented as 'r' being the root and r[0-7]
 /// being the children, r[0-7][0-7] being the grand children and so on. The actual representation
 /// might change though.
-#[derive(Debug,Hash,Clone,Copy,PartialEq,Eq)]
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
 pub struct NodeId {
     // The root is level = 0, its children 1 and so on.
     level: u8,
@@ -115,12 +115,10 @@ impl NodeId {
         if self.level() == 0 {
             return None;
         }
-        Some(
-            NodeId {
-                level: self.level - 1,
-                index: (self.index >> 3),
-            }
-        )
+        Some(NodeId {
+            level: self.level - 1,
+            index: (self.index >> 3),
+        })
     }
 
     /// Returns the level of this node in the octree, with 0 being the root.
@@ -201,12 +199,10 @@ impl Node {
             }
             Cube::new(min, edge_length * 2.)
         };
-        Some(
-            Node {
-                id: maybe_parent_id.unwrap(),
-                bounding_cube: parent_cube,
-            }
-        )
+        Some(Node {
+            id: maybe_parent_id.unwrap(),
+            bounding_cube: parent_cube,
+        })
     }
 
     /// Returns the level of this node in the octree, with 0 being the root.
@@ -233,33 +229,25 @@ impl NodeMeta {
 
         let meta = {
             let mut data = Vec::new();
-            File::open(&stem.with_extension(META_EXT))?
-                .read_to_end(&mut data)?;
+            File::open(&stem.with_extension(META_EXT))?.read_to_end(&mut data)?;
             let len = data.len();
             proto::Node::decode(&mut Buf::take(data.into_buf(), len))
                 .chain_err(|| "Could not parse node protobuf.")?
         };
 
-        Ok(
-            NodeMeta {
-                num_points: meta.num_points,
-                position_encoding: PositionEncoding::from_proto(
-                    proto::node::PositionEncoding::from_i32(
-                        meta.position_encoding,
-                    ).unwrap()
-                )?,
-                // TODO(hrapp): Would be nice to have a from_proto and to_proto as a trait.
-                bounding_cube: {
-                    let proto = meta.bounding_cube.unwrap();
-                    let min = proto.min.unwrap();
-                    Cube::new(
-                        Vector3f::new(min.x, min.y, min.z),
-                        proto.edge_length,
-                    )
-                },
-                stem: stem,
-            }
-        )
+        Ok(NodeMeta {
+            num_points: meta.num_points,
+            position_encoding: PositionEncoding::from_proto(
+                proto::node::PositionEncoding::from_i32(meta.position_encoding).unwrap(),
+            )?,
+            // TODO(hrapp): Would be nice to have a from_proto and to_proto as a trait.
+            bounding_cube: {
+                let proto = meta.bounding_cube.unwrap();
+                let min = proto.min.unwrap();
+                Cube::new(Vector3f::new(min.x, min.y, min.z), proto.edge_length)
+            },
+            stem: stem,
+        })
     }
 
     pub fn num_points_for_level_of_detail(&self, level_of_detail: i32) -> i64 {
@@ -277,13 +265,11 @@ pub struct NodeIterator {
 impl NodeIterator {
     pub fn from_disk(directory: &Path, id: &NodeId) -> Result<Self> {
         let meta = NodeMeta::from_disk(directory, id)?;
-        Ok(
-            NodeIterator {
-                xyz_reader: BufReader::new(File::open(&meta.stem.with_extension(POSITION_EXT))?),
-                rgb_reader: BufReader::new(File::open(&meta.stem.with_extension(COLOR_EXT))?),
-                meta: meta,
-            }
-        )
+        Ok(NodeIterator {
+            xyz_reader: BufReader::new(File::open(&meta.stem.with_extension(POSITION_EXT))?),
+            rgb_reader: BufReader::new(File::open(&meta.stem.with_extension(COLOR_EXT))?),
+            meta: meta,
+        })
     }
 }
 
@@ -359,7 +345,7 @@ impl InternalIterator for NodeIterator {
     }
 }
 
-#[derive(Debug,PartialEq,Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PositionEncoding {
     Uint8,
     Uint16,
@@ -380,7 +366,9 @@ impl PositionEncoding {
     // we require stack space for the full Result. This shuold be fixable to moving to failure.
     fn from_proto(proto: proto::node::PositionEncoding) -> Result<Self> {
         match proto {
-            proto::node::PositionEncoding::Invalid => Err(ErrorKind::InvalidInput("Invalid PositionEncoding".to_string()).into()),
+            proto::node::PositionEncoding::Invalid => {
+                Err(ErrorKind::InvalidInput("Invalid PositionEncoding".to_string()).into())
+            }
             proto::node::PositionEncoding::Uint8 => Ok(PositionEncoding::Uint8),
             proto::node::PositionEncoding::Uint16 => Ok(PositionEncoding::Uint16),
             proto::node::PositionEncoding::Float32 => Ok(PositionEncoding::Float32),
@@ -405,21 +393,22 @@ impl PositionEncoding {
 }
 
 fn fixpoint_encode<T>(value: f32, min: f32, edge_length: f32) -> T
-    where T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast
+where
+    T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
 {
-    let value = clamp((value - min) / edge_length, 0., 1.) *
-                num::cast::<T, f32>(T::max_value()).unwrap();
+    let value =
+        clamp((value - min) / edge_length, 0., 1.) * num::cast::<T, f32>(T::max_value()).unwrap();
     num::cast(value).unwrap()
 }
 
 fn fixpoint_decode<T>(value: T, min: f32, edge_length: f32) -> f32
-    where T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast
+where
+    T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
 {
     let max: f32 = num::cast(T::max_value()).unwrap();
     let v: f32 = num::cast(value).unwrap();
     v / max * edge_length + min
 }
-
 
 fn encode(value: f32, min: f32, edge_length: f32) -> f32 {
     clamp((value - min) / edge_length, 0., 1.)
@@ -446,18 +435,14 @@ impl Drop for NodeWriter {
             self.remove_all_files();
         } else {
             let proto = proto::Node {
-                bounding_cube: Some(
-                    proto::BoundingCube {
-                        min: Some(
-                            proto::Vector3f {
-                                x: self.bounding_cube.min().x,
-                                y: self.bounding_cube.min().y,
-                                z: self.bounding_cube.min().z,
-                            }
-                        ),
-                        edge_length: self.bounding_cube.edge_length(),
-                    }
-                ),
+                bounding_cube: Some(proto::BoundingCube {
+                    min: Some(proto::Vector3f {
+                        x: self.bounding_cube.min().x,
+                        y: self.bounding_cube.min().y,
+                        z: self.bounding_cube.min().z,
+                    }),
+                    edge_length: self.bounding_cube.edge_length(),
+                }),
                 position_encoding: self.position_encoding.to_proto() as i32,
                 num_points: self.num_written,
             };
@@ -476,7 +461,6 @@ impl Drop for NodeWriter {
 
 impl NodeWriter {
     pub fn new(output_directory: &Path, node: &Node, resolution: f64) -> Self {
-
         let stem = node.id.get_stem(output_directory);
         NodeWriter {
             xyz_writer: BufWriter::new(File::create(&stem.with_extension(POSITION_EXT)).unwrap()),
@@ -546,7 +530,6 @@ impl NodeWriter {
         let _ = fs::remove_file(&self.stem.with_extension(META_EXT));
     }
 }
-
 
 #[cfg(test)]
 mod tests {

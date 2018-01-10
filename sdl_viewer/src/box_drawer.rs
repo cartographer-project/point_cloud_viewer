@@ -57,14 +57,14 @@ impl<'a> BoxDrawer<'a> {
         let _buffer_position = GlBuffer::new_array_buffer(gl);
         _buffer_position.bind();
         let vertices: [[f32; 3]; 8] = [
-            [-1.0, -1.0,  1.0],   // vertices of front quad
-            [ 1.0, -1.0,  1.0],   //
-            [ 1.0,  1.0,  1.0],   //
-            [-1.0,  1.0,  1.0],   //
-            [-1.0, -1.0, -1.0],   // vertices of back quad
-            [ 1.0, -1.0, -1.0],   //
-            [ 1.0,  1.0, -1.0],   //
-            [-1.0,  1.0, -1.0],   //
+            [-1.0, -1.0, 1.0],  // vertices of front quad
+            [1.0, -1.0, 1.0],   //
+            [1.0, 1.0, 1.0],    //
+            [-1.0, 1.0, 1.0],   //
+            [-1.0, -1.0, -1.0], // vertices of back quad
+            [1.0, -1.0, -1.0],  //
+            [1.0, 1.0, -1.0],   //
+            [-1.0, 1.0, -1.0],  //
         ];
         unsafe {
             gl.BufferData(
@@ -79,10 +79,18 @@ impl<'a> BoxDrawer<'a> {
         let _buffer_indices = GlBuffer::new_element_array_buffer(gl);
         _buffer_indices.bind();
         let line_indices: [[i32; 2]; 12] = [
-            [0, 1], [1, 2], [2, 3], [3, 0],     // front quad
-            [4, 5], [5, 6], [6, 7], [7, 4],     // back back
-            [1, 5], [6, 2],                     // right quad
-            [4, 0], [3, 7],                     // left quad
+            [0, 1],
+            [1, 2],
+            [2, 3],
+            [3, 0], // front quad
+            [4, 5],
+            [5, 6],
+            [6, 7],
+            [7, 4], // back back
+            [1, 5],
+            [6, 2], // right quad
+            [4, 0],
+            [3, 7], // left quad
         ];
         unsafe {
             gl.BufferData(
@@ -121,7 +129,12 @@ impl<'a> BoxDrawer<'a> {
 
         unsafe {
             self.outline_program.gl.UseProgram(self.outline_program.id);
-            self.outline_program.gl.UniformMatrix4fv(self.u_transform, 1, false as GLboolean, transform.as_ptr());
+            self.outline_program.gl.UniformMatrix4fv(
+                self.u_transform,
+                1,
+                false as GLboolean,
+                transform.as_ptr(),
+            );
             self.outline_program.gl.Uniform4f(
                 self.u_color,
                 color.red,
@@ -129,7 +142,12 @@ impl<'a> BoxDrawer<'a> {
                 color.blue,
                 color.alpha,
             );
-            self.outline_program.gl.DrawElements(opengl::LINES, 24, opengl::UNSIGNED_INT, ptr::null());
+            self.outline_program.gl.DrawElements(
+                opengl::LINES,
+                24,
+                opengl::UNSIGNED_INT,
+                ptr::null(),
+            );
         }
     }
 

@@ -13,24 +13,24 @@
 // limitations under the License.
 
 extern crate cgmath;
+extern crate clap;
 extern crate lru_cache;
 extern crate point_viewer;
 extern crate rand;
 extern crate sdl2;
-extern crate time;
 #[macro_use]
 extern crate sdl_viewer;
-extern crate clap;
+extern crate time;
 
 use cgmath::{Array, Matrix, Matrix4};
 use lru_cache::LruCache;
 use point_viewer::math::CuboidLike;
 use point_viewer::octree;
-use rand::{Rng, thread_rng};
+use rand::{thread_rng, Rng};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Scancode;
 use sdl2::video::GLProfile;
-use sdl_viewer::{Camera, opengl};
+use sdl_viewer::{opengl, Camera};
 use sdl_viewer::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use sdl_viewer::box_drawer::BoxDrawer;
 use sdl_viewer::color::YELLOW;
@@ -41,7 +41,7 @@ use std::mem;
 use std::path::PathBuf;
 use std::ptr;
 use std::str;
-use std::sync::mpsc::{Receiver, Sender, self};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 
 const FRAGMENT_SHADER: &'static str = include_str!("../shaders/points.fs");
@@ -98,8 +98,13 @@ impl<'a> NodeDrawer<'a> {
 
     fn update_world_to_gl(&self, matrix: &Matrix4<f32>) {
         unsafe {
-            self.program.gl.UseProgram(self.program.id);            
-            self.program.gl.UniformMatrix4fv(self.u_world_to_gl, 1, false as GLboolean, matrix.as_ptr());
+            self.program.gl.UseProgram(self.program.id);
+            self.program.gl.UniformMatrix4fv(
+                self.u_world_to_gl,
+                1,
+                false as GLboolean,
+                matrix.as_ptr(),
+            );
         }
     }
 
@@ -117,11 +122,15 @@ impl<'a> NodeDrawer<'a> {
                 self.u_edge_length,
                 node_view.meta.bounding_cube.edge_length(),
             );
-            self.program.gl.Uniform1f( self.u_size, point_size);
-            self.program.gl.Uniform1f( self.u_gamma, gamma);
-            self.program.gl.Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
+            self.program.gl.Uniform1f(self.u_size, point_size);
+            self.program.gl.Uniform1f(self.u_gamma, gamma);
+            self.program
+                .gl
+                .Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
 
-            self.program.gl.DrawArrays(opengl::POINTS, 0, num_points as i32);
+            self.program
+                .gl
+                .DrawArrays(opengl::POINTS, 0, num_points as i32);
 
             self.program.gl.Disable(opengl::PROGRAM_POINT_SIZE);
         }
@@ -239,7 +248,7 @@ impl<'a> NodeViewContainer<'a> {
         // Data sharing is done through channels.
         let (node_id_sender, node_id_receiver) = mpsc::channel();
         let (node_data_sender, node_data_receiver) = mpsc::channel();
-        std::thread::spawn(move||{
+        std::thread::spawn(move || {
             // Loads the next node data in the receiver queue.
             for node_id in node_id_receiver.into_iter() {
                 // We always request nodes at full resolution (i.e. not subsampled by the backend), because
@@ -260,20 +269,25 @@ impl<'a> NodeViewContainer<'a> {
 
     // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
     // requested the node for loading in the I/O thread
-    fn get_or_request(&mut self, node_id: &octree::NodeId, program: &'a GlProgram) -> Option<&NodeView> {
+    fn get_or_request(
+        &mut self,
+        node_id: &octree::NodeId,
+        program: &'a GlProgram,
+    ) -> Option<&NodeView> {
         while let Ok((node_id, node_data)) = self.node_data_receiver.try_recv() {
             // Put loaded node into hash map.
             self.requested.remove(&node_id);
-            self.node_views.insert(node_id, NodeView::new(program, node_data));
+            self.node_views
+                .insert(node_id, NodeView::new(program, node_data));
         }
 
         if self.node_views.contains_key(node_id) {
-            return self.node_views.get_mut(node_id).map(|f| f as &NodeView)
+            return self.node_views.get_mut(node_id).map(|f| f as &NodeView);
         }
-        
+
         // Limit the number of requested nodes because after a camera move
         // requested nodes might not be in the frustum anymore.
-        if !self.requested.contains(&node_id) && self.requested.len() < 10 {  
+        if !self.requested.contains(&node_id) && self.requested.len() < 10 {
             self.requested.insert(*node_id);
             self.node_id_sender.send(*node_id).unwrap();
         }
@@ -292,28 +306,36 @@ impl<'a> NodeViewContainer<'a> {
     }
 
     fn get_used_memory_bytes(&self) -> usize {
-        self.node_views.iter().map(|(_, node_view)| node_view.used_memory_bytes).sum()
+        self.node_views
+            .iter()
+            .map(|(_, node_view)| node_view.used_memory_bytes)
+            .sum()
     }
 }
 
 fn main() {
     let matches = clap::App::new("sdl_viewer")
-        .args(
-            &[
-                clap::Arg::with_name("octree_directory")
-                    .help("Input directory of the octree directory to serve.")
-                    .index(1)
-                    .required(true),
-                clap::Arg::with_name("cache_size_mb")
-                    .help("Maximum cache size in MB for octree nodes in GPU memory. The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.")
-                    .required(false)
-            ]
-        )
+        .args(&[
+            clap::Arg::with_name("octree_directory")
+                .help("Input directory of the octree directory to serve.")
+                .index(1)
+                .required(true),
+            clap::Arg::with_name("cache_size_mb")
+                .help(
+                    "Maximum cache size in MB for octree nodes in GPU memory. \
+                     The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.",
+                )
+                .required(false),
+        ])
         .get_matches();
 
     // Maximum number of MB for the octree node cache in range 1..16 GB. The default is 2 GB
     let max_mb_nodes = {
-        let value = matches.value_of("cache_size_mb").unwrap_or("2000").parse().unwrap();
+        let value = matches
+            .value_of("cache_size_mb")
+            .unwrap_or("2000")
+            .parse()
+            .unwrap();
         cmp::min(cmp::max(value, 1000), 16000)
     };
     // Assuming about 200 KB per octree node on average
@@ -335,11 +357,12 @@ fn main() {
     const WINDOW_WIDTH: i32 = 800;
     const WINDOW_HEIGHT: i32 = 600;
     let window = match video_subsystem
-              .window("sdl2_viewer", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
-              .position_centered()
-              .resizable()
-              .opengl()
-              .build() {
+        .window("sdl2_viewer", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
+        .position_centered()
+        .resizable()
+        .opengl()
+        .build()
+    {
         Ok(window) => window,
         Err(err) => panic!("failed to create window: {}", err),
     };
@@ -351,12 +374,10 @@ fn main() {
 
     assert_eq!(gl_attr.context_profile(), GLProfile::Core);
 
-    let gl = opengl::Gl::load_with(
-        |s| {
-            let ptr = video_subsystem.gl_get_proc_address(s);
-            unsafe { std::mem::transmute(ptr) }
-        }
-    );
+    let gl = opengl::Gl::load_with(|s| {
+        let ptr = video_subsystem.gl_get_proc_address(s);
+        unsafe { std::mem::transmute(ptr) }
+    });
 
     let node_drawer = NodeDrawer::new(&gl);
     let mut node_views = NodeViewContainer::new(octree.clone(), max_nodes_in_memory);
@@ -380,45 +401,53 @@ fn main() {
         for event in events.poll_iter() {
             match event {
                 Event::Quit { .. } => break 'outer_loop,
-                Event::KeyDown { scancode: Some(code), .. } => {
-                    match code {
-                        Scancode::Escape => break 'outer_loop,
-                        Scancode::W => camera.moving_forward = true,
-                        Scancode::S => camera.moving_backward = true,
-                        Scancode::A => camera.moving_left = true,
-                        Scancode::D => camera.moving_right = true,
-                        Scancode::Z => camera.moving_down = true,
-                        Scancode::Q => camera.moving_up = true,
-                        Scancode::F => force_load_all = true,
-                        Scancode::O => show_octree_nodes = !show_octree_nodes,
-                        Scancode::Num7 => gamma -= 0.1,
-                        Scancode::Num8 => gamma += 0.1,
-                        Scancode::Num9 => point_size -= 0.1,
-                        Scancode::Num0 => point_size += 0.1,
-                        _ => (),
-                    }
-                }
-                Event::KeyUp { scancode: Some(code), .. } => {
-                    match code {
-                        Scancode::W => camera.moving_forward = false,
-                        Scancode::S => camera.moving_backward = false,
-                        Scancode::A => camera.moving_left = false,
-                        Scancode::D => camera.moving_right = false,
-                        Scancode::Z => camera.moving_down = false,
-                        Scancode::Q => camera.moving_up = false,
-                        _ => (),
-                    }
-                }
+                Event::KeyDown {
+                    scancode: Some(code),
+                    ..
+                } => match code {
+                    Scancode::Escape => break 'outer_loop,
+                    Scancode::W => camera.moving_forward = true,
+                    Scancode::S => camera.moving_backward = true,
+                    Scancode::A => camera.moving_left = true,
+                    Scancode::D => camera.moving_right = true,
+                    Scancode::Z => camera.moving_down = true,
+                    Scancode::Q => camera.moving_up = true,
+                    Scancode::F => force_load_all = true,
+                    Scancode::O => show_octree_nodes = !show_octree_nodes,
+                    Scancode::Num7 => gamma -= 0.1,
+                    Scancode::Num8 => gamma += 0.1,
+                    Scancode::Num9 => point_size -= 0.1,
+                    Scancode::Num0 => point_size += 0.1,
+                    _ => (),
+                },
+                Event::KeyUp {
+                    scancode: Some(code),
+                    ..
+                } => match code {
+                    Scancode::W => camera.moving_forward = false,
+                    Scancode::S => camera.moving_backward = false,
+                    Scancode::A => camera.moving_left = false,
+                    Scancode::D => camera.moving_right = false,
+                    Scancode::Z => camera.moving_down = false,
+                    Scancode::Q => camera.moving_up = false,
+                    _ => (),
+                },
                 Event::MouseMotion {
                     xrel,
                     yrel,
                     mousestate,
                     ..
-                } if mousestate.left() => camera.mouse_drag(xrel, yrel),
+                } if mousestate.left() =>
+                {
+                    camera.mouse_drag(xrel, yrel)
+                }
                 Event::MouseWheel { y, .. } => {
                     camera.mouse_wheel(y);
                 }
-                Event::Window { win_event: WindowEvent::SizeChanged(w, h), .. } => {
+                Event::Window {
+                    win_event: WindowEvent::SizeChanged(w, h),
+                    ..
+                } => {
                     camera.set_size(&gl, w, h);
                 }
                 _ => (),
@@ -441,7 +470,7 @@ fn main() {
 
         if force_load_all {
             println!("Force loading all currently visible nodes.");
-            let visible_node_ids: Vec<_> = visible_nodes.iter().map(|n|{n.id}).collect();
+            let visible_node_ids: Vec<_> = visible_nodes.iter().map(|n| n.id).collect();
             node_views.request_all(&visible_node_ids);
             force_load_all = false;
         }
@@ -455,7 +484,9 @@ fn main() {
             for visible_node in &visible_nodes {
                 // TODO(sirver): Track a point budget here when moving, so that FPS never drops too
                 // low.
-                if let Some(view) = node_views.get_or_request(&visible_node.id, &node_drawer.program) {
+                if let Some(view) =
+                    node_views.get_or_request(&visible_node.id, &node_drawer.program)
+                {
                     num_points_drawn += node_drawer.draw(
                         view,
                         if use_level_of_detail {
@@ -463,13 +494,18 @@ fn main() {
                         } else {
                             1
                         },
-                        point_size, gamma
+                        point_size,
+                        gamma,
                     );
                     num_nodes_drawn += 1;
 
                     // debug drawer
                     if show_octree_nodes {
-                        box_drawer.draw_outlines(&view.meta.bounding_cube, &camera.get_world_to_gl(), &octree_box_color);
+                        box_drawer.draw_outlines(
+                            &view.meta.bounding_cube,
+                            &camera.get_world_to_gl(),
+                            &octree_box_color,
+                        );
                     }
                 }
             }
