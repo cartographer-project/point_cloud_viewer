@@ -12,6 +12,11 @@ main() {
     cargo build --verbose
     cargo test
     popd
+
+    pushd sdl_viewer
+    cargo build --verbose
+    cargo test
+    popd
 }
 
 main
