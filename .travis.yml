@@ -11,6 +11,12 @@ matrix:
     - rust: beta
     - rust: nightly
 
+addons:
+  apt:
+    packages:
+      - libsdl2-dev
+      - libc-dev
+
 install:
   - bash ci/install.sh
 
