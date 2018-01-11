@@ -7,7 +7,7 @@ It was build to serve the needs of the [Cartographer](https://github.com/googlec
 
 ## Building
 
-The project consist of a root crate that can build and read octrees on disk and viewer binaries to visualize the data.
+The project consist of a root crate that can build and read octrees on disk and viewer binaries to visualize the data. For Mac OS X, we assume below that you've installed [Homebrew](https://brew.sh).
 
 - Install Rust: `curl https://sh.rustup.rs -sSf | sh`. See <https://rustup.rs> for details.
 - Install protobuf > 3.0. See [ci/install_proto3.sh](https://github.com/googlecartographer/point_cloud_viewer/blob/master/ci/install_proto3.sh) for Linux or run `brew install protobuf` on Mac OS X.
@@ -22,7 +22,7 @@ Then use `target/release/build_octree` to generate an octree out of a PLY file.
 
 This is a native client using [SDL2](https://libsdl.org).
 
-1. Install SDL2. For example, on Mac `brew install sdl2`. (This requires Homebrew, https://brew.sh)
+1. Install SDL2. For example, on Mac `brew install sdl2`. 
 2. Change to the sdl viewer's directory: `cd sdl_viewer/`. 
 3. Build with `cargo build --release`. 
 4. Run with `target/release/sdl_viewer <octree directory>`.
