@@ -9,8 +9,9 @@ It was build to serve the needs of the [Cartographer](https://github.com/googlec
 
 The project consist of a root crate that can build and read octrees on disk and viewer binaries to visualize the data.
 
-First, install Rust: `curl https://sh.rustup.rs -sSf | sh`.
-See <https://rustup.rs> for details.
+- Install Rust: `curl https://sh.rustup.rs -sSf | sh`. See <https://rustup.rs> for details.
+- Install protobuf > 3.0. See [ci/install_proto3.sh](https://github.com/googlecartographer/point_cloud_viewer/blob/master/ci/install_proto3.sh) for Linux or run `brew install protobuf` on Mac OS X.
+- Install protobuf plugin for rust: `cargo install protobuf` and make sure `protoc-gen-rust` is in your `$PATH`. The binary probably is in `$HOME/.cargo/bin`.
 
 ### Creating Octrees
 
