@@ -31,4 +31,4 @@ cmake -G Ninja \
   -Dprotobuf_BUILD_TESTS=OFF \
   ../cmake
 ninja
-sudo ninja install
+ninja install
