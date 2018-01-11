@@ -18,6 +18,17 @@ The project consist of a root crate that can build and read octrees on disk and 
 In the root of the repo, run `cargo build --release`.
 Then use `target/release/build_octree` to generate an octree out of a PLY file.
 
+### SDL client
+
+This is a native client using [SDL2](https://libsdl.org).
+
+1. Install SDL2. For example, on Mac `brew install sdl2`. (This requires Homebrew, https://brew.sh)
+2. Change to the sdl viewer's directory: `cd sdl_viewer/`. 
+3. Build with `cargo build --release`. 
+4. Run with `target/release/sdl_viewer <octree directory>`.
+
+In the point cloud viewer, navigate with keys A, W, D, S. Rotate using touchpad. Keys 9 and 0 make points smaller and larger, keys 7 and 8 make points darker and brighter. 
+
 ### Web Viewer
 
 The `web_viewer` consists of [TypeScript](https://www.typescriptlang.org) code running in the browser and a web server binary.
@@ -35,18 +46,6 @@ Serve up the octree using `web_viewer/target/release/web_viewer <octree director
 The mouse wheel adjusts movement speed.
 
 The client files (HTML and JavaScript) are embedded in the `web_viewer` binary, so it is fully stand alone.
-
-### SDL client (experimental)
-
-This is a native client using [SDL2](https://libsdl.org).
-
-1. Install SDL2. For example, on Mac `brew install sdl2`. (This requires Homebrew, https://brew.sh)
-2. Change to the sdl viewer's directory: `cd sdl_viewer/`. 
-3. Build with `cargo build --release`. 
-4. Run with `target/release/sdl_viewer <octree directory>`.
-
-In the point cloud viewer, navigate with keys A, W, D, S. Rotate using touchpad. Keys 9 and 0 make points smaller and larger, keys 7 and 8 make points darker and brighter. 
-
 
 ## Prior art
 
