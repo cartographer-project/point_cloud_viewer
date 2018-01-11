@@ -19,7 +19,7 @@ main() {
     bash ci/install_proto3.sh
     export PATH="$PATH:$HOME/bin"
 
-    cargo install protobuf
+    cargo install --force protobuf
 }
 
 main
