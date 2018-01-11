@@ -16,6 +16,8 @@ install_javascript_stuff() {
 main() {
     install_javascript_stuff
 
+    bash ci/install_proto3.sh
+
     cargo install protobuf
 }
 
