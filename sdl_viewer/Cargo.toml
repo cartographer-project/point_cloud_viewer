@@ -30,3 +30,7 @@ time = "^0.1.35"
 
 [dependencies.point_viewer]
 path = ".."
+
+[dependencies.point_viewer_grpc]
+path = "../grpc"
+
