@@ -15,6 +15,11 @@ install_javascript_stuff() {
 
 main() {
     install_javascript_stuff
+
+    bash ci/install_proto3.sh
+    export PATH="$PATH:$HOME/bin"
+
+    cargo install --force protobuf
 }
 
 main

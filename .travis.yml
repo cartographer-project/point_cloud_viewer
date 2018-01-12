@@ -14,8 +14,13 @@ matrix:
 addons:
   apt:
     packages:
-      - libsdl2-dev
+      - cmake
+      - g++
+      - git
       - libc-dev
+      - libgoogle-glog-dev
+      - libsdl2-dev
+      - ninja-build
 
 install:
   - bash ci/install.sh

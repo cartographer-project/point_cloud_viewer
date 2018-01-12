@@ -7,15 +7,27 @@ It was build to serve the needs of the [Cartographer](https://github.com/googlec
 
 ## Building
 
-The project consist of a root crate that can build and read octrees on disk and viewer binaries to visualize the data.
+The project consist of a root crate that can build and read octrees on disk and viewer binaries to visualize the data. For Mac OS X, we assume below that you've installed [Homebrew](https://brew.sh).
 
-First, install Rust: `curl https://sh.rustup.rs -sSf | sh`.
-See <https://rustup.rs> for details.
+- Install Rust: `curl https://sh.rustup.rs -sSf | sh`. See <https://rustup.rs> for details.
+- Install protobuf > 3.0. See [ci/install_proto3.sh](https://github.com/googlecartographer/point_cloud_viewer/blob/master/ci/install_proto3.sh) for Linux or run `brew install protobuf` on Mac OS X.
+- Install protobuf plugin for rust: `cargo install protobuf` and make sure `protoc-gen-rust` is in your `$PATH`. The binary probably is in `$HOME/.cargo/bin`.
 
 ### Creating Octrees
 
 In the root of the repo, run `cargo build --release`.
 Then use `target/release/build_octree` to generate an octree out of a PLY file.
+
+### SDL client
+
+This is a native client using [SDL2](https://libsdl.org).
+
+1. Install SDL2. For example, on Mac `brew install sdl2`. 
+2. Change to the sdl viewer's directory: `cd sdl_viewer/`. 
+3. Build with `cargo build --release`. 
+4. Run with `target/release/sdl_viewer <octree directory>`.
+
+In the point cloud viewer, navigate with keys A, W, D, S. Rotate using touchpad. Keys 9 and 0 make points smaller and larger, keys 7 and 8 make points darker and brighter. 
 
 ### Web Viewer
 
@@ -34,18 +46,6 @@ Serve up the octree using `web_viewer/target/release/web_viewer <octree director
 The mouse wheel adjusts movement speed.
 
 The client files (HTML and JavaScript) are embedded in the `web_viewer` binary, so it is fully stand alone.
-
-### SDL client (experimental)
-
-This is a native client using [SDL2](https://libsdl.org).
-
-1. Install SDL2. For example, on Mac `brew install sdl2`. (This requires Homebrew, https://brew.sh)
-2. Change to the sdl viewer's directory: `cd sdl_viewer/`. 
-3. Build with `cargo build --release`. 
-4. Run with `target/release/sdl_viewer <octree directory>`.
-
-In the point cloud viewer, navigate with keys A, W, D, S. Rotate using touchpad. Keys 9 and 0 make points smaller and larger, keys 7 and 8 make points darker and brighter. 
-
 
 ## Prior art
 

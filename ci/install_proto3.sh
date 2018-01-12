@@ -1,3 +1,5 @@
+#!/bin/sh
+
 # Copyright 2016 The Cartographer Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,25 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[package]
-authors = ["Holger Rapp <hrapp@google.com>"]
-name = "point_viewer"
-version = "0.1.0"
+set -o errexit
+set -o verbose
 
-[build-dependencies]		
-protoc-rust = "1.4.3"
+VERSION="v3.4.1"
 
-[dependencies]
-byteorder = "^0.5.3"
-cgmath = "^0.14.0"
-clap = "^2.6.0"
-error-chain = "0.11.0"
-num = "0.1.36"
-num-traits = "0.1.36"
-pbr = "1.0.0-alpha.1"
-scoped-pool = "^0.1"
-walkdir = "^0.1.5"
-protobuf = "1.4.3"
-
-[profile.release]
-lto = true
+# Build and install proto3.
+git clone https://github.com/google/protobuf.git
+cd protobuf
+git checkout tags/${VERSION}
+mkdir build
+cd build
+cmake -G Ninja \
+  -DCMAKE_INSTALL_PREFIX=$HOME \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+  -DCMAKE_BUILD_TYPE=Release \
+  -Dprotobuf_BUILD_TESTS=OFF \
+  ../cmake
+ninja
+ninja install
