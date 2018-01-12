@@ -34,6 +34,7 @@ In the point cloud viewer, navigate with the keyboard and rotate with left-click
 | W             | Move forward         |
 | A             | Move left            |
 | S             | Move backwards       |
+| D             | Move right           |
 | Q             | Move up              |
 | Z             | Move down            |
 | 0             | Increase points size |
