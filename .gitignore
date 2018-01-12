@@ -1,5 +1,7 @@
-/target
+/grpc/target
 /sdl_viewer/target
-/web_viewer/target
+/target
 /web_viewer/client/node_modules
+/web_viewer/client/package-lock.json
 /web_viewer/client/typings
+/web_viewer/target
