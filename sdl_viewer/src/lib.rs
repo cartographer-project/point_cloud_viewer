@@ -33,7 +33,7 @@ pub mod opengl {
 
 pub mod box_drawer;
 pub mod color;
-// TODO(thomasschiwietz): Use 'Color' in the 'Point' struct in point_cloud_viewer/src/lib.rs (top level crate)
+// TODO(thomasschiwietz): Use 'Color' in the 'Point' struct in src/lib.rs (top level crate)
 // instead of using single variables for r,g,b
 
 pub mod graphic;

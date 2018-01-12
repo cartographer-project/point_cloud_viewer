@@ -16,7 +16,7 @@
 
 syntax = "proto3";
 
-package point_cloud_viewer.proto;
+package point_viewer.proto;
 
 message Vector3f {
   float x = 1;
