@@ -342,7 +342,8 @@ fn main() {
     let max_nodes_in_memory = max_mb_nodes * 5;
 
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
-    let octree = Arc::new(Box::new(octree::OnDiskOctree::new(&octree_directory).unwrap()) as Box<Octree>);
+    let octree =
+        Arc::new(Box::new(octree::OnDiskOctree::new(&octree_directory).unwrap()) as Box<Octree>);
 
     let ctx = sdl2::init().unwrap();
     let video_subsystem = ctx.video().unwrap();
