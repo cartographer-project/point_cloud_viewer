@@ -27,7 +27,20 @@ This is a native client using [SDL2](https://libsdl.org).
 3. Build with `cargo build --release`. 
 4. Run with `target/release/sdl_viewer <octree directory>`.
 
-In the point cloud viewer, navigate with keys A, W, D, S. Rotate using touchpad. Keys 9 and 0 make points smaller and larger, keys 7 and 8 make points darker and brighter. 
+In the point cloud viewer, navigate with the keyboard and rotate with left-click + mouse drag or touchpad. The following keys are bound:
+
+| Key           | Action               |
+| ------------- | -------------------- |
+| W             | Move forward         |
+| A             | Move left            |
+| S             | Move backwards       |
+| D             | Move right           |
+| Q             | Move up              |
+| Z             | Move down            |
+| 0             | Increase points size |
+| 9             | Decrease points size |
+| 8             | Brighten scene       |
+| 7             | Darken scene         |
 
 ### Web Viewer
 

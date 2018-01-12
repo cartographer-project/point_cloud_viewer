@@ -25,7 +25,7 @@ extern crate time;
 use cgmath::{Array, Matrix, Matrix4};
 use lru_cache::LruCache;
 use point_viewer::math::CuboidLike;
-use point_viewer::octree;
+use point_viewer::octree::{self, Octree};
 use rand::{thread_rng, Rng};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Scancode;
@@ -243,7 +243,7 @@ struct NodeViewContainer<'a> {
 }
 
 impl<'a> NodeViewContainer<'a> {
-    fn new(octree: Arc<octree::Octree>, max_nodes_in_memory: usize) -> Self {
+    fn new(octree: Arc<Box<octree::Octree>>, max_nodes_in_memory: usize) -> Self {
         // We perform I/O in a separate thread in order to not block the main thread while loading.
         // Data sharing is done through channels.
         let (node_id_sender, node_id_receiver) = mpsc::channel();
@@ -342,7 +342,8 @@ fn main() {
     let max_nodes_in_memory = max_mb_nodes * 5;
 
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
-    let octree = Arc::new(octree::Octree::new(&octree_directory).unwrap());
+    let octree =
+        Arc::new(Box::new(octree::OnDiskOctree::new(&octree_directory).unwrap()) as Box<Octree>);
 
     let ctx = sdl2::init().unwrap();
     let video_subsystem = ctx.video().unwrap();
