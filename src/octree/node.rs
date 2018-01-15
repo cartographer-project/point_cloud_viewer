@@ -84,7 +84,7 @@ impl NodeId {
     }
 
     /// Returns the path on disk where the data for this node is saved.
-    fn get_stem(&self, directory: &Path) -> PathBuf {
+    pub fn get_stem(&self, directory: &Path) -> PathBuf {
         directory.join(&self.to_string())
     }
 
@@ -212,15 +212,13 @@ impl Node {
 
 #[derive(Debug)]
 pub struct NodeMeta {
-    pub stem: PathBuf,
     pub num_points: i64,
     pub position_encoding: PositionEncoding,
     pub bounding_cube: Cube,
 }
 
 impl NodeMeta {
-    pub fn from_disk(directory: &Path, id: &NodeId) -> Result<Self> {
-        let stem = id.get_stem(directory);
+    pub fn from_disk(stem: &Path) -> Result<Self> {
         let meta_path = stem.with_extension(META_EXT);
         if !meta_path.exists() {
             return Err(ErrorKind::NodeNotFound.into());
@@ -242,7 +240,6 @@ impl NodeMeta {
                 let min = proto.min.unwrap();
                 Cube::new(Vector3f::new(min.x, min.y, min.z), proto.edge_length)
             },
-            stem: stem,
         })
     }
 
@@ -260,10 +257,11 @@ pub struct NodeIterator {
 
 impl NodeIterator {
     pub fn from_disk(directory: &Path, id: &NodeId) -> Result<Self> {
-        let meta = NodeMeta::from_disk(directory, id)?;
+        let stem = id.get_stem(&directory);
+        let meta = NodeMeta::from_disk(&stem)?;
         Ok(NodeIterator {
-            xyz_reader: BufReader::new(File::open(&meta.stem.with_extension(POSITION_EXT))?),
-            rgb_reader: BufReader::new(File::open(&meta.stem.with_extension(COLOR_EXT))?),
+            xyz_reader: BufReader::new(File::open(&stem.with_extension(POSITION_EXT))?),
+            rgb_reader: BufReader::new(File::open(&stem.with_extension(COLOR_EXT))?),
             meta: meta,
         })
     }
