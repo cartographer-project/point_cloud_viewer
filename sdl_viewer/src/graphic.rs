@@ -14,9 +14,9 @@
 
 //! Higher level abstractions around core OpenGL concepts.
 
+use glhelper::{compile_shader, link_program};
 use opengl::{self, Gl};
 use opengl::types::GLuint;
-use glhelper::{compile_shader, link_program};
 use std::str;
 
 pub struct GlProgram<'a> {
