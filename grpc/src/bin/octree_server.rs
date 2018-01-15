@@ -10,14 +10,14 @@ use futures::Future;
 use futures::sync::oneshot;
 use grpcio::{Environment, RpcContext, ServerBuilder, UnarySink};
 use point_viewer::math::{CuboidLike, Matrix4f};
-use point_viewer::octree::{NodeId, Octree, OnDiskOctree};
 use point_viewer::octree;
+use point_viewer::octree::{NodeId, Octree, OnDiskOctree};
 use point_viewer_grpc::proto::*;
 use point_viewer_grpc::proto_grpc;
-use std::io::Read;
-use std::sync::Arc;
-use std::path::PathBuf;
 use std::{io, thread};
+use std::io::Read;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 #[derive(Clone)]
 struct OctreeService {
