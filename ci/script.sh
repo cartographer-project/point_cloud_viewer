@@ -9,6 +9,7 @@ main() {
     pushd grpc
     cargo build --verbose
     cargo test
+    popd
 
     # web viewer - client
     pushd web_viewer
