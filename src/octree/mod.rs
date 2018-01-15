@@ -14,6 +14,7 @@
 
 use errors::*;
 use math::{Cube, Cuboid, CuboidLike, Frustum, Matrix4f, Vector2f, Vector3f};
+use num_traits::Zero;
 use proto;
 use protobuf;
 use std::cmp;
@@ -35,6 +36,16 @@ pub struct VisibleNode {
     pub id: NodeId,
     pub level_of_detail: i32,
     pixels: Vector2f,
+}
+
+impl VisibleNode {
+    pub fn new(id: NodeId, level_of_detail: i32) -> VisibleNode {
+        VisibleNode {
+            id,
+            level_of_detail,
+            pixels: Vector2f::zero(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -85,7 +96,7 @@ pub struct OnDiskOctree {
     bounding_cube: Cube,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum UseLod {
     No,
     Yes,
@@ -230,8 +241,9 @@ impl Octree for OnDiskOctree {
     }
 
     fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
+        let stem = node_id.get_stem(&self.directory);
         let meta = {
-            let mut meta = node::NodeMeta::from_disk(&self.directory, node_id)?;
+            let mut meta = node::NodeMeta::from_disk(&stem)?;
             meta.num_points = meta.num_points_for_level_of_detail(level_of_detail);
             meta
         };
@@ -240,7 +252,7 @@ impl Octree for OnDiskOctree {
         // first N points instead of reading everything and skipping over a few.
         let position = {
             let mut xyz_reader =
-                BufReader::new(File::open(&meta.stem.with_extension(node::POSITION_EXT))?);
+                BufReader::new(File::open(&stem.with_extension(node::POSITION_EXT))?);
             let mut all_data = Vec::new();
             xyz_reader
                 .read_to_end(&mut all_data)
@@ -259,9 +271,8 @@ impl Octree for OnDiskOctree {
         };
 
         let color = {
-            let mut rgb_reader =
-                BufReader::new(File::open(&meta.stem.with_extension(node::COLOR_EXT))
-                    .chain_err(|| "Could not read color")?);
+            let mut rgb_reader = BufReader::new(File::open(&stem.with_extension(node::COLOR_EXT))
+                .chain_err(|| "Could not read color")?);
             let mut all_data = Vec::new();
             rgb_reader
                 .read_to_end(&mut all_data)
