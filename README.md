@@ -15,7 +15,8 @@ The project consist of a root crate that can build and read octrees on disk and 
   `protoc-gen-rust` is in your `$PATH`. The binary probably is in
   `$HOME/.cargo/bin`.
 - Install the rust gRPC protobuf plugin: `cargo install grpcio-compiler` and
-  make sure it is in your `$PATH`.
+  make sure it is in your `$PATH`. This has more dependencies, it requires cmake
+  and go. On mac: `brew install cmake go`.
 
 ### Creating Octrees
 
