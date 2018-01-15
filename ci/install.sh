@@ -20,6 +20,7 @@ main() {
     export PATH="$PATH:$HOME/bin"
 
     cargo install --force protobuf
+    cargo install --force grpcio-compiler
 }
 
 main
