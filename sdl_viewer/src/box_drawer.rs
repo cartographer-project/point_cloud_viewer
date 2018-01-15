@@ -14,9 +14,9 @@
 
 use cgmath::{Matrix, Matrix4};
 use color::Color;
+use graphic::{GlBuffer, GlProgram, GlVertexArray};
 use opengl;
 use opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
-use graphic::{GlBuffer, GlProgram, GlVertexArray};
 use point_viewer::math::{Cube, CuboidLike};
 use std::mem;
 use std::ptr;
