@@ -346,9 +346,9 @@ fn main() {
         // We use a cheap heuristic here: If the argument contains a ':' we assume it is a grpc
         // URL, otherwise a Path.
         if octree_flag.find(':').is_some() {
-            Box::new(octree::OnDiskOctree::new(&octree_flag).unwrap()) as Box<Octree>
-        } else {
             Box::new(point_viewer_grpc::GrpcOctree::new(&octree_flag)) as Box<Octree>
+        } else {
+            Box::new(octree::OnDiskOctree::new(&octree_flag).unwrap()) as Box<Octree>
         }
     });
 
