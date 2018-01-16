@@ -38,16 +38,16 @@ use sdl_viewer::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use sdl_viewer::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use std::cmp;
 use std::collections::HashSet;
-use std::mem;
+use std::os::raw::c_void;
 use std::ptr;
 use std::str;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
 
-const FRAGMENT_SHADER: &'static str = include_str!("../shaders/points.fs");
-const VERTEX_SHADER: &'static str = include_str!("../shaders/points.vs");
+const FRAGMENT_SHADER: &str = include_str!("../shaders/points.fs");
+const VERTEX_SHADER: &str = include_str!("../shaders/points.vs");
 
-fn reshuffle(new_order: &[usize], old_data: Vec<u8>, bytes_per_vertex: usize) -> Vec<u8> {
+fn reshuffle(new_order: &[usize], old_data: &[u8], bytes_per_vertex: usize) -> Vec<u8> {
     assert_eq!(new_order.len() * bytes_per_vertex, old_data.len());
     let mut new_data = Vec::with_capacity(old_data.len());
     for point_index in new_order {
@@ -166,14 +166,14 @@ impl<'a> NodeView<'a> {
 
         let position = reshuffle(
             &indices,
-            node_data.position,
+            &node_data.position,
             match node_data.meta.position_encoding {
                 octree::PositionEncoding::Uint8 => 3,
                 octree::PositionEncoding::Uint16 => 6,
                 octree::PositionEncoding::Float32 => 12,
             },
         );
-        let color = reshuffle(&indices, node_data.color, 3);
+        let color = reshuffle(&indices, &node_data.color, 3);
 
         let buffer_position = GlBuffer::new_array_buffer(program.gl);
         let buffer_color = GlBuffer::new_array_buffer(program.gl);
@@ -188,7 +188,7 @@ impl<'a> NodeView<'a> {
             program.gl.BufferData(
                 opengl::ARRAY_BUFFER,
                 position.len() as GLsizeiptr,
-                mem::transmute(&position[0]),
+                &position[0] as *const u8 as *const c_void,
                 opengl::STATIC_DRAW,
             );
 
@@ -208,7 +208,7 @@ impl<'a> NodeView<'a> {
             program.gl.BufferData(
                 opengl::ARRAY_BUFFER,
                 color.len() as GLsizeiptr,
-                mem::transmute(&color[0]),
+                &color[0] as *const u8 as *const c_void,
                 opengl::STATIC_DRAW,
             );
             let color_attr = program.gl.GetAttribLocation(program.id, c_str!("color"));
@@ -250,7 +250,7 @@ impl<'a> NodeViewContainer<'a> {
         let (node_data_sender, node_data_receiver) = mpsc::channel();
         std::thread::spawn(move || {
             // Loads the next node data in the receiver queue.
-            for node_id in node_id_receiver.into_iter() {
+            for node_id in node_id_receiver {
                 // We always request nodes at full resolution (i.e. not subsampled by the backend), because
                 // we can just as effectively subsample the number of points we draw in the client.
                 const ALL_POINTS_LOD: i32 = 1;
@@ -287,7 +287,7 @@ impl<'a> NodeViewContainer<'a> {
 
         // Limit the number of requested nodes because after a camera move
         // requested nodes might not be in the frustum anymore.
-        if !self.requested.contains(&node_id) && self.requested.len() < 10 {
+        if !self.requested.contains(node_id) && self.requested.len() < 10 {
             self.requested.insert(*node_id);
             self.node_id_sender.send(*node_id).unwrap();
         }
@@ -296,11 +296,9 @@ impl<'a> NodeViewContainer<'a> {
 
     fn request_all(&mut self, node_ids: &[octree::NodeId]) {
         for &node_id in node_ids {
-            if !self.node_views.contains_key(&node_id) {
-                if !self.requested.contains(&node_id) {
-                    self.requested.insert(node_id);
-                    self.node_id_sender.send(node_id).unwrap();
-                }
+            if !self.node_views.contains_key(&node_id) && !self.requested.contains(&node_id) {
+                self.requested.insert(node_id);
+                self.node_id_sender.send(node_id).unwrap();
             }
         }
     }
@@ -336,7 +334,7 @@ fn main() {
             .unwrap_or("2000")
             .parse()
             .unwrap();
-        cmp::min(cmp::max(value, 1000), 16000)
+        cmp::min(cmp::max(value, 1000), 16_000)
     };
     // Assuming about 200 KB per octree node on average
     let max_nodes_in_memory = max_mb_nodes * 5;
@@ -346,9 +344,9 @@ fn main() {
         // We use a cheap heuristic here: If the argument contains a ':' we assume it is a grpc
         // URL, otherwise a Path.
         if octree_flag.find(':').is_some() {
-            Box::new(point_viewer_grpc::GrpcOctree::new(&octree_flag)) as Box<Octree>
+            Box::new(point_viewer_grpc::GrpcOctree::new(octree_flag)) as Box<Octree>
         } else {
-            Box::new(octree::OnDiskOctree::new(&octree_flag).unwrap()) as Box<Octree>
+            Box::new(octree::OnDiskOctree::new(octree_flag).unwrap()) as Box<Octree>
         }
     });
 
@@ -388,7 +386,7 @@ fn main() {
     });
 
     let node_drawer = NodeDrawer::new(&gl);
-    let mut node_views = NodeViewContainer::new(octree.clone(), max_nodes_in_memory);
+    let mut node_views = NodeViewContainer::new(Arc::clone(&octree), max_nodes_in_memory);
     let mut visible_nodes = Vec::new();
 
     let box_drawer = BoxDrawer::new(&gl);

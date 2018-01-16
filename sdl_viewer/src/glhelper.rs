@@ -31,9 +31,9 @@ pub fn compile_shader(gl: &opengl::Gl, code: &str, kind: GLenum) -> GLuint {
         let c_str = CString::new(code.as_bytes()).unwrap();
         gl.ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
         gl.CompileShader(shader);
-        let mut status = opengl::FALSE as GLint;
+        let mut status = i32::from(opengl::FALSE);
         gl.GetShaderiv(shader, opengl::COMPILE_STATUS, &mut status);
-        if status != (opengl::TRUE as GLint) {
+        if status != (i32::from(opengl::TRUE)) {
             let mut len = 0;
             gl.GetShaderiv(shader, opengl::INFO_LOG_LENGTH, &mut len);
             let mut buf = Vec::with_capacity(len as usize);
@@ -66,9 +66,9 @@ pub fn link_program(
         gl.DetachShader(program, vertex_shader_id);
         gl.DetachShader(program, fragment_shader_id);
 
-        let mut status = opengl::FALSE as GLint;
+        let mut status = i32::from(opengl::FALSE);
         gl.GetProgramiv(program, opengl::LINK_STATUS, &mut status);
-        if status != (opengl::TRUE as GLint) {
+        if status != (i32::from(opengl::TRUE)) {
             let mut len: GLint = 0;
             gl.GetProgramiv(program, opengl::INFO_LOG_LENGTH, &mut len);
             let mut buf = Vec::with_capacity(len as usize);
