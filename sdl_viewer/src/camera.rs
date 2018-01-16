@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::{Decomposed, Deg, InnerSpace, Matrix4, One, Quaternion, PerspectiveFov, Rad, Rotation,
+use cgmath::{Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
              Rotation3, Transform, Vector3, Zero};
 use opengl;
 use std::f32;
@@ -69,7 +69,12 @@ impl Camera {
     pub fn set_size(&mut self, gl: &opengl::Gl, width: i32, height: i32) {
         self.width = width;
         self.height = height;
-        self.projection_matrix = Matrix4::from(PerspectiveFov { fovy: Rad::from(Deg(45.)), aspect: width as f32 / height as f32, near: 0.1, far: 10000.0 });
+        self.projection_matrix = Matrix4::from(PerspectiveFov {
+            fovy: Rad::from(Deg(45.)),
+            aspect: width as f32 / height as f32,
+            near: 0.1,
+            far: 10000.0,
+        });
         unsafe {
             gl.Viewport(0, 0, width, height);
         }
