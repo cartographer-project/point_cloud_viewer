@@ -16,6 +16,7 @@ extern crate cgmath;
 extern crate clap;
 extern crate lru_cache;
 extern crate point_viewer;
+extern crate point_viewer_grpc;
 extern crate rand;
 extern crate sdl2;
 #[macro_use]
@@ -38,7 +39,6 @@ use sdl_viewer::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use std::cmp;
 use std::collections::HashSet;
 use std::mem;
-use std::path::PathBuf;
 use std::ptr;
 use std::str;
 use std::sync::Arc;
@@ -316,8 +316,8 @@ impl<'a> NodeViewContainer<'a> {
 fn main() {
     let matches = clap::App::new("sdl_viewer")
         .args(&[
-            clap::Arg::with_name("octree_directory")
-                .help("Input directory of the octree directory to serve.")
+            clap::Arg::with_name("octree")
+                .help("Input directory or gRPC URL of the octree to view.")
                 .index(1)
                 .required(true),
             clap::Arg::with_name("cache_size_mb")
@@ -341,9 +341,16 @@ fn main() {
     // Assuming about 200 KB per octree node on average
     let max_nodes_in_memory = max_mb_nodes * 5;
 
-    let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
-    let octree =
-        Arc::new(Box::new(octree::OnDiskOctree::new(&octree_directory).unwrap()) as Box<Octree>);
+    let octree = Arc::new({
+        let octree_flag = matches.value_of("octree").unwrap();
+        // We use a cheap heuristic here: If the argument contains a ':' we assume it is a grpc
+        // URL, otherwise a Path.
+        if octree_flag.find(':').is_some() {
+            Box::new(point_viewer_grpc::GrpcOctree::new(&octree_flag)) as Box<Octree>
+        } else {
+            Box::new(octree::OnDiskOctree::new(&octree_flag).unwrap()) as Box<Octree>
+        }
+    });
 
     let ctx = sdl2::init().unwrap();
     let video_subsystem = ctx.video().unwrap();
