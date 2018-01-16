@@ -19,10 +19,11 @@ use opengl;
 use opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use point_viewer::math::{Cube, CuboidLike};
 use std::mem;
+use std::os::raw::c_void;
 use std::ptr;
 
-const FRAGMENT_SHADER_OUTLINED_BOX: &'static str = include_str!("../shaders/box_drawer_outline.fs");
-const VERTEX_SHADER_OUTLINED_BOX: &'static str = include_str!("../shaders/box_drawer_outline.vs");
+const FRAGMENT_SHADER_OUTLINED_BOX: &str = include_str!("../shaders/box_drawer_outline.fs");
+const VERTEX_SHADER_OUTLINED_BOX: &str = include_str!("../shaders/box_drawer_outline.vs");
 
 pub struct BoxDrawer<'a> {
     outline_program: GlProgram<'a>,
@@ -70,7 +71,7 @@ impl<'a> BoxDrawer<'a> {
             gl.BufferData(
                 opengl::ARRAY_BUFFER,
                 (vertices.len() * 3 * mem::size_of::<f32>()) as GLsizeiptr,
-                mem::transmute(&vertices[0]),
+                &vertices[0] as *const [f32; 3] as *const c_void,
                 opengl::STATIC_DRAW,
             );
         }
@@ -96,7 +97,7 @@ impl<'a> BoxDrawer<'a> {
             gl.BufferData(
                 opengl::ELEMENT_ARRAY_BUFFER,
                 (line_indices.len() * 2 * mem::size_of::<i32>()) as GLsizeiptr,
-                mem::transmute(&line_indices[0]),
+                &line_indices[0] as *const [i32; 2] as *const c_void,
                 opengl::STATIC_DRAW,
             );
         }
@@ -160,6 +161,6 @@ impl<'a> BoxDrawer<'a> {
         let translation_matrix = Matrix4::from_translation(cube.center());
         let transformation_matrix = world_to_gl * translation_matrix * scale_matrix;
 
-        self.draw_outlines_from_transformation(&transformation_matrix, &color);
+        self.draw_outlines_from_transformation(&transformation_matrix, color);
     }
 }
