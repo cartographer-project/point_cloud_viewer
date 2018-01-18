@@ -13,7 +13,9 @@
 // limitations under the License.
 
 extern crate cgmath;
+extern crate lru_cache;
 extern crate point_viewer;
+extern crate rand;
 
 /// Unsafe macro to create a static null-terminated c-string for interop with OpenGL.
 #[macro_export]
@@ -25,17 +27,15 @@ macro_rules! c_str {
 
 mod glhelper;
 mod camera;
-
 #[allow(non_upper_case_globals)]
 pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
-
 pub mod box_drawer;
 pub mod color;
 // TODO(thomasschiwietz): Use 'Color' in the 'Point' struct in src/lib.rs (top level crate)
 // instead of using single variables for r,g,b
-
 pub mod graphic;
+pub mod node_drawer;
 
 pub use camera::Camera;
