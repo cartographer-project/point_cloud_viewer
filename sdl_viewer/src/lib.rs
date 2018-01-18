@@ -68,11 +68,11 @@ impl SdlViewer {
         }
     }
 
-    // Registers a callback function that is called whenever the octree_argument
-    // starts with its prefix
+    // Registers a callback 'function' that is called whenever the octree commandline argument
+    // starts with its 'prefix'
     // The callback function creates and returns an Octree
-    pub fn register_octree_factory(mut self, prefix: String, f: OctreeFactory) -> SdlViewer {
-        self.octree_factories.insert(prefix, f);
+    pub fn register_octree_factory(mut self, prefix: String, function: OctreeFactory) -> SdlViewer {
+        self.octree_factories.insert(prefix, function);
         self
     }
 
@@ -113,8 +113,8 @@ impl SdlViewer {
             if !octree_argument.starts_with(prefix) {
                 continue;
             }
-            let no_prefix = &octree_argument[prefix.len()..];
-            if let Ok(o) = octree_factory_function(&no_prefix.into()) {
+            let no_prefix = &octree_argument[prefix.len()..].to_string();
+            if let Ok(o) = octree_factory_function(&no_prefix) {
                 octree_opt = Some(o);
                 break;
             }
