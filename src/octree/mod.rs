@@ -29,7 +29,7 @@ mod node;
 pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter,
                      PositionEncoding};
 
-pub const CURRENT_VERSION: i32 = 7;
+pub const CURRENT_VERSION: i32 = 8;
 
 #[derive(Debug)]
 pub struct VisibleNode {
@@ -141,12 +141,13 @@ impl OnDiskOctree {
         }
 
         let bounding_cube = {
-            let bounding_cube = meta.bounding_cube.unwrap();
-            let min = bounding_cube.min.unwrap();
-            Cube::new(
+            let bounding_box = meta.bounding_box.unwrap();
+            let min = bounding_box.min.unwrap();
+            let max = bounding_box.max.unwrap();
+            Cuboid::with_dimensions(
                 Vector3f::new(min.x, min.y, min.z),
-                bounding_cube.edge_length,
-            )
+                Vector3f::new(max.x, max.y, max.z),
+            ).into_cube()
         };
 
         let mut nodes = HashMap::new();

@@ -205,6 +205,9 @@ impl Cube {
 
 /// An axis-aligned bounding box.
 impl Cuboid {
+    pub fn with_dimensions(min: Vector3f, max: Vector3f) -> Self {
+        Cuboid { min, max }
+    }
     pub fn new() -> Self {
         Cuboid {
             min: Vector3f::new(std::f32::MAX, std::f32::MAX, std::f32::MAX),
@@ -224,7 +227,7 @@ impl Cuboid {
 
     /// Changes the edge_length of the box to be cubic, i.e. all dimensions have the same length.
     /// The new 'Cube' will fully contain the old 'Cuboid'.
-    pub fn to_cube(self) -> Cube {
+    pub fn into_cube(self) -> Cube {
         let edge_length = (self.max.x - self.min.x)
             .max(self.max.y - self.min.y)
             .max(self.max.z - self.min.z);

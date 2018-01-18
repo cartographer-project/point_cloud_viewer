@@ -24,14 +24,19 @@ message Vector3f {
   float z = 3;
 }
 
-message BoundingCube {
+message AxisAlignedCube {
   Vector3f min = 1;
   float edge_length = 2;
 }
 
+message AxisAlignedCuboid {
+  Vector3f min = 1;
+  Vector3f max = 2;
+}
+
 message Meta {
   int32 version = 1;
-  BoundingCube bounding_cube = 2;
+  AxisAlignedCuboid bounding_box = 4;
   double resolution = 3;
 }
 
@@ -43,7 +48,7 @@ message Node {
     Float32 = 3;
   }
 
-  BoundingCube bounding_cube = 1;
+  AxisAlignedCube bounding_cube = 1;
   PositionEncoding position_encoding = 2;
   int64 num_points = 3;
 }
