@@ -121,7 +121,9 @@ impl SdlViewer {
         }
 
         // If no octree was generated create an FromDisc loader
-        let octree = Arc::new(octree_opt.unwrap_or_else(|| Box::new(octree::OnDiskOctree::new(&octree_argument).unwrap()) as Box<Octree>));
+        let octree = Arc::new(octree_opt.unwrap_or_else(|| {
+            Box::new(octree::OnDiskOctree::new(&octree_argument).unwrap()) as Box<Octree>
+        }));
 
         let ctx = sdl2::init().unwrap();
         let video_subsystem = ctx.video().unwrap();
