@@ -227,7 +227,7 @@ impl Cuboid {
 
     /// Changes the edge_length of the box to be cubic, i.e. all dimensions have the same length.
     /// The new 'Cube' will fully contain the old 'Cuboid'.
-    pub fn into_cube(self) -> Cube {
+    pub fn bounding_cube(&self) -> Cube {
         let edge_length = (self.max.x - self.min.x)
             .max(self.max.y - self.min.y)
             .max(self.max.z - self.min.z);

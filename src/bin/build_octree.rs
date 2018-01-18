@@ -325,7 +325,7 @@ fn main() {
     pool.scoped(move |scope| {
         let (root_stream, _) = make_stream(&input);
         let root = SplittedNode {
-            node: octree::Node::root_with_bounding_cube(bounding_box.into_cube()),
+            node: octree::Node::root_with_bounding_cube(bounding_box.bounding_cube()),
             num_points: num_points,
         };
         split_node(

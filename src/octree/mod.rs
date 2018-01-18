@@ -93,7 +93,7 @@ pub struct OnDiskOctree {
     directory: PathBuf,
     // Maps from node id to number of points.
     nodes: HashMap<NodeId, u64>,
-    bounding_cube: Cube,
+    bounding_box: Cuboid,
 }
 
 #[derive(Debug, PartialEq)]
@@ -140,14 +140,14 @@ impl OnDiskOctree {
             return Err(ErrorKind::InvalidVersion(meta.version).into());
         }
 
-        let bounding_cube = {
+        let bounding_box = {
             let bounding_box = meta.bounding_box.unwrap();
             let min = bounding_box.min.unwrap();
             let max = bounding_box.max.unwrap();
             Cuboid::with_dimensions(
                 Vector3f::new(min.x, min.y, min.z),
                 Vector3f::new(max.x, max.y, max.z),
-            ).into_cube()
+            )
         };
 
         let mut nodes = HashMap::new();
@@ -174,7 +174,7 @@ impl OnDiskOctree {
         Ok(OnDiskOctree {
             directory: directory.into(),
             nodes: nodes,
-            bounding_cube: bounding_cube,
+            bounding_box: bounding_box,
         })
     }
 }
@@ -188,7 +188,7 @@ impl Octree for OnDiskOctree {
         use_lod: UseLod,
     ) -> Vec<VisibleNode> {
         let frustum = Frustum::from_matrix(projection_matrix);
-        let mut open = vec![Node::root_with_bounding_cube(self.bounding_cube.clone())];
+        let mut open = vec![Node::root_with_bounding_cube(self.bounding_box.bounding_cube())];
 
         let mut visible = Vec::new();
         while !open.is_empty() {
