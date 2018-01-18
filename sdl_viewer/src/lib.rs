@@ -55,21 +55,24 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
 
-type OctreeFactoryCallback = fn(&String) -> Result<Box<Octree>, Box<Error>>;
+type OctreeFactory = fn(&String) -> Result<Box<Octree>, Box<Error>>;
 
 pub struct SdlViewer {
-    octree_factory_functions: HashMap<String, OctreeFactoryCallback>,
+    octree_factories: HashMap<String, OctreeFactory>,
 }
 
 impl SdlViewer {
     pub fn new() -> Self {
         SdlViewer {
-            octree_factory_functions: HashMap::new(),
+            octree_factories: HashMap::new(),
         }
     }
 
-    pub fn register_prefix(mut self, prefix: String, f: OctreeFactoryCallback) -> SdlViewer {
-        self.octree_factory_functions.insert(prefix, f);
+    // Registers a callback function that is called whenever the octree_argument
+    // starts with its prefix
+    // The callback function creates and returns an Octree
+    pub fn register_octree_factory(mut self, prefix: String, f: OctreeFactory) -> SdlViewer {
+        self.octree_factories.insert(prefix, f);
         self
     }
 
@@ -89,7 +92,7 @@ impl SdlViewer {
             ])
             .get_matches();
 
-        let octree_path = matches.value_of("octree").unwrap();
+        let octree_argument = matches.value_of("octree").unwrap();
 
         // Maximum number of MB for the octree node cache. The default is 2 GB
         let cache_size_mb = matches
@@ -106,28 +109,19 @@ impl SdlViewer {
 
         // call octree generation functions
         let mut octree_opt: Option<Box<Octree>> = None;
-        for (prefix, octree_factory_function) in &self.octree_factory_functions {
-            if !octree_path.starts_with(prefix) {
+        for (prefix, octree_factory_function) in &self.octree_factories {
+            if !octree_argument.starts_with(prefix) {
                 continue;
             }
-            let mut no_prefix_path = String::from(octree_path);
-            no_prefix_path.drain(..prefix.len());
-            if let Ok(o) = octree_factory_function(&no_prefix_path) {
+            let no_prefix = &octree_argument[prefix.len()..];
+            if let Ok(o) = octree_factory_function(&no_prefix.into()) {
                 octree_opt = Some(o);
                 break;
             }
         }
 
-        // if no octree was generated create an FromDisc loader
-        match octree_opt {
-            None => {
-                octree_opt =
-                    Some(Box::new(octree::OnDiskOctree::new(&octree_path).unwrap()) as Box<Octree>);
-            }
-            Some(_) => {}
-        }
-
-        let octree = Arc::new(octree_opt.unwrap());
+        // If no octree was generated create an FromDisc loader
+        let octree = Arc::new(octree_opt.unwrap_or_else(|| Box::new(octree::OnDiskOctree::new(&octree_argument).unwrap()) as Box<Octree>));
 
         let ctx = sdl2::init().unwrap();
         let video_subsystem = ctx.video().unwrap();
