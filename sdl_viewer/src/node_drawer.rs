@@ -13,13 +13,13 @@
 // limitations under the License.
 
 use cgmath::{Array, Matrix, Matrix4};
-use lru_cache::LruCache;
-use point_viewer::math::CuboidLike;
-use point_viewer::octree::{self};
-use rand::{thread_rng, Rng};
-use opengl;
 use graphic::{GlBuffer, GlProgram, GlVertexArray};
+use lru_cache::LruCache;
+use opengl;
 use opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
+use point_viewer::math::CuboidLike;
+use point_viewer::octree;
+use rand::{thread_rng, Rng};
 use std;
 use std::collections::HashSet;
 use std::os::raw::c_void;
@@ -92,7 +92,13 @@ impl<'a> NodeDrawer<'a> {
         }
     }
 
-    pub fn draw(&self, node_view: &NodeView, level_of_detail: i32, point_size: f32, gamma: f32) -> i64 {
+    pub fn draw(
+        &self,
+        node_view: &NodeView,
+        level_of_detail: i32,
+        point_size: f32,
+        gamma: f32,
+    ) -> i64 {
         node_view.vertex_array.bind();
         let num_points = node_view
             .meta

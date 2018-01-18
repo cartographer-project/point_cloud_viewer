@@ -13,8 +13,8 @@
 // limitations under the License.
 
 extern crate cgmath;
-extern crate point_viewer;
 extern crate lru_cache;
+extern crate point_viewer;
 extern crate rand;
 
 /// Unsafe macro to create a static null-terminated c-string for interop with OpenGL.
