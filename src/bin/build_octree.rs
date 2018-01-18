@@ -22,7 +22,7 @@ extern crate scoped_pool;
 use pbr::ProgressBar;
 use point_viewer::{InternalIterator, Point};
 use point_viewer::errors::*;
-use point_viewer::math::{Cube, Cuboid, CuboidLike};
+use point_viewer::math::{Cuboid, CuboidLike};
 use point_viewer::octree;
 use point_viewer::ply::PlyIterator;
 use point_viewer::proto;
@@ -227,24 +227,24 @@ fn make_stream(input: &InputFile) -> (InputFileIterator, Option<pbr::ProgressBar
     (stream, progress_bar)
 }
 
-/// Returns the bounding_cube and the number of the points in 'input'.
-fn find_bounding_cube(input: &InputFile) -> (Cube, i64) {
+/// Returns the bounding_box and the number of the points in 'input'.
+fn find_bounding_box(input: &InputFile) -> (Cuboid, i64) {
     let mut num_points = 0i64;
-    let mut bounding_cube = Cuboid::new();
+    let mut bounding_box = Cuboid::new();
     let (stream, mut progress_bar) = make_stream(input);
     progress_bar
         .as_mut()
         .map(|pb| pb.message("Determining bounding box: "));
 
     stream.for_each(|p: &Point| {
-        bounding_cube.update(&p.position);
+        bounding_box.update(&p.position);
         num_points += 1;
         if num_points % UPDATE_COUNT == 0 {
             progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
         }
     });
     progress_bar.map(|mut f| f.finish());
-    (bounding_cube.to_cube(), num_points)
+    (bounding_box, num_points)
 }
 
 fn main() {
@@ -285,24 +285,31 @@ fn main() {
         }
     };
 
-    let (bounding_cube, num_points) = find_bounding_cube(&input);
+    let (bounding_box, num_points) = find_bounding_box(&input);
 
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
     let meta = {
         let mut meta = proto::Meta::new();
-        meta.mut_bounding_cube()
+        meta.mut_bounding_box()
             .mut_min()
-            .set_x(bounding_cube.min().x);
-        meta.mut_bounding_cube()
+            .set_x(bounding_box.min().x);
+        meta.mut_bounding_box()
             .mut_min()
-            .set_y(bounding_cube.min().y);
-        meta.mut_bounding_cube()
+            .set_y(bounding_box.min().y);
+        meta.mut_bounding_box()
             .mut_min()
-            .set_z(bounding_cube.min().z);
-        meta.mut_bounding_cube()
-            .set_edge_length(bounding_cube.edge_length());
+            .set_z(bounding_box.min().z);
+        meta.mut_bounding_box()
+            .mut_max()
+            .set_x(bounding_box.max().x);
+        meta.mut_bounding_box()
+            .mut_max()
+            .set_y(bounding_box.max().y);
+        meta.mut_bounding_box()
+            .mut_max()
+            .set_z(bounding_box.max().z);
         meta.set_resolution(resolution);
         meta.set_version(octree::CURRENT_VERSION);
         meta
@@ -318,7 +325,7 @@ fn main() {
     pool.scoped(move |scope| {
         let (root_stream, _) = make_stream(&input);
         let root = SplittedNode {
-            node: octree::Node::root_with_bounding_cube(bounding_cube),
+            node: octree::Node::root_with_bounding_cube(bounding_box.bounding_cube()),
             num_points: num_points,
         };
         split_node(

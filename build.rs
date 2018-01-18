@@ -2,10 +2,12 @@ extern crate protoc_rust;
 
 use std::env;
 use std::fs::File;
-use std::path::Path;
 use std::io::{Read, Write};
+use std::path::Path;
 
 fn main() {
+    println!("cargo:rerun-if-changed=src/proto.proto");
+
     let out_dir = env::var("OUT_DIR").unwrap();
     protoc_rust::run(protoc_rust::Args {
         out_dir: &out_dir,
