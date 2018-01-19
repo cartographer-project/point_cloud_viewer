@@ -1,0 +1,21 @@
+{
+  "name": "point_viewer",
+  "version": "0.1.0",
+  "description": "WebGL client for point cloud backend.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "format": "tsfmt -r",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Holger Rapp <hrapp@google.com>",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@types/dat-gui": "0.6.1",
+    "@types/three": "0.0.27",
+    "dat-gui": "0.5.0",
+    "three": "0.83.0",
+    "typescript": "^2.2",
+    "typescript-formatter": "^7.0.1"
+  }
+}
