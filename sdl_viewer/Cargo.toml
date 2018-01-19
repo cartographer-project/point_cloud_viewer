@@ -21,7 +21,7 @@ version = "0.1.0"
 gl_generator = "0.8.0"
 
 [dependencies]
-cgmath = "^0.14.0"
+cgmath = "0.16.0"
 clap = "^2.6.0"
 lru-cache = "^0.1.1"
 rand = "0.3.15"
