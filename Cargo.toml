@@ -22,7 +22,7 @@ protoc-rust = "1.4.3"
 
 [dependencies]
 byteorder = "^0.5.3"
-cgmath = "^0.14.0"
+cgmath = "0.16.0"
 clap = "^2.6.0"
 error-chain = "0.11.0"
 num = "0.1.36"
