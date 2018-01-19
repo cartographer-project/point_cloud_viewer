@@ -22,7 +22,6 @@ extern crate scoped_pool;
 use pbr::ProgressBar;
 use point_viewer::{InternalIterator, Point};
 use point_viewer::errors::*;
-// NOCOM(#sirver): use Point3f instead?
 use point_viewer::math::{Aabb, Aabb3f, Cube, EuclideanSpace, Point3f};
 use point_viewer::octree;
 use point_viewer::ply::PlyIterator;
