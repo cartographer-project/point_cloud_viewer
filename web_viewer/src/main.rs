@@ -34,8 +34,8 @@ use std::sync::{Arc, RwLock};
 use urlencoded::UrlEncodedQuery;
 
 const INDEX_HTML: &'static str = include_str!("../client/index.html");
-const APP_BUNDLE: &'static str = include_str!("../target/app_bundle.js");
-const APP_BUNDLE_MAP: &'static str = include_str!("../target/app_bundle.js.map");
+const APP_BUNDLE: &'static str = include_str!("../../target/app_bundle.js");
+const APP_BUNDLE_MAP: &'static str = include_str!("../../target/app_bundle.js.map");
 
 fn index(_: &mut Request) -> IronResult<Response> {
     let content_type = "text/html".parse::<Mime>().unwrap();
