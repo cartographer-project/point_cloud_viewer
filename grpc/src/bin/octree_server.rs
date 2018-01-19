@@ -9,7 +9,7 @@ extern crate protobuf;
 use futures::Future;
 use futures::sync::oneshot;
 use grpcio::{Environment, RpcContext, ServerBuilder, UnarySink};
-use point_viewer::math::{CuboidLike, Matrix4f};
+use point_viewer::math::Matrix4f;
 use point_viewer::octree;
 use point_viewer::octree::{NodeId, Octree, OnDiskOctree};
 use point_viewer_grpc::proto::*;

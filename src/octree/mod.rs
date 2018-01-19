@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use errors::*;
-use math::{Cube, Cuboid, CuboidLike, Frustum, Matrix4f, Vector2f, Vector3f};
+use math::{Cube, Cuboid, Frustum, Matrix4f, Vector2f, Vector3f};
 use num_traits::Zero;
 use proto;
 use protobuf;
