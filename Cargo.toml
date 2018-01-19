@@ -31,6 +31,7 @@ pbr = "1.0.0-alpha.1"
 protobuf = "1.4.3"
 scoped-pool = "^0.1"
 walkdir = "^0.1.5"
+collision = "0.14.0"
 
 [profile.release]
 lto = true

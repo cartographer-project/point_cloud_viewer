@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use cgmath;
-use std;
+use collision;
 
 // TODO(hrapp): collision-rs has nearly everything we need. The Frustum is missing a 'intersects'
 // method and it needs updating to work with newer cgmaths.
@@ -21,7 +21,10 @@ use std;
 pub type Vector2f = cgmath::Vector2<f32>;
 pub type Vector3f = cgmath::Vector3<f32>;
 pub type Matrix4f = cgmath::Matrix4<f32>;
+pub type Point3f = cgmath::Point3<f32>;
+pub type Aabb3f = collision::Aabb3<f32>;
 pub use cgmath::prelude::*;
+pub use collision::Aabb;
 
 #[derive(Debug, Clone)]
 struct Plane {
@@ -127,19 +130,23 @@ impl Frustum {
 }
 
 #[derive(Debug, Clone)]
-pub struct Cuboid {
-    min: Vector3f,
-    max: Vector3f,
-}
-
-#[derive(Debug, Clone)]
 pub struct Cube {
-    min: Vector3f,
+    min: Point3f,
     edge_length: f32,
 }
 
 impl Cube {
-    pub fn new(min: Vector3f, edge_length: f32) -> Self {
+    pub fn bounding(aabb: &Aabb3f) -> Self {
+        let edge_length = (aabb.max().x - aabb.min().x)
+            .max(aabb.max().y - aabb.min().y)
+            .max(aabb.max().z - aabb.min().z);
+        Cube {
+            min: aabb.min,
+            edge_length: edge_length,
+        }
+    }
+
+    pub fn new(min: Point3f, edge_length: f32) -> Self {
         Cube {
             min: min,
             edge_length: edge_length,
@@ -150,12 +157,12 @@ impl Cube {
         self.edge_length
     }
 
-    pub fn min(&self) -> Vector3f {
+    pub fn min(&self) -> Point3f {
         self.min
     }
 
-    pub fn max(&self) -> Vector3f {
-        Vector3f::new(
+    pub fn max(&self) -> Point3f {
+        Point3f::new(
             self.min.x + self.edge_length,
             self.min.y + self.edge_length,
             self.min.z + self.edge_length,
@@ -171,50 +178,6 @@ impl Cube {
             (min.y + max.y) / 2.,
             (min.z + max.z) / 2.,
         )
-    }
-}
-
-/// An axis-aligned bounding box.
-impl Cuboid {
-    pub fn with_dimensions(min: Vector3f, max: Vector3f) -> Self {
-        Cuboid { min, max }
-    }
-
-    pub fn new() -> Self {
-        Cuboid {
-            min: Vector3f::new(std::f32::MAX, std::f32::MAX, std::f32::MAX),
-            max: Vector3f::new(std::f32::MIN, std::f32::MIN, std::f32::MIN),
-        }
-    }
-
-    pub fn min(&self) -> Vector3f {
-        self.min
-    }
-
-    pub fn max(&self) -> Vector3f {
-        self.max
-    }
-
-    /// Grows the box to contain 'p'.
-    pub fn update(&mut self, p: &Vector3f) {
-        self.min.x = self.min.x.min(p.x);
-        self.min.y = self.min.y.min(p.y);
-        self.min.z = self.min.z.min(p.z);
-        self.max.x = self.max.x.max(p.x);
-        self.max.y = self.max.y.max(p.y);
-        self.max.z = self.max.z.max(p.z);
-    }
-
-    /// Changes the edge_length of the box to be cubic, i.e. all dimensions have the same length.
-    /// The new 'Cube' will fully contain the old 'Cuboid'.
-    pub fn bounding_cube(&self) -> Cube {
-        let edge_length = (self.max.x - self.min.x)
-            .max(self.max.y - self.min.y)
-            .max(self.max.z - self.min.z);
-        Cube {
-            min: self.min,
-            edge_length: edge_length,
-        }
     }
 }
 

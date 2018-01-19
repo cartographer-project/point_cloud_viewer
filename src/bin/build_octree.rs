@@ -22,7 +22,7 @@ extern crate scoped_pool;
 use pbr::ProgressBar;
 use point_viewer::{InternalIterator, Point};
 use point_viewer::errors::*;
-use point_viewer::math::Cuboid;
+use point_viewer::math::{Aabb, Aabb3f, Cube, EuclideanSpace, Point3f};
 use point_viewer::octree;
 use point_viewer::ply::PlyIterator;
 use point_viewer::proto;
@@ -228,16 +228,16 @@ fn make_stream(input: &InputFile) -> (InputFileIterator, Option<pbr::ProgressBar
 }
 
 /// Returns the bounding_box and the number of the points in 'input'.
-fn find_bounding_box(input: &InputFile) -> (Cuboid, i64) {
+fn find_bounding_box(input: &InputFile) -> (Aabb3f, i64) {
     let mut num_points = 0i64;
-    let mut bounding_box = Cuboid::new();
+    let mut bounding_box = Aabb3f::zero();
     let (stream, mut progress_bar) = make_stream(input);
     progress_bar
         .as_mut()
         .map(|pb| pb.message("Determining bounding box: "));
 
     stream.for_each(|p: &Point| {
-        bounding_box.update(&p.position);
+        bounding_box = bounding_box.grow(Point3f::from_vec(p.position));
         num_points += 1;
         if num_points % UPDATE_COUNT == 0 {
             progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
@@ -325,7 +325,7 @@ fn main() {
     pool.scoped(move |scope| {
         let (root_stream, _) = make_stream(&input);
         let root = SplittedNode {
-            node: octree::Node::root_with_bounding_cube(bounding_box.bounding_cube()),
+            node: octree::Node::root_with_bounding_cube(Cube::bounding(&bounding_box)),
             num_points: num_points,
         };
         split_node(

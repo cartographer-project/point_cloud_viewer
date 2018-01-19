@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use errors::*;
-use math::{Cube, Cuboid, Frustum, Matrix4f, Vector2f, Vector3f};
+use math::{Aabb, Aabb3f, Cube, Frustum, Matrix4f, Point3f, Vector2f};
 use num_traits::Zero;
 use proto;
 use protobuf;
@@ -56,9 +56,9 @@ pub struct NodesToBlob {
 
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
 // that is impossible.
-fn project(m: &Matrix4f, p: &Vector3f) -> Vector3f {
+fn project(m: &Matrix4f, p: &Point3f) -> Point3f {
     let d = 1. / (m[0][3] * p.x + m[1][3] * p.y + m[2][3] * p.z + m[3][3]);
-    Vector3f::new(
+    Point3f::new(
         (m[0][0] * p.x + m[1][0] * p.y + m[2][0] * p.z + m[3][0]) * d,
         (m[0][1] * p.x + m[1][1] * p.y + m[2][1] * p.z + m[3][1]) * d,
         (m[0][2] * p.x + m[1][2] * p.y + m[2][2] * p.z + m[3][2]) * d,
@@ -69,18 +69,18 @@ fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i
     // z is unused here.
     let min = bounding_cube.min();
     let max = bounding_cube.max();
-    let mut rv = Cuboid::new();
+    let mut rv = Aabb3f::zero();
     for p in &[
-        Vector3f::new(min.x, min.y, min.z),
-        Vector3f::new(max.x, min.y, min.z),
-        Vector3f::new(min.x, max.y, min.z),
-        Vector3f::new(max.x, max.y, min.z),
-        Vector3f::new(min.x, min.y, max.z),
-        Vector3f::new(max.x, min.y, max.z),
-        Vector3f::new(min.x, max.y, max.z),
-        Vector3f::new(max.x, max.y, max.z),
+        Point3f::new(min.x, min.y, min.z),
+        Point3f::new(max.x, min.y, min.z),
+        Point3f::new(min.x, max.y, min.z),
+        Point3f::new(max.x, max.y, min.z),
+        Point3f::new(min.x, min.y, max.z),
+        Point3f::new(max.x, min.y, max.z),
+        Point3f::new(min.x, max.y, max.z),
+        Point3f::new(max.x, max.y, max.z),
     ] {
-        rv.update(&project(matrix, &p));
+        rv = rv.grow(project(matrix, &p));
     }
     Vector2f::new(
         (rv.max().x - rv.min().x) * (width as f32) / 2.,
@@ -93,7 +93,7 @@ pub struct OnDiskOctree {
     directory: PathBuf,
     // Maps from node id to number of points.
     nodes: HashMap<NodeId, u64>,
-    bounding_box: Cuboid,
+    bounding_box: Aabb3f,
 }
 
 #[derive(Debug, PartialEq)]
@@ -144,9 +144,9 @@ impl OnDiskOctree {
             let bounding_box = meta.bounding_box.unwrap();
             let min = bounding_box.min.unwrap();
             let max = bounding_box.max.unwrap();
-            Cuboid::with_dimensions(
-                Vector3f::new(min.x, min.y, min.z),
-                Vector3f::new(max.x, max.y, max.z),
+            Aabb3f::new(
+                Point3f::new(min.x, min.y, min.z).into(),
+                Point3f::new(max.x, max.y, max.z).into(),
             )
         };
 
@@ -189,7 +189,7 @@ impl Octree for OnDiskOctree {
     ) -> Vec<VisibleNode> {
         let frustum = Frustum::from_matrix(projection_matrix);
         let mut open = vec![
-            Node::root_with_bounding_cube(self.bounding_box.bounding_cube()),
+            Node::root_with_bounding_cube(Cube::bounding(&self.bounding_box)),
         ];
 
         let mut visible = Vec::new();
