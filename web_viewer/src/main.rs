@@ -25,7 +25,7 @@ extern crate urlencoded;
 use byteorder::{LittleEndian, WriteBytesExt};
 use iron::mime::Mime;
 use iron::prelude::*;
-use point_viewer::math::{CuboidLike, Matrix4f};
+use point_viewer::math::Matrix4f;
 use point_viewer::octree::{self, Octree};
 use router::Router;
 use std::io::Read;
