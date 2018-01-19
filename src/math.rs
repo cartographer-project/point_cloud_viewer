@@ -23,34 +23,6 @@ pub type Vector3f = cgmath::Vector3<f32>;
 pub type Matrix4f = cgmath::Matrix4<f32>;
 pub use cgmath::prelude::*;
 
-pub trait CuboidLike {
-    fn min(&self) -> Vector3f;
-    fn max(&self) -> Vector3f;
-
-    /// Returns true if 'p' is contained in the box.
-    fn contains(&self, p: &Vector3f) -> bool {
-        let min = self.min();
-        let max = self.max();
-        min.x <= p.x && p.x <= max.x && min.y <= p.y && p.y <= max.y && min.z <= p.z && p.z <= max.z
-    }
-
-    /// The center of the box.
-    fn center(&self) -> Vector3f {
-        let min = self.min();
-        let max = self.max();
-        Vector3f::new(
-            (min.x + max.x) / 2.,
-            (min.y + max.y) / 2.,
-            (min.z + max.z) / 2.,
-        )
-    }
-
-    /// The size of the box.
-    fn size(&self) -> Vector3f {
-        self.max() - self.min()
-    }
-}
-
 #[derive(Debug, Clone)]
 struct Plane {
     normal: Vector3f,
@@ -108,7 +80,7 @@ impl Frustum {
         }
     }
 
-    pub fn intersects<C: CuboidLike>(&self, bb: &C) -> bool {
+    pub fn intersects(&self, bb: &Cube) -> bool {
         for plane in &self.planes {
             let p1 = Vector3f::new(
                 if plane.normal.x > 0f32 {
@@ -160,34 +132,10 @@ pub struct Cuboid {
     max: Vector3f,
 }
 
-impl CuboidLike for Cuboid {
-    fn min(&self) -> Vector3f {
-        self.min
-    }
-
-    fn max(&self) -> Vector3f {
-        self.max
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Cube {
     min: Vector3f,
     edge_length: f32,
-}
-
-impl CuboidLike for Cube {
-    fn min(&self) -> Vector3f {
-        self.min
-    }
-
-    fn max(&self) -> Vector3f {
-        Vector3f::new(
-            self.min.x + self.edge_length,
-            self.min.y + self.edge_length,
-            self.min.z + self.edge_length,
-        )
-    }
 }
 
 impl Cube {
@@ -201,6 +149,29 @@ impl Cube {
     pub fn edge_length(&self) -> f32 {
         self.edge_length
     }
+
+    pub fn min(&self) -> Vector3f {
+        self.min
+    }
+
+    pub fn max(&self) -> Vector3f {
+        Vector3f::new(
+            self.min.x + self.edge_length,
+            self.min.y + self.edge_length,
+            self.min.z + self.edge_length,
+        )
+    }
+
+    /// The center of the box.
+    pub fn center(&self) -> Vector3f {
+        let min = self.min();
+        let max = self.max();
+        Vector3f::new(
+            (min.x + max.x) / 2.,
+            (min.y + max.y) / 2.,
+            (min.z + max.z) / 2.,
+        )
+    }
 }
 
 /// An axis-aligned bounding box.
@@ -208,11 +179,20 @@ impl Cuboid {
     pub fn with_dimensions(min: Vector3f, max: Vector3f) -> Self {
         Cuboid { min, max }
     }
+
     pub fn new() -> Self {
         Cuboid {
             min: Vector3f::new(std::f32::MAX, std::f32::MAX, std::f32::MAX),
             max: Vector3f::new(std::f32::MIN, std::f32::MIN, std::f32::MIN),
         }
+    }
+
+    pub fn min(&self) -> Vector3f {
+        self.min
+    }
+
+    pub fn max(&self) -> Vector3f {
+        self.max
     }
 
     /// Grows the box to contain 'p'.

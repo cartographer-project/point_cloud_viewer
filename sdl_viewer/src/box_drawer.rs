@@ -17,7 +17,7 @@ use color::Color;
 use graphic::{GlBuffer, GlProgram, GlVertexArray};
 use opengl;
 use opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
-use point_viewer::math::{Cube, CuboidLike};
+use point_viewer::math::Cube;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;

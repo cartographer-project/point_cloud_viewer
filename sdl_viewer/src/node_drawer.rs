@@ -17,7 +17,6 @@ use graphic::{GlBuffer, GlProgram, GlVertexArray};
 use lru_cache::LruCache;
 use opengl;
 use opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
-use point_viewer::math::CuboidLike;
 use point_viewer::octree;
 use rand::{thread_rng, Rng};
 use std;

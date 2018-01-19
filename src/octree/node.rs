@@ -15,7 +15,7 @@
 use {InternalIterator, Point};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use errors::*;
-use math::{clamp, Cube, CuboidLike, Vector3f, Zero};
+use math::{clamp, Cube, Vector3f, Zero};
 use num;
 use num_traits;
 use proto;

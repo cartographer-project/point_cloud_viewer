@@ -22,7 +22,7 @@ extern crate scoped_pool;
 use pbr::ProgressBar;
 use point_viewer::{InternalIterator, Point};
 use point_viewer::errors::*;
-use point_viewer::math::{Cuboid, CuboidLike};
+use point_viewer::math::Cuboid;
 use point_viewer::octree;
 use point_viewer::ply::PlyIterator;
 use point_viewer::proto;
