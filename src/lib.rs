@@ -16,6 +16,7 @@
 
 extern crate byteorder;
 extern crate cgmath;
+extern crate collision;
 #[macro_use]
 extern crate error_chain;
 extern crate num;

@@ -15,7 +15,7 @@
 use {InternalIterator, Point};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use errors::*;
-use math::{clamp, Cube, Vector3f, Zero};
+use math::{clamp, Cube, Point3f, Vector3f, Zero};
 use num;
 use num_traits;
 use proto;
@@ -238,7 +238,7 @@ impl NodeMeta {
             bounding_cube: {
                 let proto = meta.bounding_cube.unwrap();
                 let min = proto.min.unwrap();
-                Cube::new(Vector3f::new(min.x, min.y, min.z), proto.edge_length)
+                Cube::new(Point3f::new(min.x, min.y, min.z), proto.edge_length)
             },
         })
     }

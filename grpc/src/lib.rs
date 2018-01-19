@@ -21,8 +21,8 @@ include!(concat!(env!("OUT_DIR"), "/proto.rs"));
 include!(concat!(env!("OUT_DIR"), "/proto_grpc.rs"));
 
 use grpcio::{ChannelBuilder, EnvBuilder};
-use point_viewer::math::{self, Cube, Matrix4f};
 use point_viewer::errors::*;
+use point_viewer::math::{self, Cube, Matrix4f};
 use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, PositionEncoding, UseLod,
                            VisibleNode};
 use proto_grpc::OctreeClient;
@@ -103,7 +103,7 @@ impl Octree for GrpcOctree {
                 num_points: node.num_points,
                 position_encoding: PositionEncoding::from_proto(node.position_encoding).unwrap(),
                 bounding_cube: Cube::new(
-                    math::Vector3f::new(
+                    math::Point3f::new(
                         node.get_bounding_cube().get_min().get_x(),
                         node.get_bounding_cube().get_min().get_y(),
                         node.get_bounding_cube().get_min().get_z(),
