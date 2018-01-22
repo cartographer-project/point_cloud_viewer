@@ -30,7 +30,7 @@ This is a native client using [SDL2](https://libsdl.org).
 1. Install SDL2. For example, on Mac `brew install sdl2`. 
 2. Change to the sdl viewer's directory: `cd sdl_viewer/`. 
 3. Build with `cargo build --release`. 
-4. Run with `target/release/sdl_viewer <octree directory>`.
+4. Run with `../target/release/sdl_viewer <octree directory>`.
 
 In the point cloud viewer, navigate with the keyboard and rotate with left-click + mouse drag or touchpad. The following keys are bound:
 
@@ -60,7 +60,7 @@ To build,
 5. Build the client: `npm run build`.
 
 Then build the server: `cargo build --release`.
-Serve up the octree using `web_viewer/target/release/web_viewer <octree directory>`, open Chrome to <http://localhost:5433>, navigate with WASD and left-click-drag on the mouse.
+Serve up the octree using `../target/release/web_viewer <octree directory>`, open Chrome to <http://localhost:5433>, navigate with WASD and left-click-drag on the mouse.
 The mouse wheel adjusts movement speed.
 
 The client files (HTML and JavaScript) are embedded in the `web_viewer` binary, so it is fully stand alone.
