@@ -13,9 +13,10 @@
 // limitations under the License.
 
 use errors::*;
-use math::{Aabb, Aabb3f, Cube, Frustum, Matrix4f, Point3f, Vector2f};
+use math::{Aabb, Aabb3f, Cube, Matrix4f, Point3f, Vector2f};
 use num_traits::Zero;
 use proto;
+use collision::{Relation, Frustum};
 use protobuf;
 use std::cmp;
 use std::collections::HashMap;
@@ -187,7 +188,7 @@ impl Octree for OnDiskOctree {
         height: i32,
         use_lod: UseLod,
     ) -> Vec<VisibleNode> {
-        let frustum = Frustum::from_matrix(projection_matrix);
+        let frustum = Frustum::from_matrix4(*projection_matrix).unwrap();
         let mut open = vec![
             Node::root_with_bounding_cube(Cube::bounding(&self.bounding_box)),
         ];
@@ -196,7 +197,7 @@ impl Octree for OnDiskOctree {
         while !open.is_empty() {
             let node_to_explore = open.pop().unwrap();
             let maybe_num_points = self.nodes.get(&node_to_explore.id);
-            if maybe_num_points.is_none() || !frustum.intersects(&node_to_explore.bounding_cube) {
+            if maybe_num_points.is_none() || frustum.contains(&node_to_explore.bounding_cube.to_aabb3()) == Relation::Out {
                 continue;
             }
             let num_points = *maybe_num_points.unwrap();
