@@ -9,7 +9,7 @@ main() {
 
     # root
     cargo build --all --verbose
-    cargo --all test
+    cargo test --all
 }
 
 main
