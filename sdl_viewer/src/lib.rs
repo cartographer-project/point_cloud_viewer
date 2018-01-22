@@ -114,7 +114,7 @@ impl SdlViewer {
                 continue;
             }
             let no_prefix = &octree_argument[prefix.len()..].to_string();
-            if let Ok(o) = octree_factory_function(&no_prefix) {
+            if let Ok(o) = octree_factory_function(no_prefix) {
                 octree_opt = Some(o);
                 break;
             }

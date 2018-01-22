@@ -77,14 +77,14 @@ where
                 resolution,
             ));
         }
-        children[array_index].as_mut().unwrap().write(&p);
+        children[array_index].as_mut().unwrap().write(p);
     });
 
     // Remove the node file on disk by reopening the node and immediately dropping it again without
     // writing a point. This only saves some disk space during processing - all nodes will be
     // rewritten by subsampling the children in the second step anyways. We also ignore file
     // removing error. For example, we never write out the root, so it cannot be removed.
-    octree::NodeWriter::new(output_directory, &node, resolution);
+    octree::NodeWriter::new(output_directory, node, resolution);
 
     let mut rv = Vec::new();
     for (child_index, c) in children.into_iter().enumerate() {
@@ -105,7 +105,7 @@ fn should_split_node(node: &SplittedNode, resolution: f64) -> bool {
     if node.num_points <= MAX_POINTS_PER_NODE {
         return false;
     }
-    if node.node.bounding_cube.edge_length() as f64 <= resolution {
+    if f64::from(node.node.bounding_cube.edge_length()) <= resolution {
         // TODO(hrapp): If the data has billion of points in this small spot, performance will
         // greatly suffer if we display it. Drop points?
         println!(
@@ -124,9 +124,9 @@ fn split_node<'a, 'b: 'a, P>(
     scope: &Scope<'a>,
     output_directory: &'b Path,
     resolution: f64,
-    splitted_node: SplittedNode,
+    splitted_node: &SplittedNode,
     stream: P,
-    leaf_nodes_sender: mpsc::Sender<octree::Node>,
+    leaf_nodes_sender: &mpsc::Sender<octree::Node>,
 ) where
     P: InternalIterator,
 {
@@ -143,9 +143,9 @@ fn split_node<'a, 'b: 'a, P>(
                 scope,
                 output_directory,
                 resolution,
-                child,
+                &child,
                 stream,
-                leaf_nodes_sender_clone,
+                &leaf_nodes_sender_clone,
             );
         });
     }
@@ -161,7 +161,7 @@ fn subsample_children_into(
     resolution: f64,
 ) -> Result<()> {
     let mut parent_writer = octree::NodeWriter::new(output_directory, &node, resolution);
-    println!("Creating {} from subsampling children.", &node.id);
+    println!("Creating {} from subsampling children.", node.id);
     for i in 0..8 {
         let child = node.get_child(octree::ChildIndex::from_u8(i));
         let node_iterator = match octree::NodeIterator::from_disk(output_directory, &child.id) {
@@ -332,15 +332,15 @@ fn main() {
             scope,
             output_directory,
             resolution,
-            root,
+            &root,
             root_stream,
-            leaf_nodes_sender.clone(),
+            &leaf_nodes_sender,
         );
     });
 
     let mut deepest_level = 0usize;
     let mut nodes_to_subsample = Vec::<octree::Node>::new();
-    for leaf_node in leaf_nodes_receiver.into_iter() {
+    for leaf_node in leaf_nodes_receiver {
         deepest_level = std::cmp::max(deepest_level, leaf_node.level());
         nodes_to_subsample.push(leaf_node);
     }

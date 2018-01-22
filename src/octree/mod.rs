@@ -81,7 +81,7 @@ fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i
         Point3f::new(min.x, max.y, max.z),
         Point3f::new(max.x, max.y, max.z),
     ] {
-        rv = rv.grow(project(matrix, &p));
+        rv = rv.grow(project(matrix, p));
     }
     Vector2f::new(
         (rv.max().x - rv.min().x) * (width as f32) / 2.,
@@ -146,8 +146,8 @@ impl OnDiskOctree {
             let min = bounding_box.min.unwrap();
             let max = bounding_box.max.unwrap();
             Aabb3f::new(
-                Point3f::new(min.x, min.y, min.z).into(),
-                Point3f::new(max.x, max.y, max.z).into(),
+                Point3f::new(min.x, min.y, min.z),
+                Point3f::new(max.x, max.y, max.z),
             )
         };
 
@@ -162,7 +162,7 @@ impl OnDiskOctree {
             }
             let file_name = path.file_name().unwrap();
             let file_name_str = file_name.to_str().unwrap();
-            if !file_name_str.starts_with("r") || !file_name_str.ends_with(".xyz") {
+            if !file_name_str.starts_with('r') || !file_name_str.ends_with(".xyz") {
                 continue;
             }
             let num_points = fs::metadata(path).unwrap().len() / 12;
