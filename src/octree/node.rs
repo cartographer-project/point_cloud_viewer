@@ -25,9 +25,9 @@ use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Cursor, Read};
 use std::path::{Path, PathBuf};
 
-pub const META_EXT: &'static str = "pb";
-pub const POSITION_EXT: &'static str = "xyz";
-pub const COLOR_EXT: &'static str = "rgb";
+pub const META_EXT: &str = "pb";
+pub const POSITION_EXT: &str = "xyz";
+pub const COLOR_EXT: &str = "rgb";
 
 /// Represents a child of an octree Node.
 #[derive(Debug, PartialEq, Eq)]
@@ -94,7 +94,7 @@ impl NodeId {
     }
 
     /// Returns the NodeId for the corresponding 'child_index'.
-    fn get_child_id(&self, child_index: ChildIndex) -> Self {
+    fn get_child_id(&self, child_index: &ChildIndex) -> Self {
         NodeId {
             level: self.level + 1,
             index: (self.index << 3) + child_index.0 as usize,
@@ -158,7 +158,7 @@ impl Node {
             Cube::new(min, half_edge_length)
         };
         Node {
-            id: self.id.get_child_id(child_index),
+            id: self.id.get_child_id(&child_index),
             bounding_cube: child_bounding_cube,
         }
     }
@@ -257,7 +257,7 @@ pub struct NodeIterator {
 
 impl NodeIterator {
     pub fn from_disk(directory: &Path, id: &NodeId) -> Result<Self> {
-        let stem = id.get_stem(&directory);
+        let stem = id.get_stem(directory);
         let meta = NodeMeta::from_disk(&stem)?;
         Ok(NodeIterator {
             xyz_reader: BufReader::new(File::open(&stem.with_extension(POSITION_EXT))?),
@@ -348,7 +348,7 @@ pub enum PositionEncoding {
 
 impl PositionEncoding {
     fn new(bounding_cube: &Cube, resolution: f64) -> PositionEncoding {
-        let min_bits = (bounding_cube.edge_length() as f64 / resolution).log2() as u32 + 1;
+        let min_bits = (f64::from(bounding_cube.edge_length()) / resolution).log2() as u32 + 1;
         match min_bits {
             0...8 => PositionEncoding::Uint8,
             9...16 => PositionEncoding::Uint16,
