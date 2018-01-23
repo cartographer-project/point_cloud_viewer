@@ -347,8 +347,9 @@ fn main() {
         nodes_to_subsample.push(leaf_node);
     }
 
-    // We start on the deepest level and work our way up the tree.
+    // sub sampling returns the list of finished nodes including all meta data
     let (nodes_sender, nodes_receiver) = mpsc::channel();    
+    // We start on the deepest level and work our way up the tree.
     for current_level in (0..deepest_level + 1).rev() {
         // All nodes on the same level can be subsampled in parallel.
         let res = nodes_to_subsample
@@ -387,8 +388,8 @@ fn main() {
         nodes_to_subsample.extend(subsample_nodes.into_iter());
     }
 
+    // Add all node meta data to meta.pb
     // TODO(tschiwietz): How can we make sure not to miss any messages?
-    let mut c = 0;
     while let Ok((node, num_points, resolution)) = nodes_receiver.try_recv() {
         let mut proto = proto::Node::new();
         proto.set_id(node.id.to_string());
@@ -409,14 +410,8 @@ fn main() {
             .mut_bounding_cube()
             .set_edge_length(node.bounding_cube.edge_length());
         proto.set_position_encoding(octree::PositionEncoding::new(&node.bounding_cube, resolution).to_proto());
-
-        println!("{:?}", proto);
-
         meta.mut_nodes().push(proto);
-        c += 1;
-
     }
-    println!("{} nodes", c);
 
     let mut buf_writer = BufWriter::new(File::create(&output_directory.join("meta.pb")).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
