@@ -307,27 +307,30 @@ fn main() {
 
     let (bounding_box, num_points) = find_bounding_box(&input);
 
-    let mut meta = proto::Meta::new();
-    meta.mut_bounding_box()
-        .mut_min()
-        .set_x(bounding_box.min().x);
-    meta.mut_bounding_box()
-        .mut_min()
-        .set_y(bounding_box.min().y);
-    meta.mut_bounding_box()
-        .mut_min()
-        .set_z(bounding_box.min().z);
-    meta.mut_bounding_box()
-        .mut_max()
-        .set_x(bounding_box.max().x);
-    meta.mut_bounding_box()
-        .mut_max()
-        .set_y(bounding_box.max().y);
-    meta.mut_bounding_box()
-        .mut_max()
-        .set_z(bounding_box.max().z);
-    meta.set_resolution(resolution);
-    meta.set_version(octree::CURRENT_VERSION);
+    let mut meta = {
+        let mut meta = proto::Meta::new();
+        meta.mut_bounding_box()
+            .mut_min()
+            .set_x(bounding_box.min().x);
+        meta.mut_bounding_box()
+            .mut_min()
+            .set_y(bounding_box.min().y);
+        meta.mut_bounding_box()
+            .mut_min()
+            .set_z(bounding_box.min().z);
+        meta.mut_bounding_box()
+            .mut_max()
+            .set_x(bounding_box.max().x);
+        meta.mut_bounding_box()
+            .mut_max()
+            .set_y(bounding_box.max().y);
+        meta.mut_bounding_box()
+            .mut_max()
+            .set_z(bounding_box.max().z);
+        meta.set_resolution(resolution);
+        meta.set_version(octree::CURRENT_VERSION);
+        meta
+    };
 
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
