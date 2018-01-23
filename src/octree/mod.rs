@@ -241,7 +241,7 @@ impl Octree for OnDiskOctree {
     fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
         let stem = node_id.get_stem(&self.directory);
         let meta = {
-            let mut meta = node::NodeMeta::from_disk(&stem)?;
+            let mut meta = self.nodes[node_id].clone();
             meta.num_points = meta.num_points_for_level_of_detail(level_of_detail);
             meta
         };

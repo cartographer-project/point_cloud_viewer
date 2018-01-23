@@ -210,7 +210,7 @@ impl Node {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct NodeMeta {
     pub num_points: i64,
     pub position_encoding: PositionEncoding,
@@ -339,7 +339,7 @@ impl InternalIterator for NodeIterator {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PositionEncoding {
     Uint8,
     Uint16,
