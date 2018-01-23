@@ -307,6 +307,9 @@ fn main() {
 
     let (bounding_box, num_points) = find_bounding_box(&input);
 
+    // Ignore errors, maybe directory is already there.
+    let _ = fs::create_dir(output_directory);
+
     let mut meta = {
         let mut meta = proto::Meta::new();
         meta.mut_bounding_box()
@@ -331,9 +334,6 @@ fn main() {
         meta.set_version(octree::CURRENT_VERSION);
         meta
     };
-
-    // Ignore errors, maybe directory is already there.
-    let _ = fs::create_dir(output_directory);
 
     println!("Creating octree structure.");
     let pool = Pool::new(10);
