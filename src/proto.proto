@@ -34,10 +34,16 @@ message AxisAlignedCuboid {
   Vector3f max = 2;
 }
 
+message NodePoints {
+  string id = 1;
+  int64 num_points = 2;
+}
+
 message Meta {
   int32 version = 1;
   AxisAlignedCuboid bounding_box = 4;
   double resolution = 3;
+  repeated NodePoints node_points = 5;
 }
 
 message Node {

@@ -18,6 +18,7 @@ extern crate pbr;
 extern crate point_viewer;
 extern crate protobuf;
 extern crate scoped_pool;
+extern crate walkdir;
 
 use pbr::ProgressBar;
 use point_viewer::{InternalIterator, Point};
@@ -290,34 +291,6 @@ fn main() {
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    let meta = {
-        let mut meta = proto::Meta::new();
-        meta.mut_bounding_box()
-            .mut_min()
-            .set_x(bounding_box.min().x);
-        meta.mut_bounding_box()
-            .mut_min()
-            .set_y(bounding_box.min().y);
-        meta.mut_bounding_box()
-            .mut_min()
-            .set_z(bounding_box.min().z);
-        meta.mut_bounding_box()
-            .mut_max()
-            .set_x(bounding_box.max().x);
-        meta.mut_bounding_box()
-            .mut_max()
-            .set_y(bounding_box.max().y);
-        meta.mut_bounding_box()
-            .mut_max()
-            .set_z(bounding_box.max().z);
-        meta.set_resolution(resolution);
-        meta.set_version(octree::CURRENT_VERSION);
-        meta
-    };
-
-    let mut buf_writer = BufWriter::new(File::create(&output_directory.join("meta.pb")).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
-
     println!("Creating octree structure.");
     let pool = Pool::new(10);
 
@@ -382,4 +355,58 @@ fn main() {
         // their parents.
         nodes_to_subsample.extend(subsample_nodes.into_iter());
     }
+
+    // Options:
+    // 1. keep track of nodes in the subsampling loop and add them to the node list
+    // 2. iterate output directory like in Octree::new()
+    // 3. store all node meta data in meta.pb?
+
+    let mut meta = proto::Meta::new();
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_x(bounding_box.min().x);
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_y(bounding_box.min().y);
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_z(bounding_box.min().z);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_x(bounding_box.max().x);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_y(bounding_box.max().y);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_z(bounding_box.max().z);
+    meta.set_resolution(resolution);
+    meta.set_version(octree::CURRENT_VERSION);
+
+    for entry in walkdir::WalkDir::new(&output_directory)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        let path = entry.path();
+        if path.file_name().is_none() {
+            continue;
+        }
+        let file_name = path.file_name().unwrap();
+        let file_name_str = file_name.to_str().unwrap();
+        if !file_name_str.starts_with('r') || !file_name_str.ends_with(".xyz") {
+            continue;
+        }
+        let num_points = fs::metadata(path).unwrap().len() / 12;
+
+        // remove file extension ".xyz"
+        let file_stem = &file_name_str[..file_name_str.len()-4];
+
+        let mut node_points = proto::NodePoints::new();
+        node_points.set_id(file_stem.into());
+        node_points.set_num_points(num_points as i64);
+        meta.mut_node_points().push(node_points);
+    }
+
+    let mut buf_writer = BufWriter::new(File::create(&output_directory.join("meta.pb")).unwrap());
+    meta.write_to_writer(&mut buf_writer).unwrap();
 }

@@ -20,17 +20,16 @@ use collision::{Relation, Frustum};
 use protobuf;
 use std::cmp;
 use std::collections::HashMap;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
-use walkdir;
 
 mod node;
 
 pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter,
                      PositionEncoding};
 
-pub const CURRENT_VERSION: i32 = 8;
+pub const CURRENT_VERSION: i32 = 9;
 
 #[derive(Debug)]
 pub struct VisibleNode {
@@ -130,7 +129,7 @@ impl OnDiskOctree {
             return Err(ErrorKind::InvalidVersion(3).into());
         }
 
-        let meta = {
+        let mut meta = {
             let mut data = Vec::new();
             File::open(&directory.join("meta.pb"))?.read_to_end(&mut data)?;
             protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
@@ -142,7 +141,7 @@ impl OnDiskOctree {
         }
 
         let bounding_box = {
-            let bounding_box = meta.bounding_box.unwrap();
+            let bounding_box = meta.bounding_box.clone().unwrap();
             let min = bounding_box.min.unwrap();
             let max = bounding_box.max.unwrap();
             Aabb3f::new(
@@ -151,26 +150,35 @@ impl OnDiskOctree {
             )
         };
 
+        println!("node count {}", meta.mut_node_points().len());
         let mut nodes = HashMap::new();
-        for entry in walkdir::WalkDir::new(&directory)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            let path = entry.path();
-            if path.file_name().is_none() {
-                continue;
-            }
-            let file_name = path.file_name().unwrap();
-            let file_name_str = file_name.to_str().unwrap();
-            if !file_name_str.starts_with('r') || !file_name_str.ends_with(".xyz") {
-                continue;
-            }
-            let num_points = fs::metadata(path).unwrap().len() / 12;
+        for node_points in meta.mut_node_points().iter() {
             nodes.insert(
-                NodeId::from_str(path.file_stem().unwrap().to_str().unwrap()),
-                num_points,
+                NodeId::from_str(&node_points.id), 
+                node_points.num_points as u64
             );
         }
+        println!("hashmap size {}", meta.mut_node_points().len());
+
+        // for entry in walkdir::WalkDir::new(&directory)
+        //     .into_iter()
+        //     .filter_map(|e| e.ok())
+        // {
+        //     let path = entry.path();
+        //     if path.file_name().is_none() {
+        //         continue;
+        //     }
+        //     let file_name = path.file_name().unwrap();
+        //     let file_name_str = file_name.to_str().unwrap();
+        //     if !file_name_str.starts_with('r') || !file_name_str.ends_with(".xyz") {
+        //         continue;
+        //     }
+        //     let num_points = fs::metadata(path).unwrap().len() / 12;
+        //     nodes.insert(
+        //         NodeId::from_str(path.file_stem().unwrap().to_str().unwrap()),
+        //         num_points,
+        //     );
+        // }
 
         Ok(OnDiskOctree {
             directory: directory.into(),
