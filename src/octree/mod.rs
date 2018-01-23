@@ -91,8 +91,8 @@ fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i
 #[derive(Debug)]
 pub struct OnDiskOctree {
     directory: PathBuf,
-    // Maps from node id to number of points.
-    nodes: HashMap<NodeId, u64>,
+    // Maps from node id to NodeMeta: bounding_box, number of points, PositionEncoding.
+    nodes: HashMap<NodeId, NodeMeta>,
     bounding_box: Aabb3f,
 }
 
@@ -150,35 +150,21 @@ impl OnDiskOctree {
             )
         };
 
-        println!("node count {}", meta.mut_nodes().len());
         let mut nodes = HashMap::new();
-        for node in meta.mut_nodes().iter() {
+        for meta in meta.mut_nodes().iter() {
             nodes.insert(
-                NodeId::from_str(&node.id), 
-                node.num_points as u64
+                NodeId::from_str(&meta.id), 
+                NodeMeta {
+                    num_points: meta.num_points,
+                    position_encoding: PositionEncoding::from_proto(meta.position_encoding)?,
+                    bounding_cube: {
+                        let proto = meta.bounding_cube.clone().unwrap();
+                        let min = proto.min.unwrap();
+                        Cube::new(Point3f::new(min.x, min.y, min.z), proto.edge_length)
+                    },
+                }
             );
         }
-        // println!("hashmap size {}", meta.mut_node_points().len());
-
-        // for entry in walkdir::WalkDir::new(&directory)
-        //     .into_iter()
-        //     .filter_map(|e| e.ok())
-        // {
-        //     let path = entry.path();
-        //     if path.file_name().is_none() {
-        //         continue;
-        //     }
-        //     let file_name = path.file_name().unwrap();
-        //     let file_name_str = file_name.to_str().unwrap();
-        //     if !file_name_str.starts_with('r') || !file_name_str.ends_with(".xyz") {
-        //         continue;
-        //     }
-        //     let num_points = fs::metadata(path).unwrap().len() / 12;
-        //     nodes.insert(
-        //         NodeId::from_str(path.file_stem().unwrap().to_str().unwrap()),
-        //         num_points,
-        //     );
-        // }
 
         Ok(OnDiskOctree {
             directory: directory.into(),
@@ -204,11 +190,11 @@ impl Octree for OnDiskOctree {
         let mut visible = Vec::new();
         while !open.is_empty() {
             let node_to_explore = open.pop().unwrap();
-            let maybe_num_points = self.nodes.get(&node_to_explore.id);
-            if maybe_num_points.is_none() || frustum.contains(&node_to_explore.bounding_cube.to_aabb3()) == Relation::Out {
+            let meta = self.nodes.get(&node_to_explore.id);
+            if meta.is_none() || frustum.contains(&node_to_explore.bounding_cube.to_aabb3()) == Relation::Out {
                 continue;
             }
-            let num_points = *maybe_num_points.unwrap();
+            let num_points = meta.unwrap().num_points;
 
             let pixels = size_in_pixels(
                 &node_to_explore.bounding_cube,
