@@ -18,7 +18,6 @@ extern crate pbr;
 extern crate point_viewer;
 extern crate protobuf;
 extern crate scoped_pool;
-extern crate walkdir;
 
 use pbr::ProgressBar;
 use point_viewer::{InternalIterator, Point};
@@ -160,6 +159,7 @@ fn subsample_children_into(
     output_directory: &Path,
     node: &octree::Node,
     resolution: f64,
+    nodes_sender: &mpsc::Sender<(octree::Node, i64, f64)>,    
 ) -> Result<()> {
     let mut parent_writer = octree::NodeWriter::new(output_directory, &node, resolution);
     println!("Creating {} from subsampling children.", node.id);
@@ -184,6 +184,13 @@ fn subsample_children_into(
                 child_writer.write(&p);
             }
         }
+        if child_writer.num_written() > 0 {
+            nodes_sender.send((child, child_writer.num_written(), resolution)).unwrap();
+        }
+    }
+    // add root node
+    if node.parent().is_none() {
+        nodes_sender.send((octree::Node { id: node.id, bounding_cube: node.bounding_cube.clone() }, parent_writer.num_written(), resolution)).unwrap();
     }
     Ok(())
 }
@@ -288,6 +295,28 @@ fn main() {
 
     let (bounding_box, num_points) = find_bounding_box(&input);
 
+    let mut meta = proto::Meta::new();
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_x(bounding_box.min().x);
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_y(bounding_box.min().y);
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_z(bounding_box.min().z);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_x(bounding_box.max().x);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_y(bounding_box.max().y);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_z(bounding_box.max().z);
+    meta.set_resolution(resolution);
+    meta.set_version(octree::CURRENT_VERSION);
+
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
@@ -319,6 +348,7 @@ fn main() {
     }
 
     // We start on the deepest level and work our way up the tree.
+    let (nodes_sender, nodes_receiver) = mpsc::channel();    
     for current_level in (0..deepest_level + 1).rev() {
         // All nodes on the same level can be subsampled in parallel.
         let res = nodes_to_subsample
@@ -345,8 +375,9 @@ fn main() {
 
         pool.scoped(|scope| {
             for node in &subsample_nodes {
+                let nodes_sender_clone = nodes_sender.clone();
                 scope.execute(move || {
-                    subsample_children_into(output_directory, node, resolution).unwrap();
+                    subsample_children_into(output_directory, node, resolution, &nodes_sender_clone).unwrap();
                 });
             }
         });
@@ -356,56 +387,36 @@ fn main() {
         nodes_to_subsample.extend(subsample_nodes.into_iter());
     }
 
-    // Options:
-    // 1. keep track of nodes in the subsampling loop and add them to the node list
-    // 2. iterate output directory like in Octree::new()
-    // 3. store all node meta data in meta.pb?
+    // TODO(tschiwietz): How can we make sure not to miss any messages?
+    let mut c = 0;
+    while let Ok((node, num_points, resolution)) = nodes_receiver.try_recv() {
+        let mut proto = proto::Node::new();
+        proto.set_id(node.id.to_string());
+        proto.set_num_points(num_points);
+        proto
+            .mut_bounding_cube()
+            .mut_min()
+            .set_x(node.bounding_cube.min().x);
+        proto
+            .mut_bounding_cube()
+            .mut_min()
+            .set_y(node.bounding_cube.min().y);
+        proto
+            .mut_bounding_cube()
+            .mut_min()
+            .set_z(node.bounding_cube.min().z);
+        proto
+            .mut_bounding_cube()
+            .set_edge_length(node.bounding_cube.edge_length());
+        proto.set_position_encoding(octree::PositionEncoding::new(&node.bounding_cube, resolution).to_proto());
 
-    let mut meta = proto::Meta::new();
-    meta.mut_bounding_box()
-        .mut_min()
-        .set_x(bounding_box.min().x);
-    meta.mut_bounding_box()
-        .mut_min()
-        .set_y(bounding_box.min().y);
-    meta.mut_bounding_box()
-        .mut_min()
-        .set_z(bounding_box.min().z);
-    meta.mut_bounding_box()
-        .mut_max()
-        .set_x(bounding_box.max().x);
-    meta.mut_bounding_box()
-        .mut_max()
-        .set_y(bounding_box.max().y);
-    meta.mut_bounding_box()
-        .mut_max()
-        .set_z(bounding_box.max().z);
-    meta.set_resolution(resolution);
-    meta.set_version(octree::CURRENT_VERSION);
+        println!("{:?}", proto);
 
-    for entry in walkdir::WalkDir::new(&output_directory)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let path = entry.path();
-        if path.file_name().is_none() {
-            continue;
-        }
-        let file_name = path.file_name().unwrap();
-        let file_name_str = file_name.to_str().unwrap();
-        if !file_name_str.starts_with('r') || !file_name_str.ends_with(".xyz") {
-            continue;
-        }
-        let num_points = fs::metadata(path).unwrap().len() / 12;
+        meta.mut_nodes().push(proto);
+        c += 1;
 
-        // remove file extension ".xyz"
-        let file_stem = &file_name_str[..file_name_str.len()-4];
-
-        let mut node_points = proto::NodePoints::new();
-        node_points.set_id(file_stem.into());
-        node_points.set_num_points(num_points as i64);
-        meta.mut_node_points().push(node_points);
     }
+    println!("{} nodes", c);
 
     let mut buf_writer = BufWriter::new(File::create(&output_directory.join("meta.pb")).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();

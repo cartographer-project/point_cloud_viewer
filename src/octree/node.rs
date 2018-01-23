@@ -347,7 +347,7 @@ pub enum PositionEncoding {
 }
 
 impl PositionEncoding {
-    fn new(bounding_cube: &Cube, resolution: f64) -> PositionEncoding {
+    pub fn new(bounding_cube: &Cube, resolution: f64) -> PositionEncoding {
         let min_bits = (f64::from(bounding_cube.edge_length()) / resolution).log2() as u32 + 1;
         match min_bits {
             0...8 => PositionEncoding::Uint8,

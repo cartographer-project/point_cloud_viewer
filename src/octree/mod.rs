@@ -150,15 +150,15 @@ impl OnDiskOctree {
             )
         };
 
-        println!("node count {}", meta.mut_node_points().len());
+        println!("node count {}", meta.mut_nodes().len());
         let mut nodes = HashMap::new();
-        for node_points in meta.mut_node_points().iter() {
+        for node in meta.mut_nodes().iter() {
             nodes.insert(
-                NodeId::from_str(&node_points.id), 
-                node_points.num_points as u64
+                NodeId::from_str(&node.id), 
+                node.num_points as u64
             );
         }
-        println!("hashmap size {}", meta.mut_node_points().len());
+        // println!("hashmap size {}", meta.mut_node_points().len());
 
         // for entry in walkdir::WalkDir::new(&directory)
         //     .into_iter()
