@@ -159,7 +159,7 @@ fn subsample_children_into(
     output_directory: &Path,
     node: &octree::Node,
     resolution: f64,
-    nodes_sender: &mpsc::Sender<(octree::Node, i64, f64)>,    
+    nodes_sender: &mpsc::Sender<(octree::NodeId, octree::NodeMeta)>,    
 ) -> Result<()> {
     let mut parent_writer = octree::NodeWriter::new(output_directory, &node, resolution);
     println!("Creating {} from subsampling children.", node.id);
@@ -185,12 +185,24 @@ fn subsample_children_into(
             }
         }
         if child_writer.num_written() > 0 {
-            nodes_sender.send((child, child_writer.num_written(), resolution)).unwrap();
+            nodes_sender.send(
+                (child.id, octree::NodeMeta {
+                    num_points: child_writer.num_written(),
+                    position_encoding: octree::PositionEncoding::new(&child.bounding_cube, resolution),
+                    bounding_cube: child.bounding_cube.clone(),
+                })
+            ).unwrap();
         }
     }
     // add root node
     if node.parent().is_none() {
-        nodes_sender.send((octree::Node { id: node.id, bounding_cube: node.bounding_cube.clone() }, parent_writer.num_written(), resolution)).unwrap();
+        nodes_sender.send(
+            (node.id, octree::NodeMeta {
+                num_points: parent_writer.num_written(),
+                position_encoding: octree::PositionEncoding::new(&node.bounding_cube, resolution),
+                bounding_cube: node.bounding_cube.clone(),
+            })
+        ).unwrap();
     }
     Ok(())
 }
@@ -390,26 +402,26 @@ fn main() {
 
     // Add all node meta data to meta.pb
     // TODO(tschiwietz): How can we make sure not to miss any messages?
-    while let Ok((node, num_points, resolution)) = nodes_receiver.try_recv() {
+    while let Ok((id, node_meta)) = nodes_receiver.try_recv() {
         let mut proto = proto::Node::new();
-        proto.set_id(node.id.to_string());
-        proto.set_num_points(num_points);
+        proto.set_id(id.to_string());
+        proto.set_num_points(node_meta.num_points);
         proto
             .mut_bounding_cube()
             .mut_min()
-            .set_x(node.bounding_cube.min().x);
+            .set_x(node_meta.bounding_cube.min().x);
         proto
             .mut_bounding_cube()
             .mut_min()
-            .set_y(node.bounding_cube.min().y);
+            .set_y(node_meta.bounding_cube.min().y);
         proto
             .mut_bounding_cube()
             .mut_min()
-            .set_z(node.bounding_cube.min().z);
+            .set_z(node_meta.bounding_cube.min().z);
         proto
             .mut_bounding_cube()
-            .set_edge_length(node.bounding_cube.edge_length());
-        proto.set_position_encoding(octree::PositionEncoding::new(&node.bounding_cube, resolution).to_proto());
+            .set_edge_length(node_meta.bounding_cube.edge_length());
+        proto.set_position_encoding(node_meta.position_encoding.to_proto());
         meta.mut_nodes().push(proto);
     }
 
