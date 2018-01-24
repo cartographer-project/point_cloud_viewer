@@ -159,6 +159,7 @@ fn subsample_children_into(
     output_directory: &Path,
     node: &octree::Node,
     resolution: f64,
+    finished_node_sender: &mpsc::Sender<(octree::NodeId, octree::NodeMeta)>,    
 ) -> Result<()> {
     let mut parent_writer = octree::NodeWriter::new(output_directory, &node, resolution);
     println!("Creating {} from subsampling children.", node.id);
@@ -183,6 +184,25 @@ fn subsample_children_into(
                 child_writer.write(&p);
             }
         }
+        if child_writer.num_written() > 0 {
+            finished_node_sender.send(
+                (child.id, octree::NodeMeta {
+                    num_points: child_writer.num_written(),
+                    position_encoding: octree::PositionEncoding::new(&child.bounding_cube, resolution),
+                    bounding_cube: child.bounding_cube.clone(),
+                })
+            ).unwrap();
+        }
+    }
+    // add root node
+    if node.parent().is_none() {
+        finished_node_sender.send(
+            (node.id, octree::NodeMeta {
+                num_points: parent_writer.num_written(),
+                position_encoding: octree::PositionEncoding::new(&node.bounding_cube, resolution),
+                bounding_cube: node.bounding_cube.clone(),
+            })
+        ).unwrap();
     }
     Ok(())
 }
@@ -290,7 +310,7 @@ fn main() {
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    let meta = {
+    let mut meta = {
         let mut meta = proto::Meta::new();
         meta.mut_bounding_box()
             .mut_min()
@@ -314,9 +334,6 @@ fn main() {
         meta.set_version(octree::CURRENT_VERSION);
         meta
     };
-
-    let mut buf_writer = BufWriter::new(File::create(&output_directory.join("meta.pb")).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
 
     println!("Creating octree structure.");
     let pool = Pool::new(10);
@@ -345,6 +362,8 @@ fn main() {
         nodes_to_subsample.push(leaf_node);
     }
 
+    // sub sampling returns the list of finished nodes including all meta data
+    let (nodes_sender, nodes_receiver) = mpsc::channel();    
     // We start on the deepest level and work our way up the tree.
     for current_level in (0..deepest_level + 1).rev() {
         // All nodes on the same level can be subsampled in parallel.
@@ -372,8 +391,9 @@ fn main() {
 
         pool.scoped(|scope| {
             for node in &subsample_nodes {
+                let nodes_sender_clone = nodes_sender.clone();
                 scope.execute(move || {
-                    subsample_children_into(output_directory, node, resolution).unwrap();
+                    subsample_children_into(output_directory, node, resolution, &nodes_sender_clone).unwrap();
                 });
             }
         });
@@ -382,4 +402,33 @@ fn main() {
         // their parents.
         nodes_to_subsample.extend(subsample_nodes.into_iter());
     }
+
+    // Add all node meta data to meta.pb
+    drop(nodes_sender);
+    for (id, node_meta) in nodes_receiver {
+        let mut proto = proto::Node::new();
+        proto.mut_id().set_level(id.level() as i32);
+        proto.mut_id().set_index(id.index() as i64);
+        proto.set_num_points(node_meta.num_points);
+        proto
+            .mut_bounding_cube()
+            .mut_min()
+            .set_x(node_meta.bounding_cube.min().x);
+        proto
+            .mut_bounding_cube()
+            .mut_min()
+            .set_y(node_meta.bounding_cube.min().y);
+        proto
+            .mut_bounding_cube()
+            .mut_min()
+            .set_z(node_meta.bounding_cube.min().z);
+        proto
+            .mut_bounding_cube()
+            .set_edge_length(node_meta.bounding_cube.edge_length());
+        proto.set_position_encoding(node_meta.position_encoding.to_proto());
+        meta.mut_nodes().push(proto);
+    }
+
+    let mut buf_writer = BufWriter::new(File::create(&output_directory.join("meta.pb")).unwrap());
+    meta.write_to_writer(&mut buf_writer).unwrap();
 }

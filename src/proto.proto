@@ -34,10 +34,9 @@ message AxisAlignedCuboid {
   Vector3f max = 2;
 }
 
-message Meta {
-  int32 version = 1;
-  AxisAlignedCuboid bounding_box = 4;
-  double resolution = 3;
+message NodeId {
+  int32 level = 1;
+  int64 index = 2;
 }
 
 message Node {
@@ -51,4 +50,12 @@ message Node {
   AxisAlignedCube bounding_cube = 1;
   PositionEncoding position_encoding = 2;
   int64 num_points = 3;
+  NodeId id = 4;
+}
+
+message Meta {
+  int32 version = 1;
+  AxisAlignedCuboid bounding_box = 4;
+  double resolution = 3;
+  repeated Node nodes = 5;
 }

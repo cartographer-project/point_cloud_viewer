@@ -20,17 +20,16 @@ use collision::{Relation, Frustum};
 use protobuf;
 use std::cmp;
 use std::collections::HashMap;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
-use walkdir;
 
 mod node;
 
 pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter,
                      PositionEncoding};
 
-pub const CURRENT_VERSION: i32 = 8;
+pub const CURRENT_VERSION: i32 = 9;
 
 #[derive(Debug)]
 pub struct VisibleNode {
@@ -92,8 +91,7 @@ fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i
 #[derive(Debug)]
 pub struct OnDiskOctree {
     directory: PathBuf,
-    // Maps from node id to number of points.
-    nodes: HashMap<NodeId, u64>,
+    nodes: HashMap<NodeId, NodeMeta>,
     bounding_box: Aabb3f,
 }
 
@@ -152,23 +150,21 @@ impl OnDiskOctree {
         };
 
         let mut nodes = HashMap::new();
-        for entry in walkdir::WalkDir::new(&directory)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            let path = entry.path();
-            if path.file_name().is_none() {
-                continue;
-            }
-            let file_name = path.file_name().unwrap();
-            let file_name_str = file_name.to_str().unwrap();
-            if !file_name_str.starts_with('r') || !file_name_str.ends_with(".xyz") {
-                continue;
-            }
-            let num_points = fs::metadata(path).unwrap().len() / 12;
+        for meta in meta.nodes.iter() {
             nodes.insert(
-                NodeId::from_str(path.file_stem().unwrap().to_str().unwrap()),
-                num_points,
+                NodeId::from_level_index(
+                    meta.id.as_ref().unwrap().level as u8,
+                    meta.id.as_ref().unwrap().index as usize,
+                ), 
+                NodeMeta {
+                    num_points: meta.num_points,
+                    position_encoding: PositionEncoding::from_proto(meta.position_encoding)?,
+                    bounding_cube: {
+                        let proto = meta.bounding_cube.as_ref().unwrap();
+                        let min = proto.min.as_ref().unwrap();
+                        Cube::new(Point3f::new(min.x, min.y, min.z), proto.edge_length)
+                    },
+                }
             );
         }
 
@@ -196,11 +192,11 @@ impl Octree for OnDiskOctree {
         let mut visible = Vec::new();
         while !open.is_empty() {
             let node_to_explore = open.pop().unwrap();
-            let maybe_num_points = self.nodes.get(&node_to_explore.id);
-            if maybe_num_points.is_none() || frustum.contains(&node_to_explore.bounding_cube.to_aabb3()) == Relation::Out {
+            let meta = self.nodes.get(&node_to_explore.id);
+            if meta.is_none() || frustum.contains(&node_to_explore.bounding_cube.to_aabb3()) == Relation::Out {
                 continue;
             }
-            let num_points = *maybe_num_points.unwrap();
+            let num_points = meta.unwrap().num_points;
 
             let pixels = size_in_pixels(
                 &node_to_explore.bounding_cube,
@@ -247,7 +243,7 @@ impl Octree for OnDiskOctree {
     fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
         let stem = node_id.get_stem(&self.directory);
         let meta = {
-            let mut meta = node::NodeMeta::from_disk(&stem)?;
+            let mut meta = self.nodes[node_id].clone();
             meta.num_points = meta.num_points_for_level_of_detail(level_of_detail);
             meta
         };
