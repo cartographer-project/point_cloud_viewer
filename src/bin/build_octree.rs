@@ -159,7 +159,7 @@ fn subsample_children_into(
     output_directory: &Path,
     node: &octree::Node,
     resolution: f64,
-    nodes_sender: &mpsc::Sender<(octree::NodeId, octree::NodeMeta)>,    
+    finished_node_sender: &mpsc::Sender<(octree::NodeId, octree::NodeMeta)>,    
 ) -> Result<()> {
     let mut parent_writer = octree::NodeWriter::new(output_directory, &node, resolution);
     println!("Creating {} from subsampling children.", node.id);
@@ -185,7 +185,7 @@ fn subsample_children_into(
             }
         }
         if child_writer.num_written() > 0 {
-            nodes_sender.send(
+            finished_node_sender.send(
                 (child.id, octree::NodeMeta {
                     num_points: child_writer.num_written(),
                     position_encoding: octree::PositionEncoding::new(&child.bounding_cube, resolution),
@@ -196,7 +196,7 @@ fn subsample_children_into(
     }
     // add root node
     if node.parent().is_none() {
-        nodes_sender.send(
+        finished_node_sender.send(
             (node.id, octree::NodeMeta {
                 num_points: parent_writer.num_written(),
                 position_encoding: octree::PositionEncoding::new(&node.bounding_cube, resolution),
