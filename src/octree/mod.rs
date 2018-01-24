@@ -128,7 +128,7 @@ impl OnDiskOctree {
             return Err(ErrorKind::InvalidVersion(3).into());
         }
 
-        let mut meta = {
+        let meta = {
             let mut data = Vec::new();
             File::open(&directory.join("meta.pb"))?.read_to_end(&mut data)?;
             protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
@@ -140,7 +140,7 @@ impl OnDiskOctree {
         }
 
         let bounding_box = {
-            let bounding_box = meta.bounding_box.clone().unwrap();
+            let bounding_box = meta.bounding_box.unwrap();
             let min = bounding_box.min.unwrap();
             let max = bounding_box.max.unwrap();
             Aabb3f::new(
@@ -150,7 +150,7 @@ impl OnDiskOctree {
         };
 
         let mut nodes = HashMap::new();
-        for meta in meta.mut_nodes().iter() {
+        for meta in meta.nodes.iter() {
             nodes.insert(
                 NodeId::from_str(&meta.id), 
                 NodeMeta {
