@@ -91,7 +91,6 @@ fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i
 #[derive(Debug)]
 pub struct OnDiskOctree {
     directory: PathBuf,
-    // Maps from node id to NodeMeta: bounding_box, number of points, PositionEncoding.
     nodes: HashMap<NodeId, NodeMeta>,
     bounding_box: Aabb3f,
 }
