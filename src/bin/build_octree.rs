@@ -404,8 +404,8 @@ fn main() {
     }
 
     // Add all node meta data to meta.pb
-    // TODO(tschiwietz): How can we make sure not to miss any messages?
-    while let Ok((id, node_meta)) = nodes_receiver.try_recv() {
+    drop(nodes_sender);
+    for (id, node_meta) in nodes_receiver {
         let mut proto = proto::Node::new();
         proto.set_id(id.to_string());
         proto.set_num_points(node_meta.num_points);
