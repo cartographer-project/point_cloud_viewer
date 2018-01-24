@@ -157,8 +157,8 @@ impl OnDiskOctree {
                     num_points: meta.num_points,
                     position_encoding: PositionEncoding::from_proto(meta.position_encoding)?,
                     bounding_cube: {
-                        let proto = meta.bounding_cube.clone().unwrap();
-                        let min = proto.min.unwrap();
+                        let proto = meta.bounding_cube.as_ref().unwrap();
+                        let min = proto.min.as_ref().unwrap();
                         Cube::new(Point3f::new(min.x, min.y, min.z), proto.edge_length)
                     },
                 }
