@@ -83,6 +83,10 @@ impl NodeId {
         NodeId { level, index }
     }
 
+    pub fn from_level_index(level: u8, index: usize) -> Self {
+        NodeId { level, index }
+    }
+
     /// Returns the path on disk where the data for this node is saved.
     pub fn get_stem(&self, directory: &Path) -> PathBuf {
         directory.join(&self.to_string())
@@ -121,8 +125,13 @@ impl NodeId {
     }
 
     /// Returns the level of this node in the octree, with 0 being the root.
-    fn level(&self) -> usize {
+    pub fn level(&self) -> usize {
         self.level as usize
+    }
+
+    /// Returns the index of this node at the current level.
+    pub fn index(&self) -> usize {
+        self.index as usize
     }
 }
 

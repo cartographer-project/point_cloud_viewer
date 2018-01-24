@@ -152,7 +152,10 @@ impl OnDiskOctree {
         let mut nodes = HashMap::new();
         for meta in meta.nodes.iter() {
             nodes.insert(
-                NodeId::from_str(&meta.id), 
+                NodeId::from_level_index(
+                    meta.id.as_ref().unwrap().level as u8,
+                    meta.id.as_ref().unwrap().index as usize,
+                ), 
                 NodeMeta {
                     num_points: meta.num_points,
                     position_encoding: PositionEncoding::from_proto(meta.position_encoding)?,

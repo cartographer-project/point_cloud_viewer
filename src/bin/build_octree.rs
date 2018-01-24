@@ -407,7 +407,8 @@ fn main() {
     drop(nodes_sender);
     for (id, node_meta) in nodes_receiver {
         let mut proto = proto::Node::new();
-        proto.set_id(id.to_string());
+        proto.mut_id().set_level(id.level() as i32);
+        proto.mut_id().set_index(id.index() as i64);
         proto.set_num_points(node_meta.num_points);
         proto
             .mut_bounding_cube()

@@ -34,6 +34,11 @@ message AxisAlignedCuboid {
   Vector3f max = 2;
 }
 
+message NodeId {
+  int32 level = 1;
+  int64 index = 2;
+}
+
 message Node {
   enum PositionEncoding {
     INVALID = 0;
@@ -45,7 +50,7 @@ message Node {
   AxisAlignedCube bounding_cube = 1;
   PositionEncoding position_encoding = 2;
   int64 num_points = 3;
-  string id = 4;
+  NodeId id = 4;
 }
 
 message Meta {
