@@ -14,21 +14,25 @@
 
 use {InternalIterator, Point};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use cgmath::{Point3, Vector3, Zero};
+use cgmath::{Vector3, Zero};
 use errors::*;
 use math::{clamp, Cube};
 use num;
 use num_traits;
 use proto;
-use protobuf::{self, Message};
 use std::{fmt, result};
 use std::fs::{self, File};
-use std::io::{BufReader, BufWriter, Cursor, Read};
+use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
-pub const META_EXT: &str = "pb";
 pub const POSITION_EXT: &str = "xyz";
 pub const COLOR_EXT: &str = "rgb";
+
+pub struct OctreeMeta {
+    pub directory: PathBuf,
+    pub resolution: f64,
+    pub root_bounding_cube: Cube,
+}
 
 /// Represents a child of an octree Node.
 #[derive(Debug, PartialEq, Eq)]
@@ -38,6 +42,17 @@ impl ChildIndex {
     pub fn from_u8(index: u8) -> Self {
         assert!(index < 8);
         ChildIndex(index)
+    }
+
+    /// Returns the ChildId of the child containing 'v'.
+    pub fn from_bounding_cube(bounding_cube: &Cube, v: &Vector3<f32>) -> ChildIndex {
+        // This is a bit flawed: it is not guaranteed that 'child_bounding_box.contains(&v)' is true
+        // using this calculated index due to floating point precision.
+        let center = bounding_cube.center();
+        let gt_x = v.x > center.x;
+        let gt_y = v.y > center.y;
+        let gt_z = v.z > center.z;
+        ChildIndex((gt_x as u8) << 2 | (gt_y as u8) << 1 | gt_z as u8)
     }
 
     pub fn as_u8(&self) -> u8 {
@@ -99,7 +114,7 @@ impl NodeId {
     }
 
     /// Returns the NodeId for the corresponding 'child_index'.
-    fn get_child_id(&self, child_index: &ChildIndex) -> Self {
+    pub fn get_child_id(&self, child_index: ChildIndex) -> Self {
         NodeId {
             level: self.level + 1,
             index: (self.index << 3) + child_index.0 as usize,
@@ -115,7 +130,7 @@ impl NodeId {
     }
 
     /// Returns the parents id or None if this is the root.
-    fn parent_id(&self) -> Option<NodeId> {
+    pub fn parent_id(&self) -> Option<NodeId> {
         if self.level() == 0 {
             return None;
         }
@@ -133,6 +148,37 @@ impl NodeId {
     /// Returns the index of this node at the current level.
     pub fn index(&self) -> usize {
         self.index as usize
+    }
+
+    /// Computes the bounding cube from a NodeID.
+    pub fn find_bounding_cube(&self, root_bounding_cube: &Cube) -> Cube {
+        let mut edge_length = root_bounding_cube.edge_length();
+        let mut min = root_bounding_cube.min();
+        for level in (0..self.level).rev() {
+            edge_length /= 2.;
+            // Reverse order: process from root to leaf nodes.
+            let child_index = (self.index >> (3 * level)) & 7;
+            let z = (child_index >> 0) & 1;
+            let y = (child_index >> 1) & 1;
+            let x = (child_index >> 2) & 1;
+            min.x += x as f32 * edge_length;
+            min.y += y as f32 * edge_length;
+            min.z += z as f32 * edge_length;
+        }
+        Cube::new(min, edge_length)
+    }
+
+    // Get number of points from the file size of the color data.
+    // Color data is required and always present.
+    fn number_of_points(&self, directory: &Path) -> Result<i64> {
+        let file_meta_data_opt = fs::metadata(self.get_stem(directory).with_extension(COLOR_EXT));
+        if file_meta_data_opt.is_err() {
+            return Err(ErrorKind::NodeNotFound.into());
+        }
+
+        let file_size_bytes = file_meta_data_opt.unwrap().len();
+        // color has 3 bytes per point
+        Ok((file_size_bytes / 3) as i64)
     }
 }
 
@@ -168,20 +214,9 @@ impl Node {
             Cube::new(min, half_edge_length)
         };
         Node {
-            id: self.id.get_child_id(&child_index),
+            id: self.id.get_child_id(child_index),
             bounding_cube: child_bounding_cube,
         }
-    }
-
-    /// Returns the ChildId of the child containing 'v'.
-    pub fn get_child_id_containing_point(&self, v: &Vector3<f32>) -> ChildIndex {
-        // This is a bit flawed: it is not guaranteed that 'child_bounding_box.contains(&v)' is true
-        // using this calculated index due to floating point precision.
-        let center = self.bounding_cube.center();
-        let gt_x = v.x > center.x;
-        let gt_y = v.y > center.y;
-        let gt_z = v.z > center.z;
-        ChildIndex((gt_x as u8) << 2 | (gt_y as u8) << 1 | gt_z as u8)
     }
 
     // TODO(hrapp): This function could use some testing.
@@ -228,31 +263,6 @@ pub struct NodeMeta {
 }
 
 impl NodeMeta {
-    pub fn from_disk(stem: &Path) -> Result<Self> {
-        let meta_path = stem.with_extension(META_EXT);
-        if !meta_path.exists() {
-            return Err(ErrorKind::NodeNotFound.into());
-        }
-
-        let meta = {
-            let mut data = Vec::new();
-            File::open(&stem.with_extension(META_EXT))?.read_to_end(&mut data)?;
-            protobuf::parse_from_reader::<proto::Node>(&mut Cursor::new(data))
-                .chain_err(|| "Could not parse node protobuf.")?
-        };
-
-        Ok(NodeMeta {
-            num_points: meta.num_points,
-            position_encoding: PositionEncoding::from_proto(meta.position_encoding)?,
-            // TODO(hrapp): Would be nice to have a from_proto and to_proto as a trait.
-            bounding_cube: {
-                let proto = meta.bounding_cube.unwrap();
-                let min = proto.min.unwrap();
-                Cube::new(Point3::new(min.x, min.y, min.z), proto.edge_length)
-            },
-        })
-    }
-
     pub fn num_points_for_level_of_detail(&self, level_of_detail: i32) -> i64 {
         (self.num_points as f32 / level_of_detail as f32).ceil() as i64
     }
@@ -266,13 +276,19 @@ pub struct NodeIterator {
 }
 
 impl NodeIterator {
-    pub fn from_disk(directory: &Path, id: &NodeId) -> Result<Self> {
-        let stem = id.get_stem(directory);
-        let meta = NodeMeta::from_disk(&stem)?;
+    pub fn from_disk(octree_meta: &OctreeMeta, id: &NodeId) -> Result<Self> {
+        let stem = id.get_stem(&octree_meta.directory);
+        let num_points = id.number_of_points(&octree_meta.directory)?;
+        let bounding_cube = id.find_bounding_cube(&octree_meta.root_bounding_cube);
+        let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
         Ok(NodeIterator {
             xyz_reader: BufReader::new(File::open(&stem.with_extension(POSITION_EXT))?),
             rgb_reader: BufReader::new(File::open(&stem.with_extension(COLOR_EXT))?),
-            meta: meta,
+            meta: NodeMeta {
+                bounding_cube: bounding_cube,
+                position_encoding: position_encoding,
+                num_points: num_points,
+            },
         })
     }
 }
@@ -437,32 +453,6 @@ impl Drop for NodeWriter {
         // If we did not write anything into this node, it should not exist.
         if self.num_written == 0 {
             self.remove_all_files();
-        } else {
-            let proto = {
-                let mut proto = proto::Node::new();
-                proto
-                    .mut_bounding_cube()
-                    .mut_min()
-                    .set_x(self.bounding_cube.min().x);
-                proto
-                    .mut_bounding_cube()
-                    .mut_min()
-                    .set_y(self.bounding_cube.min().y);
-                proto
-                    .mut_bounding_cube()
-                    .mut_min()
-                    .set_z(self.bounding_cube.min().z);
-                proto
-                    .mut_bounding_cube()
-                    .set_edge_length(self.bounding_cube.edge_length());
-                proto.set_position_encoding(self.position_encoding.to_proto());
-                proto.set_num_points(self.num_written);
-                proto
-            };
-
-            let file = File::create(&self.stem.with_extension(META_EXT)).unwrap();
-            let mut writer = BufWriter::new(file);
-            proto.write_to_writer(&mut writer).unwrap();
         }
 
         // TODO(hrapp): Add some sanity checks that we do not have nodes with ridiculously low
@@ -471,14 +461,15 @@ impl Drop for NodeWriter {
 }
 
 impl NodeWriter {
-    pub fn new(output_directory: &Path, node: &Node, resolution: f64) -> Self {
-        let stem = node.id.get_stem(output_directory);
+    pub fn new(octree_meta: &OctreeMeta, node_id: &NodeId) -> Self {
+        let stem = node_id.get_stem(&octree_meta.directory);
+        let bounding_cube = node_id.find_bounding_cube(&octree_meta.root_bounding_cube);
         NodeWriter {
             xyz_writer: BufWriter::new(File::create(&stem.with_extension(POSITION_EXT)).unwrap()),
             rgb_writer: BufWriter::new(File::create(&stem.with_extension(COLOR_EXT)).unwrap()),
             stem: stem,
-            position_encoding: PositionEncoding::new(&node.bounding_cube, resolution),
-            bounding_cube: node.bounding_cube.clone(),
+            position_encoding: PositionEncoding::new(&bounding_cube, octree_meta.resolution),
+            bounding_cube: bounding_cube,
             num_written: 0,
         }
     }
@@ -538,13 +529,13 @@ impl NodeWriter {
         // We are ignoring deletion errors here in case the file is already gone.
         let _ = fs::remove_file(&self.stem.with_extension(POSITION_EXT));
         let _ = fs::remove_file(&self.stem.with_extension(COLOR_EXT));
-        let _ = fs::remove_file(&self.stem.with_extension(META_EXT));
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ChildIndex, NodeId};
+    use cgmath::Point3;
+    use super::*;
 
     #[test]
     fn test_parent_node_name() {
@@ -565,5 +556,22 @@ mod tests {
             NodeId::from_str("r123457").child_index()
         );
         assert_eq!(None, NodeId::from_str("r").child_index());
+    }
+
+    #[test]
+    fn test_bounding_box() {
+        let root_bounding_cube = Cube::new(Point3::new(-5., -5., -5.), 10.);
+
+        let bounding_cube = NodeId::from_str("r0").find_bounding_cube(&root_bounding_cube);
+        assert_eq!(-5., bounding_cube.min().x);
+        assert_eq!(-5., bounding_cube.min().y);
+        assert_eq!(-5., bounding_cube.min().z);
+        assert_eq!(5., bounding_cube.edge_length());
+
+        let bounding_cube = NodeId::from_str("r13").find_bounding_cube(&root_bounding_cube);
+        assert_eq!(-5., bounding_cube.min().x);
+        assert_eq!(-2.5, bounding_cube.min().y);
+        assert_eq!(2.5, bounding_cube.min().z);
+        assert_eq!(2.5, bounding_cube.edge_length());
     }
 }
