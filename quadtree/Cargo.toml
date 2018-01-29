@@ -1,0 +1,7 @@
+[package]
+name = "quadtree"
+version = "0.1.0"
+authors = ["Holger Rapp <hrapp@lyft.com>"]
+
+[dependencies]
+cgmath = "0.16.0"
