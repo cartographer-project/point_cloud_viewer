@@ -541,6 +541,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "quadtree"
+version = "0.1.0"
+dependencies = [
+ "cgmath 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "rand"
 version = "0.3.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
