@@ -19,6 +19,7 @@ use errors::*;
 use math::{clamp, Cube};
 use num;
 use num_traits;
+use octree::OctreeMeta;
 use proto;
 use std::{fmt, result};
 use std::fs::{self, File};
@@ -27,12 +28,6 @@ use std::path::{Path, PathBuf};
 
 pub const POSITION_EXT: &str = "xyz";
 pub const COLOR_EXT: &str = "rgb";
-
-pub struct OctreeMeta {
-    pub directory: PathBuf,
-    pub resolution: f64,
-    pub root_bounding_cube: Cube,
-}
 
 /// Represents a child of an octree Node.
 #[derive(Debug, PartialEq, Eq)]
@@ -279,7 +274,7 @@ impl NodeIterator {
     pub fn from_disk(octree_meta: &OctreeMeta, id: &NodeId) -> Result<Self> {
         let stem = id.get_stem(&octree_meta.directory);
         let num_points = id.number_of_points(&octree_meta.directory)?;
-        let bounding_cube = id.find_bounding_cube(&octree_meta.root_bounding_cube);
+        let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
         let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
         Ok(NodeIterator {
             xyz_reader: BufReader::new(File::open(&stem.with_extension(POSITION_EXT))?),
@@ -463,7 +458,7 @@ impl Drop for NodeWriter {
 impl NodeWriter {
     pub fn new(octree_meta: &OctreeMeta, node_id: &NodeId) -> Self {
         let stem = node_id.get_stem(&octree_meta.directory);
-        let bounding_cube = node_id.find_bounding_cube(&octree_meta.root_bounding_cube);
+        let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
         NodeWriter {
             xyz_writer: BufWriter::new(File::create(&stem.with_extension(POSITION_EXT)).unwrap()),
             rgb_writer: BufWriter::new(File::create(&stem.with_extension(COLOR_EXT)).unwrap()),
@@ -534,8 +529,8 @@ impl NodeWriter {
 
 #[cfg(test)]
 mod tests {
-    use cgmath::Point3;
     use super::*;
+    use cgmath::Point3;
 
     #[test]
     fn test_parent_node_name() {
