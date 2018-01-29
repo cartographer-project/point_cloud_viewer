@@ -150,7 +150,7 @@ fn main() {
     let service = proto_grpc::create_octree(OctreeService { octree });
     let mut server = ServerBuilder::new(env)
         .register_service(service)
-        .bind("" /* ip to bind to */, port)
+        .bind("127.0.0.1" /* ip to bind to */, port)            // TODO(tschiwietz): removed hardcoded localhost
         .build()
         .unwrap();
     server.start();
