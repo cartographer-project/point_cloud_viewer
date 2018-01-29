@@ -534,6 +534,7 @@ impl NodeWriter {
 
 #[cfg(test)]
 mod tests {
+    use cgmath::Point3;
     use super::*;
 
     #[test]
@@ -559,7 +560,7 @@ mod tests {
 
     #[test]
     fn test_bounding_box() {
-        let root_bounding_cube = Cube::new(Point3f::new(-5., -5., -5.), 10.);
+        let root_bounding_cube = Cube::new(Point3::new(-5., -5., -5.), 10.);
 
         let bounding_cube = NodeId::from_str("r0").find_bounding_cube(&root_bounding_cube);
         assert_eq!(-5., bounding_cube.min().x);
