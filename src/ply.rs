@@ -14,8 +14,8 @@
 
 use {InternalIterator, Point};
 use byteorder::{ByteOrder, LittleEndian};
+use cgmath::Vector3;
 use errors::*;
-use math::Vector3f;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::ops::Index;
@@ -389,7 +389,7 @@ impl InternalIterator for PlyIterator {
 
     fn for_each<F: FnMut(&Point)>(mut self, mut func: F) {
         let mut point = Point {
-            position: Vector3f::new(0., 0., 0.),
+            position: Vector3::new(0., 0., 0.),
             r: 255,
             g: 255,
             b: 255,

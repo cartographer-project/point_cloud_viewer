@@ -12,25 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath;
-use collision;
-
-pub type Vector2f = cgmath::Vector2<f32>;
-pub type Vector3f = cgmath::Vector3<f32>;
-pub type Matrix4f = cgmath::Matrix4<f32>;
-pub type Point3f = cgmath::Point3<f32>;
-pub type Aabb3f = collision::Aabb3<f32>;
-pub use cgmath::prelude::*;
-pub use collision::Aabb;
+use cgmath::{Point3, Vector3};
+use collision::{Aabb, Aabb3};
 
 #[derive(Debug, Clone)]
 pub struct Cube {
-    min: Point3f,
+    min: Point3<f32>,
     edge_length: f32,
 }
 
 impl Cube {
-    pub fn bounding(aabb: &Aabb3f) -> Self {
+    pub fn bounding(aabb: &Aabb3<f32>) -> Self {
         let edge_length = (aabb.max().x - aabb.min().x)
             .max(aabb.max().y - aabb.min().y)
             .max(aabb.max().z - aabb.min().z);
@@ -40,11 +32,11 @@ impl Cube {
         }
     }
 
-    pub fn to_aabb3(&self) -> Aabb3f {
-        Aabb3f::new(self.min(), self.max())
+    pub fn to_aabb3(&self) -> Aabb3<f32> {
+        Aabb3::new(self.min(), self.max())
     }
 
-    pub fn new(min: Point3f, edge_length: f32) -> Self {
+    pub fn new(min: Point3<f32>, edge_length: f32) -> Self {
         Cube {
             min: min,
             edge_length: edge_length,
@@ -55,12 +47,12 @@ impl Cube {
         self.edge_length
     }
 
-    pub fn min(&self) -> Point3f {
+    pub fn min(&self) -> Point3<f32> {
         self.min
     }
 
-    pub fn max(&self) -> Point3f {
-        Point3f::new(
+    pub fn max(&self) -> Point3<f32> {
+        Point3::new(
             self.min.x + self.edge_length,
             self.min.y + self.edge_length,
             self.min.z + self.edge_length,
@@ -68,10 +60,10 @@ impl Cube {
     }
 
     /// The center of the box.
-    pub fn center(&self) -> Vector3f {
+    pub fn center(&self) -> Vector3<f32> {
         let min = self.min();
         let max = self.max();
-        Vector3f::new(
+        Vector3::new(
             (min.x + max.x) / 2.,
             (min.y + max.y) / 2.,
             (min.z + max.z) / 2.,

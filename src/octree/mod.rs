@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use cgmath::{Matrix4, Point3, Vector2};
+use collision::{Aabb, Aabb3, Frustum, Relation};
 use errors::*;
-use math::{Aabb, Aabb3f, Cube, Matrix4f, Point3f, Vector2f};
+use math::Cube;
 use num_traits::Zero;
 use proto;
-use collision::{Relation, Frustum};
 use protobuf;
 use std::cmp;
 use std::collections::HashMap;
@@ -35,7 +36,7 @@ pub const CURRENT_VERSION: i32 = 9;
 pub struct VisibleNode {
     pub id: NodeId,
     pub level_of_detail: i32,
-    pixels: Vector2f,
+    pixels: Vector2<f32>,
 }
 
 impl VisibleNode {
@@ -43,7 +44,7 @@ impl VisibleNode {
         VisibleNode {
             id,
             level_of_detail,
-            pixels: Vector2f::zero(),
+            pixels: Vector2::zero(),
         }
     }
 }
@@ -56,33 +57,38 @@ pub struct NodesToBlob {
 
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
 // that is impossible.
-fn project(m: &Matrix4f, p: &Point3f) -> Point3f {
+fn project(m: &Matrix4<f32>, p: &Point3<f32>) -> Point3<f32> {
     let d = 1. / (m[0][3] * p.x + m[1][3] * p.y + m[2][3] * p.z + m[3][3]);
-    Point3f::new(
+    Point3::new(
         (m[0][0] * p.x + m[1][0] * p.y + m[2][0] * p.z + m[3][0]) * d,
         (m[0][1] * p.x + m[1][1] * p.y + m[2][1] * p.z + m[3][1]) * d,
         (m[0][2] * p.x + m[1][2] * p.y + m[2][2] * p.z + m[3][2]) * d,
     )
 }
 
-fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i32) -> Vector2f {
+fn size_in_pixels(
+    bounding_cube: &Cube,
+    matrix: &Matrix4<f32>,
+    width: i32,
+    height: i32,
+) -> Vector2<f32> {
     // z is unused here.
     let min = bounding_cube.min();
     let max = bounding_cube.max();
-    let mut rv = Aabb3f::zero();
+    let mut rv = Aabb3::zero();
     for p in &[
-        Point3f::new(min.x, min.y, min.z),
-        Point3f::new(max.x, min.y, min.z),
-        Point3f::new(min.x, max.y, min.z),
-        Point3f::new(max.x, max.y, min.z),
-        Point3f::new(min.x, min.y, max.z),
-        Point3f::new(max.x, min.y, max.z),
-        Point3f::new(min.x, max.y, max.z),
-        Point3f::new(max.x, max.y, max.z),
+        Point3::new(min.x, min.y, min.z),
+        Point3::new(max.x, min.y, min.z),
+        Point3::new(min.x, max.y, min.z),
+        Point3::new(max.x, max.y, min.z),
+        Point3::new(min.x, min.y, max.z),
+        Point3::new(max.x, min.y, max.z),
+        Point3::new(min.x, max.y, max.z),
+        Point3::new(max.x, max.y, max.z),
     ] {
         rv = rv.grow(project(matrix, p));
     }
-    Vector2f::new(
+    Vector2::new(
         (rv.max().x - rv.min().x) * (width as f32) / 2.,
         (rv.max().y - rv.min().y) * (height as f32) / 2.,
     )
@@ -92,7 +98,7 @@ fn size_in_pixels(bounding_cube: &Cube, matrix: &Matrix4f, width: i32, height: i
 pub struct OnDiskOctree {
     directory: PathBuf,
     nodes: HashMap<NodeId, NodeMeta>,
-    bounding_box: Aabb3f,
+    bounding_box: Aabb3<f32>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -104,7 +110,7 @@ pub enum UseLod {
 pub trait Octree: Send + Sync {
     fn get_visible_nodes(
         &self,
-        projection_matrix: &Matrix4f,
+        projection_matrix: &Matrix4<f32>,
         width: i32,
         height: i32,
         use_lod: UseLod,
@@ -143,9 +149,9 @@ impl OnDiskOctree {
             let bounding_box = meta.bounding_box.unwrap();
             let min = bounding_box.min.unwrap();
             let max = bounding_box.max.unwrap();
-            Aabb3f::new(
-                Point3f::new(min.x, min.y, min.z),
-                Point3f::new(max.x, max.y, max.z),
+            Aabb3::new(
+                Point3::new(min.x, min.y, min.z),
+                Point3::new(max.x, max.y, max.z),
             )
         };
 
@@ -155,16 +161,16 @@ impl OnDiskOctree {
                 NodeId::from_level_index(
                     meta.id.as_ref().unwrap().level as u8,
                     meta.id.as_ref().unwrap().index as usize,
-                ), 
+                ),
                 NodeMeta {
                     num_points: meta.num_points,
                     position_encoding: PositionEncoding::from_proto(meta.position_encoding)?,
                     bounding_cube: {
                         let proto = meta.bounding_cube.as_ref().unwrap();
                         let min = proto.min.as_ref().unwrap();
-                        Cube::new(Point3f::new(min.x, min.y, min.z), proto.edge_length)
+                        Cube::new(Point3::new(min.x, min.y, min.z), proto.edge_length)
                     },
-                }
+                },
             );
         }
 
@@ -179,7 +185,7 @@ impl OnDiskOctree {
 impl Octree for OnDiskOctree {
     fn get_visible_nodes(
         &self,
-        projection_matrix: &Matrix4f,
+        projection_matrix: &Matrix4<f32>,
         width: i32,
         height: i32,
         use_lod: UseLod,
@@ -193,7 +199,9 @@ impl Octree for OnDiskOctree {
         while !open.is_empty() {
             let node_to_explore = open.pop().unwrap();
             let meta = self.nodes.get(&node_to_explore.id);
-            if meta.is_none() || frustum.contains(&node_to_explore.bounding_cube.to_aabb3()) == Relation::Out {
+            if meta.is_none()
+                || frustum.contains(&node_to_explore.bounding_cube.to_aabb3()) == Relation::Out
+            {
                 continue;
             }
             let num_points = meta.unwrap().num_points;

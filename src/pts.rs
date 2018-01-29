@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use {InternalIterator, Point};
-use math::Vector3f;
+use cgmath::Vector3;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -51,7 +51,7 @@ impl InternalIterator for PtsIterator {
                 continue;
             }
             let p = Point {
-                position: Vector3f::new(
+                position: Vector3::new(
                     parts[0].parse::<f32>().unwrap(),
                     parts[1].parse::<f32>().unwrap(),
                     parts[2].parse::<f32>().unwrap(),
