@@ -1,4 +1,3 @@
 /target
 /web_viewer/client/node_modules
-/web_viewer/client/package-lock.json
 /web_viewer/client/typings

@@ -70,7 +70,6 @@ class App {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
-
   public animate() {
     requestAnimationFrame(() => this.animate());
 
