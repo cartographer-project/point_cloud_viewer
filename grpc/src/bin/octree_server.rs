@@ -1,3 +1,4 @@
+extern crate cgmath;
 #[macro_use]
 extern crate clap;
 extern crate futures;
@@ -6,13 +7,13 @@ extern crate point_viewer;
 extern crate point_viewer_grpc;
 extern crate protobuf;
 
+use cgmath::Matrix4;
 use futures::Future;
 use futures::sync::oneshot;
 use grpcio::{Environment, RpcContext, ServerBuilder, UnarySink};
-use point_viewer::math::Matrix4f;
 use point_viewer::octree;
 use point_viewer::octree::{NodeId, Octree, OnDiskOctree};
-use point_viewer_grpc::proto::*;
+use point_viewer_grpc::proto;
 use point_viewer_grpc::proto_grpc;
 use std::{io, thread};
 use std::io::Read;
@@ -28,10 +29,10 @@ impl proto_grpc::Octree for OctreeService {
     fn get_visible_nodes(
         &self,
         ctx: RpcContext,
-        req: GetVisibleNodesRequest,
-        sink: UnarySink<GetVisibleNodesReply>,
+        req: proto::GetVisibleNodesRequest,
+        sink: UnarySink<proto::GetVisibleNodesReply>,
     ) {
-        let projection_matrix = Matrix4f::new(
+        let projection_matrix = Matrix4::new(
             req.projection_matrix[0],
             req.projection_matrix[1],
             req.projection_matrix[2],
@@ -56,7 +57,7 @@ impl proto_grpc::Octree for OctreeService {
             octree::UseLod::No,
         );
 
-        let mut resp = GetVisibleNodesReply::new();
+        let mut resp = proto::GetVisibleNodesReply::new();
         for node in result {
             resp.mut_node_ids().push(node.id.to_string());
         }
@@ -68,13 +69,13 @@ impl proto_grpc::Octree for OctreeService {
     fn get_node_data(
         &self,
         ctx: RpcContext,
-        req: GetNodeDataRequest,
-        sink: UnarySink<GetNodeDataReply>,
+        req: proto::GetNodeDataRequest,
+        sink: UnarySink<proto::GetNodeDataReply>,
     ) {
         let data = self.octree
             .get_node_data(&NodeId::from_str(&req.id), 1)
             .unwrap();
-        let mut resp = GetNodeDataReply::new();
+        let mut resp = proto::GetNodeDataReply::new();
         resp.mut_node()
             .set_position_encoding(data.meta.position_encoding.to_proto());
         resp.mut_node()

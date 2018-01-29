@@ -37,7 +37,7 @@ pub trait InternalIterator {
 
 #[derive(Debug, Clone)]
 pub struct Point {
-    pub position: math::Vector3f,
+    pub position: cgmath::Vector3<f32>,
     pub r: u8,
     pub g: u8,
     pub b: u8,

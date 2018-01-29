@@ -13,16 +13,20 @@
 // limitations under the License.
 
 extern crate byteorder;
+extern crate cgmath;
 extern crate clap;
+extern crate collision;
 extern crate pbr;
 extern crate point_viewer;
 extern crate protobuf;
 extern crate scoped_pool;
 
+use cgmath::{EuclideanSpace, Point3};
+use collision::{Aabb, Aabb3};
 use pbr::ProgressBar;
 use point_viewer::{InternalIterator, Point};
 use point_viewer::errors::*;
-use point_viewer::math::{Aabb, Aabb3f, Cube, EuclideanSpace, Point3f};
+use point_viewer::math::Cube;
 use point_viewer::octree;
 use point_viewer::ply::PlyIterator;
 use point_viewer::proto;
@@ -159,7 +163,7 @@ fn subsample_children_into(
     output_directory: &Path,
     node: &octree::Node,
     resolution: f64,
-    finished_node_sender: &mpsc::Sender<(octree::NodeId, octree::NodeMeta)>,    
+    finished_node_sender: &mpsc::Sender<(octree::NodeId, octree::NodeMeta)>,
 ) -> Result<()> {
     let mut parent_writer = octree::NodeWriter::new(output_directory, &node, resolution);
     println!("Creating {} from subsampling children.", node.id);
@@ -185,24 +189,36 @@ fn subsample_children_into(
             }
         }
         if child_writer.num_written() > 0 {
-            finished_node_sender.send(
-                (child.id, octree::NodeMeta {
-                    num_points: child_writer.num_written(),
-                    position_encoding: octree::PositionEncoding::new(&child.bounding_cube, resolution),
-                    bounding_cube: child.bounding_cube.clone(),
-                })
-            ).unwrap();
+            finished_node_sender
+                .send((
+                    child.id,
+                    octree::NodeMeta {
+                        num_points: child_writer.num_written(),
+                        position_encoding: octree::PositionEncoding::new(
+                            &child.bounding_cube,
+                            resolution,
+                        ),
+                        bounding_cube: child.bounding_cube.clone(),
+                    },
+                ))
+                .unwrap();
         }
     }
     // add root node
     if node.parent().is_none() {
-        finished_node_sender.send(
-            (node.id, octree::NodeMeta {
-                num_points: parent_writer.num_written(),
-                position_encoding: octree::PositionEncoding::new(&node.bounding_cube, resolution),
-                bounding_cube: node.bounding_cube.clone(),
-            })
-        ).unwrap();
+        finished_node_sender
+            .send((
+                node.id,
+                octree::NodeMeta {
+                    num_points: parent_writer.num_written(),
+                    position_encoding: octree::PositionEncoding::new(
+                        &node.bounding_cube,
+                        resolution,
+                    ),
+                    bounding_cube: node.bounding_cube.clone(),
+                },
+            ))
+            .unwrap();
     }
     Ok(())
 }
@@ -248,16 +264,16 @@ fn make_stream(input: &InputFile) -> (InputFileIterator, Option<pbr::ProgressBar
 }
 
 /// Returns the bounding_box and the number of the points in 'input'.
-fn find_bounding_box(input: &InputFile) -> (Aabb3f, i64) {
+fn find_bounding_box(input: &InputFile) -> (Aabb3<f32>, i64) {
     let mut num_points = 0i64;
-    let mut bounding_box = Aabb3f::zero();
+    let mut bounding_box = Aabb3::zero();
     let (stream, mut progress_bar) = make_stream(input);
     progress_bar
         .as_mut()
         .map(|pb| pb.message("Determining bounding box: "));
 
     stream.for_each(|p: &Point| {
-        bounding_box = bounding_box.grow(Point3f::from_vec(p.position));
+        bounding_box = bounding_box.grow(Point3::from_vec(p.position));
         num_points += 1;
         if num_points % UPDATE_COUNT == 0 {
             progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
@@ -363,7 +379,7 @@ fn main() {
     }
 
     // sub sampling returns the list of finished nodes including all meta data
-    let (nodes_sender, nodes_receiver) = mpsc::channel();    
+    let (nodes_sender, nodes_receiver) = mpsc::channel();
     // We start on the deepest level and work our way up the tree.
     for current_level in (0..deepest_level + 1).rev() {
         // All nodes on the same level can be subsampled in parallel.
@@ -393,7 +409,12 @@ fn main() {
             for node in &subsample_nodes {
                 let nodes_sender_clone = nodes_sender.clone();
                 scope.execute(move || {
-                    subsample_children_into(output_directory, node, resolution, &nodes_sender_clone).unwrap();
+                    subsample_children_into(
+                        output_directory,
+                        node,
+                        resolution,
+                        &nodes_sender_clone,
+                    ).unwrap();
                 });
             }
         });

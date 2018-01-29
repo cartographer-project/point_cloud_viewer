@@ -13,6 +13,7 @@
 // limitations under the License.
 
 extern crate byteorder;
+extern crate cgmath;
 #[macro_use]
 extern crate clap;
 extern crate iron;
@@ -23,9 +24,9 @@ extern crate time;
 extern crate urlencoded;
 
 use byteorder::{LittleEndian, WriteBytesExt};
+use cgmath::Matrix4;
 use iron::mime::Mime;
 use iron::prelude::*;
-use point_viewer::math::Matrix4f;
 use point_viewer::octree::{self, Octree};
 use router::Router;
 use std::io::Read;
@@ -72,7 +73,7 @@ impl iron::Handler for VisibleNodes {
                 .split(',')
                 .map(|s| s.parse::<f32>().unwrap())
                 .collect();
-            Matrix4f::new(
+            Matrix4::new(
                 e[0],
                 e[1],
                 e[2],

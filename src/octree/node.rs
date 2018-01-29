@@ -14,8 +14,9 @@
 
 use {InternalIterator, Point};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use cgmath::{Point3, Vector3, Zero};
 use errors::*;
-use math::{clamp, Cube, Point3f, Vector3f, Zero};
+use math::{clamp, Cube};
 use num;
 use num_traits;
 use proto;
@@ -173,7 +174,7 @@ impl Node {
     }
 
     /// Returns the ChildId of the child containing 'v'.
-    pub fn get_child_id_containing_point(&self, v: &Vector3f) -> ChildIndex {
+    pub fn get_child_id_containing_point(&self, v: &Vector3<f32>) -> ChildIndex {
         // This is a bit flawed: it is not guaranteed that 'child_bounding_box.contains(&v)' is true
         // using this calculated index due to floating point precision.
         let center = self.bounding_cube.center();
@@ -247,7 +248,7 @@ impl NodeMeta {
             bounding_cube: {
                 let proto = meta.bounding_cube.unwrap();
                 let min = proto.min.unwrap();
-                Cube::new(Point3f::new(min.x, min.y, min.z), proto.edge_length)
+                Cube::new(Point3::new(min.x, min.y, min.z), proto.edge_length)
             },
         })
     }
@@ -283,7 +284,7 @@ impl InternalIterator for NodeIterator {
 
     fn for_each<F: FnMut(&Point)>(mut self, mut f: F) {
         let mut point = Point {
-            position: Vector3f::zero(),
+            position: Vector3::zero(),
             r: 0,
             g: 0,
             b: 0,

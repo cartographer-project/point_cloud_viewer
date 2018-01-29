@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate cgmath;
 extern crate futures;
 extern crate grpcio;
 extern crate point_viewer;
@@ -20,9 +21,10 @@ extern crate protobuf;
 include!(concat!(env!("OUT_DIR"), "/proto.rs"));
 include!(concat!(env!("OUT_DIR"), "/proto_grpc.rs"));
 
+use cgmath::{Matrix4, Point3};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::errors::*;
-use point_viewer::math::{self, Cube, Matrix4f};
+use point_viewer::math::Cube;
 use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, PositionEncoding, UseLod,
                            VisibleNode};
 use proto_grpc::OctreeClient;
@@ -44,7 +46,7 @@ impl GrpcOctree {
 impl Octree for GrpcOctree {
     fn get_visible_nodes(
         &self,
-        projection_matrix: &Matrix4f,
+        projection_matrix: &Matrix4<f32>,
         width: i32,
         height: i32,
         _: UseLod,
@@ -103,7 +105,7 @@ impl Octree for GrpcOctree {
                 num_points: node.num_points,
                 position_encoding: PositionEncoding::from_proto(node.position_encoding).unwrap(),
                 bounding_cube: Cube::new(
-                    math::Point3f::new(
+                    Point3::new(
                         node.get_bounding_cube().get_min().get_x(),
                         node.get_bounding_cube().get_min().get_y(),
                         node.get_bounding_cube().get_min().get_z(),
