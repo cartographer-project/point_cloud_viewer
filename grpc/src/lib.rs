@@ -32,6 +32,7 @@ use std::sync::Arc;
 
 pub struct GrpcOctree {
     client: OctreeClient,
+    root_bounding_cube: Cube,
 }
 
 impl GrpcOctree {
@@ -39,7 +40,16 @@ impl GrpcOctree {
         let env = Arc::new(EnvBuilder::new().build());
         let ch = ChannelBuilder::new(env).connect(addr);
         let client = OctreeClient::new(ch);
-        GrpcOctree { client }
+
+        let req = proto::GetRootBoundingCubeRequest::new();
+        let reply = client.get_root_bounding_cube(&req).expect("rpc");
+        let root_bounding_cube = {
+            let proto = reply.bounding_cube.as_ref().unwrap();
+            let min = proto.min.as_ref().unwrap();
+            Cube::new(Point3::new(min.x, min.y, min.z), proto.edge_length)
+        };
+
+        GrpcOctree { client, root_bounding_cube }
     }
 }
 
@@ -104,14 +114,7 @@ impl Octree for GrpcOctree {
             meta: NodeMeta {
                 num_points: node.num_points,
                 position_encoding: PositionEncoding::from_proto(node.position_encoding).unwrap(),
-                bounding_cube: Cube::new(
-                    Point3::new(
-                        node.get_bounding_cube().get_min().get_x(),
-                        node.get_bounding_cube().get_min().get_y(),
-                        node.get_bounding_cube().get_min().get_z(),
-                    ),
-                    node.get_bounding_cube().get_edge_length(),
-                ),
+                bounding_cube: node_id.find_bounding_cube(&self.root_bounding_cube),
             },
         };
         Ok(result)

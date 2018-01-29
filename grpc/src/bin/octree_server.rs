@@ -11,6 +11,7 @@ use cgmath::Matrix4;
 use futures::Future;
 use futures::sync::oneshot;
 use grpcio::{Environment, RpcContext, ServerBuilder, UnarySink};
+use point_viewer::math::Cube;
 use point_viewer::octree;
 use point_viewer::octree::{NodeId, Octree, OnDiskOctree};
 use point_viewer_grpc::proto;
@@ -26,6 +27,30 @@ struct OctreeService {
 }
 
 impl proto_grpc::Octree for OctreeService {
+    fn get_root_bounding_cube(
+        &self,
+        ctx: RpcContext,
+        req: proto::GetRootBoundingCubeRequest,
+        sink: UnarySink<proto::GetRootBoundingCubeReply>,
+        ) {
+        let bounding_cube = Cube::bounding(&self.octree.bounding_box);
+        let mut resp = proto::GetRootBoundingCubeReply::new();
+        resp.mut_bounding_cube()
+            .mut_min()
+            .set_x(bounding_cube.min().x);
+        resp.mut_bounding_cube()
+            .mut_min()
+            .set_y(bounding_cube.min().y);
+        resp.mut_bounding_cube()
+            .mut_min()
+            .set_z(bounding_cube.min().z);
+        resp.mut_bounding_cube()
+            .set_edge_length(bounding_cube.edge_length());
+        let f = sink.success(resp)
+            .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
+        ctx.spawn(f)
+    }
+
     fn get_visible_nodes(
         &self,
         ctx: RpcContext,
