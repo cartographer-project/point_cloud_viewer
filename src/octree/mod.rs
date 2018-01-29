@@ -27,7 +27,7 @@ use std::path::{Path, PathBuf};
 
 mod node;
 
-pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter,
+pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter, OctreeMeta,
                      PositionEncoding};
 
 pub const CURRENT_VERSION: i32 = 9;
