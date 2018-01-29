@@ -33,26 +33,21 @@ use point_viewer::proto;
 use point_viewer::pts::PtsIterator;
 use protobuf::Message;
 use scoped_pool::{Pool, Scope};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{BufWriter, Stdout};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::mpsc;
 
 const UPDATE_COUNT: i64 = 100000;
 const MAX_POINTS_PER_NODE: i64 = 100000;
 
-struct SplittedNode {
-    node: octree::Node,
-    num_points: i64,
-}
-
+// Return a list a leaf nodes and a list of nodes to be splitted further.
 fn split<P>(
-    output_directory: &Path,
-    resolution: f64,
-    node: &octree::Node,
+    octree_meta: &octree::OctreeMeta,
+    node_id: &octree::NodeId,
     stream: P,
-) -> Vec<SplittedNode>
+) -> (Vec<octree::NodeId>, Vec<octree::NodeId>)
 where
     P: InternalIterator,
 {
@@ -61,24 +56,24 @@ where
     match stream.size_hint() {
         Some(size) => println!(
             "Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",
-            node.id,
+            node_id,
             size,
             size as f64 / MAX_POINTS_PER_NODE as f64
         ),
         None => println!(
             "Splitting {} which has an unknown number of points.",
-            node.id
+            node_id
         ),
     };
 
+    let bounding_cube = node_id.find_bounding_cube(&octree_meta.root_bounding_cube);
     stream.for_each(|p| {
-        let child_index = node.get_child_id_containing_point(&p.position);
+        let child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &p.position);
         let array_index = child_index.as_u8() as usize;
         if children[array_index].is_none() {
             children[array_index] = Some(octree::NodeWriter::new(
-                output_directory,
-                &node.get_child(child_index),
-                resolution,
+                &octree_meta,
+                &node_id.get_child_id(child_index),
             ));
         }
         children[array_index].as_mut().unwrap().write(p);
@@ -88,36 +83,44 @@ where
     // writing a point. This only saves some disk space during processing - all nodes will be
     // rewritten by subsampling the children in the second step anyways. We also ignore file
     // removing error. For example, we never write out the root, so it cannot be removed.
-    octree::NodeWriter::new(output_directory, node, resolution);
+    octree::NodeWriter::new(&octree_meta, &node_id);
 
-    let mut rv = Vec::new();
+    let mut leaf_nodes = Vec::new();
+    let mut split_nodes = Vec::new();
     for (child_index, c) in children.into_iter().enumerate() {
         if c.is_none() {
             continue;
         }
         let c = c.unwrap();
+        let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(child_index as u8));
 
-        rv.push(SplittedNode {
-            node: node.get_child(octree::ChildIndex::from_u8(child_index as u8)),
-            num_points: c.num_written(),
-        });
+        if should_split_node(&child_id, c.num_written(), octree_meta) {
+            split_nodes.push(child_id);
+        } else {
+            leaf_nodes.push(child_id);
+        }
     }
-    rv
+    (leaf_nodes, split_nodes)
 }
 
-fn should_split_node(node: &SplittedNode, resolution: f64) -> bool {
-    if node.num_points <= MAX_POINTS_PER_NODE {
+fn should_split_node(
+    id: &octree::NodeId,
+    num_points: i64,
+    octree_meta: &octree::OctreeMeta,
+) -> bool {
+    if num_points <= MAX_POINTS_PER_NODE {
         return false;
     }
-    if f64::from(node.node.bounding_cube.edge_length()) <= resolution {
+    let bounding_cube = id.find_bounding_cube(&octree_meta.root_bounding_cube);
+    if f64::from(bounding_cube.edge_length()) <= octree_meta.resolution {
         // TODO(hrapp): If the data has billion of points in this small spot, performance will
         // greatly suffer if we display it. Drop points?
         println!(
             "Node {} which has {} points ({:.2}x MAX_POINTS_PER_NODE) \
              is too small to be split, keeping all points.",
-            node.node.id,
-            node.num_points,
-            node.num_points as f64 / MAX_POINTS_PER_NODE as f64
+            id,
+            num_points,
+            num_points as f64 / MAX_POINTS_PER_NODE as f64
         );
         return false;
     }
@@ -126,50 +129,43 @@ fn should_split_node(node: &SplittedNode, resolution: f64) -> bool {
 
 fn split_node<'a, 'b: 'a, P>(
     scope: &Scope<'a>,
-    output_directory: &'b Path,
-    resolution: f64,
-    splitted_node: &SplittedNode,
+    octree_meta: &'a octree::OctreeMeta,
+    node_id: &octree::NodeId,
     stream: P,
-    leaf_nodes_sender: &mpsc::Sender<octree::Node>,
+    leaf_nodes_sender: &mpsc::Sender<octree::NodeId>,
 ) where
     P: InternalIterator,
 {
-    let children = split(output_directory, resolution, &splitted_node.node, stream);
-    let (leaf_nodes, split_nodes): (Vec<_>, Vec<_>) = children
-        .into_iter()
-        .partition(|n| !should_split_node(n, resolution));
-
-    for child in split_nodes {
+    let (leaf_nodes, split_nodes) = split(octree_meta, &node_id, stream);
+    for child_id in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
         scope.recurse(move |scope| {
-            let stream = octree::NodeIterator::from_disk(output_directory, &child.node.id).unwrap();
+            let stream = octree::NodeIterator::from_disk(&octree_meta, &child_id).unwrap();
             split_node(
                 scope,
-                output_directory,
-                resolution,
-                &child,
+                octree_meta,
+                &child_id,
                 stream,
                 &leaf_nodes_sender_clone,
             );
         });
     }
 
-    for splitted_node in leaf_nodes {
-        leaf_nodes_sender.send(splitted_node.node).unwrap();
+    for id in leaf_nodes {
+        leaf_nodes_sender.send(id).unwrap();
     }
 }
 
 fn subsample_children_into(
-    output_directory: &Path,
-    node: &octree::Node,
-    resolution: f64,
-    finished_node_sender: &mpsc::Sender<(octree::NodeId, octree::NodeMeta)>,
+    octree_meta: &octree::OctreeMeta,
+    node_id: &octree::NodeId,
+    nodes_sender: &mpsc::Sender<(octree::NodeId, i64)>,
 ) -> Result<()> {
-    let mut parent_writer = octree::NodeWriter::new(output_directory, &node, resolution);
-    println!("Creating {} from subsampling children.", node.id);
+    let mut parent_writer = octree::NodeWriter::new(&octree_meta, &node_id);
+    println!("Creating {} from subsampling children.", node_id);
     for i in 0..8 {
-        let child = node.get_child(octree::ChildIndex::from_u8(i));
-        let node_iterator = match octree::NodeIterator::from_disk(output_directory, &child.id) {
+        let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(i));
+        let node_iterator = match octree::NodeIterator::from_disk(&octree_meta, &child_id) {
             Ok(node_iterator) => node_iterator,
             Err(Error(ErrorKind::NodeNotFound, _)) => continue,
             Err(err) => return Err(err),
@@ -180,7 +176,7 @@ fn subsample_children_into(
         let mut points = Vec::with_capacity(node_iterator.size_hint().unwrap());
         node_iterator.for_each(|p| points.push((*p).clone()));
 
-        let mut child_writer = octree::NodeWriter::new(output_directory, &child, resolution);
+        let mut child_writer = octree::NodeWriter::new(&octree_meta, &child_id);
         for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
                 parent_writer.write(&p);
@@ -188,36 +184,15 @@ fn subsample_children_into(
                 child_writer.write(&p);
             }
         }
-        if child_writer.num_written() > 0 {
-            finished_node_sender
-                .send((
-                    child.id,
-                    octree::NodeMeta {
-                        num_points: child_writer.num_written(),
-                        position_encoding: octree::PositionEncoding::new(
-                            &child.bounding_cube,
-                            resolution,
-                        ),
-                        bounding_cube: child.bounding_cube.clone(),
-                    },
-                ))
-                .unwrap();
-        }
+        // Update child.
+        nodes_sender
+            .send((child_id, child_writer.num_written()))
+            .unwrap();
     }
-    // add root node
-    if node.parent().is_none() {
-        finished_node_sender
-            .send((
-                node.id,
-                octree::NodeMeta {
-                    num_points: parent_writer.num_written(),
-                    position_encoding: octree::PositionEncoding::new(
-                        &node.bounding_cube,
-                        resolution,
-                    ),
-                    bounding_cube: node.bounding_cube.clone(),
-                },
-            ))
+    // Make sure the root node is also tracked as an existing node.
+    if node_id.level() == 0 {
+        nodes_sender
+            .send((*node_id, parent_writer.num_written()))
             .unwrap();
     }
     Ok(())
@@ -264,7 +239,7 @@ fn make_stream(input: &InputFile) -> (InputFileIterator, Option<pbr::ProgressBar
 }
 
 /// Returns the bounding_box and the number of the points in 'input'.
-fn find_bounding_box(input: &InputFile) -> (Aabb3<f32>, i64) {
+fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
     let mut num_points = 0i64;
     let mut bounding_box = Aabb3::zero();
     let (stream, mut progress_bar) = make_stream(input);
@@ -280,7 +255,7 @@ fn find_bounding_box(input: &InputFile) -> (Aabb3<f32>, i64) {
         }
     });
     progress_bar.map(|mut f| f.finish());
-    (bounding_box, num_points)
+    bounding_box
 }
 
 fn main() {
@@ -321,7 +296,13 @@ fn main() {
         }
     };
 
-    let (bounding_box, num_points) = find_bounding_box(&input);
+    let bounding_box = find_bounding_box(&input);
+
+    let octree_meta = &octree::OctreeMeta {
+        root_bounding_cube: Cube::bounding(&bounding_box),
+        directory: output_directory.clone(),
+        resolution: resolution,
+    };
 
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
@@ -357,29 +338,25 @@ fn main() {
     let (leaf_nodes_sender, leaf_nodes_receiver) = mpsc::channel();
     pool.scoped(move |scope| {
         let (root_stream, _) = make_stream(&input);
-        let root = SplittedNode {
-            node: octree::Node::root_with_bounding_cube(Cube::bounding(&bounding_box)),
-            num_points: num_points,
-        };
+        let root_node = octree::Node::root_with_bounding_cube(Cube::bounding(&bounding_box));
         split_node(
             scope,
-            output_directory,
-            resolution,
-            &root,
+            octree_meta,
+            &root_node.id,
             root_stream,
             &leaf_nodes_sender,
         );
     });
 
+    let mut nodes_to_subsample = Vec::new();
     let mut deepest_level = 0usize;
-    let mut nodes_to_subsample = Vec::<octree::Node>::new();
-    for leaf_node in leaf_nodes_receiver {
-        deepest_level = std::cmp::max(deepest_level, leaf_node.level());
-        nodes_to_subsample.push(leaf_node);
+    for id in leaf_nodes_receiver {
+        deepest_level = std::cmp::max(deepest_level, id.level());
+        nodes_to_subsample.push(id);
     }
+    let mut finished_nodes = HashMap::new();
 
     // sub sampling returns the list of finished nodes including all meta data
-    let (nodes_sender, nodes_receiver) = mpsc::channel();
     // We start on the deepest level and work our way up the tree.
     for current_level in (0..deepest_level + 1).rev() {
         // All nodes on the same level can be subsampled in parallel.
@@ -390,63 +367,69 @@ fn main() {
 
         let mut parent_ids = HashSet::new();
         let mut subsample_nodes = Vec::new();
-        for node in res.0 {
-            let maybe_parent = node.parent();
-            if maybe_parent.is_none() {
+        for id in res.0 {
+            let maybe_parent_id = id.parent_id();
+            if maybe_parent_id.is_none() {
                 // Only the root has no parents.
-                assert_eq!(node.level(), 0);
+                assert_eq!(id.level(), 0);
                 continue;
             }
-            let parent = maybe_parent.unwrap();
-            if parent_ids.contains(&parent.id) {
+            let parent_id = maybe_parent_id.unwrap();
+            if parent_ids.contains(&parent_id) {
                 continue;
             }
-            parent_ids.insert(parent.id);
-            subsample_nodes.push(parent);
+            parent_ids.insert(parent_id);
+            subsample_nodes.push(parent_id);
         }
 
+        let (finished_nodes_sender, finished_nodes_receiver) = mpsc::channel();
         pool.scoped(|scope| {
-            for node in &subsample_nodes {
-                let nodes_sender_clone = nodes_sender.clone();
+            for id in &subsample_nodes {
+                let finished_nodes_sender_clone = finished_nodes_sender.clone();
                 scope.execute(move || {
-                    subsample_children_into(
-                        output_directory,
-                        node,
-                        resolution,
-                        &nodes_sender_clone,
-                    ).unwrap();
+                    subsample_children_into(octree_meta, id, &finished_nodes_sender_clone).unwrap();
                 });
             }
         });
+
+        drop(finished_nodes_sender);
+        for (id, num_points) in finished_nodes_receiver {
+            if num_points > 0 {
+                finished_nodes.insert(id, num_points);
+            }
+        }
 
         // The nodes that were just now created through sub-sampling will be required to create
         // their parents.
         nodes_to_subsample.extend(subsample_nodes.into_iter());
     }
 
-    // Add all node meta data to meta.pb
-    drop(nodes_sender);
-    for (id, node_meta) in nodes_receiver {
+    // Add all non-zero node meta data to meta.pb
+    for (id, num_points) in finished_nodes {
+        let bounding_cube = id.find_bounding_cube(&octree_meta.root_bounding_cube);
+        let position_encoding =
+            octree::PositionEncoding::new(&bounding_cube, octree_meta.resolution);
+
         let mut proto = proto::Node::new();
         proto.mut_id().set_level(id.level() as i32);
         proto.mut_id().set_index(id.index() as i64);
-        proto.set_num_points(node_meta.num_points);
+        proto.set_num_points(num_points);
         proto
             .mut_bounding_cube()
             .mut_min()
-            .set_x(node_meta.bounding_cube.min().x);
+            .set_x(bounding_cube.min().x);
         proto
             .mut_bounding_cube()
             .mut_min()
-            .set_y(node_meta.bounding_cube.min().y);
+            .set_y(bounding_cube.min().y);
         proto
             .mut_bounding_cube()
             .mut_min()
-            .set_z(node_meta.bounding_cube.min().z);
+            .set_z(bounding_cube.min().z);
         proto
             .mut_bounding_cube()
-            .set_edge_length(node_meta.bounding_cube.edge_length());
-        proto.set_position_encoding(node_meta.position_encoding.to_proto());
+            .set_edge_length(bounding_cube.edge_length());
+        proto.set_position_encoding(position_encoding.to_proto());
         meta.mut_nodes().push(proto);
     }
 
