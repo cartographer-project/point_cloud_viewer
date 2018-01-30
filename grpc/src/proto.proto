@@ -25,12 +25,12 @@ service Octree {
   // TODO(sirver): This is not the most efficient interface for a gRPC
   // version. We probably just send the node metadata to the client and let
   // the client do figure out GetVisibleNodes.
-  rpc GetRootBoundingCube(Empty) returns (GetRootBoundingCubeReply);
+  rpc GetRootBoundingCube(GetRootBoundingCubeRequest) returns (GetRootBoundingCubeReply);
   rpc GetVisibleNodes(GetVisibleNodesRequest) returns (GetVisibleNodesReply);
   rpc GetNodeData(GetNodeDataRequest) returns (GetNodeDataReply);
 }
 
-message Empty {
+message GetRootBoundingCubeRequest {
 }
 
 message GetRootBoundingCubeReply {

@@ -30,7 +30,7 @@ impl proto_grpc::Octree for OctreeService {
     fn get_root_bounding_cube(
         &self,
         ctx: RpcContext,
-        req: proto::Empty,
+        req: proto::GetRootBoundingCubeRequest,
         sink: UnarySink<proto::GetRootBoundingCubeReply>,
         ) {
         let bounding_cube = Cube::bounding(&self.octree.bounding_box);
@@ -150,7 +150,7 @@ fn main() {
     let service = proto_grpc::create_octree(OctreeService { octree });
     let mut server = ServerBuilder::new(env)
         .register_service(service)
-        .bind("127.0.0.1" /* ip to bind to */, port)            // TODO(tschiwietz): removed hardcoded localhost
+        .bind("0.0.0.0" /* ip to bind to */, port)
         .build()
         .unwrap();
     server.start();
