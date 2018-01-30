@@ -27,10 +27,17 @@ use std::path::{Path, PathBuf};
 
 mod node;
 
-pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter, OctreeMeta,
+pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter,
                      PositionEncoding};
 
 pub const CURRENT_VERSION: i32 = 9;
+
+#[derive(Debug)]
+pub struct OctreeMeta {
+    pub directory: PathBuf,
+    pub resolution: f64,
+    pub bounding_box: Aabb3<f32>,
+}
 
 #[derive(Debug)]
 pub struct VisibleNode {
@@ -96,9 +103,8 @@ fn size_in_pixels(
 
 #[derive(Debug)]
 pub struct OnDiskOctree {
-    directory: PathBuf,
+    meta: OctreeMeta,
     nodes: HashMap<NodeId, NodeMeta>,
-    bounding_box: Aabb3<f32>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -134,19 +140,19 @@ impl OnDiskOctree {
             return Err(ErrorKind::InvalidVersion(3).into());
         }
 
-        let meta = {
+        let meta_proto = {
             let mut data = Vec::new();
             File::open(&directory.join("meta.pb"))?.read_to_end(&mut data)?;
             protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
                 .chain_err(|| "Could not parse meta.pb")?
         };
 
-        if meta.version != CURRENT_VERSION {
-            return Err(ErrorKind::InvalidVersion(meta.version).into());
+        if meta_proto.version != CURRENT_VERSION {
+            return Err(ErrorKind::InvalidVersion(meta_proto.version).into());
         }
 
         let bounding_box = {
-            let bounding_box = meta.bounding_box.unwrap();
+            let bounding_box = meta_proto.bounding_box.unwrap();
             let min = bounding_box.min.unwrap();
             let max = bounding_box.max.unwrap();
             Aabb3::new(
@@ -155,18 +161,24 @@ impl OnDiskOctree {
             )
         };
 
+        let meta = OctreeMeta {
+            directory: directory.into(),
+            resolution: meta_proto.resolution,
+            bounding_box: bounding_box,
+        };
+
         let mut nodes = HashMap::new();
-        for meta in meta.nodes.iter() {
+        for node_proto in meta_proto.nodes.iter() {
             nodes.insert(
                 NodeId::from_level_index(
-                    meta.id.as_ref().unwrap().level as u8,
-                    meta.id.as_ref().unwrap().index as usize,
+                    node_proto.id.as_ref().unwrap().level as u8,
+                    node_proto.id.as_ref().unwrap().index as usize,
                 ),
                 NodeMeta {
-                    num_points: meta.num_points,
-                    position_encoding: PositionEncoding::from_proto(meta.position_encoding)?,
+                    num_points: node_proto.num_points,
+                    position_encoding: PositionEncoding::from_proto(node_proto.position_encoding)?,
                     bounding_cube: {
-                        let proto = meta.bounding_cube.as_ref().unwrap();
+                        let proto = node_proto.bounding_cube.as_ref().unwrap();
                         let min = proto.min.as_ref().unwrap();
                         Cube::new(Point3::new(min.x, min.y, min.z), proto.edge_length)
                     },
@@ -174,11 +186,11 @@ impl OnDiskOctree {
             );
         }
 
-        Ok(OnDiskOctree {
-            directory: directory.into(),
-            nodes: nodes,
-            bounding_box: bounding_box,
-        })
+        Ok(OnDiskOctree { meta, nodes })
+    }
+
+    pub fn bounding_box(&self) -> &Aabb3<f32> {
+        &self.meta.bounding_box
     }
 }
 
@@ -192,7 +204,7 @@ impl Octree for OnDiskOctree {
     ) -> Vec<VisibleNode> {
         let frustum = Frustum::from_matrix4(*projection_matrix).unwrap();
         let mut open = vec![
-            Node::root_with_bounding_cube(Cube::bounding(&self.bounding_box)),
+            Node::root_with_bounding_cube(Cube::bounding(&self.meta.bounding_box)),
         ];
 
         let mut visible = Vec::new();
@@ -249,7 +261,7 @@ impl Octree for OnDiskOctree {
     }
 
     fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
-        let stem = node_id.get_stem(&self.directory);
+        let stem = node_id.get_stem(&self.meta.directory);
         let meta = {
             let mut meta = self.nodes[node_id].clone();
             meta.num_points = meta.num_points_for_level_of_detail(level_of_detail);

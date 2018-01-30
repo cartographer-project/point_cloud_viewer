@@ -66,7 +66,7 @@ where
         ),
     };
 
-    let bounding_cube = node_id.find_bounding_cube(&octree_meta.root_bounding_cube);
+    let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
     stream.for_each(|p| {
         let child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &p.position);
         let array_index = child_index.as_u8() as usize;
@@ -111,7 +111,7 @@ fn should_split_node(
     if num_points <= MAX_POINTS_PER_NODE {
         return false;
     }
-    let bounding_cube = id.find_bounding_cube(&octree_meta.root_bounding_cube);
+    let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
     if f64::from(bounding_cube.edge_length()) <= octree_meta.resolution {
         // TODO(hrapp): If the data has billion of points in this small spot, performance will
         // greatly suffer if we display it. Drop points?
@@ -299,9 +299,9 @@ fn main() {
     let bounding_box = find_bounding_box(&input);
 
     let octree_meta = &octree::OctreeMeta {
-        root_bounding_cube: Cube::bounding(&bounding_box),
+        bounding_box,
+        resolution,
         directory: output_directory.clone(),
-        resolution: resolution,
     };
 
     // Ignore errors, maybe directory is already there.
@@ -406,7 +406,7 @@ fn main() {
 
     // Add all non-zero node meta data to meta.pb
     for (id, num_points) in finished_nodes {
-        let bounding_cube = id.find_bounding_cube(&octree_meta.root_bounding_cube);
+        let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
         let position_encoding =
             octree::PositionEncoding::new(&bounding_cube, octree_meta.resolution);
 
