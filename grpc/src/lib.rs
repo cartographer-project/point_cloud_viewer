@@ -41,8 +41,7 @@ impl GrpcOctree {
         let ch = ChannelBuilder::new(env).connect(addr);
         let client = OctreeClient::new(ch);
 
-        let req = proto::GetRootBoundingCubeRequest::new();
-        let reply = client.get_root_bounding_cube(&req).expect("rpc");
+        let reply = client.get_root_bounding_cube(&proto::Empty::new()).expect("rpc");
         let root_bounding_cube = {
             let proto = reply.bounding_cube.as_ref().unwrap();
             let min = proto.min.as_ref().unwrap();

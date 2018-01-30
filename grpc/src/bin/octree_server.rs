@@ -30,7 +30,7 @@ impl proto_grpc::Octree for OctreeService {
     fn get_root_bounding_cube(
         &self,
         ctx: RpcContext,
-        req: proto::GetRootBoundingCubeRequest,
+        req: proto::Empty,
         sink: UnarySink<proto::GetRootBoundingCubeReply>,
         ) {
         let bounding_cube = Cube::bounding(&self.octree.bounding_box);
