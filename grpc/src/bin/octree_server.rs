@@ -32,7 +32,7 @@ impl proto_grpc::Octree for OctreeService {
         ctx: RpcContext,
         req: proto::GetRootBoundingCubeRequest,
         sink: UnarySink<proto::GetRootBoundingCubeReply>,
-        ) {
+    ) {
         let bounding_cube = Cube::bounding(&self.octree.bounding_box);
         let mut resp = proto::GetRootBoundingCubeReply::new();
         resp.mut_bounding_cube()

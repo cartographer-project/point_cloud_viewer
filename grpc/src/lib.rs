@@ -41,14 +41,19 @@ impl GrpcOctree {
         let ch = ChannelBuilder::new(env).connect(addr);
         let client = OctreeClient::new(ch);
 
-        let reply = client.get_root_bounding_cube(&proto::GetRootBoundingCubeRequest::new()).expect("rpc");
+        let reply = client
+            .get_root_bounding_cube(&proto::GetRootBoundingCubeRequest::new())
+            .expect("rpc");
         let root_bounding_cube = {
             let proto = reply.bounding_cube.as_ref().unwrap();
             let min = proto.min.as_ref().unwrap();
             Cube::new(Point3::new(min.x, min.y, min.z), proto.edge_length)
         };
 
-        GrpcOctree { client, root_bounding_cube }
+        GrpcOctree {
+            client,
+            root_bounding_cube,
+        }
     }
 }
 
