@@ -1,0 +1,27 @@
+[package]
+name = "xray"
+version = "0.1.0"
+authors = ["Holger Rapp <hrapp@lyft.com>"]
+
+[build-dependencies]
+protoc-rust = "1.4.3"
+
+[dependencies]
+cgmath = "0.16.0"
+clap = "^2.6.0"
+collision = "0.14.0"
+image = "0.18.0"
+iron = "^0.3.0"
+protobuf = "1.4.3"
+router = "^0.1.1"
+scoped-pool = "^0.1"
+serde = "1.0.9"
+serde_json = "1.0.9"
+serde_derive = "1.0.9"
+urlencoded = "^0.3.0"
+
+[dependencies.point_viewer]
+path = ".."
+
+[dependencies.quadtree]
+path = "../quadtree"

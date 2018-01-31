@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::{Matrix4, Point3, Vector2};
-use collision::{Aabb, Aabb3, Frustum, Relation};
+use {InternalIterator, Point};
+use cgmath::{EuclideanSpace, Matrix4, Point3, Vector2};
+use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use errors::*;
 use math::Cube;
 use num_traits::Zero;
@@ -125,6 +126,32 @@ pub trait Octree: Send + Sync {
     fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData>;
 }
 
+pub struct PointsInBoxIterator<'a> {
+    octree_meta: &'a OctreeMeta,
+    aabb: &'a Aabb3<f32>,
+    intersecting_nodes: Vec<NodeId>,
+}
+
+impl<'a> InternalIterator for PointsInBoxIterator<'a> {
+    fn size_hint(&self) -> Option<usize> {
+        None
+    }
+
+    fn for_each<F: FnMut(&Point)>(self, mut f: F) {
+        for node_id in &self.intersecting_nodes {
+            // TODO(sirver): This crashes on error. We should bubble up an error.
+            let iterator = NodeIterator::from_disk(&self.octree_meta, node_id)
+                .expect("Could not read node points");
+            iterator.for_each(|p| {
+                if !self.aabb.contains(&Point3::from_vec(p.position)) {
+                    return;
+                }
+                f(p);
+            });
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct NodeData {
     pub meta: node::NodeMeta,
@@ -187,6 +214,32 @@ impl OnDiskOctree {
         }
 
         Ok(OnDiskOctree { meta, nodes })
+    }
+
+    /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
+    pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f32>) -> PointsInBoxIterator<'a> {
+        let mut intersecting_nodes = Vec::new();
+        let mut open_list = vec![
+            Node::root_with_bounding_cube(Cube::bounding(&self.meta.bounding_box)),
+        ];
+        while !open_list.is_empty() {
+            let current = open_list.pop().unwrap();
+            if !aabb.intersects(&current.bounding_cube.to_aabb3()) {
+                continue;
+            }
+            intersecting_nodes.push(current.id);
+            for child_index in 0..8 {
+                let child = current.get_child(ChildIndex::from_u8(child_index));
+                if self.nodes.contains_key(&child.id) {
+                    open_list.push(child);
+                }
+            }
+        }
+        PointsInBoxIterator {
+            octree_meta: &self.meta,
+            aabb,
+            intersecting_nodes,
+        }
     }
 
     pub fn bounding_box(&self) -> &Aabb3<f32> {

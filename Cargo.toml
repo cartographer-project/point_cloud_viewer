@@ -34,4 +34,4 @@ walkdir = "^0.1.5"
 collision = "0.14.0"
 
 [workspace]
-members = ["grpc", "quadtree", "sdl_viewer", "web_viewer"]
+members = ["grpc", "quadtree", "sdl_viewer", "web_viewer", "xray"]
