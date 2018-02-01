@@ -50,14 +50,14 @@ export class XRayViewer {
   }
 
   public frustumChanged(matrix: THREE.Matrix4, pixelsPerMeter: number) {
-      // Figure out which view level represents our current zoom.
-      let full_size_considering_zoom = pixelsPerMeter * this.meta['bounding_rect']['edge_length'];
-      let level = 0;
-      let edge_length_px_for_level = this.meta['tile_size'];
-      while (edge_length_px_for_level < full_size_considering_zoom && level < this.meta['deepest_level']) {
-        edge_length_px_for_level *= 2;
-        level += 1;
-      }
+    // Figure out which view level represents our current zoom.
+    let full_size_considering_zoom = pixelsPerMeter * this.meta['bounding_rect']['edge_length'];
+    let level = 0;
+    let edge_length_px_for_level = this.meta['tile_size'];
+    while (edge_length_px_for_level < full_size_considering_zoom && level < this.meta['deepest_level']) {
+      edge_length_px_for_level *= 2;
+      level += 1;
+    }
 
     // ThreeJS is column major.
     const request = new Request(
