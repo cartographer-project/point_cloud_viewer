@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package xray.proto;
+
+message Vector2f {
+  float x = 1;
+  float y = 2;
+}
+
+message Rect {
+  Vector2f min = 1;
+  float edge_length = 2;
+}
+
+message NodeId {
+  uint32 level = 1;
+  uint64 index = 2;
+}
+
+message Meta {
+  int32 version = 1;
+  Rect bounding_rect = 2;
+  uint32 deepest_level = 3;
+  uint32 tile_size = 4;
+
+  // The nodes existing in the quadtree.
+  repeated NodeId nodes = 5;
+}
