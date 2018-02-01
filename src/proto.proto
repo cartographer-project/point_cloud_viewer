@@ -47,7 +47,6 @@ message Node {
     Float32 = 3;
   }
 
-  AxisAlignedCube bounding_cube = 1;
   PositionEncoding position_encoding = 2;
   int64 num_points = 3;
   NodeId id = 4;

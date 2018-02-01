@@ -196,19 +196,16 @@ impl OnDiskOctree {
 
         let mut nodes = HashMap::new();
         for node_proto in meta_proto.nodes.iter() {
+            let node_id = NodeId::from_level_index(
+                node_proto.id.as_ref().unwrap().level as u8,
+                node_proto.id.as_ref().unwrap().index as usize,
+            );
             nodes.insert(
-                NodeId::from_level_index(
-                    node_proto.id.as_ref().unwrap().level as u8,
-                    node_proto.id.as_ref().unwrap().index as usize,
-                ),
+                node_id,
                 NodeMeta {
                     num_points: node_proto.num_points,
                     position_encoding: PositionEncoding::from_proto(node_proto.position_encoding)?,
-                    bounding_cube: {
-                        let proto = node_proto.bounding_cube.as_ref().unwrap();
-                        let min = proto.min.as_ref().unwrap();
-                        Cube::new(Point3::new(min.x, min.y, min.z), proto.edge_length)
-                    },
+                    bounding_cube: node_id.find_bounding_cube(&Cube::bounding(&meta.bounding_box)),
                 },
             );
         }
