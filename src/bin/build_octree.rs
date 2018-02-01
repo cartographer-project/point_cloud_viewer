@@ -414,21 +414,6 @@ fn main() {
         proto.mut_id().set_level(id.level() as i32);
         proto.mut_id().set_index(id.index() as i64);
         proto.set_num_points(num_points);
-        proto
-            .mut_bounding_cube()
-            .mut_min()
-            .set_x(bounding_cube.min().x);
-        proto
-            .mut_bounding_cube()
-            .mut_min()
-            .set_y(bounding_cube.min().y);
-        proto
-            .mut_bounding_cube()
-            .mut_min()
-            .set_z(bounding_cube.min().z);
-        proto
-            .mut_bounding_cube()
-            .set_edge_length(bounding_cube.edge_length());
         proto.set_position_encoding(position_encoding.to_proto());
         meta.mut_nodes().push(proto);
     }

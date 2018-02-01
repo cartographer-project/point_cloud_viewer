@@ -103,21 +103,6 @@ impl proto_grpc::Octree for OctreeService {
         let mut resp = proto::GetNodeDataReply::new();
         resp.mut_node()
             .set_position_encoding(data.meta.position_encoding.to_proto());
-        resp.mut_node()
-            .mut_bounding_cube()
-            .mut_min()
-            .set_x(data.meta.bounding_cube.min().x);
-        resp.mut_node()
-            .mut_bounding_cube()
-            .mut_min()
-            .set_y(data.meta.bounding_cube.min().y);
-        resp.mut_node()
-            .mut_bounding_cube()
-            .mut_min()
-            .set_z(data.meta.bounding_cube.min().z);
-        resp.mut_node()
-            .mut_bounding_cube()
-            .set_edge_length(data.meta.bounding_cube.edge_length());
         resp.mut_node().set_num_points(data.meta.num_points);
         resp.set_position(data.position);
         resp.set_color(data.color);
