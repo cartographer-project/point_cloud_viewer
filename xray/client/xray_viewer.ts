@@ -1,5 +1,7 @@
 'use strict';
 
+import * as THREE from "three";
+
 function matrixToString(m: THREE.Matrix4): string {
   const me = m.elements;
   return [

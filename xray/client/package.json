@@ -11,8 +11,8 @@
   "author": "Holger Rapp <hrapp@lyft.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "@types/three": "0.0.27",
-    "three": "0.83.0",
+    "@types/three": "0.89.0",
+    "three": "0.89.0",
     "typescript": "^2.7",
     "typescript-formatter": "^7.0.1"
   }

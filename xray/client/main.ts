@@ -14,6 +14,8 @@
 
 'use strict';
 
+import * as THREE from "three";
+
 import { Maps2DController } from './control';
 import { XRayViewer } from './xray_viewer';
 

@@ -14,6 +14,8 @@
 
 'use strict';
 
+import * as THREE from "three";
+
 enum MouseState {
   NONE,
   DRAG,
