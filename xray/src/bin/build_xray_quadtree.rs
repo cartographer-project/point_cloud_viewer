@@ -53,7 +53,7 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
 }
 
 fn xray_from_points(
-    otree: &octree::OnDiskOctree,
+    octree: &octree::OnDiskOctree,
     bbox: &Aabb3<f32>,
     png_file: &Path,
     image_size: u32,
@@ -62,7 +62,7 @@ fn xray_from_points(
 
     let mut aggregation: HashMap<(u32, u32), HashSet<u32>> = HashMap::new();
     let mut seen_any_points = false;
-    otree.points_in_box(&bbox).for_each(|p| {
+    octree.points_in_box(&bbox).for_each(|p| {
         seen_any_points = true;
         let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * image_size as f32) as u32;
         let y = (((p.position.y - bbox.min().y) / bbox.dim().y) * image_size as f32) as u32;
@@ -137,12 +137,12 @@ fn run(
     resolution: f32,
     tile_size_px: u32,
 ) -> Result<(), Box<Error>> {
-    let otree = &OnDiskOctree::new(octree_directory)?;
+    let octree = &OnDiskOctree::new(octree_directory)?;
 
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    let bounding_box = otree.bounding_box();
+    let bounding_box = octree.bounding_box();
 
     let (bounding_rect, deepest_level) =
         find_quadtree_bounding_rect_and_levels(&bounding_box, tile_size_px as f32 * resolution);
@@ -174,7 +174,7 @@ fn run(
                         ),
                     );
                     if xray_from_points(
-                        otree,
+                        octree,
                         &bbox,
                         &get_image_path(output_directory, node.id),
                         tile_size_px,
