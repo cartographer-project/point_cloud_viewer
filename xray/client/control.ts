@@ -21,6 +21,7 @@ enum MouseState {
 
 // A Google maps like controller interface: Click & drag to move, mouse wheel
 // to zoom.
+// TODO(sirver): This should be removed and OrbitControl used.
 export class Maps2DController {
   private mouseState: MouseState;
   private dragStart: THREE.Vector2;

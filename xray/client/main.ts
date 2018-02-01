@@ -81,7 +81,7 @@ class App {
   public animate() {
     requestAnimationFrame(() => this.animate());
 
-    this.viewHasChanged = this.controller.update() || this.viewHasChanged
+    this.viewHasChanged = this.controller.update() || this.viewHasChanged;
     const time = now();
     if (time - this.lastFrustumUpdateTime > 250 && this.viewHasChanged && this.viewer !== undefined) {
       this.viewHasChanged = false;

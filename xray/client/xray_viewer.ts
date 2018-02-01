@@ -31,9 +31,9 @@ class NodeData {
   }
 
   public setTexture(texture: THREE.Texture) {
-    var geometry = new THREE.PlaneGeometry(this.boundingRect['edge_length'], this.boundingRect['edge_length'], 1);
+    let geometry = new THREE.PlaneGeometry(this.boundingRect['edge_length'], this.boundingRect['edge_length'], 1);
     geometry.applyMatrix(new THREE.Matrix4().makeTranslation(this.boundingRect['edge_length'] / 2., - this.boundingRect['edge_length'] / 2., 0.));
-    var material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+    let material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
     this.plane = new THREE.Mesh(geometry, material);
     this.plane.scale.y = -1;
     this.plane.position.set(this.boundingRect['min_x'], this.boundingRect['min_y'], 0.);
@@ -59,7 +59,7 @@ export class XRayViewer {
       level += 1;
     }
 
-    // ThreeJS is column major.
+    // We encode the matrix column major.
     const request = new Request(
       `/nodes_for_level?level=${level}&matrix=${matrixToString(matrix)}`,
       {
@@ -70,12 +70,11 @@ export class XRayViewer {
     window.fetch(request).then(data => data.json()).then((nodes: any) => {
       this.nodesUpdate(nodes);
     });
-
   }
 
   private nodesUpdate(nodes: any) {
     this.nodesToLoad = [];
-    for (var i = 0, len = nodes.length; i < len; i++) {
+    for (let i = 0, len = nodes.length; i < len; i++) {
       let node = this.getOrCreate(nodes[i]['id'], nodes[i]['bounding_rect']);
       if (node.plane !== undefined) {
         this.swapIn(node.id);
@@ -92,7 +91,7 @@ export class XRayViewer {
     }
     this.currentlyLoading += 1;
     let nodeId = this.nodesToLoad.shift();
-    new THREE.TextureLoader().load("/node_image/" + nodeId, (texture) => {
+    new THREE.TextureLoader().load('/node_image/' + nodeId, (texture) => {
       this.currentlyLoading -= 1;
       this.loadNext();
       this.nodes[nodeId].setTexture(texture);
@@ -111,14 +110,14 @@ export class XRayViewer {
     if (this.nodes[nodeId].inScene) {
       return;
     }
-    console.log("Swapping in: ", nodeId);
+    console.log('Swapping in: ', nodeId);
     // Swap out parents and children. 
     // TODO(sirver): We never drop any nodes, so memory is used unbounded.
     // TODO(sirver): Parent should only be swapped out if all children are loaded.
-    if (nodeId !== "r") {
-      let parentId = nodeId.substring(0, nodeId.length - 1);
+    if (nodeId !== 'r') {
+      let parentId = nodeId.slice(0, -1);
       if (this.nodes[parentId] !== undefined && this.nodes[parentId].inScene) {
-        console.log("Swapping out: ", nodeId);
+        console.log('Swapping out: ', nodeId);
         this.scene.remove(this.nodes[parentId].plane);
         this.nodes[parentId].inScene = false;
       }
@@ -126,7 +125,7 @@ export class XRayViewer {
     for (let i = 0; i < 4; i++) {
       let childId = nodeId + i;
       if (this.nodes[childId] !== undefined && this.nodes[childId].inScene) {
-        console.log("Swapping out: ", childId);
+        console.log('Swapping out: ', childId);
         this.scene.remove(this.nodes[childId].plane);
         this.nodes[childId].inScene = false;
       }
@@ -134,6 +133,4 @@ export class XRayViewer {
     this.scene.add(this.nodes[nodeId].plane);
     this.nodes[nodeId].inScene = true;
   }
-
 };
-
