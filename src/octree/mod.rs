@@ -31,7 +31,7 @@ mod node;
 pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter,
                      PositionEncoding};
 
-pub const CURRENT_VERSION: i32 = 10;
+pub const CURRENT_VERSION: i32 = 9;
 
 #[derive(Debug)]
 pub struct OctreeMeta {
