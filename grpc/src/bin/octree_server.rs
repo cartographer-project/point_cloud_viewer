@@ -1,15 +1,15 @@
-extern crate collision;
 extern crate cgmath;
 #[macro_use]
 extern crate clap;
+extern crate collision;
 extern crate futures;
 extern crate grpcio;
 extern crate point_viewer;
 extern crate point_viewer_grpc;
 extern crate protobuf;
 
-use collision::Aabb3;
 use cgmath::{Matrix4, Point3};
+use collision::Aabb3;
 use futures::Future;
 use futures::sync::oneshot;
 use grpcio::{Environment, RpcContext, ServerBuilder, UnarySink};
