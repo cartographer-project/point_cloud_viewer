@@ -13,6 +13,7 @@
 // limitations under the License.
 
 extern crate cgmath;
+extern crate collision;
 extern crate futures;
 extern crate grpcio;
 extern crate point_viewer;
@@ -21,6 +22,7 @@ extern crate protobuf;
 include!(concat!(env!("OUT_DIR"), "/proto.rs"));
 include!(concat!(env!("OUT_DIR"), "/proto_grpc.rs"));
 
+use collision::Aabb3;
 use cgmath::{Matrix4, Point3};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::errors::*;
@@ -55,6 +57,41 @@ impl GrpcOctree {
             root_bounding_cube,
         }
     }
+
+    pub fn get_points_in_box(&self, bounding_box: &Aabb3<f32>) -> Vec<Point3<f32>> {
+        let mut req = proto::GetPointsInBoxRequest::new();
+        req.mut_bounding_box().mut_min().set_x(bounding_box.min.x);
+        req.mut_bounding_box().mut_min().set_y(bounding_box.min.y);
+        req.mut_bounding_box().mut_min().set_z(bounding_box.min.z);
+        req.mut_bounding_box().mut_max().set_x(bounding_box.max.x);
+        req.mut_bounding_box().mut_max().set_y(bounding_box.max.y);
+        req.mut_bounding_box().mut_max().set_z(bounding_box.max.z);
+        println!("request sent");
+        let reply = self.client.get_points_in_box(&req).unwrap();
+        let mut points = Vec::new();
+        println!("number of points {}", reply.points.len());
+        // loop {
+        //     let f = list_points_in_box.into_future();
+        //     match f.wait() {
+        //         Ok((Some(reply), s)) => {
+        //             list_points_in_box = s;
+        //             // let p = Point3::new(
+        //             //     reply.point.as_ref().unwrap().x,
+        //             //     reply.point.as_ref().unwrap().y,
+        //             //     reply.point.as_ref().unwrap().z
+        //             // );
+        //             // points.push(p);
+        //             // if points.len() % 100000 == 0 {
+        //             //     println!("received {} points", points.len());
+        //             //}
+        //         }
+        //         Ok((None, _)) => break,
+        //         Err((e, _)) => panic!("Failed: {:?}", e),
+        //     }
+        // }
+        points
+    }
+
 }
 
 impl Octree for GrpcOctree {
