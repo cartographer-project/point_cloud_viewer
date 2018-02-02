@@ -72,7 +72,7 @@ where
         let array_index = child_index.as_u8() as usize;
         if children[array_index].is_none() {
             children[array_index] = Some(octree::NodeWriter::new(
-                &octree_meta,
+                octree_meta,
                 &node_id.get_child_id(child_index),
             ));
         }
@@ -83,7 +83,7 @@ where
     // writing a point. This only saves some disk space during processing - all nodes will be
     // rewritten by subsampling the children in the second step anyways. We also ignore file
     // removing error. For example, we never write out the root, so it cannot be removed.
-    octree::NodeWriter::new(&octree_meta, &node_id);
+    octree::NodeWriter::new(octree_meta, node_id);
 
     let mut leaf_nodes = Vec::new();
     let mut split_nodes = Vec::new();
@@ -127,7 +127,7 @@ fn should_split_node(
     true
 }
 
-fn split_node<'a, 'b: 'a, P>(
+fn split_node<'a, P>(
     scope: &Scope<'a>,
     octree_meta: &'a octree::OctreeMeta,
     node_id: &octree::NodeId,
@@ -136,11 +136,11 @@ fn split_node<'a, 'b: 'a, P>(
 ) where
     P: InternalIterator,
 {
-    let (leaf_nodes, split_nodes) = split(octree_meta, &node_id, stream);
+    let (leaf_nodes, split_nodes) = split(octree_meta, node_id, stream);
     for child_id in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
         scope.recurse(move |scope| {
-            let stream = octree::NodeIterator::from_disk(&octree_meta, &child_id).unwrap();
+            let stream = octree::NodeIterator::from_disk(octree_meta, &child_id).unwrap();
             split_node(
                 scope,
                 octree_meta,
@@ -161,11 +161,11 @@ fn subsample_children_into(
     node_id: &octree::NodeId,
     nodes_sender: &mpsc::Sender<(octree::NodeId, i64)>,
 ) -> Result<()> {
-    let mut parent_writer = octree::NodeWriter::new(&octree_meta, &node_id);
+    let mut parent_writer = octree::NodeWriter::new(octree_meta, node_id);
     println!("Creating {} from subsampling children.", node_id);
     for i in 0..8 {
         let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(i));
-        let node_iterator = match octree::NodeIterator::from_disk(&octree_meta, &child_id) {
+        let node_iterator = match octree::NodeIterator::from_disk(octree_meta, &child_id) {
             Ok(node_iterator) => node_iterator,
             Err(Error(ErrorKind::NodeNotFound, _)) => continue,
             Err(err) => return Err(err),
@@ -176,7 +176,7 @@ fn subsample_children_into(
         let mut points = Vec::with_capacity(node_iterator.size_hint().unwrap());
         node_iterator.for_each(|p| points.push((*p).clone()));
 
-        let mut child_writer = octree::NodeWriter::new(&octree_meta, &child_id);
+        let mut child_writer = octree::NodeWriter::new(octree_meta, &child_id);
         for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
                 parent_writer.write(&p);
@@ -238,7 +238,7 @@ fn make_stream(input: &InputFile) -> (InputFileIterator, Option<pbr::ProgressBar
     (stream, progress_bar)
 }
 
-/// Returns the bounding_box and the number of the points in 'input'.
+/// Returns the bounding box containing all points
 fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
     let mut num_points = 0i64;
     let mut bounding_box = Aabb3::zero();
@@ -414,21 +414,6 @@ fn main() {
         proto.mut_id().set_level(id.level() as i32);
         proto.mut_id().set_index(id.index() as i64);
         proto.set_num_points(num_points);
-        proto
-            .mut_bounding_cube()
-            .mut_min()
-            .set_x(bounding_cube.min().x);
-        proto
-            .mut_bounding_cube()
-            .mut_min()
-            .set_y(bounding_cube.min().y);
-        proto
-            .mut_bounding_cube()
-            .mut_min()
-            .set_z(bounding_cube.min().z);
-        proto
-            .mut_bounding_cube()
-            .set_edge_length(bounding_cube.edge_length());
         proto.set_position_encoding(position_encoding.to_proto());
         meta.mut_nodes().push(proto);
     }
