@@ -1,3 +1,4 @@
+extern crate collision;
 extern crate cgmath;
 #[macro_use]
 extern crate clap;
@@ -7,10 +8,12 @@ extern crate point_viewer;
 extern crate point_viewer_grpc;
 extern crate protobuf;
 
-use cgmath::Matrix4;
+use collision::Aabb3;
+use cgmath::{Matrix4, Point3};
 use futures::Future;
 use futures::sync::oneshot;
 use grpcio::{Environment, RpcContext, ServerBuilder, UnarySink};
+use point_viewer::InternalIterator;
 use point_viewer::math::Cube;
 use point_viewer::octree;
 use point_viewer::octree::{NodeId, Octree, OnDiskOctree};
@@ -106,6 +109,34 @@ impl proto_grpc::Octree for OctreeService {
         resp.mut_node().set_num_points(data.meta.num_points);
         resp.set_position(data.position);
         resp.set_color(data.color);
+        let f = sink.success(resp)
+            .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
+        ctx.spawn(f)
+    }
+
+    fn get_points_in_box(
+        &self,
+        ctx: RpcContext,
+        req: proto::GetPointsInBoxRequest,
+        sink: UnarySink<proto::GetPointsInBoxReply>,
+    ) {
+        let bounding_box = {
+            let bounding_box = req.bounding_box.clone().unwrap();
+            let min = bounding_box.min.unwrap();
+            let max = bounding_box.max.unwrap();
+            Aabb3::new(
+                Point3::new(min.x, min.y, min.z),
+                Point3::new(max.x, max.y, max.z),
+            )
+        };
+        let mut resp = proto::GetPointsInBoxReply::new();
+        self.octree.points_in_box(&bounding_box).for_each(|p| {
+            let mut v = point_viewer::proto::Vector3f::new();
+            v.set_x(p.position.x);
+            v.set_y(p.position.y);
+            v.set_z(p.position.z);
+            resp.mut_points().push(v);
+        });
         let f = sink.success(resp)
             .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
         ctx.spawn(f)
