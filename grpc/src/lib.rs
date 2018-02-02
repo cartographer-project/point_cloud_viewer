@@ -68,7 +68,7 @@ impl GrpcOctree {
         req.mut_bounding_box().mut_max().set_z(bounding_box.max.z);
         println!("request sent");
         let reply = self.client.get_points_in_box(&req).unwrap();
-        let mut points = Vec::new();
+        let points = Vec::new();
         println!("number of points {}", reply.points.len());
         // loop {
         //     let f = list_points_in_box.into_future();
@@ -159,5 +159,22 @@ impl Octree for GrpcOctree {
             },
         };
         Ok(result)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_receive_points() {
+        let octree = GrpcOctree::new("127.0.0.1:50051");
+        let bounding_box = Aabb3::new(
+            Point3::new(-2., -2., -2.),
+            Point3::new(4., 4., 4.)
+        );
+        let points = octree.get_points_in_box(&bounding_box);
+        assert_eq!(points.len(), 1845651);
     }
 }
