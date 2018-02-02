@@ -1,0 +1,19 @@
+{
+  "name": "xray",
+  "version": "0.1.0",
+  "description": "WebGL client tiled xrays view.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "format": "tsfmt -r",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Holger Rapp <hrapp@lyft.com>",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@types/three": "0.89.0",
+    "three": "0.89.0",
+    "typescript": "^2.7",
+    "typescript-formatter": "^7.0.1"
+  }
+}
