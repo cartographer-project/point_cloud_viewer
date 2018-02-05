@@ -24,6 +24,7 @@ include!(concat!(env!("OUT_DIR"), "/proto_grpc.rs"));
 
 use collision::Aabb3;
 use cgmath::{Matrix4, Point3};
+use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::errors::*;
 use point_viewer::math::Cube;
@@ -66,29 +67,26 @@ impl GrpcOctree {
         req.mut_bounding_box().mut_max().set_x(bounding_box.max.x);
         req.mut_bounding_box().mut_max().set_y(bounding_box.max.y);
         req.mut_bounding_box().mut_max().set_z(bounding_box.max.z);
-        println!("request sent");
-        let reply = self.client.get_points_in_box(&req).unwrap();
-        let points = Vec::new();
-        println!("number of points {}", reply.points.len());
-        // loop {
-        //     let f = list_points_in_box.into_future();
-        //     match f.wait() {
-        //         Ok((Some(reply), s)) => {
-        //             list_points_in_box = s;
-        //             // let p = Point3::new(
-        //             //     reply.point.as_ref().unwrap().x,
-        //             //     reply.point.as_ref().unwrap().y,
-        //             //     reply.point.as_ref().unwrap().z
-        //             // );
-        //             // points.push(p);
-        //             // if points.len() % 100000 == 0 {
-        //             //     println!("received {} points", points.len());
-        //             //}
-        //         }
-        //         Ok((None, _)) => break,
-        //         Err((e, _)) => panic!("Failed: {:?}", e),
-        //     }
-        // }
+        let mut replies = self.client.get_points_in_box(&req).unwrap();
+        let mut points = Vec::new();
+        loop {
+            let f = replies.into_future();
+            match f.wait() {
+                Ok((Some(reply), s)) => {
+                    replies = s;
+                    for point in reply.points.iter() {
+                        let p = Point3::new(
+                            point.x,
+                            point.y,
+                            point.z
+                        );
+                        points.push(p);
+                    }
+                }
+                Ok((None, _)) => break,
+                Err((e, _)) => panic!("Failed: {:?}", e),
+            }
+        }
         points
     }
 
@@ -169,10 +167,10 @@ mod tests {
 
     #[test]
     fn test_receive_points() {
-        let octree = GrpcOctree::new("127.0.0.1:50051");
+        let octree = GrpcOctree::new("127.0.0.1:50051");    // data set 351
         let bounding_box = Aabb3::new(
-            Point3::new(-2., -2., -2.),
-            Point3::new(4., 4., 4.)
+            Point3::new(-10., -10., -10.),
+            Point3::new(10., 10., 10.)
         );
         let points = octree.get_points_in_box(&bounding_box);
         assert_eq!(points.len(), 1845651);

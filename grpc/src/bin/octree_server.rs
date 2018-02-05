@@ -10,9 +10,9 @@ extern crate protobuf;
 
 use cgmath::{Matrix4, Point3};
 use collision::Aabb3;
-use futures::Future;
+use futures::{Future, stream, Sink};
 use futures::sync::oneshot;
-use grpcio::{Environment, RpcContext, ServerBuilder, UnarySink};
+use grpcio::{Environment, RpcContext, ServerBuilder, UnarySink, ServerStreamingSink, WriteFlags};
 use point_viewer::InternalIterator;
 use point_viewer::math::Cube;
 use point_viewer::octree;
@@ -118,7 +118,7 @@ impl proto_grpc::Octree for OctreeService {
         &self,
         ctx: RpcContext,
         req: proto::GetPointsInBoxRequest,
-        sink: UnarySink<proto::GetPointsInBoxReply>,
+        resp: ServerStreamingSink<proto::GetPointsInBoxReply>,
     ) {
         let bounding_box = {
             let bounding_box = req.bounding_box.clone().unwrap();
@@ -129,16 +129,22 @@ impl proto_grpc::Octree for OctreeService {
                 Point3::new(max.x, max.y, max.z),
             )
         };
-        let mut resp = proto::GetPointsInBoxReply::new();
+        let mut replies = Vec::new();
+        replies.push((proto::GetPointsInBoxReply::new(), WriteFlags::default()));
         self.octree.points_in_box(&bounding_box).for_each(|p| {
             let mut v = point_viewer::proto::Vector3f::new();
             v.set_x(p.position.x);
             v.set_y(p.position.y);
             v.set_z(p.position.z);
-            resp.mut_points().push(v);
+            replies.last_mut().unwrap().0.mut_points().push(v);
+            // message but be below 4 MB
+            if replies.last().unwrap().0.points.len() > 240000 {
+                replies.push((proto::GetPointsInBoxReply::new(), WriteFlags::default()));
+            }
         });
-        let f = sink.success(resp)
-            .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
+        let f = resp.send_all(stream::iter_ok::<_, grpcio::Error>(replies))
+            .map(|_| {})
+            .map_err(|e| println!("failed to rply: {:?}", e));
         ctx.spawn(f)
     }
 }
