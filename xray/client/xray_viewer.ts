@@ -1,6 +1,6 @@
 'use strict';
 
-import * as THREE from "three";
+import * as THREE from 'three';
 
 function matrixToString(m: THREE.Matrix4): string {
   const me = m.elements;
@@ -33,17 +33,34 @@ class NodeData {
   }
 
   public setTexture(texture: THREE.Texture) {
-    let geometry = new THREE.PlaneGeometry(this.boundingRect['edge_length'], this.boundingRect['edge_length'], 1);
-    geometry.applyMatrix(new THREE.Matrix4().makeTranslation(this.boundingRect['edge_length'] / 2., - this.boundingRect['edge_length'] / 2., 0.));
-    let material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+    let geometry = new THREE.PlaneGeometry(
+      this.boundingRect['edge_length'],
+      this.boundingRect['edge_length'],
+      1
+    );
+    geometry.applyMatrix(
+      new THREE.Matrix4().makeTranslation(
+        this.boundingRect['edge_length'] / 2,
+        -this.boundingRect['edge_length'] / 2,
+        0
+      )
+    );
+    let material = new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.DoubleSide,
+    });
     this.plane = new THREE.Mesh(geometry, material);
     this.plane.scale.y = -1;
-    this.plane.position.set(this.boundingRect['min_x'], this.boundingRect['min_y'], 0.);
+    this.plane.position.set(
+      this.boundingRect['min_x'],
+      this.boundingRect['min_y'],
+      0
+    );
   }
-};
+}
 
 export class XRayViewer {
-  private nodes: { [key: string]: NodeData } = {};
+  private nodes: {[key: string]: NodeData} = {};
   private currentlyLoading: number;
   private nodesToLoad: string[] = [];
 
@@ -53,10 +70,14 @@ export class XRayViewer {
 
   public frustumChanged(matrix: THREE.Matrix4, pixelsPerMeter: number) {
     // Figure out which view level represents our current zoom.
-    let full_size_considering_zoom = pixelsPerMeter * this.meta['bounding_rect']['edge_length'];
+    let full_size_considering_zoom =
+      pixelsPerMeter * this.meta['bounding_rect']['edge_length'];
     let level = 0;
     let edge_length_px_for_level = this.meta['tile_size'];
-    while (edge_length_px_for_level < full_size_considering_zoom && level < this.meta['deepest_level']) {
+    while (
+      edge_length_px_for_level < full_size_considering_zoom &&
+      level < this.meta['deepest_level']
+    ) {
       edge_length_px_for_level *= 2;
       level += 1;
     }
@@ -67,11 +88,15 @@ export class XRayViewer {
       {
         method: 'GET',
         credentials: 'same-origin',
-      });
+      }
+    );
 
-    window.fetch(request).then(data => data.json()).then((nodes: any) => {
-      this.nodesUpdate(nodes);
-    });
+    window
+      .fetch(request)
+      .then((data) => data.json())
+      .then((nodes: any) => {
+        this.nodesUpdate(nodes);
+      });
   }
 
   private nodesUpdate(nodes: any) {
@@ -113,7 +138,7 @@ export class XRayViewer {
       return;
     }
     console.log('Swapping in: ', nodeId);
-    // Swap out parents and children. 
+    // Swap out parents and children.
     // TODO(sirver): We never drop any nodes, so memory is used unbounded.
     // TODO(sirver): Parent should only be swapped out if all children are loaded.
     if (nodeId !== 'r') {
@@ -135,4 +160,4 @@ export class XRayViewer {
     this.scene.add(this.nodes[nodeId].plane);
     this.nodes[nodeId].inScene = true;
   }
-};
+}
