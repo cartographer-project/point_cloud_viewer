@@ -196,55 +196,54 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
 
 type ReadingFn = fn(nread: &mut usize, buf: &[u8], val: &mut Point);
 
-// The two macros create a 'ReadingFn' that reads a value of '$data_type' out of a reader, assigns
-// it to '$property' (e.g. 'position.x') of 'point' while casting it to the correct type. I did not
-// find a way of doing this purely using generic programming, so I resorted to this macro.
+// The two macros create a 'ReadingFn' that reads a value of '$data_type' out of a reader, and
+// calls '$assign' with it while casting it to the correct type. I did not find a way of doing this
+// purely using generic programming, so I resorted to this macro.
 macro_rules! create_and_return_reading_fn {
-    ($($property:ident).+, $size:ident, $num_bytes:expr, $reading_fn:expr) => (
+    ($assign:expr, $size:ident, $num_bytes:expr, $reading_fn:expr) => (
         {
             $size += $num_bytes;
-            fn _read_fn(nread: &mut usize, buf: &[u8], point: &mut Point) {
-                point $( .$property )+ = $reading_fn(buf) as _;
+            |nread: &mut usize, buf: &[u8], point: &mut Point| {
+                $assign(point, $reading_fn(buf) as _);
                 *nread += $num_bytes;
             }
-            _read_fn
         }
     )
 }
 
 macro_rules! read_casted_property {
-    ($data_type:expr, point. $($property:ident).+, &mut $size:ident) => (
+    ($data_type:expr, $assign:expr, &mut $size:ident) => (
         match $data_type {
             DataType::Uint8 => {
-                create_and_return_reading_fn!($($property).+, $size, 1,
+                create_and_return_reading_fn!($assign, $size, 1,
                     |buf: &[u8]| buf[0])
             },
             DataType::Int8 => {
-                create_and_return_reading_fn!($($property).+, $size, 1,
+                create_and_return_reading_fn!($assign, $size, 1,
                     |buf: &[u8]| buf[0])
             },
             DataType::Uint16 => {
-                create_and_return_reading_fn!($($property).+, $size, 2,
+                create_and_return_reading_fn!($assign, $size, 2,
                     LittleEndian::read_u16)
             },
             DataType::Int16 => {
-                create_and_return_reading_fn!($($property).+, $size, 2,
+                create_and_return_reading_fn!($assign, $size, 2,
                     LittleEndian::read_i16)
             },
             DataType::Uint32 => {
-                create_and_return_reading_fn!($($property).+, $size, 4,
+                create_and_return_reading_fn!($assign, $size, 4,
                     LittleEndian::read_u32)
             },
             DataType::Int32 => {
-                create_and_return_reading_fn!($($property).+, $size, 4,
+                create_and_return_reading_fn!($assign, $size, 4,
                     LittleEndian::read_i32)
             },
             DataType::Float32 => {
-                create_and_return_reading_fn!($($property).+, $size, 4,
+                create_and_return_reading_fn!($assign, $size, 4,
                     LittleEndian::read_f32)
             },
             DataType::Float64 => {
-                create_and_return_reading_fn!($($property).+, $size, 8,
+                create_and_return_reading_fn!($assign, $size, 8,
                     LittleEndian::read_f64)
             },
         }
@@ -295,7 +294,7 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
             "x" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    point.position.x,
+                    |p: &mut Point, val: f32| p.position.x = val,
                     &mut num_bytes_per_point
                 ));
                 seen_x = true;
@@ -303,7 +302,7 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
             "y" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    point.position.y,
+                    |p: &mut Point, val: f32| p.position.y = val,
                     &mut num_bytes_per_point
                 ));
                 seen_y = true;
@@ -311,7 +310,7 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
             "z" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    point.position.z,
+                    |p: &mut Point, val: f32| p.position.z = val,
                     &mut num_bytes_per_point
                 ));
                 seen_z = true;
@@ -319,21 +318,28 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
             "r" | "red" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    point.color.red,
+                    |p: &mut Point, val: u8| p.color.red = val,
                     &mut num_bytes_per_point
                 ));
             }
             "g" | "green" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    point.color.green,
+                    |p: &mut Point, val: u8| p.color.green = val,
                     &mut num_bytes_per_point
                 ));
             }
             "b" | "blue" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    point.color.blue,
+                    |p: &mut Point, val: u8| p.color.blue = val,
+                    &mut num_bytes_per_point
+                ));
+            }
+            "intensity" => {
+                readers.push(read_casted_property!(
+                    prop.data_type,
+                    |p: &mut Point, val| p.intensity = Some(val),
                     &mut num_bytes_per_point
                 ));
             }
@@ -392,6 +398,7 @@ impl InternalIterator for PlyIterator {
         let mut point = Point {
             position: Vector3::new(0., 0., 0.),
             color: color::WHITE.to_u8(),
+            intensity: None,
         };
 
         for _ in 0..self.num_total_points {
@@ -445,5 +452,18 @@ mod tests {
         assert_eq!(points[7].position.x, 22.);
         assert_eq!(points[0].color.red, 255);
         assert_eq!(points[7].color.red, 227);
+    }
+
+    #[test]
+    fn test_xyz_f32_rgb_u8_intensity_f32_le() {
+        // All intensities in this file are NaN, but set.
+        let points = points_from_file("src/test_data/xyz_f32_rgb_u8_intensity_f32.ply");
+        assert_eq!(8, points.len());
+        assert_eq!(points[0].position.x, 1.);
+        assert!(points[0].intensity.is_some());
+        assert_eq!(points[7].position.x, 22.);
+        assert!(points[7].intensity.is_some());
+        assert_eq!(points[0].color.red, 255);
+        assert_eq!(points[7].color.red, 234);
     }
 }

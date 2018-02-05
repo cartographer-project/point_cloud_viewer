@@ -63,6 +63,7 @@ impl InternalIterator for PtsIterator {
                     blue: parts[6].parse::<u8>().unwrap(),
                     alpha: 255,
                 },
+                intensity: None,
             };
             f(&p);
         }

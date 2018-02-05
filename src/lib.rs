@@ -41,6 +41,10 @@ pub struct Point {
     pub position: cgmath::Vector3<f32>,
     // TODO(sirver): Make color optional, we might not always have it.
     pub color: color::Color<u8>,
+
+    // The intensity of the point if it exists. This value is usually handed through directly by a
+    // sensor and has therefore no defined range - or even meaning.
+    pub intensity: Option<f32>,
 }
 
 include!(concat!(env!("OUT_DIR"), "/proto.rs"));
