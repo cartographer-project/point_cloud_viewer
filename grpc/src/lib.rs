@@ -22,8 +22,8 @@ extern crate protobuf;
 include!(concat!(env!("OUT_DIR"), "/proto.rs"));
 include!(concat!(env!("OUT_DIR"), "/proto_grpc.rs"));
 
-use collision::Aabb3;
 use cgmath::{Matrix4, Point3};
+use collision::Aabb3;
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::errors::*;
@@ -75,11 +75,7 @@ impl GrpcOctree {
                 Ok((Some(reply), s)) => {
                     replies = s;
                     for point in reply.points.iter() {
-                        let p = Point3::new(
-                            point.x,
-                            point.y,
-                            point.z
-                        );
+                        let p = Point3::new(point.x, point.y, point.z);
                         points.push(p);
                     }
                 }
@@ -89,7 +85,6 @@ impl GrpcOctree {
         }
         points
     }
-
 }
 
 impl Octree for GrpcOctree {
@@ -160,18 +155,14 @@ impl Octree for GrpcOctree {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_receive_points() {
-        let octree = GrpcOctree::new("127.0.0.1:50051");    // data set 351
-        let bounding_box = Aabb3::new(
-            Point3::new(-10., -10., -10.),
-            Point3::new(10., 10., 10.)
-        );
+        let octree = GrpcOctree::new("127.0.0.1:50051"); // data set 351
+        let bounding_box = Aabb3::new(Point3::new(-10., -10., -10.), Point3::new(10., 10., 10.));
         let points = octree.get_points_in_box(&bounding_box);
         assert_eq!(points.len(), 1845651);
     }

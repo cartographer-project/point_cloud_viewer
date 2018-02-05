@@ -29,7 +29,8 @@ service Octree {
       returns (GetRootBoundingCubeReply);
   rpc GetVisibleNodes(GetVisibleNodesRequest) returns (GetVisibleNodesReply);
   rpc GetNodeData(GetNodeDataRequest) returns (GetNodeDataReply);
-  rpc GetPointsInBox(GetPointsInBoxRequest) returns (stream GetPointsInBoxReply);
+  rpc GetPointsInBox(GetPointsInBoxRequest)
+      returns (stream GetPointsInBoxReply);
 }
 
 message GetRootBoundingCubeRequest {
