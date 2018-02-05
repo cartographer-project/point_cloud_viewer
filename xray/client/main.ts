@@ -14,10 +14,10 @@
 
 'use strict';
 
-import * as THREE from "three";
+import * as THREE from 'three';
 
-import { Maps2DController } from './control';
-import { XRayViewer } from './xray_viewer';
+import {Maps2DController} from './control';
+import {XRayViewer} from './xray_viewer';
 
 function now(): number {
   return +new Date();
@@ -40,10 +40,13 @@ class App {
     renderArea.appendChild(this.renderer.domElement);
 
     this.camera = new THREE.OrthographicCamera(
-      renderArea.clientWidth / - 2,
+      renderArea.clientWidth / -2,
       renderArea.clientWidth / 2,
       renderArea.clientHeight / 2,
-      renderArea.clientHeight / - 2, -100., 100.);
+      renderArea.clientHeight / -2,
+      -100,
+      100
+    );
 
     this.lastFrustumUpdateTime = 0;
     this.viewHasChanged = true;
@@ -51,20 +54,24 @@ class App {
     this.camera.updateMatrixWorld(false);
     this.scene = new THREE.Scene();
 
-    const request = new Request(`/meta`,
-      {
-        method: 'GET',
-        credentials: 'same-origin',
-      });
-
-    window.fetch(request).then(data => data.json()).then((meta: any) => {
-      this.viewer = new XRayViewer(this.scene, meta);
+    const request = new Request(`/meta`, {
+      method: 'GET',
+      credentials: 'same-origin',
     });
+
+    window
+      .fetch(request)
+      .then((data) => data.json())
+      .then((meta: any) => {
+        this.viewer = new XRayViewer(this.scene, meta);
+      });
 
     this.scene.add(this.camera);
 
-    this.controller =
-      new Maps2DController(this.camera, this.renderer.domElement);
+    this.controller = new Maps2DController(
+      this.camera,
+      this.renderer.domElement
+    );
 
     this.lastFrustumUpdateTime = 0;
     window.addEventListener('resize', () => this.onWindowResize(), false);
@@ -72,10 +79,10 @@ class App {
   }
 
   private onWindowResize() {
-    this.camera.left = -window.innerWidth / 2.;
-    this.camera.right = window.innerWidth / 2.;
-    this.camera.top = window.innerHeight / 2.;
-    this.camera.bottom = -window.innerHeight / 2.;
+    this.camera.left = -window.innerWidth / 2;
+    this.camera.right = window.innerWidth / 2;
+    this.camera.top = window.innerHeight / 2;
+    this.camera.bottom = -window.innerHeight / 2;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
@@ -85,12 +92,18 @@ class App {
 
     this.viewHasChanged = this.controller.update() || this.viewHasChanged;
     const time = now();
-    if (time - this.lastFrustumUpdateTime > 250 && this.viewHasChanged && this.viewer !== undefined) {
+    if (
+      time - this.lastFrustumUpdateTime > 250 &&
+      this.viewHasChanged &&
+      this.viewer !== undefined
+    ) {
       this.viewHasChanged = false;
       this.lastFrustumUpdateTime = time;
 
       const matrix = new THREE.Matrix4().multiplyMatrices(
-        this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+        this.camera.projectionMatrix,
+        this.camera.matrixWorldInverse
+      );
       // The camera's zoom is exactly the number of pixels per meter.
       this.viewer.frustumChanged(matrix, this.camera.zoom);
     }

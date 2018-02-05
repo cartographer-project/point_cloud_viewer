@@ -14,7 +14,7 @@
 
 'use strict';
 
-import * as THREE from "three";
+import * as THREE from 'three';
 
 enum MouseState {
   NONE,
@@ -33,19 +33,34 @@ export class Maps2DController {
   private moveUp: boolean;
   private viewHasChanged: boolean;
 
-  constructor(private camera: THREE.OrthographicCamera, private domElement: Element) {
+  constructor(
+    private camera: THREE.OrthographicCamera,
+    private domElement: Element
+  ) {
     this.camera.zoom = 0.2;
     this.mouseState = MouseState.NONE;
     this.dragStart = new THREE.Vector2(0, 0);
 
     window.addEventListener(
-      'keydown', event => this.onKeyDown(<KeyboardEvent>event), false);
+      'keydown',
+      (event) => this.onKeyDown(<KeyboardEvent>event),
+      false
+    );
     window.addEventListener(
-      'keyup', event => this.onKeyUp(<KeyboardEvent>event), false);
+      'keyup',
+      (event) => this.onKeyUp(<KeyboardEvent>event),
+      false
+    );
     window.addEventListener(
-      'mousewheel', event => this.onMouseWheel(<WheelEvent>event), false);
+      'mousewheel',
+      (event) => this.onMouseWheel(<WheelEvent>event),
+      false
+    );
     this.domElement.addEventListener(
-      'mousedown', event => this.onMouseDown(<MouseEvent>event), false);
+      'mousedown',
+      (event) => this.onMouseDown(<MouseEvent>event),
+      false
+    );
   }
 
   public update(): boolean {
@@ -81,23 +96,23 @@ export class Maps2DController {
 
   private setMoving(keyCode: string, state: boolean) {
     switch (keyCode) {
-      case "ArrowUp":
-      case "KeyW":
+      case 'ArrowUp':
+      case 'KeyW':
         this.moveUp = state;
         break;
 
-      case "ArrowDown":
-      case "KeyS":
+      case 'ArrowDown':
+      case 'KeyS':
         this.moveDown = state;
         break;
 
-      case "ArrowLeft":
-      case "KeyA":
+      case 'ArrowLeft':
+      case 'KeyA':
         this.moveLeft = state;
         break;
 
-      case "ArrowRight":
-      case "KeyD":
+      case 'ArrowRight':
+      case 'KeyD':
         this.moveRight = state;
         break;
     }
@@ -119,17 +134,29 @@ export class Maps2DController {
       this.mouseState = MouseState.DRAG;
       this.dragStart.set(event.clientX, event.clientY);
       this.domElement.addEventListener(
-        'mousemove', event => this.onMouseMove(<MouseEvent>event), false);
+        'mousemove',
+        (event) => this.onMouseMove(<MouseEvent>event),
+        false
+      );
       this.domElement.addEventListener(
-        'mouseup', event => this.onMouseUp(<MouseEvent>event), false);
+        'mouseup',
+        (event) => this.onMouseUp(<MouseEvent>event),
+        false
+      );
     }
   }
 
   private onMouseUp(event: MouseEvent) {
     this.domElement.removeEventListener(
-      'mousemove', event => this.onMouseMove(<MouseEvent>event), false);
+      'mousemove',
+      (event) => this.onMouseMove(<MouseEvent>event),
+      false
+    );
     this.domElement.removeEventListener(
-      'mouseup', event => this.onMouseUp(<MouseEvent>event), false);
+      'mouseup',
+      (event) => this.onMouseUp(<MouseEvent>event),
+      false
+    );
     this.mouseState = MouseState.NONE;
   }
 
@@ -149,14 +176,16 @@ export class Maps2DController {
 
   private onMouseWheel(event: WheelEvent) {
     event.preventDefault();
-    let sign = (event.wheelDelta < 0) ? -1 : 1;
-    let scaleMultiplier = 1. + sign * 0.05;
+    let sign = event.wheelDelta < 0 ? -1 : 1;
+    let scaleMultiplier = 1 + sign * 0.05;
 
     // Zoom around event.offsetX.
-    let dx = (event.offsetX - this.domElement.clientWidth / 2) / this.camera.zoom
-    let dy = (event.offsetY - this.domElement.clientHeight / 2) / this.camera.zoom
-    this.camera.position.x += (scaleMultiplier - 1) * dx
-    this.camera.position.y -= (scaleMultiplier - 1) * dy
+    let dx =
+      (event.offsetX - this.domElement.clientWidth / 2) / this.camera.zoom;
+    let dy =
+      (event.offsetY - this.domElement.clientHeight / 2) / this.camera.zoom;
+    this.camera.position.x += (scaleMultiplier - 1) * dx;
+    this.camera.position.y -= (scaleMultiplier - 1) * dy;
     this.camera.zoom *= scaleMultiplier;
     this.viewHasChanged = true;
   }
