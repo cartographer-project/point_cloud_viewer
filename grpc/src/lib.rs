@@ -68,20 +68,14 @@ impl GrpcOctree {
         req.mut_bounding_box().mut_max().set_x(bounding_box.max.x);
         req.mut_bounding_box().mut_max().set_y(bounding_box.max.y);
         req.mut_bounding_box().mut_max().set_z(bounding_box.max.z);
-        let mut replies = self.client.get_points_in_box(&req).unwrap();
+        let replies = self.client.get_points_in_box(&req).unwrap();
         let mut points = Vec::new();
-        loop {
-            match replies.into_future().wait() {
-                Ok((Some(reply), s)) => {
-                    replies = s;
-                    for point in reply.points.iter() {
-                        points.push(Point3::new(point.x, point.y, point.z));
-                    }
-                }
-                Ok((None, _)) => break,
-                Err((e, _)) => panic!("Failed: {:?}", e),
+        replies.for_each(|reply| {
+            for point in reply.points.iter() {
+                points.push(Point3::new(point.x, point.y, point.z));
             }
-        }
+            Ok(())
+        }).wait().unwrap();
         points
     }
 }
