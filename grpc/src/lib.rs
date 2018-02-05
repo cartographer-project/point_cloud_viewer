@@ -152,11 +152,11 @@ impl Octree for GrpcOctree {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_receive_points() {
-        let octree = GrpcOctree::new("127.0.0.1:50051"); // data set 351
-        let bounding_box = Aabb3::new(Point3::new(-10., -10., -10.), Point3::new(10., 10., 10.));
-        let points = octree.get_points_in_box(&bounding_box);
-        assert_eq!(points.len(), 1845651);
-    }
+    // #[test]
+    // fn test_receive_points() {
+    //     let octree = GrpcOctree::new("127.0.0.1:50051"); // data set 351
+    //     let bounding_box = Aabb3::new(Point3::new(-10., -10., -10.), Point3::new(10., 10., 10.));
+    //     let points = octree.get_points_in_box(&bounding_box);
+    //     assert_eq!(points.len(), 1845651);
+    // }
 }
