@@ -11,6 +11,10 @@ install_javascript_stuff() {
   pushd web_viewer/client
   npm install
   popd
+
+  pushd xray/client
+  npm install
+  popd
 }
 
 main() {
