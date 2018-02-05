@@ -23,6 +23,7 @@ use std::{io, thread};
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
+use protobuf::Message;
 
 #[derive(Clone)]
 struct OctreeService {
@@ -131,16 +132,32 @@ impl proto_grpc::Octree for OctreeService {
         };
         let mut replies = Vec::new();
         replies.push((proto::GetPointsInBoxReply::new(), WriteFlags::default()));
+        // Computing the protobuf size is very expensive.
+        // We compute the byte size of a Vector3f in the reply proto once outside the loop.
+        let bytes_per_point = {
+            let mut reply = proto::GetPointsInBoxReply::new();
+            let initial_proto_size = reply.compute_size();
+            let mut v = point_viewer::proto::Vector3f::new();
+            v.set_x(1.);
+            v.set_y(1.);
+            v.set_z(1.);
+            reply.mut_points().push(v);
+            let final_proto_size = reply.compute_size();
+            final_proto_size - initial_proto_size
+        };
+        // Proto message must be below 4 MB.
+        let max_message_size = 4 * 1024 * 1024;
+        let mut reply_size = 0;
         self.octree.points_in_box(&bounding_box).for_each(|p| {
             let mut v = point_viewer::proto::Vector3f::new();
             v.set_x(p.position.x);
             v.set_y(p.position.y);
             v.set_z(p.position.z);
             replies.last_mut().unwrap().0.mut_points().push(v);
-            // Proto message must be below 4 MB.
-            // 240000 points take about 2.9 MB and proto requires about 1 MB of overhead for that.
-            if replies.last().unwrap().0.points.len() > 240000 {
+            reply_size += bytes_per_point;
+            if reply_size > max_message_size - bytes_per_point {
                 replies.push((proto::GetPointsInBoxReply::new(), WriteFlags::default()));
+                reply_size = 0;
             }
         });
         let f = resp.send_all(stream::iter_ok::<_, grpcio::Error>(replies))
