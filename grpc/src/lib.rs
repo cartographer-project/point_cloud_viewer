@@ -71,13 +71,11 @@ impl GrpcOctree {
         let mut replies = self.client.get_points_in_box(&req).unwrap();
         let mut points = Vec::new();
         loop {
-            let f = replies.into_future();
-            match f.wait() {
+            match replies.into_future().wait() {
                 Ok((Some(reply), s)) => {
                     replies = s;
                     for point in reply.points.iter() {
-                        let p = Point3::new(point.x, point.y, point.z);
-                        points.push(p);
+                        points.push(Point3::new(point.x, point.y, point.z));
                     }
                 }
                 Ok((None, _)) => break,
@@ -160,11 +158,11 @@ impl Octree for GrpcOctree {
 mod tests {
     use super::*;
 
-    // #[test]
-    // fn test_receive_points() {
-    //     let octree = GrpcOctree::new("127.0.0.1:50051"); // data set 351
-    //     let bounding_box = Aabb3::new(Point3::new(-10., -10., -10.), Point3::new(10., 10., 10.));
-    //     let points = octree.get_points_in_box(&bounding_box);
-    //     assert_eq!(points.len(), 1845651);
-    // }
+    #[test]
+    fn test_receive_points() {
+        let octree = GrpcOctree::new("127.0.0.1:50051"); // data set 351
+        let bounding_box = Aabb3::new(Point3::new(-10., -10., -10.), Point3::new(10., 10., 10.));
+        let points = octree.get_points_in_box(&bounding_box);
+        assert_eq!(points.len(), 1845651);
+    }
 }
