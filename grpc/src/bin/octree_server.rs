@@ -137,7 +137,8 @@ impl proto_grpc::Octree for OctreeService {
             v.set_y(p.position.y);
             v.set_z(p.position.z);
             replies.last_mut().unwrap().0.mut_points().push(v);
-            // message but be below 4 MB
+            // Proto message must be below 4 MB.
+            // 240000 points take about 2.9 MB and proto requires about 1 MB of overhead for that.
             if replies.last().unwrap().0.points.len() > 240000 {
                 replies.push((proto::GetPointsInBoxReply::new(), WriteFlags::default()));
             }

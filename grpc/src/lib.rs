@@ -59,6 +59,7 @@ impl GrpcOctree {
         }
     }
 
+    // TODO(tschiwietz): This function should return Result<> for error handling.
     pub fn get_points_in_box(&self, bounding_box: &Aabb3<f32>) -> Vec<Point3<f32>> {
         let mut req = proto::GetPointsInBoxRequest::new();
         req.mut_bounding_box().mut_min().set_x(bounding_box.min.x);
