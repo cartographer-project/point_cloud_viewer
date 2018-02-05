@@ -14,46 +14,63 @@
 
 // Entries follow GL semantics: they are in [0.; 1.] with 1. being fully saturated.
 #[derive(Debug, Copy, Clone)]
-pub struct Color {
-    pub red: f32,
-    pub green: f32,
-    pub blue: f32,
-    pub alpha: f32,
+pub struct Color<T> {
+    pub red: T,
+    pub green: T,
+    pub blue: T,
+    pub alpha: T,
 }
 
-pub const RED: Color = Color {
+impl Color<f32> {
+    pub fn to_u8(&self) -> Color<u8> {
+        Color {
+            red: (self.red * 255.) as u8,
+            green: (self.green * 255.) as u8,
+            blue: (self.blue * 255.) as u8,
+            alpha: (self.alpha * 255.) as u8,
+        }
+    }
+}
+
+pub const RED: Color<f32> = Color {
     red: 1.,
     green: 0.,
     blue: 0.,
     alpha: 1.,
 };
-pub const GREEN: Color = Color {
+pub const GREEN: Color<f32> = Color {
     red: 0.,
     green: 1.,
     blue: 0.,
     alpha: 1.,
 };
-pub const BLUE: Color = Color {
+pub const BLUE: Color<f32> = Color {
     red: 0.,
     green: 0.,
     blue: 1.,
     alpha: 1.,
 };
-pub const YELLOW: Color = Color {
+pub const YELLOW: Color<f32> = Color {
     red: 1.,
     green: 1.,
     blue: 0.,
     alpha: 1.,
 };
-pub const CYAN: Color = Color {
+pub const CYAN: Color<f32> = Color {
     red: 0.,
     green: 1.,
     blue: 1.,
     alpha: 1.,
 };
-pub const MAGENTA: Color = Color {
+pub const MAGENTA: Color<f32> = Color {
     red: 1.,
     green: 0.,
+    blue: 1.,
+    alpha: 1.,
+};
+pub const WHITE: Color<f32> = Color {
+    red: 1.,
+    green: 1.,
     blue: 1.,
     alpha: 1.,
 };

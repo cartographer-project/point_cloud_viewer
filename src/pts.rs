@@ -14,6 +14,7 @@
 
 use {InternalIterator, Point};
 use cgmath::Vector3;
+use color;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -56,9 +57,12 @@ impl InternalIterator for PtsIterator {
                     parts[1].parse::<f32>().unwrap(),
                     parts[2].parse::<f32>().unwrap(),
                 ),
-                r: parts[4].parse::<u8>().unwrap(),
-                g: parts[5].parse::<u8>().unwrap(),
-                b: parts[6].parse::<u8>().unwrap(),
+                color: color::Color {
+                    red: parts[4].parse::<u8>().unwrap(),
+                    green: parts[5].parse::<u8>().unwrap(),
+                    blue: parts[6].parse::<u8>().unwrap(),
+                    alpha: 255,
+                },
             };
             f(&p);
         }

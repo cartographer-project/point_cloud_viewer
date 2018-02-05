@@ -15,6 +15,7 @@
 use {InternalIterator, Point};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
+use color;
 use errors::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
@@ -318,21 +319,21 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
             "r" | "red" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    point.r,
+                    point.color.red,
                     &mut num_bytes_per_point
                 ));
             }
             "g" | "green" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    point.g,
+                    point.color.green,
                     &mut num_bytes_per_point
                 ));
             }
             "b" | "blue" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    point.b,
+                    point.color.blue,
                     &mut num_bytes_per_point
                 ));
             }
@@ -390,9 +391,7 @@ impl InternalIterator for PlyIterator {
     fn for_each<F: FnMut(&Point)>(mut self, mut func: F) {
         let mut point = Point {
             position: Vector3::new(0., 0., 0.),
-            r: 255,
-            g: 255,
-            b: 255,
+            color: color::WHITE.to_u8(),
         };
 
         for _ in 0..self.num_total_points {
@@ -434,8 +433,8 @@ mod tests {
         assert_eq!(8, points.len());
         assert_eq!(points[0].position.x, 1.);
         assert_eq!(points[7].position.x, 22.);
-        assert_eq!(points[0].r, 255);
-        assert_eq!(points[7].r, 234);
+        assert_eq!(points[0].color.red, 255);
+        assert_eq!(points[7].color.red, 234);
     }
 
     #[test]
@@ -444,7 +443,7 @@ mod tests {
         assert_eq!(8, points.len());
         assert_eq!(points[0].position.x, 1.);
         assert_eq!(points[7].position.x, 22.);
-        assert_eq!(points[0].r, 255);
-        assert_eq!(points[7].r, 227);
+        assert_eq!(points[0].color.red, 255);
+        assert_eq!(points[7].color.red, 227);
     }
 }

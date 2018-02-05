@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use cgmath::{Matrix, Matrix4};
-use color::Color;
 use graphic::{GlBuffer, GlProgram, GlVertexArray};
 use opengl;
 use opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
+use point_viewer::color;
 use point_viewer::math::Cube;
 use std::mem;
 use std::os::raw::c_void;
@@ -125,7 +125,11 @@ impl<'a> BoxDrawer<'a> {
     }
 
     // Draws the outline of the box where each vertex is transformed with 'transform'.
-    fn draw_outlines_from_transformation(&self, transform: &Matrix4<f32>, color: &Color) {
+    fn draw_outlines_from_transformation(
+        &self,
+        transform: &Matrix4<f32>,
+        color: &color::Color<f32>,
+    ) {
         self.vertex_array.bind();
 
         unsafe {
@@ -156,7 +160,12 @@ impl<'a> BoxDrawer<'a> {
     // Internally, the box is defined in local coordinates.
     // We the properties of 'cube' to transform the box into world space.
     // Then we use 'world_to_gl' to transform it into clip space.
-    pub fn draw_outlines(&self, cube: &Cube, world_to_gl: &Matrix4<f32>, color: &Color) {
+    pub fn draw_outlines(
+        &self,
+        cube: &Cube,
+        world_to_gl: &Matrix4<f32>,
+        color: &color::Color<f32>,
+    ) {
         let scale_matrix = Matrix4::from_scale(cube.edge_length() / 2.0);
         let translation_matrix = Matrix4::from_translation(cube.center());
         let transformation_matrix = world_to_gl * translation_matrix * scale_matrix;

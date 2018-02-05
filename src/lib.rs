@@ -24,11 +24,12 @@ extern crate num_traits;
 extern crate protobuf;
 extern crate walkdir;
 
+pub mod color;
+pub mod errors;
 pub mod math;
 pub mod octree;
 pub mod ply;
 pub mod pts;
-pub mod errors;
 
 pub trait InternalIterator {
     fn for_each<F: FnMut(&Point)>(self, F);
@@ -38,9 +39,8 @@ pub trait InternalIterator {
 #[derive(Debug, Clone)]
 pub struct Point {
     pub position: cgmath::Vector3<f32>,
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
+    // TODO(sirver): Make color optional, we might not always have it.
+    pub color: color::Color<u8>,
 }
 
 include!(concat!(env!("OUT_DIR"), "/proto.rs"));

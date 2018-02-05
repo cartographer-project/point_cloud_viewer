@@ -15,6 +15,7 @@
 use {InternalIterator, Point};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use cgmath::{Vector3, Zero};
+use color;
 use errors::*;
 use math::{clamp, Cube};
 use num;
@@ -296,9 +297,7 @@ impl InternalIterator for NodeIterator {
     fn for_each<F: FnMut(&Point)>(mut self, mut f: F) {
         let mut point = Point {
             position: Vector3::zero(),
-            r: 0,
-            g: 0,
-            b: 0,
+            color: color::RED.to_u8(), // is overwritten
         };
 
         let edge_length = self.meta.bounding_cube.edge_length();
@@ -352,9 +351,9 @@ impl InternalIterator for NodeIterator {
                 }
             }
 
-            point.r = self.rgb_reader.read_u8().unwrap();
-            point.g = self.rgb_reader.read_u8().unwrap();
-            point.b = self.rgb_reader.read_u8().unwrap();
+            point.color.red = self.rgb_reader.read_u8().unwrap();
+            point.color.green = self.rgb_reader.read_u8().unwrap();
+            point.color.blue = self.rgb_reader.read_u8().unwrap();
             f(&point);
         }
     }
@@ -510,9 +509,9 @@ impl NodeWriter {
             }
         }
 
-        self.rgb_writer.write_u8(p.r).unwrap();
-        self.rgb_writer.write_u8(p.g).unwrap();
-        self.rgb_writer.write_u8(p.b).unwrap();
+        self.rgb_writer.write_u8(p.color.red).unwrap();
+        self.rgb_writer.write_u8(p.color.green).unwrap();
+        self.rgb_writer.write_u8(p.color.blue).unwrap();
         self.num_written += 1;
     }
 
