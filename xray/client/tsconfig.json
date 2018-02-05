@@ -1,10 +1,8 @@
 {
     "compilerOptions": {
-        "module": "amd",
         "noImplicitAny": true,
         "removeComments": true,
         "preserveConstEnums": true,
-        "outFile": "../../target/xray_app_bundle.js",
         "target": "es6",
         "sourceMap": true
     },
