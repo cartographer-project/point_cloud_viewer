@@ -29,6 +29,7 @@ use std::path::{Path, PathBuf};
 
 pub const POSITION_EXT: &str = "xyz";
 pub const COLOR_EXT: &str = "rgb";
+pub const INTENSITY_EXT: &str = "intensity";
 
 /// Represents a child of an octree Node.
 #[derive(Debug, PartialEq, Eq)]
@@ -268,6 +269,7 @@ impl NodeMeta {
 pub struct NodeIterator {
     xyz_reader: BufReader<File>,
     rgb_reader: BufReader<File>,
+    intensity_reader: Option<BufReader<File>>,
     meta: NodeMeta,
 }
 
@@ -277,9 +279,14 @@ impl NodeIterator {
         let num_points = id.number_of_points(&octree_meta.directory)?;
         let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
         let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
+        let intensity_reader = File::open(&stem.with_extension(INTENSITY_EXT))
+            .map(|f| Some(BufReader::new(f)))
+            .unwrap_or(None);
+
         Ok(NodeIterator {
             xyz_reader: BufReader::new(File::open(&stem.with_extension(POSITION_EXT))?),
             rgb_reader: BufReader::new(File::open(&stem.with_extension(COLOR_EXT))?),
+            intensity_reader,
             meta: NodeMeta {
                 bounding_cube: bounding_cube,
                 position_encoding: position_encoding,
@@ -298,6 +305,7 @@ impl InternalIterator for NodeIterator {
         let mut point = Point {
             position: Vector3::zero(),
             color: color::RED.to_u8(), // is overwritten
+            intensity: None,
         };
 
         let edge_length = self.meta.bounding_cube.edge_length();
@@ -354,6 +362,9 @@ impl InternalIterator for NodeIterator {
             point.color.red = self.rgb_reader.read_u8().unwrap();
             point.color.green = self.rgb_reader.read_u8().unwrap();
             point.color.blue = self.rgb_reader.read_u8().unwrap();
+            self.intensity_reader.as_mut().map(|ir| {
+                point.intensity = Some(ir.read_f32::<LittleEndian>().unwrap());
+            });
             f(&point);
         }
     }
@@ -436,6 +447,7 @@ fn decode(value: f32, min: f32, edge_length: f32) -> f32 {
 pub struct NodeWriter {
     xyz_writer: BufWriter<File>,
     rgb_writer: BufWriter<File>,
+    intensity_writer: Option<BufWriter<File>>,
     bounding_cube: Cube,
     position_encoding: PositionEncoding,
     stem: PathBuf,
@@ -461,6 +473,7 @@ impl NodeWriter {
         NodeWriter {
             xyz_writer: BufWriter::new(File::create(&stem.with_extension(POSITION_EXT)).unwrap()),
             rgb_writer: BufWriter::new(File::create(&stem.with_extension(COLOR_EXT)).unwrap()),
+            intensity_writer: None, // Will be created if needed on first point with intensities.
             stem: stem,
             position_encoding: PositionEncoding::new(&bounding_cube, octree_meta.resolution),
             bounding_cube: bounding_cube,
@@ -512,6 +525,22 @@ impl NodeWriter {
         self.rgb_writer.write_u8(p.color.red).unwrap();
         self.rgb_writer.write_u8(p.color.green).unwrap();
         self.rgb_writer.write_u8(p.color.blue).unwrap();
+
+        // TODO(sirver): This is expensive. It would be preferable if we needn't branch on
+        // every point.
+        if let Some(intensity) = p.intensity {
+            if self.intensity_writer.is_none() {
+                self.intensity_writer = Some(BufWriter::new(
+                    File::create(&self.stem.with_extension(INTENSITY_EXT)).unwrap(),
+                ));
+            }
+            self.intensity_writer
+                .as_mut()
+                .unwrap()
+                .write_f32::<LittleEndian>(intensity)
+                .unwrap();
+        }
+
         self.num_written += 1;
     }
 
