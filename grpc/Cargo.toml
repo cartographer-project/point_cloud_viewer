@@ -18,6 +18,7 @@ name = "point_viewer_grpc"
 version = "0.1.0"
 
 [dependencies]
+collision = "0.14.0"
 cgmath = "0.16.0"
 clap = "^2.6.0"
 futures = "0.1.17"
