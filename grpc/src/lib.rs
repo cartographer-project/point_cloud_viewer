@@ -13,6 +13,7 @@
 // limitations under the License.
 
 extern crate cgmath;
+extern crate collision;
 extern crate futures;
 extern crate grpcio;
 extern crate point_viewer;
@@ -22,6 +23,8 @@ include!(concat!(env!("OUT_DIR"), "/proto.rs"));
 include!(concat!(env!("OUT_DIR"), "/proto_grpc.rs"));
 
 use cgmath::{Matrix4, Point3};
+use collision::Aabb3;
+use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::errors::*;
 use point_viewer::math::Cube;
@@ -54,6 +57,26 @@ impl GrpcOctree {
             client,
             root_bounding_cube,
         }
+    }
+
+    // TODO(tschiwietz): This function should return Result<> for error handling.
+    pub fn get_points_in_box(&self, bounding_box: &Aabb3<f32>) -> Vec<Point3<f32>> {
+        let mut req = proto::GetPointsInBoxRequest::new();
+        req.mut_bounding_box().mut_min().set_x(bounding_box.min.x);
+        req.mut_bounding_box().mut_min().set_y(bounding_box.min.y);
+        req.mut_bounding_box().mut_min().set_z(bounding_box.min.z);
+        req.mut_bounding_box().mut_max().set_x(bounding_box.max.x);
+        req.mut_bounding_box().mut_max().set_y(bounding_box.max.y);
+        req.mut_bounding_box().mut_max().set_z(bounding_box.max.z);
+        let replies = self.client.get_points_in_box(&req).unwrap();
+        let mut points = Vec::new();
+        replies.for_each(|reply| {
+            for point in reply.points.iter() {
+                points.push(Point3::new(point.x, point.y, point.z));
+            }
+            Ok(())
+        }).wait().unwrap();
+        points
     }
 }
 
