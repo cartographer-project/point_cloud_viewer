@@ -4,16 +4,25 @@
   "description": "WebGL client tiled xrays view.",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
-    "format": "tsfmt -r",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "rollup -c",
+    "format": "prettier --write **/*.ts **/*.js"
   },
   "author": "Holger Rapp <hrapp@lyft.com>",
   "license": "Apache-2.0",
-  "dependencies": {
+  "devDependencies": {
     "@types/three": "0.89.0",
-    "three": "0.89.0",
-    "typescript": "^2.7",
-    "typescript-formatter": "^7.0.1"
+    "prettier": "^1.10.2",
+    "rollup": "^0.55.3",
+    "rollup-plugin-commonjs": "^8.3.0",
+    "rollup-plugin-node-resolve": "^3.0.2",
+    "rollup-plugin-typescript": "^0.8.1",
+    "three": "0.89.0"
+  },
+  "prettier": {
+    "arrow-parens": "always",
+    "bracket-spacing": false,
+    "print-width": 80,
+    "single-quote": true,
+    "trailing-comma": "es5"
   }
 }
