@@ -36,16 +36,13 @@ pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 pub mod box_drawer;
-pub mod color;
-// TODO(thomasschiwietz): Use 'Color' in the 'Point' struct in src/lib.rs (top level crate)
-// instead of using single variables for r,g,b
 pub mod graphic;
 pub mod node_drawer;
 
 use box_drawer::BoxDrawer;
 use camera::Camera;
-use color::YELLOW;
 use node_drawer::{NodeDrawer, NodeViewContainer};
+use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Scancode;
@@ -263,8 +260,8 @@ impl SdlViewer {
                 gl.Clear(opengl::COLOR_BUFFER_BIT | opengl::DEPTH_BUFFER_BIT);
 
                 for visible_node in &visible_nodes {
-                    // TODO(sirver): Track a point budget here when moving, so that FPS never drops too
-                    // low.
+                    // TODO(sirver): Track a point budget here when moving, so that FPS never drops
+                    // too low.
                     if let Some(view) =
                         node_views.get_or_request(&visible_node.id, &node_drawer.program)
                     {
@@ -301,7 +298,8 @@ impl SdlViewer {
                 num_frames = 0;
                 last_log = now;
                 println!(
-                    "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes should be shown, Cache {} MB",
+                    "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes \
+                     should be shown, Cache {} MB",
                     fps,
                     num_points_drawn,
                     num_nodes_drawn,
