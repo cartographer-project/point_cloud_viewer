@@ -54,7 +54,7 @@ class NodeData {
     this.plane.position.set(
       this.boundingRect['min_x'],
       this.boundingRect['min_y'],
-      0
+      -20
     );
   }
 }
@@ -159,14 +159,12 @@ export class XRayViewer {
     if (this.nodes[nodeId].inScene) {
       return;
     }
-    console.log('Swapping in: ', nodeId);
     // Swap out parents and children.
     // TODO(sirver): We never drop any nodes, so memory is used unbounded.
     // TODO(sirver): Parent should only be swapped out if all children are loaded.
     if (nodeId !== 'r') {
       let parentId = nodeId.slice(0, -1);
       if (this.nodes[parentId] !== undefined && this.nodes[parentId].inScene) {
-        console.log('Swapping out: ', nodeId);
         this.scene.remove(this.nodes[parentId].plane);
         this.nodes[parentId].inScene = false;
       }
@@ -174,7 +172,6 @@ export class XRayViewer {
     for (let i = 0; i < 4; i++) {
       let childId = nodeId + i;
       if (this.nodes[childId] !== undefined && this.nodes[childId].inScene) {
-        console.log('Swapping out: ', childId);
         this.scene.remove(this.nodes[childId].plane);
         this.nodes[childId].inScene = false;
       }
