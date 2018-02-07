@@ -2,7 +2,7 @@
   "name": "xray",
   "version": "0.1.0",
   "description": "WebGL client tiled xrays view.",
-  "main": "index.js",
+  "main": "main.ts",
   "scripts": {
     "build": "rollup -c",
     "format": "prettier --write **/*.ts **/*.js"
