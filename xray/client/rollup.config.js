@@ -7,16 +7,16 @@ export default {
   output: {
     format: 'iife',
     file: '../../target/xray_app_bundle.js',
-    sourcemap: true
+    sourcemap: true,
   },
   plugins: [
     commonjs({
-      include: 'node_modules/**'
+      include: 'node_modules/**',
     }),
     nodeResolve({
       browser: true,
-      preferBuiltins: false
+      preferBuiltins: false,
     }),
-    typescript()
-  ]
+    typescript(),
+  ],
 };

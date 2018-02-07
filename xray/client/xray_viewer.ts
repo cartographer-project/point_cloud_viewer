@@ -63,12 +63,29 @@ export class XRayViewer {
   private nodes: {[key: string]: NodeData} = {};
   private currentlyLoading: number;
   private nodesToLoad: string[] = [];
-
-  constructor(private scene: THREE.Scene, private meta: any) {
+  private meta: any; // Will be undefined until we have loaded the metadata.
+  constructor(private scene: THREE.Scene, private prefix: string) {
     this.currentlyLoading = 0;
+    const request = new Request(`${this.prefix}/meta`, {
+      method: 'GET',
+      credentials: 'same-origin',
+    });
+    window
+      .fetch(request)
+      .then((data) => data.json())
+      .then((meta: any) => {
+        this.meta = meta;
+      });
+  }
+
+  public isInitialized(): boolean {
+    return this.meta !== undefined;
   }
 
   public frustumChanged(matrix: THREE.Matrix4, pixelsPerMeter: number) {
+    if (!this.isInitialized()) {
+      return;
+    }
     // Figure out which view level represents our current zoom.
     let full_size_considering_zoom =
       pixelsPerMeter * this.meta['bounding_rect']['edge_length'];
@@ -84,7 +101,9 @@ export class XRayViewer {
 
     // We encode the matrix column major.
     const request = new Request(
-      `/nodes_for_level?level=${level}&matrix=${matrixToString(matrix)}`,
+      `${this.prefix}/nodes_for_level?level=${level}&matrix=${matrixToString(
+        matrix
+      )}`,
       {
         method: 'GET',
         credentials: 'same-origin',
@@ -118,12 +137,15 @@ export class XRayViewer {
     }
     this.currentlyLoading += 1;
     let nodeId = this.nodesToLoad.shift();
-    new THREE.TextureLoader().load('/node_image/' + nodeId, (texture) => {
-      this.currentlyLoading -= 1;
-      this.loadNext();
-      this.nodes[nodeId].setTexture(texture);
-      this.swapIn(nodeId);
-    });
+    new THREE.TextureLoader().load(
+      `${this.prefix}/node_image/${nodeId}`,
+      (texture) => {
+        this.currentlyLoading -= 1;
+        this.loadNext();
+        this.nodes[nodeId].setTexture(texture);
+        this.swapIn(nodeId);
+      }
+    );
   }
 
   private getOrCreate(nodeId: string, boundingRect: any): NodeData {

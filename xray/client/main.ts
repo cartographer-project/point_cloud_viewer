@@ -19,10 +19,6 @@ import * as THREE from 'three';
 import {Maps2DController} from './control';
 import {XRayViewer} from './xray_viewer';
 
-function now(): number {
-  return +new Date();
-}
-
 class App {
   private camera: THREE.OrthographicCamera;
   private scene: THREE.Scene;
@@ -30,7 +26,6 @@ class App {
   private viewHasChanged: boolean;
   private viewer: XRayViewer;
   private renderer: THREE.WebGLRenderer;
-  private lastFrustumUpdateTime: number;
 
   public run() {
     let renderArea = document.getElementById('renderArea');
@@ -48,24 +43,11 @@ class App {
       100
     );
 
-    this.lastFrustumUpdateTime = 0;
     this.viewHasChanged = true;
     this.camera.updateMatrix();
     this.camera.updateMatrixWorld(false);
     this.scene = new THREE.Scene();
-
-    const request = new Request(`/meta`, {
-      method: 'GET',
-      credentials: 'same-origin',
-    });
-
-    window
-      .fetch(request)
-      .then((data) => data.json())
-      .then((meta: any) => {
-        this.viewer = new XRayViewer(this.scene, meta);
-      });
-
+    this.viewer = new XRayViewer(this.scene, '');
     this.scene.add(this.camera);
 
     this.controller = new Maps2DController(
@@ -73,7 +55,6 @@ class App {
       this.renderer.domElement
     );
 
-    this.lastFrustumUpdateTime = 0;
     window.addEventListener('resize', () => this.onWindowResize(), false);
     this.animate();
   }
@@ -91,15 +72,8 @@ class App {
     requestAnimationFrame(() => this.animate());
 
     this.viewHasChanged = this.controller.update() || this.viewHasChanged;
-    const time = now();
-    if (
-      time - this.lastFrustumUpdateTime > 250 &&
-      this.viewHasChanged &&
-      this.viewer !== undefined
-    ) {
+    if (this.viewHasChanged && this.viewer.isInitialized()) {
       this.viewHasChanged = false;
-      this.lastFrustumUpdateTime = time;
-
       const matrix = new THREE.Matrix4().multiplyMatrices(
         this.camera.projectionMatrix,
         this.camera.matrixWorldInverse
