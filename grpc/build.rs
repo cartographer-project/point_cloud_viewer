@@ -69,10 +69,12 @@ fn main() {
         .to_string_lossy()
         .into_owned();
 
-    let root_path = find_git_repo_root();
+    let git_repo_root = find_git_repo_root();
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let root_path = Path::new(&manifest_dir).parent().unwrap();
     cmd.stdin(process::Stdio::null());
     cmd.args(&[
-        format!("-I{}", root_path.to_string_lossy()),
+        format!("-I{}", git_repo_root.to_string_lossy()),
         format!("--rust_out={}", out_dir),
         format!("--grpc_out={}", out_dir),
         format!("--plugin=protoc-gen-grpc={}", plugin),
