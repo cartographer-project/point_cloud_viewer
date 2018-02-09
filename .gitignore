@@ -1,5 +1,4 @@
 /target
 /web_viewer/client/node_modules
-/web_viewer/client/typings
 /xray/client/node_modules
-/xray/client/typings
+/xray/client/build
