@@ -4,11 +4,12 @@
         "removeComments": true,
         "preserveConstEnums": true,
         "target": "es6",
-        "sourceMap": true
+        "sourceMap": true,
+        "moduleResolution": "node",
+        "outDir": "build",
+        "module": "es6"
     },
     "files": [
-       "control.ts",
-       "xray_viewer.ts",
        "main.ts"
     ]
 }
