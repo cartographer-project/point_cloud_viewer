@@ -4,6 +4,16 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 
+// Finds the absolute path to the root of the repository.
+fn find_git_repo_root() -> PathBuf {
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let mut path = Path::new(&manifest_dir);
+    while !path.join(".git").exists() {
+        path = path.parent().unwrap();
+    }
+    return path.to_owned();
+}
+
 // Finds 'exe_name' in $PATH and returns its full path.
 // From https://stackoverflow.com/a/37499032.
 fn find_executable<P>(exe_name: P) -> Option<PathBuf>
@@ -59,11 +69,12 @@ fn main() {
         .to_string_lossy()
         .into_owned();
 
+    let git_repo_root = find_git_repo_root();
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let root_path = Path::new(&manifest_dir).parent().unwrap();
     cmd.stdin(process::Stdio::null());
     cmd.args(&[
-        format!("-I{}", root_path.to_string_lossy()),
+        format!("-I{}", git_repo_root.to_string_lossy()),
         format!("--rust_out={}", out_dir),
         format!("--grpc_out={}", out_dir),
         format!("--plugin=protoc-gen-grpc={}", plugin),
