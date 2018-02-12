@@ -16,6 +16,7 @@ extern crate byteorder;
 extern crate cgmath;
 extern crate clap;
 extern crate collision;
+extern crate fnv;
 extern crate pbr;
 extern crate point_viewer;
 extern crate protobuf;
@@ -23,6 +24,7 @@ extern crate scoped_pool;
 
 use cgmath::{EuclideanSpace, Point3};
 use collision::{Aabb, Aabb3};
+use fnv::{FnvHashMap, FnvHashSet};
 use pbr::ProgressBar;
 use point_viewer::{InternalIterator, Point};
 use point_viewer::errors::*;
@@ -33,7 +35,6 @@ use point_viewer::proto;
 use point_viewer::pts::PtsIterator;
 use protobuf::Message;
 use scoped_pool::{Pool, Scope};
-use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{BufWriter, Stdout};
 use std::path::PathBuf;
@@ -189,6 +190,7 @@ fn subsample_children_into(
             .send((child_id, child_writer.num_written()))
             .unwrap();
     }
+
     // Make sure the root node is also tracked as an existing node.
     if node_id.level() == 0 {
         nodes_sender
@@ -354,37 +356,26 @@ fn main() {
         deepest_level = std::cmp::max(deepest_level, id.level());
         nodes_to_subsample.push(id);
     }
-    let mut finished_nodes = HashMap::new();
+    let mut finished_nodes = FnvHashMap::default();
 
     // sub sampling returns the list of finished nodes including all meta data
     // We start on the deepest level and work our way up the tree.
-    for current_level in (0..deepest_level + 1).rev() {
+    for current_level in (1..deepest_level + 1).rev() {
         // All nodes on the same level can be subsampled in parallel.
         let res = nodes_to_subsample
             .into_iter()
             .partition(|n| n.level() == current_level);
         nodes_to_subsample = res.1;
 
-        let mut parent_ids = HashSet::new();
-        let mut subsample_nodes = Vec::new();
-        for id in res.0 {
-            let maybe_parent_id = id.parent_id();
-            if maybe_parent_id.is_none() {
-                // Only the root has no parents.
-                assert_eq!(id.level(), 0);
-                continue;
-            }
-            let parent_id = maybe_parent_id.unwrap();
-            if parent_ids.contains(&parent_id) {
-                continue;
-            }
-            parent_ids.insert(parent_id);
-            subsample_nodes.push(parent_id);
-        }
+        // Unwrap is safe, since we stop at current_level = 1, so the root can never appear.
+        let parent_ids: FnvHashSet<_> = res.0
+            .into_iter()
+            .map(|id| id.parent_id().unwrap())
+            .collect();
 
         let (finished_nodes_sender, finished_nodes_receiver) = mpsc::channel();
         pool.scoped(|scope| {
-            for id in &subsample_nodes {
+            for id in &parent_ids {
                 let finished_nodes_sender_clone = finished_nodes_sender.clone();
                 scope.execute(move || {
                     subsample_children_into(octree_meta, id, &finished_nodes_sender_clone).unwrap();
@@ -401,7 +392,7 @@ fn main() {
 
         // The nodes that were just now created through sub-sampling will be required to create
         // their parents.
-        nodes_to_subsample.extend(subsample_nodes.into_iter());
+        nodes_to_subsample.extend(parent_ids.into_iter());
     }
 
     // Add all non-zero node meta data to meta.pb

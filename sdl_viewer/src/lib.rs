@@ -14,6 +14,7 @@
 
 extern crate cgmath;
 extern crate clap;
+extern crate fnv;
 extern crate lru_cache;
 extern crate point_viewer;
 extern crate point_viewer_grpc;
@@ -41,6 +42,7 @@ pub mod node_drawer;
 
 use box_drawer::BoxDrawer;
 use camera::Camera;
+use fnv::FnvHashMap;
 use node_drawer::{NodeDrawer, NodeViewContainer};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree};
@@ -48,20 +50,19 @@ use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Scancode;
 use sdl2::video::GLProfile;
 use std::cmp;
-use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
 
 type OctreeFactory = fn(&String) -> Result<Box<Octree>, Box<Error>>;
 
 pub struct SdlViewer {
-    octree_factories: HashMap<String, OctreeFactory>,
+    octree_factories: FnvHashMap<String, OctreeFactory>,
 }
 
 impl SdlViewer {
     pub fn new() -> Self {
         SdlViewer {
-            octree_factories: HashMap::new(),
+            octree_factories: FnvHashMap::default(),
         }
     }
 

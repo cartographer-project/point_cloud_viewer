@@ -1,5 +1,6 @@
 extern crate cgmath;
 extern crate collision;
+extern crate fnv;
 #[macro_use]
 extern crate iron;
 extern crate protobuf;
@@ -12,8 +13,8 @@ extern crate serde_json;
 extern crate urlencoded;
 
 use cgmath::Point2;
+use fnv::FnvHashSet;
 use quadtree::{NodeId, Rect};
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::{Cursor, Read};
 use std::path::Path;
@@ -22,7 +23,7 @@ pub const CURRENT_VERSION: i32 = 1;
 
 #[derive(Debug)]
 pub struct Meta {
-    pub nodes: HashSet<NodeId>,
+    pub nodes: FnvHashSet<NodeId>,
     pub bounding_rect: Rect,
     pub tile_size: u32,
     pub deepest_level: u8,
