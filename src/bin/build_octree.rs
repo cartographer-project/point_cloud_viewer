@@ -163,7 +163,6 @@ fn subsample_children_into(
     nodes_sender: &mpsc::Sender<(octree::NodeId, i64)>,
 ) -> Result<()> {
     let mut parent_writer = octree::NodeWriter::new(octree_meta, node_id);
-    println!("Creating {} from subsampling children.", node_id);
     for i in 0..8 {
         let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(i));
         let node_iterator = match octree::NodeIterator::from_disk(octree_meta, &child_id) {
@@ -372,23 +371,38 @@ fn main() {
             .into_iter()
             .map(|id| id.parent_id().unwrap())
             .collect();
+        let mut progress_bar = ProgressBar::new(parent_ids.len() as u64);
+        progress_bar.message(&format!("Building level {}: ", current_level - 1));
 
         let (finished_nodes_sender, finished_nodes_receiver) = mpsc::channel();
+        let (progress_tx, progress_rx) = mpsc::channel();
         pool.scoped(|scope| {
+            scope.execute(|| {
+                for (id, num_points) in finished_nodes_receiver {
+                    if num_points > 0 {
+                        finished_nodes.insert(id, num_points);
+                    }
+                }
+            });
+
+            scope.execute(|| {
+                for _ in progress_rx {
+                    progress_bar.inc();
+                }
+            });
+
             for id in &parent_ids {
                 let finished_nodes_sender_clone = finished_nodes_sender.clone();
+                let progress_tx_clone = progress_tx.clone();
                 scope.execute(move || {
                     subsample_children_into(octree_meta, id, &finished_nodes_sender_clone).unwrap();
+                    progress_tx_clone.send(()).unwrap();
                 });
             }
+            drop(finished_nodes_sender);
+            drop(progress_tx);
         });
-
-        drop(finished_nodes_sender);
-        for (id, num_points) in finished_nodes_receiver {
-            if num_points > 0 {
-                finished_nodes.insert(id, num_points);
-            }
-        }
+        progress_bar.finish();
 
         // The nodes that were just now created through sub-sampling will be required to create
         // their parents.
