@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use cgmath::{Array, Matrix, Matrix4};
+use fnv::FnvHashSet;
 use graphic::{GlBuffer, GlProgram, GlVertexArray};
 use lru_cache::LruCache;
 use opengl;
@@ -20,7 +21,6 @@ use opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use point_viewer::octree;
 use rand::{thread_rng, Rng};
 use std;
-use std::collections::HashSet;
 use std::os::raw::c_void;
 use std::ptr;
 use std::str;
@@ -225,7 +225,7 @@ impl<'a> NodeView<'a> {
 pub struct NodeViewContainer<'a> {
     node_views: LruCache<octree::NodeId, NodeView<'a>>,
     // The node_ids that the I/O thread is currently loading.
-    requested: HashSet<octree::NodeId>,
+    requested: FnvHashSet<octree::NodeId>,
     // Communication with the I/O thread.
     node_id_sender: Sender<octree::NodeId>,
     node_data_receiver: Receiver<(octree::NodeId, octree::NodeData)>,
@@ -250,7 +250,7 @@ impl<'a> NodeViewContainer<'a> {
         });
         NodeViewContainer {
             node_views: LruCache::new(max_nodes_in_memory),
-            requested: HashSet::new(),
+            requested: FnvHashSet::default(),
             node_id_sender: node_id_sender,
             node_data_receiver: node_data_receiver,
         }

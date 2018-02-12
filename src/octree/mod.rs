@@ -16,12 +16,12 @@ use {InternalIterator, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector2};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use errors::*;
+use fnv::FnvHashMap;
 use math::Cube;
 use num_traits::Zero;
 use proto;
 use protobuf;
 use std::cmp;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
@@ -105,7 +105,7 @@ fn size_in_pixels(
 #[derive(Debug)]
 pub struct OnDiskOctree {
     meta: OctreeMeta,
-    nodes: HashMap<NodeId, NodeMeta>,
+    nodes: FnvHashMap<NodeId, NodeMeta>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -194,7 +194,7 @@ impl OnDiskOctree {
             bounding_box: bounding_box,
         };
 
-        let mut nodes = HashMap::new();
+        let mut nodes = FnvHashMap::default();
         for node_proto in meta_proto.nodes.iter() {
             let node_id = NodeId::from_level_index(
                 node_proto.id.as_ref().unwrap().level as u8,

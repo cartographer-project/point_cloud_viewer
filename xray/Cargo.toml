@@ -7,6 +7,7 @@ authors = ["Holger Rapp <hrapp@lyft.com>"]
 protoc-rust = "1.4.3"
 
 [dependencies]
+fnv = "1.0.6"
 cgmath = "0.16.0"
 clap = "^2.6.0"
 collision = "0.14.0"

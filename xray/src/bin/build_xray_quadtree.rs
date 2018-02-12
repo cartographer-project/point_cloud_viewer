@@ -1,6 +1,7 @@
 extern crate cgmath;
 extern crate clap;
 extern crate collision;
+extern crate fnv;
 extern crate image;
 extern crate point_viewer;
 extern crate protobuf;
@@ -10,13 +11,13 @@ extern crate xray;
 
 use cgmath::{Point2, Point3};
 use collision::{Aabb, Aabb3};
+use fnv::{FnvHashMap, FnvHashSet};
 use image::GenericImage;
 use octree::OnDiskOctree;
 use point_viewer::{octree, InternalIterator};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
-use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
 use std::error::Error;
 use std::fs;
@@ -60,7 +61,7 @@ fn xray_from_points(
 ) -> bool {
     const NUM_Z_BUCKETS: f32 = 1024.;
 
-    let mut aggregation: HashMap<(u32, u32), HashSet<u32>> = HashMap::new();
+    let mut aggregation: FnvHashMap<(u32, u32), FnvHashSet<u32>> = FnvHashMap::default();
     let mut seen_any_points = false;
     octree.points_in_box(&bbox).for_each(|p| {
         seen_any_points = true;
@@ -72,7 +73,7 @@ fn xray_from_points(
                 e.get_mut().insert(z);
             }
             Entry::Vacant(v) => {
-                let mut s = HashSet::new();
+                let mut s = FnvHashSet::default();
                 s.insert(z);
                 v.insert(s);
             }
@@ -196,7 +197,7 @@ fn run(
 
     for current_level in (0..deepest_level).rev() {
         println!("Building level {}.", current_level);
-        let nodes_to_create: HashSet<NodeId> = parents_to_create_rx.into_iter().collect();
+        let nodes_to_create: FnvHashSet<NodeId> = parents_to_create_rx.into_iter().collect();
         let (parents_to_create_tx, new_rx) = mpsc::channel();
         parents_to_create_rx = new_rx;
         pool.scoped(|scope| {
