@@ -39,8 +39,11 @@ class App {
     const NEAR = 0.1;
     const FAR = 10000;
     this.camera = new THREE.PerspectiveCamera(
-        VIEW_ANGLE, renderArea.clientWidth / renderArea.clientHeight, NEAR,
-        FAR);
+      VIEW_ANGLE,
+      renderArea.clientWidth / renderArea.clientHeight,
+      NEAR,
+      FAR
+    );
     this.camera.position.z = 150;
     this.camera.updateMatrix();
     this.camera.updateMatrixWorld(false);
@@ -48,18 +51,21 @@ class App {
     this.scene = new THREE.Scene();
     this.scene.add(this.camera);
 
-    this.controller =
-        new FirstPersonController(this.camera, this.renderer.domElement);
+    this.controller = new FirstPersonController(
+      this.camera,
+      this.renderer.domElement
+    );
 
     this.lastFrustumUpdateTime = 0;
     this.viewer = new OctreeViewer(this.scene);
     const gui = new dat.GUI();
-    gui.add(this.viewer.material.uniforms['size'], 'value').name("Point size");
-    gui.add(this.viewer.material.uniforms['alpha'], 'value', 0., 1.)
-        .name('Transparency')
-        .onChange(() => this.viewer.alphaChanged());
+    gui.add(this.viewer.material.uniforms['size'], 'value').name('Point size');
+    gui
+      .add(this.viewer.material.uniforms['alpha'], 'value', 0, 1)
+      .name('Transparency')
+      .onChange(() => this.viewer.alphaChanged());
     gui.add(this.viewer.material.uniforms['gamma'], 'value').name('Gamma');
-    gui.add(this.viewer, 'useLod').name("Level of detail");
+    gui.add(this.viewer, 'useLod').name('Level of detail');
     window.addEventListener('resize', () => this.onWindowResize(), false);
     this.animate();
   }
@@ -79,10 +85,14 @@ class App {
       this.camera.updateMatrixWorld(false);
       this.lastFrustumUpdateTime = time;
       const matrix = new THREE.Matrix4().multiplyMatrices(
-          this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+        this.camera.projectionMatrix,
+        this.camera.matrixWorldInverse
+      );
       this.viewer.frustumChanged(
-          matrix, this.renderer.context.canvas.width,
-          this.renderer.context.canvas.height);
+        matrix,
+        this.renderer.context.canvas.width,
+        this.renderer.context.canvas.height
+      );
     }
 
     // TODO(hrapp): delete invisible nodes and free memory again.

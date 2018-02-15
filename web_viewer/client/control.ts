@@ -53,13 +53,25 @@ export class FirstPersonController {
     this.phiDelta = 0;
 
     window.addEventListener(
-        'keydown', event => this.onKeyDown(<KeyboardEvent>event), false);
+      'keydown',
+      (event) => this.onKeyDown(<KeyboardEvent>event),
+      false
+    );
     window.addEventListener(
-        'keyup', event => this.onKeyUp(<KeyboardEvent>event), false);
+      'keyup',
+      (event) => this.onKeyUp(<KeyboardEvent>event),
+      false
+    );
     window.addEventListener(
-        'mousewheel', event => this.onMouseWheel(<WheelEvent>event), false);
+      'mousewheel',
+      (event) => this.onMouseWheel(<WheelEvent>event),
+      false
+    );
     this.domElement.addEventListener(
-        'mousedown', event => this.onMouseDown(<MouseEvent>event), false);
+      'mousedown',
+      (event) => this.onMouseDown(<MouseEvent>event),
+      false
+    );
   }
 
   public update() {
@@ -83,8 +95,11 @@ export class FirstPersonController {
       pan.y -= 1;
     }
 
-    if (pan.lengthSq() > 0 || Math.abs(this.thetaDelta) > 0 ||
-        Math.abs(this.phiDelta)) {
+    if (
+      pan.lengthSq() > 0 ||
+      Math.abs(this.thetaDelta) > 0 ||
+      Math.abs(this.phiDelta)
+    ) {
       this.object.rotation.order = 'ZYX';
 
       this.object.matrixWorld.applyToVector3Array([pan.x, pan.y, pan.z]);
@@ -152,17 +167,29 @@ export class FirstPersonController {
       this.mouseState = MouseState.ROTATE;
       this.rotateStart.set(event.clientX, event.clientY);
       this.domElement.addEventListener(
-          'mousemove', event => this.onMouseMove(<MouseEvent>event), false);
+        'mousemove',
+        (event) => this.onMouseMove(<MouseEvent>event),
+        false
+      );
       this.domElement.addEventListener(
-          'mouseup', event => this.onMouseUp(<MouseEvent>event), false);
+        'mouseup',
+        (event) => this.onMouseUp(<MouseEvent>event),
+        false
+      );
     }
   }
 
   private onMouseUp(event: MouseEvent) {
     this.domElement.removeEventListener(
-        'mousemove', event => this.onMouseMove(<MouseEvent>event), false);
+      'mousemove',
+      (event) => this.onMouseMove(<MouseEvent>event),
+      false
+    );
     this.domElement.removeEventListener(
-        'mouseup', event => this.onMouseUp(<MouseEvent>event), false);
+      'mouseup',
+      (event) => this.onMouseUp(<MouseEvent>event),
+      false
+    );
     this.mouseState = MouseState.NONE;
   }
 
@@ -174,16 +201,16 @@ export class FirstPersonController {
       let rotateDelta = new THREE.Vector2(0, 0);
       rotateDelta.subVectors(rotateEnd, this.rotateStart);
       this.thetaDelta -=
-          2 * Math.PI * rotateDelta.x / this.domElement.clientWidth;
+        2 * Math.PI * rotateDelta.x / this.domElement.clientWidth;
       this.phiDelta -=
-          2 * Math.PI * rotateDelta.y / this.domElement.clientHeight;
+        2 * Math.PI * rotateDelta.y / this.domElement.clientHeight;
       this.rotateStart.copy(rotateEnd);
     }
   }
 
   private onMouseWheel(event: WheelEvent) {
     event.preventDefault();
-    let sign = (event.wheelDelta < 0) ? -1 : 1;
+    let sign = event.wheelDelta < 0 ? -1 : 1;
     this.moveSpeed += sign * this.moveSpeed * 0.1;
     this.moveSpeed = Math.max(0.1, this.moveSpeed);
   }
