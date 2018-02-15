@@ -28,14 +28,15 @@ use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::errors::*;
 use point_viewer::math::Cube;
-use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, PositionEncoding, UseLod,
-                           VisibleNode};
+use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, PositionEncoding,
+                           UseLod, VisibleNode};
 use proto_grpc::OctreeClient;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 pub struct GrpcOctree {
     client: OctreeClient,
-    root_bounding_cube: Cube,
+    octree: OnDiskOctree,
 }
 
 impl GrpcOctree {
@@ -44,19 +45,10 @@ impl GrpcOctree {
         let ch = ChannelBuilder::new(env).connect(addr);
         let client = OctreeClient::new(ch);
 
-        let reply = client
-            .get_root_bounding_cube(&proto::GetRootBoundingCubeRequest::new())
-            .expect("rpc");
-        let root_bounding_cube = {
-            let proto = reply.bounding_cube.as_ref().unwrap();
-            let min = proto.min.as_ref().unwrap();
-            Cube::new(Point3::new(min.x, min.y, min.z), proto.edge_length)
-        };
-
-        GrpcOctree {
-            client,
-            root_bounding_cube,
-        }
+        let reply = client.get_meta(&proto::GetMetaRequest::new()).expect("rpc");
+        // TODO(sirver): We pass a dummy directory and hope we never actually use it for anything.
+        let octree = OnDiskOctree::from_meta(reply.meta.unwrap(), PathBuf::new()).unwrap();
+        GrpcOctree { client, octree }
     }
 
     // TODO(tschiwietz): This function should return Result<> for error handling.
@@ -70,12 +62,15 @@ impl GrpcOctree {
         req.mut_bounding_box().mut_max().set_z(bounding_box.max.z);
         let replies = self.client.get_points_in_box(&req).unwrap();
         let mut points = Vec::new();
-        replies.for_each(|reply| {
-            for point in reply.points.iter() {
-                points.push(Point3::new(point.x, point.y, point.z));
-            }
-            Ok(())
-        }).wait().unwrap();
+        replies
+            .for_each(|reply| {
+                for point in reply.points.iter() {
+                    points.push(Point3::new(point.x, point.y, point.z));
+                }
+                Ok(())
+            })
+            .wait()
+            .unwrap();
         points
     }
 }
@@ -86,42 +81,10 @@ impl Octree for GrpcOctree {
         projection_matrix: &Matrix4<f32>,
         width: i32,
         height: i32,
-        _: UseLod,
+        use_lod: UseLod,
     ) -> Vec<VisibleNode> {
-        // TODO(sirver): remove UseLod from the interface and leave this to the client.
-        let mut req = proto::GetVisibleNodesRequest::new();
-        req.mut_projection_matrix().extend_from_slice(&[
-            projection_matrix.x[0],
-            projection_matrix.x[1],
-            projection_matrix.x[2],
-            projection_matrix.x[3],
-            projection_matrix.y[0],
-            projection_matrix.y[1],
-            projection_matrix.y[2],
-            projection_matrix.y[3],
-            projection_matrix.z[0],
-            projection_matrix.z[1],
-            projection_matrix.z[2],
-            projection_matrix.z[3],
-            projection_matrix.w[0],
-            projection_matrix.w[1],
-            projection_matrix.w[2],
-            projection_matrix.w[3],
-        ]);
-        req.set_width(width);
-        req.set_height(height);
-        // TODO(sirver): This should most definitively not crash, but instead return an error.
-        // Needs changes to the trait though.
-        let reply = self.client.get_visible_nodes(&req).expect("rpc");
-
-        let mut result = Vec::new();
-        for node in &reply.node_ids {
-            result.push(VisibleNode::new(
-                NodeId::from_str(&node),
-                1, /* level_of_detail */
-            ));
-        }
-        result
+        self.octree
+            .get_visible_nodes(projection_matrix, width, height, use_lod)
     }
 
     fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
@@ -141,7 +104,8 @@ impl Octree for GrpcOctree {
             meta: NodeMeta {
                 num_points: node.num_points,
                 position_encoding: PositionEncoding::from_proto(node.position_encoding).unwrap(),
-                bounding_cube: node_id.find_bounding_cube(&self.root_bounding_cube),
+                bounding_cube: node_id
+                    .find_bounding_cube(&Cube::bounding(&self.octree.bounding_box())),
             },
         };
         Ok(result)

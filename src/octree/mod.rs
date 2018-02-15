@@ -152,6 +152,20 @@ impl<'a> InternalIterator for PointsInBoxIterator<'a> {
     }
 }
 
+pub fn read_meta_proto<P: AsRef<Path>>(directory: P) -> Result<proto::Meta> {
+    // We used to use JSON earlier.
+    if directory.as_ref().join("meta.json").exists() {
+        return Err(ErrorKind::InvalidVersion(3).into());
+    }
+
+    let mut data = Vec::new();
+    File::open(&directory.as_ref().join("meta.pb"))?.read_to_end(&mut data)?;
+    Ok(
+        protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
+            .chain_err(|| "Could not parse meta.pb")?,
+    )
+}
+
 #[derive(Debug)]
 pub struct NodeData {
     pub meta: node::NodeMeta,
@@ -160,20 +174,8 @@ pub struct NodeData {
 }
 
 impl OnDiskOctree {
-    pub fn new<P: AsRef<Path>>(directory: P) -> Result<Self> {
-        let directory = directory.as_ref();
-        // We used to use JSON earlier.
-        if directory.join("meta.json").exists() {
-            return Err(ErrorKind::InvalidVersion(3).into());
-        }
-
-        let meta_proto = {
-            let mut data = Vec::new();
-            File::open(&directory.join("meta.pb"))?.read_to_end(&mut data)?;
-            protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
-                .chain_err(|| "Could not parse meta.pb")?
-        };
-
+    // TODO(sirver): This creates an object that is only partially usable.
+    pub fn from_meta(meta_proto: proto::Meta, directory: PathBuf) -> Result<Self> {
         if meta_proto.version != CURRENT_VERSION {
             return Err(ErrorKind::InvalidVersion(meta_proto.version).into());
         }
@@ -209,8 +211,13 @@ impl OnDiskOctree {
                 },
             );
         }
-
         Ok(OnDiskOctree { meta, nodes })
+    }
+
+    pub fn new<P: AsRef<Path>>(directory: P) -> Result<Self> {
+        let directory = directory.as_ref().to_owned();
+        let meta_proto = read_meta_proto(&directory)?;
+        Self::from_meta(meta_proto, directory)
     }
 
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.

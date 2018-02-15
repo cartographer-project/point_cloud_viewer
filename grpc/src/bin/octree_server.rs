@@ -8,88 +8,36 @@ extern crate point_viewer;
 extern crate point_viewer_grpc;
 extern crate protobuf;
 
-use cgmath::{Matrix4, Point3};
+use cgmath::Point3;
 use collision::Aabb3;
 use futures::{stream, Future, Sink};
 use futures::sync::oneshot;
 use grpcio::{Environment, RpcContext, ServerBuilder, ServerStreamingSink, UnarySink, WriteFlags};
 use point_viewer::InternalIterator;
-use point_viewer::math::Cube;
-use point_viewer::octree;
-use point_viewer::octree::{NodeId, Octree, OnDiskOctree};
+use point_viewer::octree::{read_meta_proto, NodeId, Octree, OnDiskOctree};
 use point_viewer_grpc::proto;
 use point_viewer_grpc::proto_grpc;
+use protobuf::Message;
 use std::{io, thread};
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
-use protobuf::Message;
 
 #[derive(Clone)]
 struct OctreeService {
     octree: Arc<OnDiskOctree>,
+    meta: point_viewer::proto::Meta,
 }
 
 impl proto_grpc::Octree for OctreeService {
-    fn get_root_bounding_cube(
+    fn get_meta(
         &self,
         ctx: RpcContext,
-        req: proto::GetRootBoundingCubeRequest,
-        sink: UnarySink<proto::GetRootBoundingCubeReply>,
+        req: proto::GetMetaRequest,
+        sink: UnarySink<proto::GetMetaReply>,
     ) {
-        let bounding_cube = Cube::bounding(&self.octree.bounding_box());
-        let mut resp = proto::GetRootBoundingCubeReply::new();
-        resp.mut_bounding_cube()
-            .mut_min()
-            .set_x(bounding_cube.min().x);
-        resp.mut_bounding_cube()
-            .mut_min()
-            .set_y(bounding_cube.min().y);
-        resp.mut_bounding_cube()
-            .mut_min()
-            .set_z(bounding_cube.min().z);
-        resp.mut_bounding_cube()
-            .set_edge_length(bounding_cube.edge_length());
-        let f = sink.success(resp)
-            .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
-        ctx.spawn(f)
-    }
-
-    fn get_visible_nodes(
-        &self,
-        ctx: RpcContext,
-        req: proto::GetVisibleNodesRequest,
-        sink: UnarySink<proto::GetVisibleNodesReply>,
-    ) {
-        let projection_matrix = Matrix4::new(
-            req.projection_matrix[0],
-            req.projection_matrix[1],
-            req.projection_matrix[2],
-            req.projection_matrix[3],
-            req.projection_matrix[4],
-            req.projection_matrix[5],
-            req.projection_matrix[6],
-            req.projection_matrix[7],
-            req.projection_matrix[8],
-            req.projection_matrix[9],
-            req.projection_matrix[10],
-            req.projection_matrix[11],
-            req.projection_matrix[12],
-            req.projection_matrix[13],
-            req.projection_matrix[14],
-            req.projection_matrix[15],
-        );
-        let result = self.octree.get_visible_nodes(
-            &projection_matrix,
-            req.get_width(),
-            req.get_height(),
-            octree::UseLod::No,
-        );
-
-        let mut resp = proto::GetVisibleNodesReply::new();
-        for node in result {
-            resp.mut_node_ids().push(node.id.to_string());
-        }
+        let mut resp = proto::GetMetaReply::new();
+        resp.set_meta(self.meta.clone());
         let f = sink.success(resp)
             .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
         ctx.spawn(f)
@@ -185,9 +133,10 @@ fn main() {
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
 
     let env = Arc::new(Environment::new(1));
+    let meta = read_meta_proto(&octree_directory).unwrap();
     let octree = Arc::new(OnDiskOctree::new(octree_directory).unwrap());
 
-    let service = proto_grpc::create_octree(OctreeService { octree });
+    let service = proto_grpc::create_octree(OctreeService { octree, meta });
     let mut server = ServerBuilder::new(env)
         .register_service(service)
         .bind("0.0.0.0" /* ip to bind to */, port)
