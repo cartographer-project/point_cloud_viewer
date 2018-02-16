@@ -19,7 +19,7 @@
   },
   "prettier": {
     "arrow-parens": "always",
-    "bracket-spacing": false,
+    "bracket-spacing": true,
     "print-width": 80,
     "single-quote": true,
     "trailing-comma": "es5"
