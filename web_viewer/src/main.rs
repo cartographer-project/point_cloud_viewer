@@ -92,23 +92,15 @@ impl iron::Handler for VisibleNodes {
                 e[15],
             )
         };
-        let use_lod = {
-            let lod: i32 = query.get("use_lod").unwrap()[0].parse().unwrap();
-            if lod == 1 {
-                octree::UseLod::Yes
-            } else {
-                octree::UseLod::No
-            }
-        };
 
         let visible_nodes = {
             let octree = self.octree.read().unwrap();
-            octree.get_visible_nodes(&matrix, width, height, use_lod)
+            octree.get_visible_nodes(&matrix, width, height)
         };
         let mut reply = String::from("[");
         let visible_nodes_string = visible_nodes
             .iter()
-            .map(|n| format!("[\"{}\", {}]", n.id, n.level_of_detail))
+            .map(|n| format!("\"{}\"", n.id))
             .collect::<Vec<_>>()
             .join(",");
         reply.push_str(&visible_nodes_string);
@@ -129,12 +121,6 @@ fn pad(input: &mut Vec<u8>) {
     }
 }
 
-#[derive(Debug)]
-struct NodeToLoad {
-    id: octree::NodeId,
-    level_of_detail: i32,
-}
-
 struct NodesData {
     octree: Arc<RwLock<octree::OnDiskOctree>>,
 }
@@ -146,10 +132,8 @@ impl iron::Handler for NodesData {
         // TODO(hrapp): This should not crash on error, but return a valid http response.
         req.body.read_to_string(&mut content).unwrap();
         let data = json::parse(&content).unwrap();
-        let nodes_to_load = data.members().map(|e| NodeToLoad {
-            id: octree::NodeId::from_str(e[0].as_str().unwrap()),
-            level_of_detail: e[1].as_i32().unwrap(),
-        });
+        let nodes_to_load = data.members()
+            .map(|e| octree::NodeId::from_str(e.as_str().unwrap()));
 
         // So this is godawful: We need to get data to the GPU without JavaScript herp-derping with
         // it - because that will stall interaction. The straight forward approach would be to ship
@@ -163,10 +147,8 @@ impl iron::Handler for NodesData {
         let mut num_nodes_fetched = 0;
         let mut num_points = 0;
         let octree = self.octree.read().unwrap();
-        for node in nodes_to_load {
-            let mut node_data = octree
-                .get_node_data(&node.id, node.level_of_detail)
-                .unwrap();
+        for node_id in nodes_to_load {
+            let mut node_data = octree.get_node_data(&node_id).unwrap();
 
             // Write the bounding box information.
             let min = node_data.meta.bounding_cube.min();

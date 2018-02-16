@@ -29,7 +29,7 @@ use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::errors::*;
 use point_viewer::math::Cube;
 use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, PositionEncoding,
-                           UseLod, VisibleNode};
+                           VisibleNode};
 use proto_grpc::OctreeClient;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -81,16 +81,12 @@ impl Octree for GrpcOctree {
         projection_matrix: &Matrix4<f32>,
         width: i32,
         height: i32,
-        use_lod: UseLod,
     ) -> Vec<VisibleNode> {
         self.octree
-            .get_visible_nodes(projection_matrix, width, height, use_lod)
+            .get_visible_nodes(projection_matrix, width, height)
     }
 
-    fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
-        assert_eq!(level_of_detail, 1);
-        // TODO(sirver): We ignore 'level_of_detail'. Hoist out of the interface and let the client
-        // deal with it.
+    fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData> {
         let mut req = proto::GetNodeDataRequest::new();
         req.set_id(node_id.to_string());
 

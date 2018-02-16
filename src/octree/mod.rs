@@ -21,7 +21,6 @@ use math::Cube;
 use num_traits::Zero;
 use proto;
 use protobuf;
-use std::cmp;
 use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
@@ -43,24 +42,16 @@ pub struct OctreeMeta {
 #[derive(Debug)]
 pub struct VisibleNode {
     pub id: NodeId,
-    pub level_of_detail: i32,
     pixels: Vector2<f32>,
 }
 
 impl VisibleNode {
-    pub fn new(id: NodeId, level_of_detail: i32) -> VisibleNode {
+    pub fn new(id: NodeId) -> VisibleNode {
         VisibleNode {
             id,
-            level_of_detail,
             pixels: Vector2::zero(),
         }
     }
-}
-
-#[derive(Debug)]
-pub struct NodesToBlob {
-    pub id: NodeId,
-    pub level_of_detail: i32,
 }
 
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
@@ -108,22 +99,15 @@ pub struct OnDiskOctree {
     nodes: FnvHashMap<NodeId, NodeMeta>,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum UseLod {
-    No,
-    Yes,
-}
-
 pub trait Octree: Send + Sync {
     fn get_visible_nodes(
         &self,
         projection_matrix: &Matrix4<f32>,
         width: i32,
         height: i32,
-        use_lod: UseLod,
     ) -> Vec<VisibleNode>;
 
-    fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData>;
+    fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData>;
 }
 
 pub struct PointsInBoxIterator<'a> {
@@ -257,7 +241,6 @@ impl Octree for OnDiskOctree {
         projection_matrix: &Matrix4<f32>,
         width: i32,
         height: i32,
-        use_lod: UseLod,
     ) -> Vec<VisibleNode> {
         let frustum = Frustum::from_matrix4(*projection_matrix).unwrap();
         let mut open = vec![
@@ -273,7 +256,6 @@ impl Octree for OnDiskOctree {
             {
                 continue;
             }
-            let num_points = meta.unwrap().num_points;
 
             let pixels = size_in_pixels(
                 &node_to_explore.bounding_cube,
@@ -290,21 +272,12 @@ impl Octree for OnDiskOctree {
                 continue;
             }
 
-            let level_of_detail = match use_lod {
-                UseLod::No => 1,
-                UseLod::Yes => {
-                    // Simple heuristic: keep one point for every four pixels.
-                    cmp::max(1, ((num_points as f32) / (visible_pixels / 4.)) as i32)
-                }
-            };
-
             for child_index in 0..8 {
                 open.push(node_to_explore.get_child(ChildIndex::from_u8(child_index)))
             }
 
             visible.push(VisibleNode {
                 id: node_to_explore.id,
-                level_of_detail: level_of_detail,
                 pixels: pixels,
             });
         }
@@ -317,13 +290,8 @@ impl Octree for OnDiskOctree {
         visible
     }
 
-    fn get_node_data(&self, node_id: &NodeId, level_of_detail: i32) -> Result<NodeData> {
+    fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData> {
         let stem = node_id.get_stem(&self.meta.directory);
-        let meta = {
-            let mut meta = self.nodes[node_id].clone();
-            meta.num_points = meta.num_points_for_level_of_detail(level_of_detail);
-            meta
-        };
 
         // TODO(hrapp): If we'd randomize the points while writing, we could just read the
         // first N points instead of reading everything and skipping over a few.
@@ -334,17 +302,7 @@ impl Octree for OnDiskOctree {
             xyz_reader
                 .read_to_end(&mut all_data)
                 .chain_err(|| "Could not read position")?;
-
-            let mut position = Vec::new();
-            let bytes_per_point = meta.position_encoding.bytes_per_coordinate() * 3;
-            position.reserve(bytes_per_point * meta.num_points as usize);
-            for (idx, chunk) in all_data.chunks(bytes_per_point).enumerate() {
-                if idx % level_of_detail as usize != 0 {
-                    continue;
-                }
-                position.extend(chunk);
-            }
-            position
+            all_data
         };
 
         let color = {
@@ -354,21 +312,13 @@ impl Octree for OnDiskOctree {
             rgb_reader
                 .read_to_end(&mut all_data)
                 .chain_err(|| "Could not read color")?;
-            let mut color = Vec::new();
-            color.reserve(3 * meta.num_points as usize);
-            for (idx, chunk) in all_data.chunks(3).enumerate() {
-                if idx % level_of_detail as usize != 0 {
-                    continue;
-                }
-                color.extend(chunk);
-            }
-            color
+            all_data
         };
 
         Ok(NodeData {
             position: position,
             color: color,
-            meta: meta,
+            meta: self.nodes[node_id].clone(),
         })
     }
 }

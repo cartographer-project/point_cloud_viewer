@@ -240,10 +240,7 @@ impl<'a> NodeViewContainer<'a> {
         std::thread::spawn(move || {
             // Loads the next node data in the receiver queue.
             for node_id in node_id_receiver {
-                // We always request nodes at full resolution (i.e. not subsampled by the backend), because
-                // we can just as effectively subsample the number of points we draw in the client.
-                const ALL_POINTS_LOD: i32 = 1;
-                let node_data = octree.get_node_data(&node_id, ALL_POINTS_LOD).unwrap();
+                let node_data = octree.get_node_data(&node_id).unwrap();
                 // TODO(hrapp): reshuffle
                 node_data_sender.send((node_id, node_data)).unwrap();
             }
