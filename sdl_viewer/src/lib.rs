@@ -248,7 +248,6 @@ impl SdlViewer {
                     &camera.get_world_to_gl(),
                     camera.width,
                     camera.height,
-                    octree::UseLod::Yes,
                 );
             }
 

@@ -82,13 +82,12 @@ class NodeLoader {
   public load(
     scene: THREE.Scene,
     material: THREE.ShaderMaterial,
-    entries: [NodeData, number][]
+    nodes: NodeData[]
   ): Promise<void> {
     let query: string[] = [];
 
-    for (const entry of entries) {
-      entry[0].startFetching(entry[1]);
-      query.push(`["${entry[0].nodeName}",${entry[1]}]`);
+    for (const node of nodes) {
+      query.push(`"${node.nodeName}"`);
     }
     const headers = new Headers();
     headers.append('Content-Type', 'application/json; charset=UTF-8');
@@ -106,7 +105,7 @@ class NodeLoader {
         let view = new DataView(data);
         let currentEntry = 0;
         let numBytesRead = 0;
-        while (entries[currentEntry] !== undefined) {
+        while (nodes[currentEntry] !== undefined) {
           let min_x = view.getFloat32(numBytesRead, true /* littleEndian */);
           numBytesRead += 4;
           let min_y = view.getFloat32(numBytesRead, true /* littleEndian */);
@@ -170,8 +169,8 @@ class NodeLoader {
             normalizePosition,
             color
           );
-          let entry = entries[currentEntry];
-          entry[0].newData(scene, material, entry[1], render_data);
+          let node = nodes[currentEntry];
+          node.onDataLoaded(scene, material, render_data);
           currentEntry += 1;
         }
       });
@@ -179,56 +178,24 @@ class NodeLoader {
 }
 
 class NodeData {
-  private diplayedLevelOfDetail: number;
-  private fetchingLevelOfDetail: number;
-  private threePoints: THREE.Points;
+  public threePoints: THREE.Points;
 
   constructor(public nodeName: string) {
-    this.diplayedLevelOfDetail = -1;
-    this.fetchingLevelOfDetail = -1;
     this.threePoints = undefined;
   }
 
-  public isUpToDate(lod: number) {
-    if (this.fetchingLevelOfDetail === lod) {
-      return true;
-    }
-    if (
-      this.fetchingLevelOfDetail === -1 &&
-      this.diplayedLevelOfDetail === lod
-    ) {
-      return true;
-    }
-    return false;
+  public isUpToDate(): boolean {
+    return this.threePoints !== undefined;
   }
 
-  public startFetching(lod: number) {
-    this.fetchingLevelOfDetail = lod;
-  }
-
-  public newData(
+  public onDataLoaded(
     scene: THREE.Scene,
     commonMaterial: THREE.ShaderMaterial,
-    lod: number,
     nodeRenderData: NodeRenderData
   ) {
     // If this node contains no points.
-    if (nodeRenderData.position.length === 0) {
+    if (nodeRenderData.position.length === 0 || this.isUpToDate()) {
       return;
-    }
-
-    if (lod !== this.fetchingLevelOfDetail) {
-      return;
-    }
-    this.fetchingLevelOfDetail = -1;
-
-    if (this.diplayedLevelOfDetail === lod) {
-      return;
-    }
-    this.diplayedLevelOfDetail = lod;
-
-    if (this.threePoints !== undefined) {
-      scene.remove(this.threePoints);
     }
 
     const geometry = new THREE.BufferGeometry();
@@ -284,11 +251,11 @@ export class OctreeViewer {
   // TODO(hrapp): These are only public, so we can wire up DAT to affect
   // material.size. If DAT supports callbacks, we can encapsulate this nicer.
   public material: THREE.ShaderMaterial;
-  public useLod: boolean;
+  public maxLevelToDisplay: number;
 
   private loadedData: { [key: string]: NodeData } = {};
   private nodeLoader: NodeLoader;
-  private batches: [NodeData, number][][] = [];
+  private batches: NodeData[][] = [];
   private currentlyLoading: number;
   private useTransparency: boolean;
 
@@ -304,12 +271,6 @@ export class OctreeViewer {
     });
     this.useTransparency = false;
 
-    window.addEventListener(
-      'keydown',
-      (event) => this.onKeyDown(<KeyboardEvent>event),
-      false
-    );
-    this.useLod = true;
     this.nodeLoader = new NodeLoader();
     this.currentlyLoading = 0;
   }
@@ -327,20 +288,12 @@ export class OctreeViewer {
     this.useTransparency = newUseTransparency;
   }
 
-  private onKeyDown(event: KeyboardEvent) {
-    switch (event.keyCode) {
-      case KEY_L:
-        this.useLod = !this.useLod;
-        break;
-    }
-  }
-
   public frustumChanged(matrix: THREE.Matrix4, width: number, height: number) {
     // ThreeJS is column major.
     const request = new Request(
-      `/visible_nodes?use_lod=${
-        this.useLod ? 1 : 0
-      }&width=${width}&height=${height}&matrix=${matrixToString(matrix)}`,
+      `/visible_nodes?width=${width}&height=${height}&matrix=${matrixToString(
+        matrix
+      )}`,
       {
         method: 'GET',
         credentials: 'same-origin',
@@ -355,17 +308,17 @@ export class OctreeViewer {
       });
   }
 
-  private nodesUpdate(nodes: [string, number][]) {
+  private nodesUpdate(nodeIds: string[]) {
     const start = now();
     this.batches = [];
-    let currentBatch: [NodeData, number][] = [];
-    for (let entry of nodes) {
-      let node = this.getOrCreate(entry[0]);
-      if (node.isUpToDate(entry[1])) {
+    let currentBatch: NodeData[] = [];
+    for (let nodeId of nodeIds) {
+      let node = this.getOrCreate(nodeId);
+      if (node.isUpToDate()) {
         continue;
       }
 
-      currentBatch.push([node, entry[1]]);
+      currentBatch.push(node);
       if (currentBatch.length > 50) {
         this.batches.push(currentBatch);
         currentBatch = [];

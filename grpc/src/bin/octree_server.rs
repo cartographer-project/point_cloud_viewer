@@ -50,7 +50,7 @@ impl proto_grpc::Octree for OctreeService {
         sink: UnarySink<proto::GetNodeDataReply>,
     ) {
         let data = self.octree
-            .get_node_data(&NodeId::from_str(&req.id), 1)
+            .get_node_data(&NodeId::from_str(&req.id))
             .unwrap();
         let mut resp = proto::GetNodeDataReply::new();
         resp.mut_node()
