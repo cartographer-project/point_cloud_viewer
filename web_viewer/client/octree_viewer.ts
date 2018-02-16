@@ -14,7 +14,7 @@
 
 'use strict';
 
-import {now} from './main';
+import { now } from './main';
 
 const KEY_L = 'L'.charCodeAt(0);
 
@@ -269,8 +269,8 @@ class NodeData {
 
     let material = commonMaterial.clone();
     material.uniforms = {
-      min: {value: nodeRenderData.min},
-      edgeLength: {value: nodeRenderData.edgeLength},
+      min: { value: nodeRenderData.min },
+      edgeLength: { value: nodeRenderData.edgeLength },
       size: commonMaterial.uniforms['size'],
       alpha: commonMaterial.uniforms['alpha'],
       gamma: commonMaterial.uniforms['gamma'],
@@ -286,7 +286,7 @@ export class OctreeViewer {
   public material: THREE.ShaderMaterial;
   public useLod: boolean;
 
-  private loadedData: {[key: string]: NodeData} = {};
+  private loadedData: { [key: string]: NodeData } = {};
   private nodeLoader: NodeLoader;
   private batches: [NodeData, number][][] = [];
   private currentlyLoading: number;
@@ -295,9 +295,9 @@ export class OctreeViewer {
   constructor(private scene: THREE.Scene) {
     this.material = new THREE.ShaderMaterial({
       uniforms: {
-        size: {value: 2},
-        alpha: {value: 1},
-        gamma: {value: 1},
+        size: { value: 2 },
+        alpha: { value: 1 },
+        gamma: { value: 1 },
       },
       vertexShader: VERTEX_SHADER,
       fragmentShader: FRAGMENT_SHADER,

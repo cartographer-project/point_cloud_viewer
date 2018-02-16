@@ -14,8 +14,8 @@
 
 'use strict';
 
-import {FirstPersonController} from './control';
-import {OctreeViewer} from './octree_viewer';
+import { FirstPersonController } from './control';
+import { OctreeViewer } from './octree_viewer';
 
 export function now(): number {
   return +new Date();
