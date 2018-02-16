@@ -259,7 +259,7 @@ export class OctreeViewer {
   private currentlyLoading: number;
   private useTransparency: boolean;
 
-  constructor(private scene: THREE.Scene) {
+  constructor(private scene: THREE.Scene, private onNewNodeData: () => void) {
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         size: { value: 2 },
@@ -270,6 +270,7 @@ export class OctreeViewer {
       fragmentShader: FRAGMENT_SHADER,
     });
     this.useTransparency = false;
+    this.maxLevelToDisplay = 3;
 
     this.nodeLoader = new NodeLoader();
     this.currentlyLoading = 0;
@@ -308,6 +309,27 @@ export class OctreeViewer {
       });
   }
 
+  public setMoving(value: boolean) {
+    if (value) {
+      for (const nodeId of Object.keys(this.loadedData)) {
+        if (
+          nodeId.length <= this.maxLevelToDisplay ||
+          this.loadedData[nodeId].threePoints === undefined
+        ) {
+          continue;
+        }
+        this.loadedData[nodeId].threePoints.visible = false;
+      }
+    } else {
+      for (const nodeId of Object.keys(this.loadedData)) {
+        if (this.loadedData[nodeId].threePoints === undefined) {
+          continue;
+        }
+        this.loadedData[nodeId].threePoints.visible = true;
+      }
+    }
+  }
+
   private nodesUpdate(nodeIds: string[]) {
     const start = now();
     this.batches = [];
@@ -340,6 +362,7 @@ export class OctreeViewer {
       .load(this.scene, this.material, this.batches.shift())
       .then(() => {
         this.currentlyLoading -= 1;
+        this.onNewNodeData();
         this.handleNextBatch();
       });
   }
