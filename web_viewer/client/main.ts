@@ -62,7 +62,6 @@ class App {
     this.lastMoveTime = 0;
     this.needsRender = true;
     this.viewer = new OctreeViewer(this.scene, () => {
-      console.log('#sirver ');
       this.needsRender = true;
     });
     const gui = new dat.GUI();

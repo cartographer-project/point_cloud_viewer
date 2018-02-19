@@ -312,6 +312,8 @@ export class OctreeViewer {
   public setMoving(value: boolean) {
     if (value) {
       for (const nodeId of Object.keys(this.loadedData)) {
+        // Should we hide this node? If there is no three object we can't and
+        // if the level of the node is small enough we do not want to.
         if (
           nodeId.length <= this.maxLevelToDisplay ||
           this.loadedData[nodeId].threePoints === undefined
@@ -321,6 +323,7 @@ export class OctreeViewer {
         this.loadedData[nodeId].threePoints.visible = false;
       }
     } else {
+      // We show all nodes if we are not moving.
       for (const nodeId of Object.keys(this.loadedData)) {
         if (this.loadedData[nodeId].threePoints === undefined) {
           continue;
