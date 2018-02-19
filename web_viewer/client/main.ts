@@ -28,6 +28,8 @@ class App {
   private viewer: OctreeViewer;
   private renderer: THREE.WebGLRenderer;
   private lastFrustumUpdateTime: number;
+  private lastMoveTime: number;
+  private needsRender: boolean;
 
   public run() {
     let renderArea = document.getElementById('renderArea');
@@ -57,14 +59,38 @@ class App {
     );
 
     this.lastFrustumUpdateTime = 0;
-    this.viewer = new OctreeViewer(this.scene);
+    this.lastMoveTime = 0;
+    this.needsRender = true;
+    this.viewer = new OctreeViewer(this.scene, () => {
+      this.needsRender = true;
+    });
     const gui = new dat.GUI();
-    gui.add(this.viewer.material.uniforms['size'], 'value').name('Point size');
+    gui
+      .add(this.viewer.material.uniforms['size'], 'value')
+      .name('Point size')
+      .onChange(() => {
+        this.needsRender = true;
+      });
     gui
       .add(this.viewer.material.uniforms['alpha'], 'value', 0, 1)
       .name('Transparency')
-      .onChange(() => this.viewer.alphaChanged());
-    gui.add(this.viewer.material.uniforms['gamma'], 'value').name('Gamma');
+      .onChange(() => {
+        this.viewer.alphaChanged();
+        this.needsRender = true;
+      });
+    gui
+      .add(this.viewer.material.uniforms['gamma'], 'value')
+      .name('Gamma')
+      .onChange(() => {
+        this.needsRender = true;
+      });
+    gui
+      .add(this.viewer, 'maxLevelToDisplay', 0, 7)
+      .name('Moving details')
+      .step(1)
+      .onChange(() => {
+        this.needsRender = true;
+      });
     window.addEventListener('resize', () => this.onWindowResize(), false);
     this.animate();
   }
@@ -73,14 +99,27 @@ class App {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    // Force a reload of the visible nodes.
+    this.lastFrustumUpdateTime = 0;
   }
 
   public animate() {
     requestAnimationFrame(() => this.animate());
 
-    this.controller.update();
     const time = now();
-    if (time - this.lastFrustumUpdateTime > 250) {
+    if (this.controller.update()) {
+      this.lastMoveTime = time;
+      this.viewer.setMoving(true);
+      this.needsRender = true;
+    }
+    if (time - this.lastMoveTime > 250) {
+      this.viewer.setMoving(false);
+      this.needsRender = true;
+    }
+    if (
+      this.lastFrustumUpdateTime <= this.lastMoveTime &&
+      time - this.lastFrustumUpdateTime > 250
+    ) {
       this.camera.updateMatrixWorld(false);
       this.lastFrustumUpdateTime = time;
       const matrix = new THREE.Matrix4().multiplyMatrices(
@@ -94,8 +133,11 @@ class App {
       );
     }
 
-    // TODO(hrapp): delete invisible nodes and free memory again.
-    this.renderer.render(this.scene, this.camera);
+    if (this.needsRender) {
+      this.needsRender = false;
+      // TODO(hrapp): delete invisible nodes and free memory again.
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 }
 
