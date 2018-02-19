@@ -309,26 +309,16 @@ export class OctreeViewer {
       });
   }
 
-  public setMoving(value: boolean) {
-    if (value) {
-      for (const nodeId of Object.keys(this.loadedData)) {
-        // Should we hide this node? If there is no three object we can't and
-        // if the level of the node is small enough we do not want to.
-        if (
-          nodeId.length <= this.maxLevelToDisplay ||
-          this.loadedData[nodeId].threePoints === undefined
-        ) {
-          continue;
+  public setMoving(moving: boolean) {
+    for (const nodeId of Object.keys(this.loadedData)) {
+      const threePoints = this.loadedData[nodeId].threePoints;
+      if (threePoints !== undefined) {
+        // If we are moving, only show points above a certain depth. Otherwise, show them all.
+        if (moving) {
+          threePoints.visible = nodeId.length <= this.maxLevelToDisplay;
+        } else {
+          threePoints.visible = true;
         }
-        this.loadedData[nodeId].threePoints.visible = false;
-      }
-    } else {
-      // We show all nodes if we are not moving.
-      for (const nodeId of Object.keys(this.loadedData)) {
-        if (this.loadedData[nodeId].threePoints === undefined) {
-          continue;
-        }
-        this.loadedData[nodeId].threePoints.visible = true;
       }
     }
   }
