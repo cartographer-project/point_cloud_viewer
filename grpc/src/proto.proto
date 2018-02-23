@@ -16,7 +16,7 @@
 
 syntax = "proto3";
 
-import "src/proto.proto";
+import "point_viewer_proto_rust/src/proto.proto";
 
 package point_viewer.grpc.proto;
 

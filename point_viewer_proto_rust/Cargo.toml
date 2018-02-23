@@ -13,33 +13,12 @@
 # limitations under the License.
 
 [package]
-authors = ["Holger Rapp <hrapp@google.com>"]
-name = "point_viewer"
+name = "point_viewer_proto_rust"
 version = "0.1.0"
+authors = ["Holger Rapp <hrapp@lyft.com>"]
+
+[build-dependencies]
+protoc-rust = "1.4.3"
 
 [dependencies]
-byteorder = "^0.5.3"
-cgmath = "0.16.0"
-clap = "^2.6.0"
-collision = "0.14.0"
-error-chain = "0.11.0"
-fnv = "1.0.6"
-num = "0.1.36"
-num-traits = "0.1.36"
-pbr = "1.0.0-alpha.1"
 protobuf = "1.4.3"
-scoped-pool = "^0.1"
-walkdir = "^0.1.5"
-
-[dependencies.point_viewer_proto_rust]
-path = "point_viewer_proto_rust"
-
-[workspace]
-members = [
-   "grpc",
-   "point_viewer_proto_rust",
-   "quadtree",
-   "sdl_viewer",
-   "web_viewer",
-   "xray",
-]

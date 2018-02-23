@@ -627,8 +627,8 @@ dependencies = [
  "num 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "pbr 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "point_viewer_proto_rust 0.1.0",
  "protobuf 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "protoc-rust 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "scoped-pool 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "walkdir 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -644,6 +644,14 @@ dependencies = [
  "grpcio 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "point_viewer 0.1.0",
  "protobuf 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "point_viewer_proto_rust"
+version = "0.1.0"
+dependencies = [
+ "protobuf 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protoc-rust 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
