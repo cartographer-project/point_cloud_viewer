@@ -61,7 +61,7 @@ fn wrap_in_module(contents: String, mod_name: &str) -> String {
 fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    println!("cargo:rerun-if-changed=src/proto.proto");
+    println!("cargo:rerun-if-changed=point_viewer_proto_rust/src/proto.proto");
 
     let mut cmd = process::Command::new("protoc");
     let plugin = find_executable("grpc_rust_plugin")

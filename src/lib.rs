@@ -22,6 +22,7 @@ extern crate error_chain;
 extern crate fnv;
 extern crate num;
 extern crate num_traits;
+extern crate point_viewer_proto_rust;
 extern crate protobuf;
 extern crate walkdir;
 
@@ -48,4 +49,4 @@ pub struct Point {
     pub intensity: Option<f32>,
 }
 
-include!(concat!(env!("OUT_DIR"), "/proto.rs"));
+pub use point_viewer_proto_rust::proto;

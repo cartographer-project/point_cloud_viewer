@@ -17,9 +17,6 @@ authors = ["Holger Rapp <hrapp@google.com>"]
 name = "point_viewer"
 version = "0.1.0"
 
-[build-dependencies]
-protoc-rust = "1.4.3"
-
 [dependencies]
 byteorder = "^0.5.3"
 cgmath = "0.16.0"
@@ -34,5 +31,15 @@ protobuf = "1.4.3"
 scoped-pool = "^0.1"
 walkdir = "^0.1.5"
 
+[dependencies.point_viewer_proto_rust]
+path = "point_viewer_proto_rust"
+
 [workspace]
-members = ["grpc", "quadtree", "sdl_viewer", "web_viewer", "xray"]
+members = [
+   "grpc",
+   "point_viewer_proto_rust",
+   "quadtree",
+   "sdl_viewer",
+   "web_viewer",
+   "xray",
+]
