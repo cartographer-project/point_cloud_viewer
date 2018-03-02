@@ -13,25 +13,17 @@
 # limitations under the License.
 
 [package]
-authors = ["Holger Rapp <hrapp@google.com>"]
-name = "sdl_viewer"
+name = "point_viewer_grpc_proto_rust"
 version = "0.1.0"
+authors = ["Holger Rapp <hrapp@lyft.com>"]
 
 [build-dependencies]
-gl_generator = "0.8.0"
+protoc-rust = "1.4.3"
 
 [dependencies]
-cgmath = "0.16.0"
-clap = "^2.6.0"
-lru-cache = "^0.1.1"
-fnv = "1.0.6"
-rand = "0.3.15"
-sdl2 = "0.30.0-beta"
-time = "^0.1.35"
+protobuf = "1.4.3"
+grpcio = "0.2"
+futures = "0.1.17"
 
 [dependencies.point_viewer]
 path = ".."
-
-[dependencies.point_viewer_grpc]
-path = "../point_viewer_grpc"
-

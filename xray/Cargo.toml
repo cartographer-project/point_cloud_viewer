@@ -3,9 +3,6 @@ name = "xray"
 version = "0.1.0"
 authors = ["Holger Rapp <hrapp@lyft.com>"]
 
-[build-dependencies]
-protoc-rust = "1.4.3"
-
 [dependencies]
 fnv = "1.0.6"
 cgmath = "0.16.0"
@@ -23,6 +20,9 @@ urlencoded = "^0.3.0"
 
 [dependencies.point_viewer]
 path = ".."
+
+[dependencies.xray_proto_rust]
+path = "../xray_proto_rust"
 
 [dependencies.quadtree]
 path = "../quadtree"
