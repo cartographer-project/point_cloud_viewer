@@ -11,6 +11,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate urlencoded;
+extern crate xray_proto_rust;
 
 use cgmath::Point2;
 use fnv::FnvHashSet;
@@ -69,4 +70,4 @@ impl Meta {
 
 pub mod backend;
 
-include!(concat!(env!("OUT_DIR"), "/proto.rs"));
+pub use xray_proto_rust::proto;

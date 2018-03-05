@@ -79,7 +79,7 @@ fn main() {
         format!("--grpc_out={}", out_dir),
         format!("--plugin=protoc-gen-grpc={}", plugin),
         root_path
-            .join("grpc/src/proto.proto")
+            .join("point_viewer_grpc_proto_rust/src/proto.proto")
             .to_string_lossy()
             .into_owned(),
     ]);

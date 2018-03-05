@@ -17,10 +17,8 @@ extern crate collision;
 extern crate futures;
 extern crate grpcio;
 extern crate point_viewer;
+extern crate point_viewer_grpc_proto_rust;
 extern crate protobuf;
-
-include!(concat!(env!("OUT_DIR"), "/proto.rs"));
-include!(concat!(env!("OUT_DIR"), "/proto_grpc.rs"));
 
 use cgmath::{Matrix4, Point3};
 use collision::Aabb3;
@@ -30,6 +28,8 @@ use point_viewer::errors::*;
 use point_viewer::math::Cube;
 use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, PositionEncoding,
                            VisibleNode};
+pub use point_viewer_grpc_proto_rust::proto;
+pub use point_viewer_grpc_proto_rust::proto_grpc;
 use proto_grpc::OctreeClient;
 use std::path::PathBuf;
 use std::sync::Arc;
