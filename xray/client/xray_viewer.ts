@@ -54,7 +54,7 @@ class NodeData {
     this.plane.position.set(
       this.boundingRect['min_x'],
       this.boundingRect['min_y'],
-      -20
+      -100
     );
   }
 }
