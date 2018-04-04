@@ -39,8 +39,8 @@ class App {
       renderArea.clientWidth / 2,
       renderArea.clientHeight / 2,
       renderArea.clientHeight / -2,
-      -100,
-      100
+      -200,
+      200
     );
 
     this.viewHasChanged = true;
