@@ -33,6 +33,14 @@ class NodeData {
   }
 
   public setTexture(texture: THREE.Texture) {
+      if (this.plane !== undefined) {
+          // This can happen when we were created, a load was triggered and
+          // then the frustum changed. We will then possibly be scheduled for
+          // load again. An alternative way of avoiding that is to carry a
+          // 'currentlyRequested' flag on this object and not request this tile
+          // if it is set.
+          return;
+      }
     let geometry = new THREE.PlaneGeometry(
       this.boundingRect['edge_length'],
       this.boundingRect['edge_length'],
@@ -63,15 +71,16 @@ export class XRayViewer {
   private nodes: {[key: string]: NodeData} = {};
   private currentlyLoading: number;
   private nodesToLoad: string[] = [];
+  private currentForLevelQueryNumber: number;
+  private displayLevel: number;
   private meta: any; // Will be undefined until we have loaded the metadata.
+
   constructor(private scene: THREE.Scene, private prefix: string) {
     this.currentlyLoading = 0;
-    const request = new Request(`${this.prefix}/meta`, {
-      method: 'GET',
-      credentials: 'same-origin',
-    });
+    this.currentForLevelQueryNumber = 0;
+    this.displayLevel = 0;
     window
-      .fetch(request)
+      .fetch(`${this.prefix}/meta`)
       .then((data) => data.json())
       .then((meta: any) => {
         this.meta = meta;
@@ -98,23 +107,20 @@ export class XRayViewer {
       edge_length_px_for_level *= 2;
       level += 1;
     }
+    this.displayLevel = level;
 
     // We encode the matrix column major.
-    const request = new Request(
-      `${this.prefix}/nodes_for_level?level=${level}&matrix=${matrixToString(
-        matrix
-      )}`,
-      {
-        method: 'GET',
-        credentials: 'same-origin',
-      }
-    );
-
+    this.currentForLevelQueryNumber++;
+    let queryNumber = this.currentForLevelQueryNumber;
     window
-      .fetch(request)
+      .fetch(`${this.prefix}/nodes_for_level?level=${level}&matrix=${matrixToString(
+        matrix
+      )}`)
       .then((data) => data.json())
       .then((nodes: any) => {
-        this.nodesUpdate(nodes);
+          if (this.currentForLevelQueryNumber == queryNumber) {
+              this.nodesUpdate(nodes);
+          }
       });
   }
 
@@ -129,6 +135,9 @@ export class XRayViewer {
       this.nodesToLoad.push(node.id);
     }
     this.loadNext();
+    if (this.currentlyLoading == 0) {  // Done loading
+        this.onlyShowDisplayLevel();
+    }
   }
 
   private loadNext() {
@@ -144,6 +153,9 @@ export class XRayViewer {
         this.loadNext();
         this.nodes[nodeId].setTexture(texture);
         this.swapIn(nodeId);
+        if (this.currentlyLoading == 0) {  // Done loading
+            this.onlyShowDisplayLevel();
+        }
       }
     );
   }
@@ -155,27 +167,22 @@ export class XRayViewer {
     return this.nodes[nodeId];
   }
 
+    private onlyShowDisplayLevel() {
+        for (let [nodeId, node] of Object.entries(this.nodes)) {
+            let level = nodeId.length - 1;
+            if (node.inScene && level != this.displayLevel) {
+                this.scene.remove(node.plane);
+                node.inScene = false;
+            }
+        }
+    }
+
   private swapIn(nodeId: string) {
-    if (this.nodes[nodeId].inScene) {
+    let level = nodeId.length - 1;
+    if (this.nodes[nodeId].inScene || level != this.displayLevel) {
       return;
     }
-    // Swap out parents and children.
     // TODO(sirver): We never drop any nodes, so memory is used unbounded.
-    // TODO(sirver): Parent should only be swapped out if all children are loaded.
-    if (nodeId !== 'r') {
-      let parentId = nodeId.slice(0, -1);
-      if (this.nodes[parentId] !== undefined && this.nodes[parentId].inScene) {
-        this.scene.remove(this.nodes[parentId].plane);
-        this.nodes[parentId].inScene = false;
-      }
-    }
-    for (let i = 0; i < 4; i++) {
-      let childId = nodeId + i;
-      if (this.nodes[childId] !== undefined && this.nodes[childId].inScene) {
-        this.scene.remove(this.nodes[childId].plane);
-        this.nodes[childId].inScene = false;
-      }
-    }
     this.scene.add(this.nodes[nodeId].plane);
     this.nodes[nodeId].inScene = true;
   }

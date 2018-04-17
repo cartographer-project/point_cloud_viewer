@@ -7,7 +7,8 @@
         "sourceMap": true,
         "moduleResolution": "node",
         "outDir": "build",
-        "module": "es6"
+        "module": "es6",
+        "lib": ["DOM", "ES6", "DOM.Iterable", "ScriptHost", "ES2017"]
     },
     "files": [
        "main.ts"
