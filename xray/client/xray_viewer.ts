@@ -33,14 +33,14 @@ class NodeData {
   }
 
   public setTexture(texture: THREE.Texture) {
-      if (this.plane !== undefined) {
-          // This can happen when we were created, a load was triggered and
-          // then the frustum changed. We will then possibly be scheduled for
-          // load again. An alternative way of avoiding that is to carry a
-          // 'currentlyRequested' flag on this object and not request this tile
-          // if it is set.
-          return;
-      }
+    if (this.plane !== undefined) {
+      // This can happen when we were created, a load was triggered and
+      // then the frustum changed. We will then possibly be scheduled for
+      // load again. An alternative way of avoiding that is to carry a
+      // 'currentlyRequested' flag on this object and not request this tile
+      // if it is set.
+      return;
+    }
     let geometry = new THREE.PlaneGeometry(
       this.boundingRect['edge_length'],
       this.boundingRect['edge_length'],
@@ -113,14 +113,16 @@ export class XRayViewer {
     this.currentForLevelQueryNumber++;
     let queryNumber = this.currentForLevelQueryNumber;
     window
-      .fetch(`${this.prefix}/nodes_for_level?level=${level}&matrix=${matrixToString(
-        matrix
-      )}`)
+      .fetch(
+        `${this.prefix}/nodes_for_level?level=${level}&matrix=${matrixToString(
+          matrix
+        )}`
+      )
       .then((data) => data.json())
       .then((nodes: any) => {
-          if (this.currentForLevelQueryNumber == queryNumber) {
-              this.nodesUpdate(nodes);
-          }
+        if (this.currentForLevelQueryNumber == queryNumber) {
+          this.nodesUpdate(nodes);
+        }
       });
   }
 
@@ -135,8 +137,9 @@ export class XRayViewer {
       this.nodesToLoad.push(node.id);
     }
     this.loadNext();
-    if (this.currentlyLoading == 0) {  // Done loading
-        this.onlyShowDisplayLevel();
+    if (this.currentlyLoading == 0) {
+      // Done loading
+      this.onlyShowDisplayLevel();
     }
   }
 
@@ -153,8 +156,9 @@ export class XRayViewer {
         this.loadNext();
         this.nodes[nodeId].setTexture(texture);
         this.swapIn(nodeId);
-        if (this.currentlyLoading == 0) {  // Done loading
-            this.onlyShowDisplayLevel();
+        if (this.currentlyLoading == 0) {
+          // Done loading
+          this.onlyShowDisplayLevel();
         }
       }
     );
@@ -167,15 +171,15 @@ export class XRayViewer {
     return this.nodes[nodeId];
   }
 
-    private onlyShowDisplayLevel() {
-        for (let [nodeId, node] of Object.entries(this.nodes)) {
-            let level = nodeId.length - 1;
-            if (node.inScene && level != this.displayLevel) {
-                this.scene.remove(node.plane);
-                node.inScene = false;
-            }
-        }
+  private onlyShowDisplayLevel() {
+    for (let [nodeId, node] of Object.entries(this.nodes)) {
+      let level = nodeId.length - 1;
+      if (node.inScene && level != this.displayLevel) {
+        this.scene.remove(node.plane);
+        node.inScene = false;
+      }
     }
+  }
 
   private swapIn(nodeId: string) {
     let level = nodeId.length - 1;
