@@ -25,7 +25,7 @@ function matrixToString(m: THREE.Matrix4): string {
 }
 
 class NodeData {
-  public plane: THREE.Mesh;
+  public plane: THREE.Mesh = null;
   public inScene: boolean;
 
   constructor(public id: string, public boundingRect: any) {
@@ -33,7 +33,7 @@ class NodeData {
   }
 
   public setTexture(texture: THREE.Texture) {
-    if (this.plane !== undefined) {
+    if (this.plane !== null) {
       // This can happen when we were created, a load was triggered and
       // then the frustum changed. We will then possibly be scheduled for
       // load again. An alternative way of avoiding that is to carry a
@@ -71,13 +71,13 @@ export class XRayViewer {
   private nodes: {[key: string]: NodeData} = {};
   private currentlyLoading: number;
   private nodesToLoad: string[] = [];
-  private currentForLevelQueryNumber: number;
+  private nextNodesForLevelQueryId: number;
   private displayLevel: number;
   private meta: any; // Will be undefined until we have loaded the metadata.
 
   constructor(private scene: THREE.Scene, private prefix: string) {
     this.currentlyLoading = 0;
-    this.currentForLevelQueryNumber = 0;
+    this.nextNodesForLevelQueryId = 0;
     this.displayLevel = 0;
     window
       .fetch(`${this.prefix}/meta`)
@@ -109,18 +109,19 @@ export class XRayViewer {
     }
     this.displayLevel = level;
 
+    this.nextNodesForLevelQueryId++;
+    let queryId = this.nextNodesForLevelQueryId;
     // We encode the matrix column major.
-    this.currentForLevelQueryNumber++;
-    let queryNumber = this.currentForLevelQueryNumber;
+    const matrixStr = matrixToString(matrix);
     window
       .fetch(
-        `${this.prefix}/nodes_for_level?level=${level}&matrix=${matrixToString(
-          matrix
-        )}`
+        `${this.prefix}/nodes_for_level?level=${level}&matrix=${matrixStr}`
       )
       .then((data) => data.json())
       .then((nodes: any) => {
-        if (this.currentForLevelQueryNumber == queryNumber) {
+        // Ignore responses that arrive after we've already issued a new request.
+        // TODO(sirver): Look into axios for canceling running requests.
+        if (this.nextNodesForLevelQueryId === queryId) {
           this.nodesUpdate(nodes);
         }
       });
@@ -130,14 +131,14 @@ export class XRayViewer {
     this.nodesToLoad = [];
     for (let i = 0, len = nodes.length; i < len; i++) {
       let node = this.getOrCreate(nodes[i]['id'], nodes[i]['bounding_rect']);
-      if (node.plane !== undefined) {
+      if (node.plane !== null) {
         this.swapIn(node.id);
         continue;
       }
       this.nodesToLoad.push(node.id);
     }
     this.loadNext();
-    if (this.currentlyLoading == 0) {
+    if (this.currentlyLoading === 0) {
       // Done loading
       this.onlyShowDisplayLevel();
     }
@@ -156,7 +157,7 @@ export class XRayViewer {
         this.loadNext();
         this.nodes[nodeId].setTexture(texture);
         this.swapIn(nodeId);
-        if (this.currentlyLoading == 0) {
+        if (this.currentlyLoading === 0) {
           // Done loading
           this.onlyShowDisplayLevel();
         }
@@ -172,9 +173,9 @@ export class XRayViewer {
   }
 
   private onlyShowDisplayLevel() {
-    for (let [nodeId, node] of Object.entries(this.nodes)) {
+    for (const [nodeId, node] of Object.entries(this.nodes)) {
       let level = nodeId.length - 1;
-      if (node.inScene && level != this.displayLevel) {
+      if (node.inScene && level !== this.displayLevel) {
         this.scene.remove(node.plane);
         node.inScene = false;
       }
@@ -183,7 +184,7 @@ export class XRayViewer {
 
   private swapIn(nodeId: string) {
     let level = nodeId.length - 1;
-    if (this.nodes[nodeId].inScene || level != this.displayLevel) {
+    if (this.nodes[nodeId].inScene || level !== this.displayLevel) {
       return;
     }
     // TODO(sirver): We never drop any nodes, so memory is used unbounded.
