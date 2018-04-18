@@ -25,7 +25,7 @@ function matrixToString(m: THREE.Matrix4): string {
 }
 
 class NodeData {
-  public plane: THREE.Mesh;
+  public plane: THREE.Mesh = null;
   public inScene: boolean;
 
   constructor(public id: string, public boundingRect: any) {
@@ -33,6 +33,14 @@ class NodeData {
   }
 
   public setTexture(texture: THREE.Texture) {
+    if (this.plane !== null) {
+      // This can happen when we were created, a load was triggered and
+      // then the frustum changed. We will then possibly be scheduled for
+      // load again. An alternative way of avoiding that is to carry a
+      // 'currentlyRequested' flag on this object and not request this tile
+      // if it is set.
+      return;
+    }
     let geometry = new THREE.PlaneGeometry(
       this.boundingRect['edge_length'],
       this.boundingRect['edge_length'],
@@ -63,15 +71,16 @@ export class XRayViewer {
   private nodes: {[key: string]: NodeData} = {};
   private currentlyLoading: number;
   private nodesToLoad: string[] = [];
+  private nextNodesForLevelQueryId: number;
+  private displayLevel: number;
   private meta: any; // Will be undefined until we have loaded the metadata.
+
   constructor(private scene: THREE.Scene, private prefix: string) {
     this.currentlyLoading = 0;
-    const request = new Request(`${this.prefix}/meta`, {
-      method: 'GET',
-      credentials: 'same-origin',
-    });
+    this.nextNodesForLevelQueryId = 0;
+    this.displayLevel = 0;
     window
-      .fetch(request)
+      .fetch(`${this.prefix}/meta`)
       .then((data) => data.json())
       .then((meta: any) => {
         this.meta = meta;
@@ -98,23 +107,23 @@ export class XRayViewer {
       edge_length_px_for_level *= 2;
       level += 1;
     }
+    this.displayLevel = level;
 
+    this.nextNodesForLevelQueryId++;
+    let queryId = this.nextNodesForLevelQueryId;
     // We encode the matrix column major.
-    const request = new Request(
-      `${this.prefix}/nodes_for_level?level=${level}&matrix=${matrixToString(
-        matrix
-      )}`,
-      {
-        method: 'GET',
-        credentials: 'same-origin',
-      }
-    );
-
+    const matrixStr = matrixToString(matrix);
     window
-      .fetch(request)
+      .fetch(
+        `${this.prefix}/nodes_for_level?level=${level}&matrix=${matrixStr}`
+      )
       .then((data) => data.json())
       .then((nodes: any) => {
-        this.nodesUpdate(nodes);
+        // Ignore responses that arrive after we've already issued a new request.
+        // TODO(sirver): Look into axios for canceling running requests.
+        if (this.nextNodesForLevelQueryId === queryId) {
+          this.nodesUpdate(nodes);
+        }
       });
   }
 
@@ -122,13 +131,17 @@ export class XRayViewer {
     this.nodesToLoad = [];
     for (let i = 0, len = nodes.length; i < len; i++) {
       let node = this.getOrCreate(nodes[i]['id'], nodes[i]['bounding_rect']);
-      if (node.plane !== undefined) {
+      if (node.plane !== null) {
         this.swapIn(node.id);
         continue;
       }
       this.nodesToLoad.push(node.id);
     }
     this.loadNext();
+    if (this.currentlyLoading === 0) {
+      // Done loading
+      this.onlyShowDisplayLevel();
+    }
   }
 
   private loadNext() {
@@ -144,6 +157,10 @@ export class XRayViewer {
         this.loadNext();
         this.nodes[nodeId].setTexture(texture);
         this.swapIn(nodeId);
+        if (this.currentlyLoading === 0) {
+          // Done loading
+          this.onlyShowDisplayLevel();
+        }
       }
     );
   }
@@ -155,27 +172,22 @@ export class XRayViewer {
     return this.nodes[nodeId];
   }
 
+  private onlyShowDisplayLevel() {
+    for (const [nodeId, node] of Object.entries(this.nodes)) {
+      let level = nodeId.length - 1;
+      if (node.inScene && level !== this.displayLevel) {
+        this.scene.remove(node.plane);
+        node.inScene = false;
+      }
+    }
+  }
+
   private swapIn(nodeId: string) {
-    if (this.nodes[nodeId].inScene) {
+    let level = nodeId.length - 1;
+    if (this.nodes[nodeId].inScene || level !== this.displayLevel) {
       return;
     }
-    // Swap out parents and children.
     // TODO(sirver): We never drop any nodes, so memory is used unbounded.
-    // TODO(sirver): Parent should only be swapped out if all children are loaded.
-    if (nodeId !== 'r') {
-      let parentId = nodeId.slice(0, -1);
-      if (this.nodes[parentId] !== undefined && this.nodes[parentId].inScene) {
-        this.scene.remove(this.nodes[parentId].plane);
-        this.nodes[parentId].inScene = false;
-      }
-    }
-    for (let i = 0; i < 4; i++) {
-      let childId = nodeId + i;
-      if (this.nodes[childId] !== undefined && this.nodes[childId].inScene) {
-        this.scene.remove(this.nodes[childId].plane);
-        this.nodes[childId].inScene = false;
-      }
-    }
     this.scene.add(this.nodes[nodeId].plane);
     this.nodes[nodeId].inScene = true;
   }
