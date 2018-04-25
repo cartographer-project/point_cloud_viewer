@@ -14,7 +14,7 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::GenericImage;
 use octree::OnDiskOctree;
-use point_viewer::{octree, InternalIterator};
+use point_viewer::{octree, InternalIterator, color::Color};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -26,6 +26,11 @@ use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use xray::{proto, CURRENT_VERSION};
+
+// The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
+// the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
+// becomes.
+const NUM_Z_BUCKETS: f32 = 1024.;
 
 fn parse_arguments() -> clap::ArgMatches<'static> {
     clap::App::new("build_xray_quadtree")
@@ -53,22 +58,31 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
         .get_matches()
 }
 
-fn xray_from_points(
-    octree: &octree::OnDiskOctree,
-    bbox: &Aabb3<f32>,
-    png_file: &Path,
-    image_size: u32,
-) -> bool {
-    const NUM_Z_BUCKETS: f32 = 1024.;
+trait ColoringStrategy: Send {
+    // NOCOM(#sirver): what
+    fn process_discretized_point(&mut self, x: u32, y: u32, z: u32);
+    // NOCOM(#sirver): what
+    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8>;
+}
 
-    let mut aggregation: FnvHashMap<(u32, u32), FnvHashSet<u32>> = FnvHashMap::default();
-    let mut seen_any_points = false;
-    octree.points_in_box(&bbox).for_each(|p| {
-        seen_any_points = true;
-        let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * image_size as f32) as u32;
-        let y = (((p.position.y - bbox.min().y) / bbox.dim().y) * image_size as f32) as u32;
-        let z = (((p.position.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
-        match aggregation.entry((x, y)) {
+struct XRayColoringStrategy {
+    z_buckets: FnvHashMap<(u32, u32), FnvHashSet<u32>>,
+    max_saturation: f32,
+}
+
+impl XRayColoringStrategy {
+    fn new() -> Self {
+        XRayColoringStrategy {
+            z_buckets: FnvHashMap::default(),
+            // TODO(sirver): Once 'const fn' lands, this constant can be calculated at compile time.
+            max_saturation: NUM_Z_BUCKETS.ln(),
+        }
+    }
+}
+
+impl ColoringStrategy for XRayColoringStrategy {
+    fn process_discretized_point(&mut self, x: u32, y: u32, z: u32) {
+        match self.z_buckets.entry((x, y)) {
             Entry::Occupied(mut e) => {
                 e.get_mut().insert(z);
             }
@@ -78,33 +92,57 @@ fn xray_from_points(
                 v.insert(s);
             }
         }
+    }
+
+    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+        if !self.z_buckets.contains_key(&(x, y)) {
+            return Color {
+                red: 255,
+                green: 255,
+                blue: 255,
+                alpha: 255,
+            };
+        }
+        let saturation = (self.z_buckets[&(x, y)].len() as f32).ln() / self.max_saturation;
+        let value = ((1. - saturation) * 255.) as u8;
+        Color {
+            red: value,
+            green: value,
+            blue: value,
+            alpha: value,
+        }
+    }
+}
+
+fn xray_from_points(
+    octree: &octree::OnDiskOctree,
+    bbox: &Aabb3<f32>,
+    png_file: &Path,
+    image_size: u32,
+    mut coloring_strategy: Box<ColoringStrategy>,
+) -> bool {
+    let mut seen_any_points = false;
+    octree.points_in_box(&bbox).for_each(|p| {
+        seen_any_points = true;
+        let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * image_size as f32) as u32;
+        let y = (((p.position.y - bbox.min().y) / bbox.dim().y) * image_size as f32) as u32;
+        let z = (((p.position.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
+        coloring_strategy.process_discretized_point(x, y, z);
     });
 
     if !seen_any_points {
         return false;
     }
 
-    let max_saturation = NUM_Z_BUCKETS.ln();
     let mut image = image::RgbImage::new(image_size, image_size);
     for x in 0..image_size {
         for y in 0..image_size {
-            if !aggregation.contains_key(&(x, y)) {
-                image.put_pixel(
-                    x,
-                    y,
-                    image::Rgb {
-                        data: [255, 255, 255],
-                    },
-                );
-                continue;
-            }
-            let saturation = (aggregation[&(x, y)].len() as f32).ln() / max_saturation;
-            let value = ((1. - saturation) * 255.) as u8;
+            let color = coloring_strategy.get_pixel_color(x, y);
             image.put_pixel(
                 x,
                 y,
                 image::Rgb {
-                    data: [value, value, value],
+                    data: [color.red, color.green, color.blue],
                 },
             );
         }
@@ -154,6 +192,8 @@ fn run(
     let (parents_to_create_tx, mut parents_to_create_rx) = mpsc::channel();
     let (all_nodes_tx, all_nodes_rx) = mpsc::channel();
     println!("Building level {}.", deepest_level);
+
+    let strategy_constructor = &|| XRayColoringStrategy::new();
     pool.scoped(|scope| {
         let mut open = vec![Node::root_with_bounding_rect(bounding_rect.clone())];
         while !open.is_empty() {
@@ -179,6 +219,7 @@ fn run(
                         &bbox,
                         &get_image_path(output_directory, node.id),
                         tile_size_px,
+                        Box::new(strategy_constructor()),
                     ) {
                         all_nodes_tx_clone.send(node.id).unwrap();
                         node.id
