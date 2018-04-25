@@ -59,9 +59,12 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
 }
 
 trait ColoringStrategy: Send {
-    // NOCOM(#sirver): what
+    // Processes a point that has been discretized into the pixel (x, y) and the z column according
+    // to NUM_Z_BUCKETS.
     fn process_discretized_point(&mut self, x: u32, y: u32, z: u32);
-    // NOCOM(#sirver): what
+
+    // After all points are processed, this is used to query the color that should be assigned to
+    // the pixel (x, y) in the final tile image.
     fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8>;
 }
 
