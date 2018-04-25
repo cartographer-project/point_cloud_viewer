@@ -32,6 +32,17 @@ impl Color<f32> {
     }
 }
 
+impl Color<u8> {
+    pub fn to_f32(&self) -> Color<f32> {
+        Color {
+            red: (self.red as f32) / 255.,
+            green: (self.green as f32) / 255.,
+            blue: (self.blue as f32) / 255.,
+            alpha: (self.alpha as f32) / 255.,
+        }
+    }
+}
+
 pub const RED: Color<f32> = Color {
     red: 1.,
     green: 0.,
