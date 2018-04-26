@@ -74,7 +74,7 @@ export class XRayViewer {
   private nextNodesForLevelQueryId: number;
   private displayLevel: number;
   private meta: any; // Will be undefined until we have loaded the metadata.
-  private cleanupCalled: boolean = false;
+  private cleanupCalled = false;
 
   constructor(private scene: THREE.Scene, private prefix: string) {
     this.currentlyLoading = 0;
