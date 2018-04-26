@@ -1,4 +1,5 @@
 extern crate cgmath;
+#[macro_use]
 extern crate clap;
 extern crate collision;
 extern crate fnv;
@@ -14,7 +15,7 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::GenericImage;
 use octree::OnDiskOctree;
-use point_viewer::{octree, InternalIterator, color::Color};
+use point_viewer::{octree, InternalIterator, Point, color::{Color, WHITE}};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -31,6 +32,15 @@ use xray::{proto, CURRENT_VERSION};
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
 // becomes.
 const NUM_Z_BUCKETS: f32 = 1024.;
+
+arg_enum! {
+    #[derive(Debug)]
+    #[allow(non_camel_case_types)]
+    pub enum ColoringStrategyKind {
+        xray,
+        colored,
+    }
+}
 
 fn parse_arguments() -> clap::ArgMatches<'static> {
     clap::App::new("build_xray_quadtree")
@@ -50,6 +60,11 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .help("Size of finest X-Ray level tile in pixels. Must be a power of two.")
                 .long("tile_size")
                 .default_value("256"),
+            clap::Arg::with_name("coloring_strategy")
+                .long("coloring_strategy")
+                .takes_value(true)
+                .possible_values(&ColoringStrategyKind::variants())
+                .default_value("xray"),
             clap::Arg::with_name("octree_directory")
                 .help("Octree directory to turn into xrays.")
                 .index(1)
@@ -61,7 +76,7 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
 trait ColoringStrategy: Send {
     // Processes a point that has been discretized into the pixel (x, y) and the z column according
     // to NUM_Z_BUCKETS.
-    fn process_discretized_point(&mut self, x: u32, y: u32, z: u32);
+    fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, z: u32);
 
     // After all points are processed, this is used to query the color that should be assigned to
     // the pixel (x, y) in the final tile image.
@@ -84,7 +99,7 @@ impl XRayColoringStrategy {
 }
 
 impl ColoringStrategy for XRayColoringStrategy {
-    fn process_discretized_point(&mut self, x: u32, y: u32, z: u32) {
+    fn process_discretized_point(&mut self, _: &Point, x: u32, y: u32, z: u32) {
         match self.z_buckets.entry((x, y)) {
             Entry::Occupied(mut e) => {
                 e.get_mut().insert(z);
@@ -99,12 +114,7 @@ impl ColoringStrategy for XRayColoringStrategy {
 
     fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
         if !self.z_buckets.contains_key(&(x, y)) {
-            return Color {
-                red: 255,
-                green: 255,
-                blue: 255,
-                alpha: 255,
-            };
+            return WHITE.to_u8();
         }
         let saturation = (self.z_buckets[&(x, y)].len() as f32).ln() / self.max_saturation;
         let value = ((1. - saturation) * 255.) as u8;
@@ -114,6 +124,54 @@ impl ColoringStrategy for XRayColoringStrategy {
             blue: value,
             alpha: value,
         }
+    }
+}
+
+struct PerColumnData {
+    // The sum of all seen color values.
+    color_sum: Color<f32>,
+
+    // The number of all points that landed in this column.
+    count: usize,
+}
+
+#[derive(Default)]
+struct PointColorColoringStrategy {
+    per_column_data: FnvHashMap<(u32, u32), PerColumnData>,
+}
+
+impl ColoringStrategy for PointColorColoringStrategy {
+    fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
+        match self.per_column_data.entry((x, y)) {
+            Entry::Occupied(mut e) => {
+                let per_column_data = e.get_mut();
+                let clr = p.color.to_f32();
+                per_column_data.color_sum.red += clr.red;
+                per_column_data.color_sum.green += clr.green;
+                per_column_data.color_sum.blue += clr.blue;
+                per_column_data.color_sum.alpha += clr.alpha;
+                per_column_data.count += 1;
+            }
+            Entry::Vacant(v) => {
+                v.insert(PerColumnData {
+                    color_sum: p.color.to_f32(),
+                    count: 1,
+                });
+            }
+        }
+    }
+
+    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+        if !self.per_column_data.contains_key(&(x, y)) {
+            return WHITE.to_u8();
+        }
+        let c = &self.per_column_data[&(x, y)];
+        Color {
+            red: c.color_sum.red / c.count as f32,
+            green: c.color_sum.green / c.count as f32,
+            blue: c.color_sum.blue / c.count as f32,
+            alpha: c.color_sum.alpha / c.count as f32,
+        }.to_u8()
     }
 }
 
@@ -130,7 +188,7 @@ fn xray_from_points(
         let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * image_size as f32) as u32;
         let y = (((p.position.y - bbox.min().y) / bbox.dim().y) * image_size as f32) as u32;
         let z = (((p.position.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
-        coloring_strategy.process_discretized_point(x, y, z);
+        coloring_strategy.process_discretized_point(p, x, y, z);
     });
 
     if !seen_any_points {
@@ -178,6 +236,7 @@ fn run(
     output_directory: &Path,
     resolution: f32,
     tile_size_px: u32,
+    coloring_strategy_kind: ColoringStrategyKind,
 ) -> Result<(), Box<Error>> {
     let octree = &OnDiskOctree::new(octree_directory)?;
 
@@ -196,7 +255,6 @@ fn run(
     let (all_nodes_tx, all_nodes_rx) = mpsc::channel();
     println!("Building level {}.", deepest_level);
 
-    let strategy_constructor = &|| XRayColoringStrategy::new();
     pool.scoped(|scope| {
         let mut open = vec![Node::root_with_bounding_rect(bounding_rect.clone())];
         while !open.is_empty() {
@@ -204,6 +262,12 @@ fn run(
             if node.level() == deepest_level {
                 let parents_to_create_tx_clone = parents_to_create_tx.clone();
                 let all_nodes_tx_clone = all_nodes_tx.clone();
+                let strategy: Box<ColoringStrategy> = match coloring_strategy_kind {
+                    ColoringStrategyKind::xray => Box::new(XRayColoringStrategy::new()),
+                    ColoringStrategyKind::colored => {
+                        Box::new(PointColorColoringStrategy::default())
+                    }
+                };
                 scope.execute(move || {
                     let bbox = Aabb3::new(
                         Point3::new(
@@ -222,7 +286,7 @@ fn run(
                         &bbox,
                         &get_image_path(output_directory, node.id),
                         tile_size_px,
-                        Box::new(strategy_constructor()),
+                        strategy,
                     ) {
                         all_nodes_tx_clone.send(node.id).unwrap();
                         node.id
@@ -333,9 +397,17 @@ pub fn main() {
     if !tile_size.is_power_of_two() {
         panic!("tile_size is not a power of two.");
     }
+    let coloring_strategy_kind = value_t!(args, "coloring_strategy", ColoringStrategyKind)
+        .expect("coloring_strategy is invalid");
 
     let octree_directory = Path::new(args.value_of("octree_directory").unwrap());
     let output_directory = Path::new(args.value_of("output_directory").unwrap());
 
-    run(octree_directory, output_directory, resolution, tile_size).unwrap();
+    run(
+        octree_directory,
+        output_directory,
+        resolution,
+        tile_size,
+        coloring_strategy_kind,
+    ).unwrap();
 }
