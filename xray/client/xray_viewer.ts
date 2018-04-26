@@ -74,7 +74,7 @@ export class XRayViewer {
   private nextNodesForLevelQueryId: number;
   private displayLevel: number;
   private meta: any; // Will be undefined until we have loaded the metadata.
-  private cleanupCalled = false;
+  private isDisposed = false;
 
   constructor(private scene: THREE.Scene, private prefix: string) {
     this.currentlyLoading = 0;
@@ -88,19 +88,24 @@ export class XRayViewer {
       });
   }
 
-  public cleanup() {
-    this.cleanupCalled = true;
+  public dispose() {
+    this.isDisposed = true;
     for (const [nodeId, node] of Object.entries(this.nodes)) {
-      if (!this.nodes[nodeId].inScene) {
-        continue;
+      if (this.nodes[nodeId].inScene) {
+          this.removeFromScene(this.nodes[nodeId]);
       }
-      this.scene.remove(this.nodes[nodeId].plane);
-      this.nodes[nodeId].inScene = false;
     }
+    this.nodesToLoad = [];
+  }
+
+  private removeFromScene(node: NodeData) {
+      // TODO(sirver): This does not dispose of texture and plane geometry.
+      this.scene.remove(node.plane);
+      node.inScene = false;
   }
 
   public isInitialized(): boolean {
-    return this.meta !== undefined;
+    return this.meta !== undefined && !this.isDisposed;
   }
 
   public frustumChanged(matrix: THREE.Matrix4, pixelsPerMeter: number) {
@@ -188,14 +193,13 @@ export class XRayViewer {
     for (const [nodeId, node] of Object.entries(this.nodes)) {
       let level = nodeId.length - 1;
       if (node.inScene && level !== this.displayLevel) {
-        this.scene.remove(node.plane);
-        node.inScene = false;
+        this.removeFromScene(node);
       }
     }
   }
 
   private swapIn(nodeId: string) {
-    if (this.cleanupCalled) {
+    if (this.isDisposed) {
       return;
     }
     let level = nodeId.length - 1;
