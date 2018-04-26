@@ -15,7 +15,7 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::GenericImage;
 use octree::OnDiskOctree;
-use point_viewer::{octree, InternalIterator, Point, color::Color};
+use point_viewer::{octree, InternalIterator, Point, color::{WHITE, Color}};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -114,12 +114,7 @@ impl ColoringStrategy for XRayColoringStrategy {
 
     fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
         if !self.z_buckets.contains_key(&(x, y)) {
-            return Color {
-                red: 255,
-                green: 255,
-                blue: 255,
-                alpha: 255,
-            };
+            return WHITE.to_u8();
         }
         let saturation = (self.z_buckets[&(x, y)].len() as f32).ln() / self.max_saturation;
         let value = ((1. - saturation) * 255.) as u8;
@@ -168,12 +163,7 @@ impl ColoringStrategy for PointColorColoringStrategy {
 
     fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
         if !self.per_column_data.contains_key(&(x, y)) {
-            return Color {
-                red: 255,
-                green: 255,
-                blue: 255,
-                alpha: 255,
-            };
+            return WHITE.to_u8();
         }
         let c = &self.per_column_data[&(x, y)];
         Color {
