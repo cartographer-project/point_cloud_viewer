@@ -15,7 +15,7 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::GenericImage;
 use octree::OnDiskOctree;
-use point_viewer::{octree, InternalIterator, Point, color::{WHITE, Color}};
+use point_viewer::{octree, InternalIterator, Point, color::{Color, WHITE}};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -36,7 +36,7 @@ const NUM_Z_BUCKETS: f32 = 1024.;
 arg_enum! {
     #[derive(Debug)]
     #[allow(non_camel_case_types)]
-    pub enum OutputType {
+    pub enum ColoringStrategyKind {
         xray,
         colored,
     }
@@ -60,10 +60,10 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .help("Size of finest X-Ray level tile in pixels. Must be a power of two.")
                 .long("tile_size")
                 .default_value("256"),
-            clap::Arg::with_name("type")
-                .long("type")
+            clap::Arg::with_name("coloring_strategy")
+                .long("coloring_strategy")
                 .takes_value(true)
-                .possible_values(&OutputType::variants())
+                .possible_values(&ColoringStrategyKind::variants())
                 .default_value("xray"),
             clap::Arg::with_name("octree_directory")
                 .help("Octree directory to turn into xrays.")
@@ -236,7 +236,7 @@ fn run(
     output_directory: &Path,
     resolution: f32,
     tile_size_px: u32,
-    output_type: OutputType,
+    coloring_strategy_kind: ColoringStrategyKind,
 ) -> Result<(), Box<Error>> {
     let octree = &OnDiskOctree::new(octree_directory)?;
 
@@ -255,10 +255,6 @@ fn run(
     let (all_nodes_tx, all_nodes_rx) = mpsc::channel();
     println!("Building level {}.", deepest_level);
 
-    let strategy_factory: &Box<Fn() -> Box<ColoringStrategy>> = &match output_type {
-        OutputType::xray => Box::new(|| Box::new(XRayColoringStrategy::new())),
-        OutputType::colored => Box::new(|| Box::new(PointColorColoringStrategy::default())),
-    };
     pool.scoped(|scope| {
         let mut open = vec![Node::root_with_bounding_rect(bounding_rect.clone())];
         while !open.is_empty() {
@@ -266,7 +262,12 @@ fn run(
             if node.level() == deepest_level {
                 let parents_to_create_tx_clone = parents_to_create_tx.clone();
                 let all_nodes_tx_clone = all_nodes_tx.clone();
-                let strategy = strategy_factory();
+                let strategy: Box<ColoringStrategy> = match coloring_strategy_kind {
+                    ColoringStrategyKind::xray => Box::new(XRayColoringStrategy::new()),
+                    ColoringStrategyKind::colored => {
+                        Box::new(PointColorColoringStrategy::default())
+                    }
+                };
                 scope.execute(move || {
                     let bbox = Aabb3::new(
                         Point3::new(
@@ -396,7 +397,8 @@ pub fn main() {
     if !tile_size.is_power_of_two() {
         panic!("tile_size is not a power of two.");
     }
-    let output_type = value_t!(args, "type", OutputType).expect("type is invalid");
+    let coloring_strategy_kind = value_t!(args, "coloring_strategy", ColoringStrategyKind)
+        .expect("coloring_strategy is invalid");
 
     let octree_directory = Path::new(args.value_of("octree_directory").unwrap());
     let output_directory = Path::new(args.value_of("output_directory").unwrap());
@@ -406,6 +408,6 @@ pub fn main() {
         output_directory,
         resolution,
         tile_size,
-        output_type,
+        coloring_strategy_kind,
     ).unwrap();
 }
