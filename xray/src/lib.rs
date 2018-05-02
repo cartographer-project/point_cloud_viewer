@@ -12,6 +12,11 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate urlencoded;
 extern crate xray_proto_rust;
+#[macro_use]
+extern crate clap;
+extern crate image;
+extern crate point_viewer;
+
 
 use cgmath::Point2;
 use fnv::FnvHashSet;
@@ -69,5 +74,6 @@ impl Meta {
 }
 
 pub mod backend;
+pub mod generation;
 
 pub use xray_proto_rust::proto;
