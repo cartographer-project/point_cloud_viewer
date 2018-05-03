@@ -74,8 +74,6 @@ fn run(
 ) -> Result<(), Box<Error>> {
     let octree = &OnDiskOctree::new(octree_directory)?;
     let bbox3 = octree.bounding_box();
-    println!("#sirver bbox3: {:#?}", bbox3);
-
     let bbox3 = Aabb3::new(
         Point3::new(
             bbox2.min().x.max(bbox3.min().x),
@@ -116,8 +114,6 @@ pub fn main() {
     let max_y = value_t!(matches, "max_y", f32).expect("max_y could not be parsed.");
 
     let bbox2 = Aabb2::new(Point2::new(min_x, min_y), Point2::new(max_x, max_y));
-    println!("#sirver bbox2: {:#?}", bbox2);
-
     run(
         octree_directory,
         output_filename,
