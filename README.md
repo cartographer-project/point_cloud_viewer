@@ -11,7 +11,7 @@ The project consist of a root crate that can build and read octrees on disk and 
 
 - Install Rust: `curl https://sh.rustup.rs -sSf | sh`. See <https://rustup.rs> for details.
 - Install protobuf > 3.0. See [ci/install_proto3.sh](https://github.com/googlecartographer/point_cloud_viewer/blob/master/ci/install_proto3.sh) for Linux or run `brew install protobuf` on Mac OS X.
-- Install the rust protobuf plugin: `cargo install protobuf` and make sure
+- Install the rust protobuf plugin: `cargo install --vers 1.4.3 protobuf` and make sure
   `protoc-gen-rust` is in your `$PATH`. The binary probably is in
   `$HOME/.cargo/bin`.
 - Install the rust gRPC protobuf plugin: `cargo install grpcio-compiler` and
