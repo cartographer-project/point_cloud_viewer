@@ -39,17 +39,21 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .possible_values(&ColoringStrategyArgument::variants())
                 .default_value("xray"),
             clap::Arg::with_name("min_intensity")
-                .help("Minimum intensity of all points for color scaling. \
-                      Only used for 'colored_with_intensity'.")
+                .help(
+                    "Minimum intensity of all points for color scaling. \
+                     Only used for 'colored_with_intensity'.",
+                )
                 .long("min_intensity")
                 .takes_value(true)
-                .required_if("coloring_strategy", "colored_with_intensity") ,
+                .required_if("coloring_strategy", "colored_with_intensity"),
             clap::Arg::with_name("max_intensity")
-                .help("Minimum intensity of all points for color scaling. \
-                      Only used for 'colored_with_intensity'.")
+                .help(
+                    "Minimum intensity of all points for color scaling. \
+                     Only used for 'colored_with_intensity'.",
+                )
                 .long("max_intensity")
                 .takes_value(true)
-                .required_if("coloring_strategy", "colored_with_intensity") ,
+                .required_if("coloring_strategy", "colored_with_intensity"),
             clap::Arg::with_name("octree_directory")
                 .help("Octree directory to turn into xrays.")
                 .index(1)
@@ -136,7 +140,6 @@ pub fn main() {
     let min_y = value_t!(matches, "min_y", f32).expect("min_y could not be parsed.");
     let max_x = value_t!(matches, "max_x", f32).expect("max_x could not be parsed.");
     let max_y = value_t!(matches, "max_y", f32).expect("max_y could not be parsed.");
-
 
     let bbox2 = Aabb2::new(Point2::new(min_x, min_y), Point2::new(max_x, max_y));
     run(

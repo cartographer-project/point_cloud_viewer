@@ -5,7 +5,7 @@ use fnv::{FnvHashMap, FnvHashSet};
 use image;
 use point_viewer::{octree, InternalIterator, Point, color::{Color, WHITE}};
 use std::collections::hash_map::Entry;
-use std::path::{Path};
+use std::path::Path;
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
@@ -34,9 +34,7 @@ impl ColoringStrategyKind {
     pub fn new_strategy(&self) -> Box<ColoringStrategy> {
         match *self {
             ColoringStrategyKind::XRay => Box::new(XRayColoringStrategy::new()),
-            ColoringStrategyKind::Colored => {
-                Box::new(PointColorColoringStrategy::default())
-            }
+            ColoringStrategyKind::Colored => Box::new(PointColorColoringStrategy::default()),
             ColoringStrategyKind::ColoredWithIntensity(min_intensity, max_intensity) => {
                 Box::new(IntensityColoringStrategy::new(min_intensity, max_intensity))
             }
@@ -112,14 +110,17 @@ struct IntensityColoringStrategy {
 impl IntensityColoringStrategy {
     fn new(min: f32, max: f32) -> Self {
         IntensityColoringStrategy {
-            min, max, per_column_data: FnvHashMap::default(),
+            min,
+            max,
+            per_column_data: FnvHashMap::default(),
         }
     }
 }
 
 impl ColoringStrategy for IntensityColoringStrategy {
     fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
-        let intensity = p.intensity.expect("Coloring by intensity was requested, but point without intensity found.");
+        let intensity = p.intensity
+            .expect("Coloring by intensity was requested, but point without intensity found.");
         if intensity < 0. {
             return;
         }
@@ -149,7 +150,7 @@ impl ColoringStrategy for IntensityColoringStrategy {
             red: brighten,
             green: brighten,
             blue: brighten,
-            alpha: 1.
+            alpha: 1.,
         }.to_u8()
     }
 }
@@ -239,4 +240,3 @@ pub fn xray_from_points(
     image.save(png_file).unwrap();
     true
 }
-
