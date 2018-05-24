@@ -12,10 +12,10 @@ extern crate xray;
 
 use cgmath::{Point2, Point3};
 use collision::{Aabb, Aabb3};
-use fnv::{FnvHashSet};
+use fnv::FnvHashSet;
 use image::GenericImage;
 use octree::OnDiskOctree;
-use point_viewer::{octree}; 
+use point_viewer::octree;
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -25,8 +25,10 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use xray::{proto, CURRENT_VERSION, generation::{ColoringStrategyKind, ColoringStrategy, xray_from_points}};
-
+use xray::{proto,
+           generation::{xray_from_points, ColoringStrategy, ColoringStrategyArgument,
+                        ColoringStrategyKind},
+           CURRENT_VERSION};
 
 fn parse_arguments() -> clap::ArgMatches<'static> {
     clap::App::new("build_xray_quadtree")
@@ -49,8 +51,24 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
             clap::Arg::with_name("coloring_strategy")
                 .long("coloring_strategy")
                 .takes_value(true)
-                .possible_values(&ColoringStrategyKind::variants())
+                .possible_values(&ColoringStrategyArgument::variants())
                 .default_value("xray"),
+            clap::Arg::with_name("min_intensity")
+                .help(
+                    "Minimum intensity of all points for color scaling. \
+                     Only used for 'colored_with_intensity'.",
+                )
+                .long("min_intensity")
+                .takes_value(true)
+                .required_if("coloring_strategy", "colored_with_intensity"),
+            clap::Arg::with_name("max_intensity")
+                .help(
+                    "Minimum intensity of all points for color scaling. \
+                     Only used for 'colored_with_intensity'.",
+                )
+                .long("max_intensity")
+                .takes_value(true)
+                .required_if("coloring_strategy", "colored_with_intensity"),
             clap::Arg::with_name("octree_directory")
                 .help("Octree directory to turn into xrays.")
                 .index(1)
@@ -240,8 +258,20 @@ pub fn main() {
     if !tile_size.is_power_of_two() {
         panic!("tile_size is not a power of two.");
     }
-    let coloring_strategy_kind = value_t!(args, "coloring_strategy", ColoringStrategyKind)
-        .expect("coloring_strategy is invalid");
+
+    let coloring_strategy_kind = {
+        use ColoringStrategyArgument::*;
+        let arg = value_t!(args, "coloring_strategy", ColoringStrategyArgument)
+            .expect("coloring_strategy is invalid");
+        match arg {
+            xray => ColoringStrategyKind::XRay,
+            colored => ColoringStrategyKind::Colored,
+            colored_with_intensity => ColoringStrategyKind::ColoredWithIntensity(
+                value_t!(args, "min_intensity", f32).unwrap_or(1.),
+                value_t!(args, "max_intensity", f32).unwrap_or(1.),
+            ),
+        }
+    };
 
     let octree_directory = Path::new(args.value_of("octree_directory").unwrap());
     let output_directory = Path::new(args.value_of("output_directory").unwrap());

@@ -5,7 +5,7 @@ use fnv::{FnvHashMap, FnvHashSet};
 use image;
 use point_viewer::{octree, InternalIterator, Point, color::{Color, WHITE}};
 use std::collections::hash_map::Entry;
-use std::path::{Path};
+use std::path::Path;
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
@@ -15,18 +15,28 @@ const NUM_Z_BUCKETS: f32 = 1024.;
 arg_enum! {
     #[derive(Debug)]
     #[allow(non_camel_case_types)]
-    pub enum ColoringStrategyKind {
+    pub enum ColoringStrategyArgument {
         xray,
         colored,
+        colored_with_intensity,
     }
 }
 
+#[derive(Debug)]
+pub enum ColoringStrategyKind {
+    XRay,
+    Colored,
+
+    // Min and max intensities.
+    ColoredWithIntensity(f32, f32),
+}
 impl ColoringStrategyKind {
     pub fn new_strategy(&self) -> Box<ColoringStrategy> {
         match *self {
-            ColoringStrategyKind::xray => Box::new(XRayColoringStrategy::new()),
-            ColoringStrategyKind::colored => {
-                Box::new(PointColorColoringStrategy::default())
+            ColoringStrategyKind::XRay => Box::new(XRayColoringStrategy::new()),
+            ColoringStrategyKind::Colored => Box::new(PointColorColoringStrategy::default()),
+            ColoringStrategyKind::ColoredWithIntensity(min_intensity, max_intensity) => {
+                Box::new(IntensityColoringStrategy::new(min_intensity, max_intensity))
             }
         }
     }
@@ -83,6 +93,65 @@ impl ColoringStrategy for XRayColoringStrategy {
             blue: value,
             alpha: value,
         }
+    }
+}
+
+struct IntensityPerColumnData {
+    sum: f32,
+    count: usize,
+}
+
+struct IntensityColoringStrategy {
+    min: f32,
+    max: f32,
+    per_column_data: FnvHashMap<(u32, u32), IntensityPerColumnData>,
+}
+
+impl IntensityColoringStrategy {
+    fn new(min: f32, max: f32) -> Self {
+        IntensityColoringStrategy {
+            min,
+            max,
+            per_column_data: FnvHashMap::default(),
+        }
+    }
+}
+
+impl ColoringStrategy for IntensityColoringStrategy {
+    fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
+        let intensity = p.intensity
+            .expect("Coloring by intensity was requested, but point without intensity found.");
+        if intensity < 0. {
+            return;
+        }
+        match self.per_column_data.entry((x, y)) {
+            Entry::Occupied(mut e) => {
+                let per_column_data = e.get_mut();
+                per_column_data.sum += intensity;
+                per_column_data.count += 1;
+            }
+            Entry::Vacant(v) => {
+                v.insert(IntensityPerColumnData {
+                    sum: intensity,
+                    count: 1,
+                });
+            }
+        }
+    }
+
+    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+        if !self.per_column_data.contains_key(&(x, y)) {
+            return WHITE.to_u8();
+        }
+        let c = &self.per_column_data[&(x, y)];
+        let mean = (c.sum / c.count as f32).max(self.min).min(self.max);
+        let brighten = (mean - self.min).ln() / (self.max - self.min).ln();
+        Color {
+            red: brighten,
+            green: brighten,
+            blue: brighten,
+            alpha: 1.,
+        }.to_u8()
     }
 }
 
@@ -171,4 +240,3 @@ pub fn xray_from_points(
     image.save(png_file).unwrap();
     true
 }
-

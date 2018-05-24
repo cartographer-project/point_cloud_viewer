@@ -1,8 +1,12 @@
 extern crate cgmath;
+#[macro_use]
+extern crate clap;
 extern crate collision;
 extern crate fnv;
+extern crate image;
 #[macro_use]
 extern crate iron;
+extern crate point_viewer;
 extern crate protobuf;
 extern crate quadtree;
 extern crate router;
@@ -12,11 +16,6 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate urlencoded;
 extern crate xray_proto_rust;
-#[macro_use]
-extern crate clap;
-extern crate image;
-extern crate point_viewer;
-
 
 use cgmath::Point2;
 use fnv::FnvHashSet;
