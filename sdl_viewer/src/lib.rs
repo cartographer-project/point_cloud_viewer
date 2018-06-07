@@ -52,6 +52,7 @@ use sdl2::video::GLProfile;
 use std::cmp;
 use std::error::Error;
 use std::sync::Arc;
+use std::rc::Rc;
 
 type OctreeFactory = fn(&String) -> Result<Box<Octree>, Box<Error>>;
 
@@ -153,16 +154,16 @@ impl SdlViewer {
 
         assert_eq!(gl_attr.context_profile(), GLProfile::Core);
 
-        let gl = opengl::Gl::load_with(|s| {
+        let gl = Rc::new(opengl::Gl::load_with(|s| {
             let ptr = video_subsystem.gl_get_proc_address(s);
             unsafe { std::mem::transmute(ptr) }
-        });
+        }));
 
-        let node_drawer = NodeDrawer::new(&gl);
+        let node_drawer = NodeDrawer::new(Rc::clone(&gl));
         let mut node_views = NodeViewContainer::new(Arc::clone(&octree), max_nodes_in_memory);
         let mut visible_nodes = Vec::new();
 
-        let box_drawer = BoxDrawer::new(&gl);
+        let box_drawer = BoxDrawer::new(Rc::clone(&gl));
         let octree_box_color = YELLOW;
         let mut show_octree_nodes = false;
 

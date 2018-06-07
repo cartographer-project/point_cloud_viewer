@@ -21,27 +21,28 @@ use point_viewer::math::Cube;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
+use std::rc::Rc;
 
 const FRAGMENT_SHADER_OUTLINED_BOX: &str = include_str!("../shaders/box_drawer_outline.fs");
 const VERTEX_SHADER_OUTLINED_BOX: &str = include_str!("../shaders/box_drawer_outline.vs");
 
-pub struct BoxDrawer<'a> {
-    outline_program: GlProgram<'a>,
+pub struct BoxDrawer {
+    outline_program: GlProgram,
 
     // Uniforms locations.
     u_transform: GLint,
     u_color: GLint,
 
     // Vertex array and buffers
-    vertex_array: GlVertexArray<'a>,
-    _buffer_position: GlBuffer<'a>,
-    _buffer_indices: GlBuffer<'a>,
+    vertex_array: GlVertexArray,
+    _buffer_position: GlBuffer,
+    _buffer_indices: GlBuffer,
 }
 
-impl<'a> BoxDrawer<'a> {
-    pub fn new(gl: &'a opengl::Gl) -> Self {
+impl BoxDrawer {
+    pub fn new(gl: Rc<opengl::Gl>) -> Self {
         let outline_program =
-            GlProgram::new(gl, VERTEX_SHADER_OUTLINED_BOX, FRAGMENT_SHADER_OUTLINED_BOX);
+            GlProgram::new(Rc::clone(&gl), VERTEX_SHADER_OUTLINED_BOX, FRAGMENT_SHADER_OUTLINED_BOX);
         let u_transform;
         let u_color;
 
@@ -51,11 +52,11 @@ impl<'a> BoxDrawer<'a> {
             u_color = gl.GetUniformLocation(outline_program.id, c_str!("color"));
         }
 
-        let vertex_array = GlVertexArray::new(gl);
+        let vertex_array = GlVertexArray::new(Rc::clone(&gl));
         vertex_array.bind();
 
         // vertex buffer: define 8 vertices of the box
-        let _buffer_position = GlBuffer::new_array_buffer(gl);
+        let _buffer_position = GlBuffer::new_array_buffer(Rc::clone(&gl));
         _buffer_position.bind();
         let vertices: [[f32; 3]; 8] = [
             [-1.0, -1.0, 1.0],  // vertices of front quad
@@ -77,7 +78,7 @@ impl<'a> BoxDrawer<'a> {
         }
 
         // define index buffer for 24 edges of the box
-        let _buffer_indices = GlBuffer::new_element_array_buffer(gl);
+        let _buffer_indices = GlBuffer::new_element_array_buffer(Rc::clone(&gl));
         _buffer_indices.bind();
         let line_indices: [[i32; 2]; 12] = [
             [0, 1],

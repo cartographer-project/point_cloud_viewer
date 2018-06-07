@@ -18,17 +18,18 @@ use glhelper::{compile_shader, link_program};
 use opengl::{self, Gl};
 use opengl::types::GLuint;
 use std::str;
+use std::rc::Rc;
 
-pub struct GlProgram<'a> {
-    pub gl: &'a Gl,
+pub struct GlProgram {
+    pub gl: Rc<Gl>,
     pub id: GLuint,
 }
 
-impl<'a> GlProgram<'a> {
-    pub fn new(gl: &'a opengl::Gl, vertex_shader: &str, fragment_shader: &str) -> Self {
-        let vertex_shader_id = compile_shader(gl, vertex_shader, opengl::VERTEX_SHADER);
-        let fragment_shader_id = compile_shader(gl, fragment_shader, opengl::FRAGMENT_SHADER);
-        let id = link_program(gl, vertex_shader_id, fragment_shader_id);
+impl GlProgram {
+    pub fn new(gl: Rc<opengl::Gl>, vertex_shader: &str, fragment_shader: &str) -> Self {
+        let vertex_shader_id = compile_shader(&*gl, vertex_shader, opengl::VERTEX_SHADER);
+        let fragment_shader_id = compile_shader(&*gl, fragment_shader, opengl::FRAGMENT_SHADER);
+        let id = link_program(&*gl, vertex_shader_id, fragment_shader_id);
 
         // TODO(hrapp): Pull out some saner abstractions around program compilation.
         unsafe {
@@ -39,7 +40,7 @@ impl<'a> GlProgram<'a> {
     }
 }
 
-impl<'a> Drop for GlProgram<'a> {
+impl Drop for GlProgram {
     fn drop(&mut self) {
         unsafe {
             self.gl.DeleteProgram(self.id);
@@ -47,14 +48,14 @@ impl<'a> Drop for GlProgram<'a> {
     }
 }
 
-pub struct GlBuffer<'a> {
-    gl: &'a Gl,
+pub struct GlBuffer {
+    gl: Rc<Gl>,
     id: GLuint,
     buffer_type: GLuint,
 }
 
-impl<'a> GlBuffer<'a> {
-    pub fn new_array_buffer(gl: &'a opengl::Gl) -> Self {
+impl GlBuffer {
+    pub fn new_array_buffer(gl: Rc<opengl::Gl>) -> Self {
         let mut id = 0;
         unsafe {
             gl.GenBuffers(1, &mut id);
@@ -66,7 +67,7 @@ impl<'a> GlBuffer<'a> {
         }
     }
 
-    pub fn new_element_array_buffer(gl: &'a opengl::Gl) -> Self {
+    pub fn new_element_array_buffer(gl: Rc<opengl::Gl>) -> Self {
         let mut id = 0;
         unsafe {
             gl.GenBuffers(1, &mut id);
@@ -85,7 +86,7 @@ impl<'a> GlBuffer<'a> {
     }
 }
 
-impl<'a> Drop for GlBuffer<'a> {
+impl Drop for GlBuffer {
     fn drop(&mut self) {
         unsafe {
             self.gl.DeleteBuffers(1, &self.id);
@@ -93,13 +94,13 @@ impl<'a> Drop for GlBuffer<'a> {
     }
 }
 
-pub struct GlVertexArray<'a> {
-    gl: &'a Gl,
+pub struct GlVertexArray {
+    gl: Rc<Gl>,
     id: GLuint,
 }
 
-impl<'a> GlVertexArray<'a> {
-    pub fn new(gl: &'a Gl) -> Self {
+impl GlVertexArray {
+    pub fn new(gl: Rc<Gl>) -> Self {
         let mut id = 0;
         unsafe {
             gl.GenVertexArrays(1, &mut id);
@@ -114,7 +115,7 @@ impl<'a> GlVertexArray<'a> {
     }
 }
 
-impl<'a> Drop for GlVertexArray<'a> {
+impl Drop for GlVertexArray {
     fn drop(&mut self) {
         unsafe {
             self.gl.DeleteVertexArrays(1, &self.id);
