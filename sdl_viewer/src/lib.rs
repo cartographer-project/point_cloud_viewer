@@ -171,7 +171,6 @@ impl SdlViewer {
         let mut events = ctx.event_pump().unwrap();
         let mut num_frames = 0;
         let mut last_log = time::PreciseTime::now();
-        let mut force_load_all = false;
         let mut point_size = 2.;
         let mut gamma = 1.;
         let mut max_level_moving = 4;
@@ -195,7 +194,6 @@ impl SdlViewer {
                             Scancode::D => camera.moving_right = true,
                             Scancode::Z => camera.moving_down = true,
                             Scancode::Q => camera.moving_up = true,
-                            Scancode::F => force_load_all = true,
                             Scancode::O => show_octree_nodes = !show_octree_nodes,
                             Scancode::Num1 => max_level_moving -= 1,
                             Scancode::Num2 => max_level_moving += 1,
@@ -249,13 +247,6 @@ impl SdlViewer {
                     camera.width,
                     camera.height,
                 );
-            }
-
-            if force_load_all {
-                println!("Force loading all currently visible nodes.");
-                let visible_node_ids: Vec<_> = visible_nodes.iter().map(|n| n.id).collect();
-                node_views.request_all(&visible_node_ids);
-                force_load_all = false;
             }
 
             let mut num_points_drawn = 0;
