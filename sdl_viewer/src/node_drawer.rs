@@ -26,6 +26,7 @@ use std::ptr;
 use std::str;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::rc::Rc;
 
 const FRAGMENT_SHADER: &str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER: &str = include_str!("../shaders/points.vs");
@@ -41,8 +42,8 @@ fn reshuffle(new_order: &[usize], old_data: &[u8], bytes_per_vertex: usize) -> V
     new_data
 }
 
-pub struct NodeDrawer<'a> {
-    pub program: GlProgram<'a>,
+pub struct NodeDrawer {
+    pub program: GlProgram,
 
     // Uniforms locations.
     u_world_to_gl: GLint,
@@ -52,9 +53,9 @@ pub struct NodeDrawer<'a> {
     u_min: GLint,
 }
 
-impl<'a> NodeDrawer<'a> {
-    pub fn new(gl: &'a opengl::Gl) -> Self {
-        let program = GlProgram::new(gl, VERTEX_SHADER, FRAGMENT_SHADER);
+impl NodeDrawer {
+    pub fn new(gl: Rc<opengl::Gl>) -> Self {
+        let program = GlProgram::new(Rc::clone(&gl), VERTEX_SHADER, FRAGMENT_SHADER);
         let u_world_to_gl;
         let u_edge_length;
         let u_size;
@@ -127,24 +128,24 @@ impl<'a> NodeDrawer<'a> {
     }
 }
 
-pub struct NodeView<'a> {
+pub struct NodeView {
     pub meta: octree::NodeMeta,
 
     // The buffers are bound by 'vertex_array', so we never refer to them. But they must outlive
     // this 'NodeView'.
-    vertex_array: GlVertexArray<'a>,
-    _buffer_position: GlBuffer<'a>,
-    _buffer_color: GlBuffer<'a>,
+    vertex_array: GlVertexArray,
+    _buffer_position: GlBuffer,
+    _buffer_color: GlBuffer,
     used_memory_bytes: usize,
 }
 
-impl<'a> NodeView<'a> {
-    fn new(program: &'a GlProgram, node_data: octree::NodeData) -> Self {
+impl NodeView {
+    fn new(program: &GlProgram, node_data: octree::NodeData) -> Self {
         unsafe {
             program.gl.UseProgram(program.id);
         }
 
-        let vertex_array = GlVertexArray::new(program.gl);
+        let vertex_array = GlVertexArray::new(Rc::clone(&program.gl));
         vertex_array.bind();
 
         // We draw the points in random order. This allows us to only draw the first N if we want
@@ -164,8 +165,8 @@ impl<'a> NodeView<'a> {
         );
         let color = reshuffle(&indices, &node_data.color, 3);
 
-        let buffer_position = GlBuffer::new_array_buffer(program.gl);
-        let buffer_color = GlBuffer::new_array_buffer(program.gl);
+        let buffer_position = GlBuffer::new_array_buffer(Rc::clone(&program.gl));
+        let buffer_color = GlBuffer::new_array_buffer(Rc::clone(&program.gl));
 
         unsafe {
             buffer_position.bind();
@@ -222,8 +223,8 @@ impl<'a> NodeView<'a> {
 }
 
 // Keeps track of the nodes that were requested in-order and loads then one by one on request.
-pub struct NodeViewContainer<'a> {
-    node_views: LruCache<octree::NodeId, NodeView<'a>>,
+pub struct NodeViewContainer {
+    node_views: LruCache<octree::NodeId, NodeView>,
     // The node_ids that the I/O thread is currently loading.
     requested: FnvHashSet<octree::NodeId>,
     // Communication with the I/O thread.
@@ -231,7 +232,7 @@ pub struct NodeViewContainer<'a> {
     node_data_receiver: Receiver<(octree::NodeId, octree::NodeData)>,
 }
 
-impl<'a> NodeViewContainer<'a> {
+impl NodeViewContainer {
     pub fn new(octree: Arc<Box<octree::Octree>>, max_nodes_in_memory: usize) -> Self {
         // We perform I/O in a separate thread in order to not block the main thread while loading.
         // Data sharing is done through channels.
@@ -258,7 +259,7 @@ impl<'a> NodeViewContainer<'a> {
     pub fn get_or_request(
         &mut self,
         node_id: &octree::NodeId,
-        program: &'a GlProgram,
+        program: &GlProgram,
     ) -> Option<&NodeView> {
         while let Ok((node_id, node_data)) = self.node_data_receiver.try_recv() {
             // Put loaded node into hash map.
