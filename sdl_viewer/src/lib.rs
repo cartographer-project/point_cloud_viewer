@@ -44,6 +44,7 @@ use box_drawer::BoxDrawer;
 use camera::Camera;
 use fnv::FnvHashMap;
 use node_drawer::{NodeDrawer, NodeViewContainer};
+use cgmath::{Matrix4, SquareMatrix};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree};
 use sdl2::event::{Event, WindowEvent};
@@ -58,6 +59,170 @@ type OctreeFactory = fn(&String) -> Result<Box<Octree>, Box<Error>>;
 
 pub struct SdlViewer {
     octree_factories: FnvHashMap<String, OctreeFactory>,
+}
+
+struct PointCloudRenderer {
+    gl: Rc<opengl::Gl>,
+    node_drawer: NodeDrawer,
+    last_moving: time::PreciseTime,
+    // TODO(sirver): Logging does not fit into this classes responsibilities.
+    last_log: time::PreciseTime,
+    visible_nodes: Vec<octree::VisibleNode>,
+    octree: Arc<Box<octree::Octree>>,
+    num_frames: u32,
+    point_size: f32,
+    gamma: f32,
+    needs_drawing: bool,
+    max_nodes_in_memory: usize,
+    world_to_gl: Matrix4<f32>,
+    max_level_moving: usize,
+    show_octree_nodes: bool,
+    node_views: NodeViewContainer,
+    box_drawer: BoxDrawer,
+}
+
+#[derive(Debug)]
+enum DrawResult {
+    HasDrawn, NoChange
+}
+impl PointCloudRenderer {
+    pub fn new(max_nodes_in_memory: usize, gl: Rc<opengl::Gl>, octree: Arc<Box<octree::Octree>>) -> Self {
+        let now = time::PreciseTime::now();
+        Self { 
+            last_moving: now,
+            last_log: now,
+            visible_nodes: Vec::new(),
+            node_drawer: NodeDrawer::new(Rc::clone(&gl)),
+            num_frames: 0,
+            point_size: 2.,
+            gamma: 1.,
+            max_level_moving: 4,
+            needs_drawing: true,
+            show_octree_nodes: false,
+            max_nodes_in_memory,
+            node_views: NodeViewContainer::new(Arc::clone(&octree), max_nodes_in_memory),
+            box_drawer: BoxDrawer::new(Rc::clone(&gl)),
+            world_to_gl: Matrix4::identity(),
+            octree,
+            gl
+        }
+    }
+
+    pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f32>, width: i32, height: i32) {
+        self.last_moving = time::PreciseTime::now();
+        self.needs_drawing = true;
+        self.node_drawer.update_world_to_gl(world_to_gl);
+        self.visible_nodes = self.octree.get_visible_nodes(world_to_gl, width, height);
+        self.world_to_gl = world_to_gl.clone();
+    }
+
+    pub fn toggle_show_octree_nodes(&mut self) {
+        self.show_octree_nodes = !self.show_octree_nodes;
+    }
+
+    pub fn increment_max_level_moving(&mut self) {
+        self.max_level_moving += 1;
+        self.needs_drawing = true;
+    }
+
+    pub fn decrement_max_level_moving(&mut self) {
+        if self.max_level_moving > 0 {
+            self.max_level_moving -= 1;
+        }
+        self.needs_drawing = true;
+    }
+
+    pub fn adjust_gamma(&mut self, delta: f32) {
+        self.gamma += delta;
+        self.needs_drawing = true;
+    }
+
+    pub fn adjust_point_size(&mut self, delta: f32) {
+        // Point size == 1. is the smallest that is rendered.
+        self.point_size = (self.point_size + delta).max(1.);
+        self.needs_drawing = true;
+    }
+
+    pub fn draw(&mut self) -> DrawResult {
+        let mut draw_result = DrawResult::NoChange;
+        let mut num_points_drawn = 0;
+        let mut num_nodes_drawn = 0;
+
+        let now = time::PreciseTime::now();
+        let moving = self.last_moving.to(now) < time::Duration::milliseconds(150);
+        self.needs_drawing |= self.node_views.consume_arrived_nodes(&self.node_drawer.program);
+        if self.needs_drawing {
+            unsafe {
+                self.gl.ClearColor(0., 0., 0., 1.);
+                self.gl.Clear(opengl::COLOR_BUFFER_BIT | opengl::DEPTH_BUFFER_BIT);
+            }
+        }
+
+        // Bisect the actual level to choose, we want to be as close as possible to the max
+        // nodes to use.
+        let mut max_level_to_display = if moving { self.max_level_moving } else { 256 };
+        let mut min_level_to_display = 0;
+        let mut filtered_visible_nodes: Vec<_>;
+        while (max_level_to_display - min_level_to_display) > 1 {
+            let current = (max_level_to_display + min_level_to_display) / 2;
+            filtered_visible_nodes = self.visible_nodes
+                .iter()
+                .filter(|n| n.id.level() <= current)
+                .collect();
+            if filtered_visible_nodes.len() > self.max_nodes_in_memory {
+                max_level_to_display = current;
+            } else {
+                min_level_to_display = current;
+            }
+        }
+        filtered_visible_nodes = self.visible_nodes
+            .iter()
+            .filter(|n| n.id.level() <= min_level_to_display)
+            .collect();
+        assert!(filtered_visible_nodes.len() < self.max_nodes_in_memory);
+
+        for visible_node in filtered_visible_nodes {
+            let view = self.node_views.get_or_request(&visible_node.id);
+            if !self.needs_drawing || view.is_none() {
+                continue;
+            }
+            let view = view.unwrap();
+            num_points_drawn +=
+                self.node_drawer.draw(view, 1 /* level of detail */, self.point_size, self.gamma);
+            num_nodes_drawn += 1;
+
+            if self.show_octree_nodes {
+                self.box_drawer.draw_outlines(
+                    &view.meta.bounding_cube,
+                    &self.world_to_gl,
+                    &YELLOW,
+                );
+            }
+        }
+        if self.needs_drawing {
+            draw_result = DrawResult::HasDrawn;
+        }
+        self.needs_drawing = moving;
+
+        self.num_frames += 1;
+        let now = time::PreciseTime::now();
+        if self.last_log.to(now) > time::Duration::seconds(1) {
+            let duration = self.last_log.to(now).num_microseconds().unwrap();
+            let fps = (self.num_frames * 1_000_000u32) as f32 / duration as f32;
+            self.num_frames = 0;
+            self.last_log = now;
+            println!(
+                "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes \
+                     should be shown, Cache {} MB",
+                     fps,
+                     num_points_drawn,
+                     num_nodes_drawn,
+                     self.visible_nodes.len(),
+                     self.node_views.get_used_memory_bytes() as f32 / 1024. / 1024.,
+                     );
+        }
+        draw_result
+    }
 }
 
 impl SdlViewer {
@@ -159,25 +324,10 @@ impl SdlViewer {
             unsafe { std::mem::transmute(ptr) }
         }));
 
-        let node_drawer = NodeDrawer::new(Rc::clone(&gl));
-        let mut node_views = NodeViewContainer::new(Arc::clone(&octree), max_nodes_in_memory);
-        let mut visible_nodes = Vec::new();
-
-        let box_drawer = BoxDrawer::new(Rc::clone(&gl));
-        let octree_box_color = YELLOW;
-        let mut show_octree_nodes = false;
-
+        let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree); 
         let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
 
         let mut events = ctx.event_pump().unwrap();
-        let mut num_frames = 0;
-        let mut last_log = time::PreciseTime::now();
-        let mut point_size = 2.;
-        let mut gamma = 1.;
-        let mut max_level_moving = 4;
-        let mut last_moving = time::PreciseTime::now();
-        let mut needs_drawing = true;
-        let mut last_drawing = last_moving;
         'outer_loop: loop {
             for event in events.poll_iter() {
                 match event {
@@ -186,7 +336,6 @@ impl SdlViewer {
                         scancode: Some(code),
                         ..
                     } => {
-                        needs_drawing = true;
                         match code {
                             Scancode::Escape => break 'outer_loop,
                             Scancode::W => camera.moving_forward = true,
@@ -195,13 +344,13 @@ impl SdlViewer {
                             Scancode::D => camera.moving_right = true,
                             Scancode::Z => camera.moving_down = true,
                             Scancode::Q => camera.moving_up = true,
-                            Scancode::O => show_octree_nodes = !show_octree_nodes,
-                            Scancode::Num1 => max_level_moving -= 1,
-                            Scancode::Num2 => max_level_moving += 1,
-                            Scancode::Num7 => gamma -= 0.1,
-                            Scancode::Num8 => gamma += 0.1,
-                            Scancode::Num9 => point_size -= 0.1,
-                            Scancode::Num0 => point_size += 0.1,
+                            Scancode::O => renderer.toggle_show_octree_nodes(),
+                            Scancode::Num1 => renderer.decrement_max_level_moving(),
+                            Scancode::Num2 => renderer.increment_max_level_moving(),
+                            Scancode::Num7 => renderer.adjust_gamma(-0.1), 
+                            Scancode::Num8 => renderer.adjust_gamma(0.1), 
+                            Scancode::Num9 => renderer.adjust_point_size(-0.1),
+                            Scancode::Num0 => renderer.adjust_point_size(0.1),
                             _ => (),
                         }
                     }
@@ -240,94 +389,12 @@ impl SdlViewer {
             }
 
             if camera.update() {
-                last_moving = time::PreciseTime::now();
-                needs_drawing = true;
-                node_drawer.update_world_to_gl(&camera.get_world_to_gl());
-                visible_nodes = octree.get_visible_nodes(
-                    &camera.get_world_to_gl(),
-                    camera.width,
-                    camera.height,
-                );
+                renderer.camera_changed(&camera.get_world_to_gl(), camera.width, camera.height);
             }
 
-            let mut num_points_drawn = 0;
-            let mut num_nodes_drawn = 0;
-
-            let now = time::PreciseTime::now();
-            let moving = last_moving.to(now) < time::Duration::milliseconds(150);
-            needs_drawing =
-                needs_drawing || last_drawing.to(now) < time::Duration::milliseconds(1000);
-            if needs_drawing {
-                unsafe {
-                    gl.ClearColor(0., 0., 0., 1.);
-                    gl.Clear(opengl::COLOR_BUFFER_BIT | opengl::DEPTH_BUFFER_BIT);
-                }
-            }
-
-            // Bisect the actual level to choose, we want to be as close as possible to the max
-            // nodes to use.
-            let mut max_level_to_display = if moving { max_level_moving } else { 256 };
-            let mut min_level_to_display = 0;
-            let mut filtered_visible_nodes: Vec<_>;
-            while (max_level_to_display - min_level_to_display) > 1 {
-                let current = (max_level_to_display + min_level_to_display) / 2;
-                filtered_visible_nodes = visible_nodes
-                    .iter()
-                    .filter(|n| n.id.level() <= current)
-                    .collect();
-                if filtered_visible_nodes.len() > max_nodes_in_memory {
-                    max_level_to_display = current;
-                } else {
-                    min_level_to_display = current;
-                }
-            }
-            filtered_visible_nodes = visible_nodes
-                .iter()
-                .filter(|n| n.id.level() <= min_level_to_display)
-                .collect();
-            assert!(filtered_visible_nodes.len() < max_nodes_in_memory);
-
-            for visible_node in filtered_visible_nodes {
-                let view = node_views.get_or_request(&visible_node.id, &node_drawer.program);
-                if !needs_drawing || view.is_none() {
-                    continue;
-                }
-                let view = view.unwrap();
-                num_points_drawn +=
-                    node_drawer.draw(view, 1 /* level of detail */, point_size, gamma);
-                num_nodes_drawn += 1;
-
-                // debug drawer
-                if show_octree_nodes {
-                    box_drawer.draw_outlines(
-                        &view.meta.bounding_cube,
-                        &camera.get_world_to_gl(),
-                        &octree_box_color,
-                    );
-                }
-            }
-            if needs_drawing {
-                window.gl_swap_window();
-                last_drawing = time::PreciseTime::now();
-            }
-            needs_drawing = moving;
-
-            num_frames += 1;
-            let now = time::PreciseTime::now();
-            if last_log.to(now) > time::Duration::seconds(1) {
-                let duration = last_log.to(now).num_microseconds().unwrap();
-                let fps = (num_frames * 1_000_000u32) as f32 / duration as f32;
-                num_frames = 0;
-                last_log = now;
-                println!(
-                    "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes \
-                     should be shown, Cache {} MB",
-                    fps,
-                    num_points_drawn,
-                    num_nodes_drawn,
-                    visible_nodes.len(),
-                    node_views.get_used_memory_bytes() as f32 / 1024. / 1024.,
-                );
+            match renderer.draw() {
+                DrawResult::HasDrawn => window.gl_swap_window(),
+                DrawResult::NoChange => (),
             }
         }
     }
