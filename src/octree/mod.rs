@@ -236,6 +236,9 @@ impl OnDiskOctree {
 }
 
 impl Octree for OnDiskOctree {
+    // TODO(sirver): This function becomes a bottleneck for large Octree's. It could be be
+    // formulated as an iterator. To keep the order (approximately) right, the open list could be
+    // replaced by a max heap looking at pixel size on screen.
     fn get_visible_nodes(
         &self,
         projection_matrix: &Matrix4<f32>,

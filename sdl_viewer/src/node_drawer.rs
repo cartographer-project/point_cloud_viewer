@@ -254,20 +254,24 @@ impl NodeViewContainer {
         }
     }
 
-    // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
-    // requested the node for loading in the I/O thread
-    pub fn get_or_request(
-        &mut self,
-        node_id: &octree::NodeId,
-        program: &GlProgram,
-    ) -> Option<&NodeView> {
+    pub fn consume_arrived_nodes(&mut self, program: &GlProgram) -> bool {
+        let mut consumed_any = false;
         while let Ok((node_id, node_data)) = self.node_data_receiver.try_recv() {
             // Put loaded node into hash map.
             self.requested.remove(&node_id);
             self.node_views
                 .insert(node_id, NodeView::new(program, node_data));
+            consumed_any = true;
         }
+        consumed_any
+    }
 
+    // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
+    // requested the node for loading in the I/O thread
+    pub fn get_or_request(
+        &mut self,
+        node_id: &octree::NodeId
+    ) -> Option<&NodeView> {
         if self.node_views.contains_key(node_id) {
             return self.node_views.get_mut(node_id).map(|f| f as &NodeView);
         }
