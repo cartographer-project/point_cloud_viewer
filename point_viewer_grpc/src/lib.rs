@@ -26,8 +26,7 @@ use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::errors::*;
 use point_viewer::math::Cube;
-use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, PositionEncoding,
-                           VisibleNode};
+use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, PositionEncoding};
 pub use point_viewer_grpc_proto_rust::proto;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
 use proto_grpc::OctreeClient;
@@ -81,7 +80,7 @@ impl Octree for GrpcOctree {
         projection_matrix: &Matrix4<f32>,
         width: i32,
         height: i32,
-    ) -> Vec<VisibleNode> {
+    ) -> Vec<NodeId> {
         self.octree
             .get_visible_nodes(projection_matrix, width, height)
     }

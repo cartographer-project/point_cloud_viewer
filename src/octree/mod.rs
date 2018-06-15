@@ -15,15 +15,16 @@
 use {InternalIterator, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector2};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
+use std::collections::BinaryHeap;
 use errors::*;
 use fnv::FnvHashMap;
 use math::Cube;
-use num_traits::Zero;
 use proto;
 use protobuf;
 use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
+use std::cmp::{Ordering};
 
 mod node;
 
@@ -37,21 +38,6 @@ pub struct OctreeMeta {
     pub directory: PathBuf,
     pub resolution: f64,
     pub bounding_box: Aabb3<f32>,
-}
-
-#[derive(Debug)]
-pub struct VisibleNode {
-    pub id: NodeId,
-    pixels: Vector2<f32>,
-}
-
-impl VisibleNode {
-    pub fn new(id: NodeId) -> VisibleNode {
-        VisibleNode {
-            id,
-            pixels: Vector2::zero(),
-        }
-    }
 }
 
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
@@ -105,7 +91,7 @@ pub trait Octree: Send + Sync {
         projection_matrix: &Matrix4<f32>,
         width: i32,
         height: i32,
-    ) -> Vec<VisibleNode>;
+    ) -> Vec<NodeId>;
 
     fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData>;
 }
@@ -235,6 +221,65 @@ impl OnDiskOctree {
     }
 }
 
+struct OpenNode {
+    node: Node,
+    relation: Relation,
+    pixels_sq: f32,
+}
+
+impl Ord for OpenNode {
+    fn cmp(&self, other: &OpenNode) -> Ordering {
+        if self.pixels_sq == other.pixels_sq {
+            return Ordering::Equal;
+        }
+        if self.pixels_sq < other.pixels_sq {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
+    }
+}
+
+impl PartialOrd for OpenNode {
+    fn partial_cmp(&self, other: &OpenNode) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for OpenNode {
+    fn eq(&self, other: &OpenNode) -> bool {
+        self.pixels_sq == other.pixels_sq
+    }
+}
+
+impl Eq for OpenNode {
+}
+
+#[inline]
+fn maybe_push_node(v: &mut BinaryHeap<OpenNode>, nodes: &FnvHashMap<NodeId, NodeMeta>, relation: Relation, node: Node, projection_matrix: &Matrix4<f32>, width: i32, height: i32) {
+    if !nodes.contains_key(&node.id) {
+        return;
+    }
+    let pixels = size_in_pixels(
+        &node.bounding_cube,
+        projection_matrix,
+        width,
+        height,
+    );
+    let visible_pixels = pixels.x * pixels.y;
+    const MIN_PIXELS_SQ: f32 = 120.;
+    const MIN_PIXELS_SIDE: f32 = 12.;
+    if pixels.x < MIN_PIXELS_SIDE || pixels.y < MIN_PIXELS_SIDE
+        || visible_pixels < MIN_PIXELS_SQ
+    {
+        return;
+    }
+
+    v.push(OpenNode {
+        node, relation, pixels_sq: visible_pixels,
+    });
+}
+
 impl Octree for OnDiskOctree {
     // TODO(sirver): This function becomes a bottleneck for large Octree's. It could be be
     // formulated as an iterator. To keep the order (approximately) right, the open list could be
@@ -244,52 +289,41 @@ impl Octree for OnDiskOctree {
         projection_matrix: &Matrix4<f32>,
         width: i32,
         height: i32,
-    ) -> Vec<VisibleNode> {
+    ) -> Vec<NodeId> {
         let frustum = Frustum::from_matrix4(*projection_matrix).unwrap();
-        let mut open = vec![
-            Node::root_with_bounding_cube(Cube::bounding(&self.meta.bounding_box)),
-        ];
+        let mut open = BinaryHeap::new();
+        maybe_push_node(&mut open,
+                        &self.nodes,
+                  Relation::Cross, Node::root_with_bounding_cube(Cube::bounding(&self.meta.bounding_box)),
+                  projection_matrix, width, height
+                  );
 
         let mut visible = Vec::new();
-        while !open.is_empty() {
-            let node_to_explore = open.pop().unwrap();
-            let meta = self.nodes.get(&node_to_explore.id);
-            if meta.is_none()
-                || frustum.contains(&node_to_explore.bounding_cube.to_aabb3()) == Relation::Out
-            {
-                continue;
-            }
-
-            let pixels = size_in_pixels(
-                &node_to_explore.bounding_cube,
-                projection_matrix,
-                width,
-                height,
-            );
-            let visible_pixels = pixels.x * pixels.y;
-            const MIN_PIXELS_SQ: f32 = 120.;
-            const MIN_PIXELS_SIDE: f32 = 12.;
-            if pixels.x < MIN_PIXELS_SIDE || pixels.y < MIN_PIXELS_SIDE
-                || visible_pixels < MIN_PIXELS_SQ
-            {
-                continue;
-            }
-
-            for child_index in 0..8 {
-                open.push(node_to_explore.get_child(ChildIndex::from_u8(child_index)))
-            }
-
-            visible.push(VisibleNode {
-                id: node_to_explore.id,
-                pixels: pixels,
-            });
+        while let Some(current) = open.pop() {
+            match current.relation {
+                Relation::Cross => {
+                    for child_index in 0..8 {
+                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
+                        let child_relation = frustum.contains(&child.bounding_cube.to_aabb3());
+                        if child_relation == Relation::Out {
+                            continue;
+                        }
+                        maybe_push_node(&mut open, &self.nodes, child_relation, child, projection_matrix, width, height);
+                    }
+                },
+                Relation::In => {
+                    // When the parent is fully in the frustum, so are the children.
+                    for child_index in 0..8 {
+                        maybe_push_node(&mut open, &self.nodes, Relation::In, current.node.get_child(ChildIndex::from_u8(child_index)), projection_matrix, width, height);
+                    }
+                },
+                Relation::Out => {
+                    // This should never happen.
+                    unreachable!();
+                }
+            };
+            visible.push(current.node.id);
         }
-
-        visible.sort_by(|a, b| {
-            let size_a = a.pixels.x * a.pixels.y;
-            let size_b = b.pixels.x * b.pixels.y;
-            size_b.partial_cmp(&size_a).unwrap()
-        });
         visible
     }
 

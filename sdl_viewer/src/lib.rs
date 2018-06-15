@@ -67,7 +67,7 @@ struct PointCloudRenderer {
     last_moving: time::PreciseTime,
     // TODO(sirver): Logging does not fit into this classes responsibilities.
     last_log: time::PreciseTime,
-    visible_nodes: Vec<octree::VisibleNode>,
+    visible_nodes: Vec<octree::NodeId>,
     octree: Arc<Box<octree::Octree>>,
     num_frames: u32,
     point_size: f32,
@@ -112,7 +112,10 @@ impl PointCloudRenderer {
         self.last_moving = time::PreciseTime::now();
         self.needs_drawing = true;
         self.node_drawer.update_world_to_gl(world_to_gl);
+        let now = ::std::time::Instant::now();
         self.visible_nodes = self.octree.get_visible_nodes(world_to_gl, width, height);
+        println!("Currently visible nodes: {}, time to calculate: {:?}", self.visible_nodes.len(), now.elapsed());
+        self.last_moving = time::PreciseTime::now();
         self.world_to_gl = world_to_gl.clone();
     }
 
@@ -167,7 +170,7 @@ impl PointCloudRenderer {
             let current = (max_level_to_display + min_level_to_display) / 2;
             filtered_visible_nodes = self.visible_nodes
                 .iter()
-                .filter(|n| n.id.level() <= current)
+                .filter(|id| id.level() <= current)
                 .collect();
             if filtered_visible_nodes.len() > self.max_nodes_in_memory {
                 max_level_to_display = current;
@@ -177,12 +180,12 @@ impl PointCloudRenderer {
         }
         filtered_visible_nodes = self.visible_nodes
             .iter()
-            .filter(|n| n.id.level() <= min_level_to_display)
+            .filter(|id| id.level() <= min_level_to_display)
             .collect();
         assert!(filtered_visible_nodes.len() < self.max_nodes_in_memory);
 
-        for visible_node in filtered_visible_nodes {
-            let view = self.node_views.get_or_request(&visible_node.id);
+        for node_id in filtered_visible_nodes {
+            let view = self.node_views.get_or_request(&node_id);
             if !self.needs_drawing || view.is_none() {
                 continue;
             }

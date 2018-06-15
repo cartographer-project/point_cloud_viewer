@@ -100,7 +100,7 @@ impl iron::Handler for VisibleNodes {
         let mut reply = String::from("[");
         let visible_nodes_string = visible_nodes
             .iter()
-            .map(|n| format!("\"{}\"", n.id))
+            .map(|id| format!("\"{}\"", id))
             .collect::<Vec<_>>()
             .join(",");
         reply.push_str(&visible_nodes_string);
