@@ -324,6 +324,7 @@ impl Octree for OnDiskOctree {
             };
             visible.push(current.node.id);
         }
+        visible
     }
 
     fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData> {
