@@ -111,6 +111,7 @@ impl NodeId {
     }
 
     /// Returns the NodeId for the corresponding 'child_index'.
+    #[inline]
     pub fn get_child_id(&self, child_index: ChildIndex) -> Self {
         NodeId {
             level: self.level + 1,
@@ -193,6 +194,7 @@ impl Node {
         }
     }
 
+    #[inline]
     pub fn get_child(&self, child_index: ChildIndex) -> Node {
         let child_bounding_cube = {
             let half_edge_length = self.bounding_cube.edge_length() / 2.;

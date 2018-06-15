@@ -212,7 +212,7 @@ pub fn xray_from_points(
     mut coloring_strategy: Box<ColoringStrategy>,
 ) -> bool {
     let mut seen_any_points = false;
-    octree.points_in_box(&bbox).for_each(|p| {
+    octree.points_in_box(bbox).for_each(|p| {
         seen_any_points = true;
         let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * image_width as f32) as u32;
         let y = (((p.position.y - bbox.min().y) / bbox.dim().y) * image_height as f32) as u32;
