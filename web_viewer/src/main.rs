@@ -65,8 +65,6 @@ impl iron::Handler for VisibleNodes {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
         // TODO(hrapp): This should not crash on error, but return a valid http response.
         let query = req.get_ref::<UrlEncodedQuery>().unwrap();
-        let width: i32 = query.get("width").unwrap()[0].parse().unwrap();
-        let height: i32 = query.get("height").unwrap()[0].parse().unwrap();
         let matrix = {
             // Entries are column major.
             let e: Vec<f32> = query.get("matrix").unwrap()[0]
@@ -95,7 +93,7 @@ impl iron::Handler for VisibleNodes {
 
         let visible_nodes = {
             let octree = self.octree.read().unwrap();
-            octree.get_visible_nodes(&matrix, width, height)
+            octree.get_visible_nodes(&matrix)
         };
         let mut reply = String::from("[");
         let visible_nodes_string = visible_nodes

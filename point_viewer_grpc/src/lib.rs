@@ -75,14 +75,8 @@ impl GrpcOctree {
 }
 
 impl Octree for GrpcOctree {
-    fn get_visible_nodes(
-        &self,
-        projection_matrix: &Matrix4<f32>,
-        width: i32,
-        height: i32,
-    ) -> Vec<NodeId> {
-        self.octree
-            .get_visible_nodes(projection_matrix, width, height)
+    fn get_visible_nodes( &self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
+        self.octree.get_visible_nodes(projection_matrix)
     }
 
     fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData> {
