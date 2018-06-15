@@ -6,8 +6,8 @@ authors = ["Holger Rapp <hrapp@lyft.com>"]
 [dependencies]
 fnv = "1.0.6"
 cgmath = "0.16.0"
-clap = "^2.6.0"
-collision = "0.14.0"
+clap = "^2.31.0"
+collision = "0.18.0"
 image = "0.18.0"
 iron = "^0.3.0"
 protobuf = "1.4.3"

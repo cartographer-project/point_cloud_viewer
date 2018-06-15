@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// TODO(sirver): Work around suppressing a warning until
+// https://github.com/rust-lang-nursery/error-chain/pull/246 is released.
+#![allow(renamed_and_removed_lints)]
 #![recursion_limit = "1024"]
 
 extern crate byteorder;
