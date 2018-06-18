@@ -52,13 +52,20 @@ use sdl2::keyboard::Scancode;
 use sdl2::video::GLProfile;
 use std::cmp;
 use std::error::Error;
-use std::sync::Arc;
 use std::rc::Rc;
+use std::sync::{Arc, mpsc};
+use std::thread;
 
 type OctreeFactory = fn(&String) -> Result<Box<Octree>, Box<Error>>;
 
 pub struct SdlViewer {
     octree_factories: FnvHashMap<String, OctreeFactory>,
+}
+
+struct GetVisibleNodeParams {
+    width: i32,
+    height: i32,
+    matrix: Matrix4<f32>,
 }
 
 struct PointCloudRenderer {
@@ -68,7 +75,8 @@ struct PointCloudRenderer {
     // TODO(sirver): Logging does not fit into this classes responsibilities.
     last_log: time::PreciseTime,
     visible_nodes: Vec<octree::NodeId>,
-    octree: Arc<Box<octree::Octree>>,
+    get_visible_nodes_params_tx: mpsc::Sender<GetVisibleNodeParams>,
+    get_visible_nodes_result_rx: mpsc::Receiver<Vec<octree::NodeId>>,
     num_frames: u32,
     point_size: f32,
     gamma: f32,
@@ -88,6 +96,27 @@ enum DrawResult {
 impl PointCloudRenderer {
     pub fn new(max_nodes_in_memory: usize, gl: Rc<opengl::Gl>, octree: Arc<Box<octree::Octree>>) -> Self {
         let now = time::PreciseTime::now();
+
+        // This thread waits for requests to calculate the currently visible nodes, runs a
+        // calculation and sends the visible nodes back to the drawing thread. If multiple requests
+        // queue up while it is processing one, it will drop all but the latest one before
+        // restarting the next calculation.
+        let (get_visible_nodes_params_tx, rx) = mpsc::channel::<GetVisibleNodeParams>();
+        let (tx, get_visible_nodes_result_rx) = mpsc::channel();
+        let octree_clone = octree.clone();
+        thread::spawn(move || {
+            while let Ok(mut params) = rx.recv() {
+                // Drain the channel, we only ever want to update the latest.
+                while let Ok(newer_params) = rx.try_recv() {
+                    params = newer_params;
+                }
+                let now = ::std::time::Instant::now();
+                let visible_nodes = octree_clone.get_visible_nodes(&params.matrix, params.width, params.height);
+                println!("Currently visible nodes: {}, time to calculate: {:?}", visible_nodes.len(), now.elapsed());
+                tx.send(visible_nodes).unwrap();
+            }
+        });
+
         Self { 
             last_moving: now,
             last_log: now,
@@ -96,14 +125,15 @@ impl PointCloudRenderer {
             num_frames: 0,
             point_size: 2.,
             gamma: 1.,
+            get_visible_nodes_params_tx,
+            get_visible_nodes_result_rx,
             max_level_moving: 4,
             needs_drawing: true,
             show_octree_nodes: false,
             max_nodes_in_memory,
-            node_views: NodeViewContainer::new(Arc::clone(&octree), max_nodes_in_memory),
+            node_views: NodeViewContainer::new(octree, max_nodes_in_memory),
             box_drawer: BoxDrawer::new(Rc::clone(&gl)),
             world_to_gl: Matrix4::identity(),
-            octree,
             gl
         }
     }
@@ -112,9 +142,9 @@ impl PointCloudRenderer {
         self.last_moving = time::PreciseTime::now();
         self.needs_drawing = true;
         self.node_drawer.update_world_to_gl(world_to_gl);
-        let now = ::std::time::Instant::now();
-        self.visible_nodes = self.octree.get_visible_nodes(world_to_gl, width, height);
-        println!("Currently visible nodes: {}, time to calculate: {:?}", self.visible_nodes.len(), now.elapsed());
+        self.get_visible_nodes_params_tx.send(GetVisibleNodeParams {
+            matrix: world_to_gl.clone(), width, height
+        }).unwrap();
         self.last_moving = time::PreciseTime::now();
         self.world_to_gl = world_to_gl.clone();
     }
@@ -154,6 +184,11 @@ impl PointCloudRenderer {
         let now = time::PreciseTime::now();
         let moving = self.last_moving.to(now) < time::Duration::milliseconds(150);
         self.needs_drawing |= self.node_views.consume_arrived_nodes(&self.node_drawer.program);
+        while let Ok(visible_nodes) = self.get_visible_nodes_result_rx.try_recv() {
+            self.visible_nodes = visible_nodes;
+            self.needs_drawing = true;
+        }
+
         if self.needs_drawing {
             unsafe {
                 self.gl.ClearColor(0., 0., 0., 1.);
