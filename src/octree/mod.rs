@@ -15,16 +15,16 @@
 use {InternalIterator, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
-use std::collections::BinaryHeap;
 use errors::*;
 use fnv::FnvHashMap;
 use math::Cube;
 use proto;
 use protobuf;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
-use std::cmp::{Ordering};
 
 mod node;
 
@@ -245,50 +245,68 @@ impl PartialEq for OpenNode {
     }
 }
 
-impl Eq for OpenNode {
-}
+impl Eq for OpenNode {}
 
 #[inline]
-fn maybe_push_node(v: &mut BinaryHeap<OpenNode>, nodes: &FnvHashMap<NodeId, NodeMeta>, relation: Relation, node: Node, projection_matrix: &Matrix4<f32>) {
+fn maybe_push_node(
+    v: &mut BinaryHeap<OpenNode>,
+    nodes: &FnvHashMap<NodeId, NodeMeta>,
+    relation: Relation,
+    node: Node,
+    projection_matrix: &Matrix4<f32>,
+) {
     if !nodes.contains_key(&node.id) {
         return;
     }
-    let size_on_screen = relative_size_on_screen(
-        &node.bounding_cube,
-        projection_matrix
-    );
-    v.push(OpenNode { node, relation, size_on_screen });
+    let size_on_screen = relative_size_on_screen(&node.bounding_cube, projection_matrix);
+    v.push(OpenNode {
+        node,
+        relation,
+        size_on_screen,
+    });
 }
 
 impl Octree for OnDiskOctree {
     fn get_visible_nodes(&self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
         let frustum = Frustum::from_matrix4(*projection_matrix).unwrap();
         let mut open = BinaryHeap::new();
-        maybe_push_node(&mut open,
-                        &self.nodes,
-                  Relation::Cross, Node::root_with_bounding_cube(Cube::bounding(&self.meta.bounding_box)),
-                  projection_matrix,
-                  );
+        maybe_push_node(
+            &mut open,
+            &self.nodes,
+            Relation::Cross,
+            Node::root_with_bounding_cube(Cube::bounding(&self.meta.bounding_box)),
+            projection_matrix,
+        );
 
         let mut visible = Vec::new();
         while let Some(current) = open.pop() {
             match current.relation {
-                Relation::Cross => {
-                    for child_index in 0..8 {
-                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
-                        let child_relation = frustum.contains(&child.bounding_cube.to_aabb3());
-                        if child_relation == Relation::Out {
-                            continue;
-                        }
-                        maybe_push_node(&mut open, &self.nodes, child_relation, child, projection_matrix);
+                Relation::Cross => for child_index in 0..8 {
+                    let child = current.node.get_child(ChildIndex::from_u8(child_index));
+                    let child_relation = frustum.contains(&child.bounding_cube.to_aabb3());
+                    if child_relation == Relation::Out {
+                        continue;
                     }
+                    maybe_push_node(
+                        &mut open,
+                        &self.nodes,
+                        child_relation,
+                        child,
+                        projection_matrix,
+                    );
                 },
                 Relation::In => {
                     // When the parent is fully in the frustum, so are the children.
                     for child_index in 0..8 {
-                        maybe_push_node(&mut open, &self.nodes, Relation::In, current.node.get_child(ChildIndex::from_u8(child_index)), projection_matrix);
+                        maybe_push_node(
+                            &mut open,
+                            &self.nodes,
+                            Relation::In,
+                            current.node.get_child(ChildIndex::from_u8(child_index)),
+                            projection_matrix,
+                        );
                     }
-                },
+                }
                 Relation::Out => {
                     // This should never happen.
                     unreachable!();

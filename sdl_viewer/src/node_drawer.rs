@@ -23,10 +23,10 @@ use rand::{thread_rng, Rng};
 use std;
 use std::os::raw::c_void;
 use std::ptr;
+use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::rc::Rc;
 
 const FRAGMENT_SHADER: &str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER: &str = include_str!("../shaders/points.vs");
@@ -268,10 +268,7 @@ impl NodeViewContainer {
 
     // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
     // requested the node for loading in the I/O thread
-    pub fn get_or_request(
-        &mut self,
-        node_id: &octree::NodeId
-    ) -> Option<&NodeView> {
+    pub fn get_or_request(&mut self, node_id: &octree::NodeId) -> Option<&NodeView> {
         if self.node_views.contains_key(node_id) {
             return self.node_views.get_mut(node_id).map(|f| f as &NodeView);
         }

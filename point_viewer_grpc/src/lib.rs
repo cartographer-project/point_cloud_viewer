@@ -41,7 +41,9 @@ pub struct GrpcOctree {
 impl GrpcOctree {
     pub fn new(addr: &str) -> Self {
         let env = Arc::new(EnvBuilder::new().build());
-        let ch = ChannelBuilder::new(env).max_receive_message_len(::std::usize::MAX).connect(addr);
+        let ch = ChannelBuilder::new(env)
+            .max_receive_message_len(::std::usize::MAX)
+            .connect(addr);
         let client = OctreeClient::new(ch);
 
         let reply = client.get_meta(&proto::GetMetaRequest::new()).expect("rpc");
@@ -75,7 +77,7 @@ impl GrpcOctree {
 }
 
 impl Octree for GrpcOctree {
-    fn get_visible_nodes( &self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
+    fn get_visible_nodes(&self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
         self.octree.get_visible_nodes(projection_matrix)
     }
 
