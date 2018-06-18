@@ -54,6 +54,10 @@ fn project(m: &Matrix4<f32>, p: &Point3<f32>) -> Point3<f32> {
 // This method projects world points through the matrix and returns a value proportional to the
 // size of the screen. We do not know the width and height of the frustum in pixels here, so the
 // unit of the value is not really well defined.
+// Ideally we'd need to know the aspect ration of width/height to make the returned value truly
+// proportional to the size on the screen, but this parameter would need to be passed through to
+// all API calls. I decided on relying on a 'good enough' metric instead which did not require the
+// parameter.
 fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f32 {
     // z is unused here.
     let min = bounding_cube.min();
