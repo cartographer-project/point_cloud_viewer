@@ -17,8 +17,8 @@
 use glhelper::{compile_shader, link_program};
 use opengl::{self, Gl};
 use opengl::types::GLuint;
-use std::str;
 use std::rc::Rc;
+use std::str;
 
 pub struct GlProgram {
     pub gl: Rc<Gl>,

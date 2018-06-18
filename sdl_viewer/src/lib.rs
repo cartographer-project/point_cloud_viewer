@@ -42,9 +42,9 @@ pub mod node_drawer;
 
 use box_drawer::BoxDrawer;
 use camera::Camera;
+use cgmath::{Matrix4, SquareMatrix};
 use fnv::FnvHashMap;
 use node_drawer::{NodeDrawer, NodeViewContainer};
-use cgmath::{Matrix4, SquareMatrix};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree};
 use sdl2::event::{Event, WindowEvent};
@@ -53,7 +53,7 @@ use sdl2::video::GLProfile;
 use std::cmp;
 use std::error::Error;
 use std::rc::Rc;
-use std::sync::{Arc, mpsc};
+use std::sync::{mpsc, Arc};
 use std::thread;
 
 type OctreeFactory = fn(&String) -> Result<Box<Octree>, Box<Error>>;
@@ -85,10 +85,15 @@ struct PointCloudRenderer {
 
 #[derive(Debug)]
 enum DrawResult {
-    HasDrawn, NoChange
+    HasDrawn,
+    NoChange,
 }
 impl PointCloudRenderer {
-    pub fn new(max_nodes_in_memory: usize, gl: Rc<opengl::Gl>, octree: Arc<Box<octree::Octree>>) -> Self {
+    pub fn new(
+        max_nodes_in_memory: usize,
+        gl: Rc<opengl::Gl>,
+        octree: Arc<Box<octree::Octree>>,
+    ) -> Self {
         let now = time::PreciseTime::now();
 
         // This thread waits for requests to calculate the currently visible nodes, runs a
@@ -106,12 +111,16 @@ impl PointCloudRenderer {
                 }
                 let now = ::std::time::Instant::now();
                 let visible_nodes = octree_clone.get_visible_nodes(&matrix);
-                println!("Currently visible nodes: {}, time to calculate: {:?}", visible_nodes.len(), now.elapsed());
+                println!(
+                    "Currently visible nodes: {}, time to calculate: {:?}",
+                    visible_nodes.len(),
+                    now.elapsed()
+                );
                 tx.send(visible_nodes).unwrap();
             }
         });
 
-        Self { 
+        Self {
             last_moving: now,
             last_log: now,
             visible_nodes: Vec::new(),
@@ -128,7 +137,7 @@ impl PointCloudRenderer {
             node_views: NodeViewContainer::new(octree, max_nodes_in_memory),
             box_drawer: BoxDrawer::new(Rc::clone(&gl)),
             world_to_gl: Matrix4::identity(),
-            gl
+            gl,
         }
     }
 
@@ -136,7 +145,9 @@ impl PointCloudRenderer {
         self.last_moving = time::PreciseTime::now();
         self.needs_drawing = true;
         self.node_drawer.update_world_to_gl(world_to_gl);
-        self.get_visible_nodes_params_tx.send(world_to_gl.clone()).unwrap();
+        self.get_visible_nodes_params_tx
+            .send(world_to_gl.clone())
+            .unwrap();
         self.last_moving = time::PreciseTime::now();
         self.world_to_gl = world_to_gl.clone();
     }
@@ -175,7 +186,8 @@ impl PointCloudRenderer {
 
         let now = time::PreciseTime::now();
         let moving = self.last_moving.to(now) < time::Duration::milliseconds(150);
-        self.needs_drawing |= self.node_views.consume_arrived_nodes(&self.node_drawer.program);
+        self.needs_drawing |= self.node_views
+            .consume_arrived_nodes(&self.node_drawer.program);
         while let Ok(visible_nodes) = self.get_visible_nodes_result_rx.try_recv() {
             self.visible_nodes = visible_nodes;
             self.needs_drawing = true;
@@ -184,13 +196,15 @@ impl PointCloudRenderer {
         if self.needs_drawing {
             unsafe {
                 self.gl.ClearColor(0., 0., 0., 1.);
-                self.gl.Clear(opengl::COLOR_BUFFER_BIT | opengl::DEPTH_BUFFER_BIT);
+                self.gl
+                    .Clear(opengl::COLOR_BUFFER_BIT | opengl::DEPTH_BUFFER_BIT);
             }
         }
 
         // Bisect the actual level to choose, we want to be as close as possible to the max
         // nodes to use.
-        let mut max_level_to_display = if moving { self.max_level_moving } else { 256 };
+        let mut max_level_to_display =
+            if moving { self.max_level_moving } else { 256 };
         let mut min_level_to_display = 0;
         let mut filtered_visible_nodes: Vec<_>;
         while (max_level_to_display - min_level_to_display) > 1 {
@@ -217,16 +231,17 @@ impl PointCloudRenderer {
                 continue;
             }
             let view = view.unwrap();
-            num_points_drawn +=
-                self.node_drawer.draw(view, 1 /* level of detail */, self.point_size, self.gamma);
+            num_points_drawn += self.node_drawer.draw(
+                view,
+                1, /* level of detail */
+                self.point_size,
+                self.gamma,
+            );
             num_nodes_drawn += 1;
 
             if self.show_octree_nodes {
-                self.box_drawer.draw_outlines(
-                    &view.meta.bounding_cube,
-                    &self.world_to_gl,
-                    &YELLOW,
-                );
+                self.box_drawer
+                    .draw_outlines(&view.meta.bounding_cube, &self.world_to_gl, &YELLOW);
             }
         }
         if self.needs_drawing {
@@ -243,13 +258,13 @@ impl PointCloudRenderer {
             self.last_log = now;
             println!(
                 "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes \
-                     should be shown, Cache {} MB",
-                     fps,
-                     num_points_drawn,
-                     num_nodes_drawn,
-                     self.visible_nodes.len(),
-                     self.node_views.get_used_memory_bytes() as f32 / 1024. / 1024.,
-                     );
+                 should be shown, Cache {} MB",
+                fps,
+                num_points_drawn,
+                num_nodes_drawn,
+                self.visible_nodes.len(),
+                self.node_views.get_used_memory_bytes() as f32 / 1024. / 1024.,
+            );
         }
         draw_result
     }
@@ -354,7 +369,7 @@ impl SdlViewer {
             unsafe { std::mem::transmute(ptr) }
         }));
 
-        let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree); 
+        let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
         let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
 
         let mut events = ctx.event_pump().unwrap();
@@ -365,25 +380,23 @@ impl SdlViewer {
                     Event::KeyDown {
                         scancode: Some(code),
                         ..
-                    } => {
-                        match code {
-                            Scancode::Escape => break 'outer_loop,
-                            Scancode::W => camera.moving_forward = true,
-                            Scancode::S => camera.moving_backward = true,
-                            Scancode::A => camera.moving_left = true,
-                            Scancode::D => camera.moving_right = true,
-                            Scancode::Z => camera.moving_down = true,
-                            Scancode::Q => camera.moving_up = true,
-                            Scancode::O => renderer.toggle_show_octree_nodes(),
-                            Scancode::Num1 => renderer.decrement_max_level_moving(),
-                            Scancode::Num2 => renderer.increment_max_level_moving(),
-                            Scancode::Num7 => renderer.adjust_gamma(-0.1), 
-                            Scancode::Num8 => renderer.adjust_gamma(0.1), 
-                            Scancode::Num9 => renderer.adjust_point_size(-0.1),
-                            Scancode::Num0 => renderer.adjust_point_size(0.1),
-                            _ => (),
-                        }
-                    }
+                    } => match code {
+                        Scancode::Escape => break 'outer_loop,
+                        Scancode::W => camera.moving_forward = true,
+                        Scancode::S => camera.moving_backward = true,
+                        Scancode::A => camera.moving_left = true,
+                        Scancode::D => camera.moving_right = true,
+                        Scancode::Z => camera.moving_down = true,
+                        Scancode::Q => camera.moving_up = true,
+                        Scancode::O => renderer.toggle_show_octree_nodes(),
+                        Scancode::Num1 => renderer.decrement_max_level_moving(),
+                        Scancode::Num2 => renderer.increment_max_level_moving(),
+                        Scancode::Num7 => renderer.adjust_gamma(-0.1),
+                        Scancode::Num8 => renderer.adjust_gamma(0.1),
+                        Scancode::Num9 => renderer.adjust_point_size(-0.1),
+                        Scancode::Num0 => renderer.adjust_point_size(0.1),
+                        _ => (),
+                    },
                     Event::KeyUp {
                         scancode: Some(code),
                         ..

@@ -41,8 +41,11 @@ pub struct BoxDrawer {
 
 impl BoxDrawer {
     pub fn new(gl: Rc<opengl::Gl>) -> Self {
-        let outline_program =
-            GlProgram::new(Rc::clone(&gl), VERTEX_SHADER_OUTLINED_BOX, FRAGMENT_SHADER_OUTLINED_BOX);
+        let outline_program = GlProgram::new(
+            Rc::clone(&gl),
+            VERTEX_SHADER_OUTLINED_BOX,
+            FRAGMENT_SHADER_OUTLINED_BOX,
+        );
         let u_transform;
         let u_color;
 
