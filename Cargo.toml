@@ -20,7 +20,7 @@ version = "0.1.0"
 [dependencies]
 byteorder = "^0.5.3"
 cgmath = "0.16.0"
-clap = "^2.31.0"
+clap = "^2.31.2"
 collision = "0.18.0"
 error-chain = "0.11.0"
 fnv = "1.0.6"

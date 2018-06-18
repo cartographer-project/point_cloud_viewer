@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use {InternalIterator, Point};
-use cgmath::{EuclideanSpace, Matrix4, Point3, Vector2};
+use cgmath::{EuclideanSpace, Matrix4, Point3};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use std::collections::BinaryHeap;
 use errors::*;
@@ -51,12 +51,14 @@ fn project(m: &Matrix4<f32>, p: &Point3<f32>) -> Point3<f32> {
     )
 }
 
-fn size_in_pixels(
-    bounding_cube: &Cube,
-    matrix: &Matrix4<f32>,
-    width: i32,
-    height: i32,
-) -> Vector2<f32> {
+// This method projects world points through the matrix and returns a value proportional to the
+// size of the screen. We do not know the width and height of the frustum in pixels here, so the
+// unit of the value is not really well defined.
+// Ideally we'd need to know the aspect ration of width/height to make the returned value truly
+// proportional to the size on the screen, but this parameter would need to be passed through to
+// all API calls. I decided on relying on a 'good enough' metric instead which did not require the
+// parameter.
+fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f32 {
     // z is unused here.
     let min = bounding_cube.min();
     let max = bounding_cube.max();
@@ -73,10 +75,7 @@ fn size_in_pixels(
     ] {
         rv = rv.grow(project(matrix, p));
     }
-    Vector2::new(
-        (rv.max().x - rv.min().x) * (width as f32) / 2.,
-        (rv.max().y - rv.min().y) * (height as f32) / 2.,
-    )
+    (rv.max().x - rv.min().x) * (rv.max().y - rv.min().y)
 }
 
 #[derive(Debug)]
@@ -86,13 +85,7 @@ pub struct OnDiskOctree {
 }
 
 pub trait Octree: Send + Sync {
-    fn get_visible_nodes(
-        &self,
-        projection_matrix: &Matrix4<f32>,
-        width: i32,
-        height: i32,
-    ) -> Vec<NodeId>;
-
+    fn get_visible_nodes(&self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId>;
     fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData>;
 }
 
@@ -224,15 +217,15 @@ impl OnDiskOctree {
 struct OpenNode {
     node: Node,
     relation: Relation,
-    pixels_sq: f32,
+    size_on_screen: f32,
 }
 
 impl Ord for OpenNode {
     fn cmp(&self, other: &OpenNode) -> Ordering {
-        if self.pixels_sq == other.pixels_sq {
+        if self.size_on_screen == other.size_on_screen {
             return Ordering::Equal;
         }
-        if self.pixels_sq < other.pixels_sq {
+        if self.size_on_screen < other.size_on_screen {
             Ordering::Less
         } else {
             Ordering::Greater
@@ -248,7 +241,7 @@ impl PartialOrd for OpenNode {
 
 impl PartialEq for OpenNode {
     fn eq(&self, other: &OpenNode) -> bool {
-        self.pixels_sq == other.pixels_sq
+        self.size_on_screen == other.size_on_screen
     }
 }
 
@@ -256,46 +249,25 @@ impl Eq for OpenNode {
 }
 
 #[inline]
-fn maybe_push_node(v: &mut BinaryHeap<OpenNode>, nodes: &FnvHashMap<NodeId, NodeMeta>, relation: Relation, node: Node, projection_matrix: &Matrix4<f32>, width: i32, height: i32) {
+fn maybe_push_node(v: &mut BinaryHeap<OpenNode>, nodes: &FnvHashMap<NodeId, NodeMeta>, relation: Relation, node: Node, projection_matrix: &Matrix4<f32>) {
     if !nodes.contains_key(&node.id) {
         return;
     }
-    let pixels = size_in_pixels(
+    let size_on_screen = relative_size_on_screen(
         &node.bounding_cube,
-        projection_matrix,
-        width,
-        height,
+        projection_matrix
     );
-    let visible_pixels = pixels.x * pixels.y;
-    const MIN_PIXELS_SQ: f32 = 120.;
-    const MIN_PIXELS_SIDE: f32 = 12.;
-    if pixels.x < MIN_PIXELS_SIDE || pixels.y < MIN_PIXELS_SIDE
-        || visible_pixels < MIN_PIXELS_SQ
-    {
-        return;
-    }
-
-    v.push(OpenNode {
-        node, relation, pixels_sq: visible_pixels,
-    });
+    v.push(OpenNode { node, relation, size_on_screen });
 }
 
 impl Octree for OnDiskOctree {
-    // TODO(sirver): This function becomes a bottleneck for large Octree's. It could be be
-    // formulated as an iterator. To keep the order (approximately) right, the open list could be
-    // replaced by a max heap looking at pixel size on screen.
-    fn get_visible_nodes(
-        &self,
-        projection_matrix: &Matrix4<f32>,
-        width: i32,
-        height: i32,
-    ) -> Vec<NodeId> {
+    fn get_visible_nodes(&self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
         let frustum = Frustum::from_matrix4(*projection_matrix).unwrap();
         let mut open = BinaryHeap::new();
         maybe_push_node(&mut open,
                         &self.nodes,
                   Relation::Cross, Node::root_with_bounding_cube(Cube::bounding(&self.meta.bounding_box)),
-                  projection_matrix, width, height
+                  projection_matrix,
                   );
 
         let mut visible = Vec::new();
@@ -308,13 +280,13 @@ impl Octree for OnDiskOctree {
                         if child_relation == Relation::Out {
                             continue;
                         }
-                        maybe_push_node(&mut open, &self.nodes, child_relation, child, projection_matrix, width, height);
+                        maybe_push_node(&mut open, &self.nodes, child_relation, child, projection_matrix);
                     }
                 },
                 Relation::In => {
                     // When the parent is fully in the frustum, so are the children.
                     for child_index in 0..8 {
-                        maybe_push_node(&mut open, &self.nodes, Relation::In, current.node.get_child(ChildIndex::from_u8(child_index)), projection_matrix, width, height);
+                        maybe_push_node(&mut open, &self.nodes, Relation::In, current.node.get_child(ChildIndex::from_u8(child_index)), projection_matrix);
                     }
                 },
                 Relation::Out => {

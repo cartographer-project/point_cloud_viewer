@@ -62,12 +62,6 @@ pub struct SdlViewer {
     octree_factories: FnvHashMap<String, OctreeFactory>,
 }
 
-struct GetVisibleNodeParams {
-    width: i32,
-    height: i32,
-    matrix: Matrix4<f32>,
-}
-
 struct PointCloudRenderer {
     gl: Rc<opengl::Gl>,
     node_drawer: NodeDrawer,
@@ -75,7 +69,7 @@ struct PointCloudRenderer {
     // TODO(sirver): Logging does not fit into this classes responsibilities.
     last_log: time::PreciseTime,
     visible_nodes: Vec<octree::NodeId>,
-    get_visible_nodes_params_tx: mpsc::Sender<GetVisibleNodeParams>,
+    get_visible_nodes_params_tx: mpsc::Sender<Matrix4<f32>>,
     get_visible_nodes_result_rx: mpsc::Receiver<Vec<octree::NodeId>>,
     num_frames: u32,
     point_size: f32,
@@ -101,17 +95,17 @@ impl PointCloudRenderer {
         // calculation and sends the visible nodes back to the drawing thread. If multiple requests
         // queue up while it is processing one, it will drop all but the latest one before
         // restarting the next calculation.
-        let (get_visible_nodes_params_tx, rx) = mpsc::channel::<GetVisibleNodeParams>();
+        let (get_visible_nodes_params_tx, rx) = mpsc::channel::<Matrix4<f32>>();
         let (tx, get_visible_nodes_result_rx) = mpsc::channel();
         let octree_clone = octree.clone();
         thread::spawn(move || {
-            while let Ok(mut params) = rx.recv() {
+            while let Ok(mut matrix) = rx.recv() {
                 // Drain the channel, we only ever want to update the latest.
-                while let Ok(newer_params) = rx.try_recv() {
-                    params = newer_params;
+                while let Ok(newer_matrix) = rx.try_recv() {
+                    matrix = newer_matrix;
                 }
                 let now = ::std::time::Instant::now();
-                let visible_nodes = octree_clone.get_visible_nodes(&params.matrix, params.width, params.height);
+                let visible_nodes = octree_clone.get_visible_nodes(&matrix);
                 println!("Currently visible nodes: {}, time to calculate: {:?}", visible_nodes.len(), now.elapsed());
                 tx.send(visible_nodes).unwrap();
             }
@@ -138,13 +132,11 @@ impl PointCloudRenderer {
         }
     }
 
-    pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f32>, width: i32, height: i32) {
+    pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f32>) {
         self.last_moving = time::PreciseTime::now();
         self.needs_drawing = true;
         self.node_drawer.update_world_to_gl(world_to_gl);
-        self.get_visible_nodes_params_tx.send(GetVisibleNodeParams {
-            matrix: world_to_gl.clone(), width, height
-        }).unwrap();
+        self.get_visible_nodes_params_tx.send(world_to_gl.clone()).unwrap();
         self.last_moving = time::PreciseTime::now();
         self.world_to_gl = world_to_gl.clone();
     }
@@ -427,7 +419,7 @@ impl SdlViewer {
             }
 
             if camera.update() {
-                renderer.camera_changed(&camera.get_world_to_gl(), camera.width, camera.height);
+                renderer.camera_changed(&camera.get_world_to_gl());
             }
 
             match renderer.draw() {
