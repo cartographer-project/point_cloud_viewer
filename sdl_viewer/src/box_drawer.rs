@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::{Matrix, Matrix4};
+use cgmath::{EuclideanSpace, Matrix, Matrix4};
+use collision::{Aabb, Aabb3};
 use graphic::{GlBuffer, GlProgram, GlVertexArray};
 use opengl;
 use opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use point_viewer::color;
-use point_viewer::math::Cube;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
@@ -166,12 +166,13 @@ impl BoxDrawer {
     // Then we use 'world_to_gl' to transform it into clip space.
     pub fn draw_outlines(
         &self,
-        cube: &Cube,
+        cuboid: &Aabb3<f32>,
         world_to_gl: &Matrix4<f32>,
         color: &color::Color<f32>,
     ) {
-        let scale_matrix = Matrix4::from_scale(cube.edge_length() / 2.0);
-        let translation_matrix = Matrix4::from_translation(cube.center());
+        let dim = cuboid.dim() / 2.0;
+        let scale_matrix = Matrix4::from_nonuniform_scale(dim.x, dim.y, dim.z);
+        let translation_matrix = Matrix4::from_translation(cuboid.center().to_vec());
         let transformation_matrix = world_to_gl * translation_matrix * scale_matrix;
 
         self.draw_outlines_from_transformation(&transformation_matrix, color);

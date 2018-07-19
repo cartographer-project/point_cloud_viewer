@@ -25,12 +25,19 @@ pub struct Camera {
     pub moving_right: bool,
     pub moving_down: bool,
     pub moving_up: bool,
+    pub turning_left: bool,
+    pub turning_right: bool,
+    pub turning_down: bool,
+    pub turning_up: bool,
     pub width: i32,
     pub height: i32,
 
     movement_speed: f32,
     theta: Rad<f32>,
     phi: Rad<f32>,
+    pan: Vector3<f32>,
+    delta_theta: Rad<f32>,
+    delta_phi: Rad<f32>,
 
     moved: bool,
     transform: Decomposed<Vector3<f32>, Quaternion<f32>>,
@@ -48,9 +55,16 @@ impl Camera {
             moving_right: false,
             moving_down: false,
             moving_up: false,
+            turning_left: false,
+            turning_right: false,
+            turning_down: false,
+            turning_up: false,
             moved: true,
-            theta: Rad(0.),
-            phi: Rad(0.),
+            theta: Rad::zero(),
+            phi: Rad::zero(),
+            pan: Vector3::zero(),
+            delta_theta: Rad::zero(),
+            delta_phi: Rad::zero(),
             transform: Decomposed {
                 scale: 1.,
                 rot: Quaternion::one(),
@@ -78,6 +92,7 @@ impl Camera {
         unsafe {
             gl.Viewport(0, 0, width, height);
         }
+        self.moved = true;
     }
 
     pub fn get_world_to_gl(&self) -> Matrix4<f32> {
@@ -91,6 +106,7 @@ impl Camera {
         let mut moved = self.moved;
         self.moved = false;
 
+        // Handle keyboard input
         let mut pan = Vector3::zero();
         if self.moving_right {
             pan.x += 1.;
@@ -110,25 +126,56 @@ impl Camera {
         if self.moving_down {
             pan.y -= 1.;
         }
-
         if pan.magnitude2() > 0. {
+            self.pan += pan.normalize();
+        }
+
+        const TURNING_SPEED : Rad<f32> = Rad(0.015);
+        if self.turning_left {
+            self.delta_theta += TURNING_SPEED;
+        }
+        if self.turning_right {
+            self.delta_theta -= TURNING_SPEED;
+        }
+        if self.turning_up {
+            self.delta_phi += TURNING_SPEED;
+        }
+        if self.turning_down {
+            self.delta_phi -= TURNING_SPEED;
+        }
+
+        // Apply changes
+        if self.pan.magnitude2() > 0. {
             moved = true;
             let translation = self.transform
                 .rot
-                .rotate_vector(pan.normalize() * self.movement_speed);
+                .rotate_vector(self.pan * self.movement_speed);
             self.transform.disp += translation;
         }
 
-        let rotation_z = Quaternion::from_angle_z(self.theta);
-        let rotation_x = Quaternion::from_angle_x(self.phi);
-        self.transform.rot = rotation_z * rotation_x;
+        if !self.delta_theta.is_zero() || !self.delta_phi.is_zero() {
+            moved = true;
+            self.theta += self.delta_theta;
+            self.phi += self.delta_phi;
+            let rotation_z = Quaternion::from_angle_z(self.theta);
+            let rotation_x = Quaternion::from_angle_x(self.phi);
+            self.transform.rot = rotation_z * rotation_x;
+        }
+
+        self.pan = Vector3::zero();
+        self.delta_theta = Rad::zero();
+        self.delta_phi = Rad::zero();
         moved
     }
 
-    pub fn mouse_drag(&mut self, delta_x: i32, delta_y: i32) {
-        self.moved = true;
-        self.theta -= Rad(2. * f32::consts::PI * delta_x as f32 / self.width as f32);
-        self.phi -= Rad(2. * f32::consts::PI * delta_y as f32 / self.height as f32);
+    pub fn mouse_drag_pan(&mut self, delta_x: i32, delta_y: i32) {
+        self.pan.x -= 100. * delta_x as f32 / self.width as f32;
+        self.pan.y += 100. * delta_y as f32 / self.height as f32;
+    }
+
+    pub fn mouse_drag_rotate(&mut self, delta_x: i32, delta_y: i32) {
+        self.delta_theta -= Rad(2. * f32::consts::PI * delta_x as f32 / self.width as f32);
+        self.delta_phi -= Rad(2. * f32::consts::PI * delta_y as f32 / self.height as f32);
     }
 
     pub fn mouse_wheel(&mut self, delta: i32) {
