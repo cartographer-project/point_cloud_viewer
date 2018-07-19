@@ -14,6 +14,7 @@
 
 extern crate cgmath;
 extern crate clap;
+extern crate collision;
 extern crate fnv;
 extern crate lru_cache;
 extern crate point_viewer;
@@ -241,7 +242,7 @@ impl PointCloudRenderer {
 
             if self.show_octree_nodes {
                 self.box_drawer
-                    .draw_outlines(&view.meta.bounding_cube, &self.world_to_gl, &YELLOW);
+                    .draw_outlines(&view.meta.bounding_cube.to_aabb3(), &self.world_to_gl, &YELLOW);
             }
         }
         if self.needs_drawing {
