@@ -32,20 +32,28 @@ This is a native client using [SDL2](https://libsdl.org).
 3. Build with `cargo build --release`. 
 4. Run with `../target/release/sdl_viewer <octree directory>`.
 
-In the point cloud viewer, navigate with the keyboard and rotate with left-click + mouse drag or touchpad. The following keys are bound:
+In the point cloud viewer, navigate with the keyboard or with the mouse or touchpad. Dragging while pressing the left mouse button rotates, dragging while pressing the right mouse button pans the view. The following keys are bound:
 
-| Key           | Action               |
-| ------------- | -------------------- |
-| W             | Move forward         |
-| A             | Move left            |
-| S             | Move backwards       |
-| D             | Move right           |
-| Q             | Move up              |
-| Z             | Move down            |
-| 0             | Increase points size |
-| 9             | Decrease points size |
-| 8             | Brighten scene       |
-| 7             | Darken scene         |
+| Key           | Action                        |
+| ------------- | ----------------------------- |
+| W             | Move forward                  |
+| A             | Move left                     |
+| S             | Move backwards                |
+| D             | Move right                    |
+| Q             | Move up                       |
+| Z             | Move down                     |
+| Up            | Turn up                       |
+| Left          | Turn left                     |
+| Down          | Turn down                     |
+| Right         | Move right                    |
+| 0             | Increase points size          |
+| 9             | Decrease points size          |
+| 8             | Brighten scene                |
+| 7             | Darken scene                  |
+| 7             | Darken scene                  |
+| 2             | Show more points when moving  |
+| 1             | Show fewer points when moving |
+| O             | Show octree nodes             |
 
 ### Web Viewer
 
