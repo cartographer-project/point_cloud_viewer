@@ -14,6 +14,7 @@
 
 extern crate cgmath;
 extern crate clap;
+extern crate collision;
 extern crate fnv;
 extern crate lru_cache;
 extern crate point_viewer;
@@ -241,7 +242,7 @@ impl PointCloudRenderer {
 
             if self.show_octree_nodes {
                 self.box_drawer
-                    .draw_outlines(&view.meta.bounding_cube, &self.world_to_gl, &YELLOW);
+                    .draw_outlines(&view.meta.bounding_cube.to_aabb3(), &self.world_to_gl, &YELLOW);
             }
         }
         if self.needs_drawing {
@@ -304,11 +305,11 @@ impl SdlViewer {
         let octree_argument = matches.value_of("octree").unwrap();
 
         // Maximum number of MB for the octree node cache. The default is 2 GB
-        let cache_size_mb = matches
+        let cache_size_mb: usize = matches
             .value_of("cache_size_mb")
             .unwrap_or("2000")
             .parse()
-            .unwrap();
+            .expect("Could not parse 'cache_size_mb' option.");
 
         // Maximum number of MB for the octree node cache in range 1..16 GB. The default is 2 GB
         let limit_cache_size_mb = cmp::max(1000, cmp::min(16_000, cache_size_mb));
@@ -388,6 +389,10 @@ impl SdlViewer {
                         Scancode::D => camera.moving_right = true,
                         Scancode::Z => camera.moving_down = true,
                         Scancode::Q => camera.moving_up = true,
+                        Scancode::Left => camera.turning_left = true,
+                        Scancode::Right => camera.turning_right = true,
+                        Scancode::Down => camera.turning_down = true,
+                        Scancode::Up => camera.turning_up = true,
                         Scancode::O => renderer.toggle_show_octree_nodes(),
                         Scancode::Num1 => renderer.decrement_max_level_moving(),
                         Scancode::Num2 => renderer.increment_max_level_moving(),
@@ -407,6 +412,10 @@ impl SdlViewer {
                         Scancode::D => camera.moving_right = false,
                         Scancode::Z => camera.moving_down = false,
                         Scancode::Q => camera.moving_up = false,
+                        Scancode::Left => camera.turning_left = false,
+                        Scancode::Right => camera.turning_right = false,
+                        Scancode::Down => camera.turning_down = false,
+                        Scancode::Up => camera.turning_up = false,
                         _ => (),
                     },
                     Event::MouseMotion {
@@ -414,9 +423,12 @@ impl SdlViewer {
                         yrel,
                         mousestate,
                         ..
-                    } if mousestate.left() =>
-                    {
-                        camera.mouse_drag(xrel, yrel)
+                    } => {
+                        if mousestate.left() {
+                            camera.mouse_drag_rotate(xrel, yrel)
+                        } else if mousestate.right() {
+                            camera.mouse_drag_pan(xrel, yrel)
+                        }
                     }
                     Event::MouseWheel { y, .. } => {
                         camera.mouse_wheel(y);
