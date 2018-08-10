@@ -10,7 +10,7 @@ extern crate protobuf;
 
 use cgmath::Point3;
 use collision::Aabb3;
-use futures::{stream, Stream, Future, Sink};
+use futures::{Stream, Future, Sink};
 use futures::sync::oneshot;
 use grpcio::{Environment, RpcContext, ServerBuilder, ServerStreamingSink, UnarySink, WriteFlags};
 use point_viewer::InternalIterator;
