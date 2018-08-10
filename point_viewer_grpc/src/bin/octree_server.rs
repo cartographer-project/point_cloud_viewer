@@ -10,7 +10,7 @@ extern crate protobuf;
 
 use cgmath::Point3;
 use collision::Aabb3;
-use futures::{stream, Future, Sink};
+use futures::{stream, Stream, Future, Sink};
 use futures::sync::oneshot;
 use grpcio::{Environment, RpcContext, ServerBuilder, ServerStreamingSink, UnarySink, WriteFlags};
 use point_viewer::InternalIterator;
@@ -22,6 +22,7 @@ use std::{io, thread};
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
+use futures::sync::mpsc;
 
 #[derive(Clone)]
 struct OctreeService {
@@ -69,48 +70,63 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetPointsInBoxRequest,
         resp: ServerStreamingSink<proto::GetPointsInBoxReply>,
     ) {
-        let bounding_box = {
-            let bounding_box = req.bounding_box.clone().unwrap();
-            let min = bounding_box.min.unwrap();
-            let max = bounding_box.max.unwrap();
-            Aabb3::new(
-                Point3::new(min.x, min.y, min.z),
-                Point3::new(max.x, max.y, max.z),
-            )
-        };
-        let mut replies = Vec::new();
-        replies.push((proto::GetPointsInBoxReply::new(), WriteFlags::default()));
-        // Computing the protobuf size is very expensive.
-        // We compute the byte size of a Vector3f in the reply proto once outside the loop.
-        let bytes_per_point = {
+        use std::thread;
+
+        let (tx, rx) = mpsc::channel(4);
+        let octree = self.octree.clone();
+        thread::spawn(move || {
+            let mut tx = tx.wait();
+
+            let bounding_box = {
+                let bounding_box = req.bounding_box.clone().unwrap();
+                let min = bounding_box.min.unwrap();
+                let max = bounding_box.max.unwrap();
+                Aabb3::new(
+                    Point3::new(min.x, min.y, min.z),
+                    Point3::new(max.x, max.y, max.z),
+                )
+            };
             let mut reply = proto::GetPointsInBoxReply::new();
-            let initial_proto_size = reply.compute_size();
-            let mut v = point_viewer::proto::Vector3f::new();
-            v.set_x(1.);
-            v.set_y(1.);
-            v.set_z(1.);
-            reply.mut_points().push(v);
-            let final_proto_size = reply.compute_size();
-            final_proto_size - initial_proto_size
-        };
-        // Proto message must be below 4 MB.
-        let max_message_size = 4 * 1024 * 1024;
-        let mut reply_size = 0;
-        self.octree.points_in_box(&bounding_box).for_each(|p| {
-            let mut v = point_viewer::proto::Vector3f::new();
-            v.set_x(p.position.x);
-            v.set_y(p.position.y);
-            v.set_z(p.position.z);
-            replies.last_mut().unwrap().0.mut_points().push(v);
-            reply_size += bytes_per_point;
-            if reply_size > max_message_size - bytes_per_point {
-                replies.push((proto::GetPointsInBoxReply::new(), WriteFlags::default()));
-                reply_size = 0;
-            }
+
+            // Computing the protobuf size is very expensive.
+            // We compute the byte size of a Vector3f in the reply proto once outside the loop.
+            let bytes_per_point = {
+                let mut reply = proto::GetPointsInBoxReply::new();
+                let initial_proto_size = reply.compute_size();
+                let mut v = point_viewer::proto::Vector3f::new();
+                v.set_x(1.);
+                v.set_y(1.);
+                v.set_z(1.);
+                reply.mut_points().push(v);
+                let final_proto_size = reply.compute_size();
+                final_proto_size - initial_proto_size
+            };
+            // Proto message must be below 4 MB.
+            let max_message_size = 4 * 1024 * 1024;
+            let mut reply_size = 0;
+            octree.points_in_box(&bounding_box).for_each(|p| {
+                let mut v = point_viewer::proto::Vector3f::new();
+                v.set_x(p.position.x);
+                v.set_y(p.position.y);
+                v.set_z(p.position.z);
+                reply.mut_points().push(v);
+
+                reply_size += bytes_per_point;
+                if reply_size > max_message_size - bytes_per_point {
+                    tx.send((reply.clone(), WriteFlags::default())).unwrap();
+                    reply.mut_points().clear();
+                    reply_size = 0;
+                }
+            });
         });
-        let f = resp.send_all(stream::iter_ok::<_, grpcio::Error>(replies))
+
+        // TODO(sirver): I did not figure out how to return meaningful errors. At least we return
+        // any error.
+        let rx = rx.map_err(|_| grpcio::Error::RemoteStopped);
+        let f = resp
+            .send_all(rx)
             .map(|_| {})
-            .map_err(|e| println!("failed to rply: {:?}", e));
+            .map_err(|e| println!("failed to reply: {:?}", e));
         ctx.spawn(f)
     }
 }
