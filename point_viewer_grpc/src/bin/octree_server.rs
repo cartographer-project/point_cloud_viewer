@@ -72,9 +72,14 @@ impl proto_grpc::Octree for OctreeService {
     ) {
         use std::thread;
 
+        // This creates a async-aware (tx, rx) pair that can wake up the event loop when new data
+        // is piped through it.
         let (tx, rx) = mpsc::channel(4);
         let octree = self.octree.clone();
         thread::spawn(move || {
+            // This is the secret sauce connecting an OS thread to a event-based receiver. Calling
+            // wait() on this turns the event aware, i.e. async 'tx' into a blocking 'tx' that will
+            // make this thread block when the event loop is not quick enough with piping out data.
             let mut tx = tx.wait();
 
             let bounding_box = {
