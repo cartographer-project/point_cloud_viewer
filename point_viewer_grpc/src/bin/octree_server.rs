@@ -95,7 +95,6 @@ impl proto_grpc::Octree for OctreeService {
         );
 
         let mut reply = proto::GetPointsInFrustumReply::new();
-
         let frustum = Frustum::from_matrix4(projection_matrix);
         visible_nodes.for_each(|node| {
             let node_iterator = match octree::NodeIterator::from_disk(self.meta, &node) {
@@ -109,11 +108,11 @@ impl proto_grpc::Octree for OctreeService {
             points.for_each(|p| {
                 let child_relation = frustum.contains(&p);
                 if child_relation == Relation::In {
-                        let mut v = point_viewer::proto::Vector3f::new();
-                        v.set_x(p.position.x);
-                        v.set_y(p.position.y);
-                        v.set_z(p.position.z);
-                        reply.mut_points().push(v);
+                    let mut v = point_viewer::proto::Vector3f::new();
+                    v.set_x(p.position.x);
+                    v.set_y(p.position.y);
+                    v.set_z(p.position.z);
+                    reply.mut_points().push(v);
                 }
             });
         }
