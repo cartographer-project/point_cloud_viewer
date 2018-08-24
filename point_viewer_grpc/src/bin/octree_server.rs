@@ -8,7 +8,7 @@ extern crate point_viewer;
 extern crate point_viewer_grpc;
 extern crate protobuf;
 
-use cgmath::Point3;
+use cgmath::{Frustum, Matrix4, PerspectiveFov, Point3, Transform}
 use collision::Aabb3;
 use futures::{Stream, Future, Sink};
 use futures::sync::oneshot;
@@ -62,6 +62,62 @@ impl proto_grpc::Octree for OctreeService {
         let f = sink.success(resp)
             .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
         ctx.spawn(f)
+    }
+
+    fn get_points_in_frustum(
+        &self,
+        ctx: RpcContext,
+        req: proto::GetPointsInFrustumRequest,
+        resp: ServerStreamingSink<proto::GetPointsInFrustumReply>,
+    ) {
+        let projection_matrix = Matrix4::from(PerspectiveFov {
+            fov_y: req.fov_y,
+            aspect: req.aspect,
+            z_near:req.z_near,
+            z_far: req.z_far,
+        });
+        let view_position = Point3::new(req.view_position.x, req.view_position.y, req.view_position.z);
+        let view_direction = Vector3::new(req.view_direction.x, req.view_direction.y, req.view_direction.z);
+        let view_up = Vector3::new(req.view_up.x, req.view_up.y, req.view_up.z);
+        let view_center = view_position + view_up;
+
+        let view_transform = Transform.look_at(view_position, view_center, view_up);
+        let view_matrix: Matrix4<f32> = view_transform.inverse_transform().unwrap().into();
+        let frustum_matrix = projection_matrix * view_matrix;
+
+        let octree = self.octree.clone();
+        let now = ::std::time::Instant::now();
+        let visible_nodes = octree.get_visible_nodes(&frustum_matrix);
+        println!(
+            "Currently visible nodes: {}, time to calculate: {:?}",
+            visible_nodes.len(),
+            now.elapsed()
+        );
+
+        let mut reply = proto::GetPointsInFrustumReply::new();
+
+        let frustum = Frustum::from_matrix4(projection_matrix);
+        visible_nodes.for_each(|node| {
+            let node_iterator = match octree::NodeIterator::from_disk(self.meta, &node) {
+                Ok(node_iterator) => node_iterator,
+                Err(Error(ErrorKind::NodeNotFound, _)) => continue,
+                Err(err) => return Err(err),
+            };
+
+            let mut points = Vec::with_capacity(node_iterator.size_hint().unwrap());
+            node_iterator.for_each(|p| points.push((*p).clone()));
+            points.for_each(|p| {
+                let child_relation = frustum.contains(&p);
+                if child_relation == Relation::In {
+                        let mut v = point_viewer::proto::Vector3f::new();
+                        v.set_x(p.position.x);
+                        v.set_y(p.position.y);
+                        v.set_z(p.position.z);
+                        reply.mut_points().push(v);
+                }
+            });
+        }
+        reply
     }
 
     fn get_points_in_box(

@@ -214,6 +214,11 @@ impl OnDiskOctree {
     }
 }
 
+// TODO (ksavinash9) trait implementation
+// trait ContainsPoint {
+//     fn containsPoint(&self, p: &Point3<f32>);
+// }
+
 struct OpenNode {
     node: Node,
     relation: Relation,
