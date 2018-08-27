@@ -87,6 +87,8 @@ impl proto_grpc::Octree for OctreeService {
 
         let octree = self.octree.clone();
         let now = ::std::time::Instant::now();
+        // TODO(ksavinash9): Extract get_points_from_transformtion() as back end function for
+        // get_points_in_box() and get_points_in_frustum().
         let visible_nodes = octree.get_visible_nodes(&frustum_matrix);
         println!(
             "Currently visible nodes: {}, time to calculate: {:?}",
@@ -97,6 +99,7 @@ impl proto_grpc::Octree for OctreeService {
         let mut reply = proto::GetPointsInFrustumReply::new();
         let frustum = Frustum::from_matrix4(projection_matrix);
         visible_nodes.for_each(|node| {
+            // TODO(ksavinash9): multi-thread this loop.
             let node_iterator = match octree::NodeIterator::from_disk(self.meta, &node) {
                 Ok(node_iterator) => node_iterator,
                 Err(Error(ErrorKind::NodeNotFound, _)) => continue,
