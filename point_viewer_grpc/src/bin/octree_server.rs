@@ -77,7 +77,9 @@ impl proto_grpc::Octree for OctreeService {
             z_far: req.z_far,
         });
         let view_position = Point3::new(req.view_position.x, req.view_position.y, req.view_position.z);
+        // view_direction: unit vector defining the direction vector
         let view_direction = Vector3::new(req.view_direction.x, req.view_direction.y, req.view_direction.z);
+        // view_up: unit vector defining the up vector
         let view_up = Vector3::new(req.view_up.x, req.view_up.y, req.view_up.z);
         let view_center = view_position + view_up;
 
