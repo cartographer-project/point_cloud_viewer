@@ -50,7 +50,7 @@ use std::collections::HashMap;
 
 const MAX_NODES_IN_CACHE: usize = 10000;
 const UPDATE_COUNT: i64 = 100000;
-const MAX_POINTS_PER_NODE: i64 = 10000;
+const MAX_POINTS_PER_NODE: i64 = 100000;
 
 // Generate random number in range (0, range)
 fn random_num_in_range(range: i64) -> usize {
@@ -111,21 +111,17 @@ impl<'a> OctreeBuilder<'a> {
         & mut self,
         node_id:  &octree::NodeId,
     ) -> Vec<point_viewer::Point> {
-        let points = match self.cache.get_mut(&node_id) {
-            Some(cached_points) => {
-                cached_points.clone()
-            },
-            // Case: The current node is empty
-            None => {
-                //println!("Reading points from cache {}", node_id);
-                let node_iterator = octree::NodeIterator::from_disk(&self.octree_meta, &node_id).unwrap();
-                let mut pd = &mut Vec::with_capacity(node_iterator.size_hint().unwrap());
-                node_iterator.for_each(|p| pd.push((*p).clone()));
-                pd.clone()
-                // Insert in Cache
-            },
-        };
-        points
+        if self.cache.contains_key(&node_id) {
+            let mut cached_points = self.cache.get_mut(&node_id).unwrap();
+            return cached_points.to_vec();
+        }
+
+        let node_iterator = octree::NodeIterator::from_disk(&self.octree_meta, &node_id).unwrap();
+        let mut points = &mut Vec::with_capacity(node_iterator.size_hint().unwrap());
+        node_iterator.for_each(|p| points.push((*p).clone()));
+        self.cache.remove(&node_id);
+        self.cache.insert(*node_id, points.to_vec());
+        points.clone()
     }
 
     // Sample the points in node using reservoir sampling algorithm
@@ -143,6 +139,9 @@ impl<'a> OctreeBuilder<'a> {
         if !self.points_seen_in_node.contains_key(&node_id) {
             *self.points_seen_in_node.entry(*node_id).or_insert(0) += 1;
             let mut node_writer = octree::NodeWriter::new(&self.octree_meta, &node_id);
+            let mut points: Vec<point_viewer::Point> = Vec::with_capacity(1);
+            points.push(point.clone());
+            self.insert_or_update_cache(&node_id, &points);
             node_writer.write(&point);
             return;
         }
