@@ -30,6 +30,8 @@ pbr = "1.0.0-alpha.1"
 protobuf = "1.4.3"
 scoped-pool = "^0.1"
 walkdir = "^0.1.5"
+lru-cache = "0.1.1"
+rand = "0.5.5"
 
 [dependencies.point_viewer_proto_rust]
 path = "point_viewer_proto_rust"
