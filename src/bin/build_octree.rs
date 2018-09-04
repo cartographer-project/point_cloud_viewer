@@ -323,13 +323,8 @@ fn main() {
     let root_node = octree::Node::root_with_bounding_cube(Cube::bounding(&bounding_box));
     let bounding_cube = Cube::bounding(&bounding_box);
     let (root_stream, _) = make_stream(&input);
-    let mut count : i64 = i64::from(1);
     root_stream.for_each(|point| {
-        count += 1;
         octree_builder.reservoir_sample_node(&root_node.id, &bounding_cube, &point);
-        if count % MAX_POINTS_PER_NODE==0 {
-            println!("10K points passed {} => hash {:?}", count, octree_builder.points_seen_in_node);
-        }
     });
 
     println!("Octree build completed!");
