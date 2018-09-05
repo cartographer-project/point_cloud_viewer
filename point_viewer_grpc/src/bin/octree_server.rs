@@ -8,7 +8,7 @@ extern crate point_viewer;
 extern crate point_viewer_grpc;
 extern crate protobuf;
 
-use cgmath::{Frustum, Matrix4, PerspectiveFov, Point3, Transform}
+use cgmath::{Deg, Matrix4, PerspectiveFov, Point3, Rad, Transform, Vector3};
 use collision::Aabb3;
 use futures::{Stream, Future, Sink};
 use futures::sync::oneshot;
@@ -70,58 +70,88 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetPointsInFrustumRequest,
         resp: ServerStreamingSink<proto::GetPointsInFrustumReply>,
     ) {
-        let projection_matrix = Matrix4::from(PerspectiveFov {
-            fov_y: req.fov_y,
-            aspect: req.aspect,
-            z_near:req.z_near,
-            z_far: req.z_far,
-        });
-        let view_position = Point3::new(req.view_position.x, req.view_position.y, req.view_position.z);
-        // view_direction: unit vector defining the direction vector
-        let view_direction = Vector3::new(req.view_direction.x, req.view_direction.y, req.view_direction.z);
-        // view_up: unit vector defining the up vector
-        let view_up = Vector3::new(req.view_up.x, req.view_up.y, req.view_up.z);
-        let view_center = view_position + view_up;
+        use std::thread;
 
-        let view_transform = Transform.look_at(view_position, view_center, view_up);
-        let view_matrix: Matrix4<f32> = view_transform.inverse_transform().unwrap().into();
-        let frustum_matrix = projection_matrix * view_matrix;
-
+        // This creates a async-aware (tx, rx) pair that can wake up the event loop when new data
+        // is piped through it.
+        let (tx, rx) = mpsc::channel(4);
         let octree = self.octree.clone();
-        let now = ::std::time::Instant::now();
-        // TODO(ksavinash9): Extract get_points_from_transformtion() as back end function for
-        // get_points_in_box() and get_points_in_frustum().
-        let visible_nodes = octree.get_visible_nodes(&frustum_matrix);
-        println!(
-            "Currently visible nodes: {}, time to calculate: {:?}",
-            visible_nodes.len(),
-            now.elapsed()
-        );
+        thread::spawn(move || {
+            // This is the secret sauce connecting an OS thread to a event-based receiver. Calling
+            // wait() on this turns the event aware, i.e. async 'tx' into a blocking 'tx' that will
+            // make this thread block when the event loop is not quick enough with piping out data.
+            let mut tx = tx.wait();
 
-        let mut reply = proto::GetPointsInFrustumReply::new();
-        let frustum = Frustum::from_matrix4(projection_matrix);
-        visible_nodes.for_each(|node| {
-            // TODO(ksavinash9): multi-thread this loop.
-            let node_iterator = match octree::NodeIterator::from_disk(self.meta, &node) {
-                Ok(node_iterator) => node_iterator,
-                Err(Error(ErrorKind::NodeNotFound, _)) => continue,
-                Err(err) => return Err(err),
+            let projection_matrix = Matrix4::from(PerspectiveFov {
+                fovy: Rad::from(Deg((req.fov_y as f32).into())),
+                aspect: (req.aspect as f32).into(),
+                near: (req.z_near as f32).into(),
+                far: (req.z_far as f32).into(),
+            });
+            let req_view_position = req.view_position.clone().unwrap();
+            let req_view_direction = req.view_position.clone().unwrap();
+            let req_view_up = req.view_position.clone().unwrap();
+
+            let view_position = Point3::new(req_view_position.x, req_view_position.y, req_view_position.z);
+            // view_direction: unit vector defining the direction vector
+            let view_direction = Vector3::new(req_view_direction.x, req_view_direction.y, req_view_direction.z);
+            // view_up: unit vector defining the up vector
+            let view_up = Vector3::new(req_view_up.x, req_view_up.y, req_view_up.z);
+            let view_center = view_position + view_up;
+
+            let view_transform: Matrix4<f32> = Transform::look_at(view_position, view_center, view_up);
+            let view_matrix: Matrix4<f32> = view_transform.inverse_transform().unwrap().into();
+            let frustum_matrix = projection_matrix * view_matrix;
+
+            let now = ::std::time::Instant::now();
+            // TODO(ksavinash9): Extract get_points_from_transformtion() as back end function for
+            // get_points_in_box() and get_points_in_frustum().
+            let visible_nodes = octree.get_visible_nodes(&frustum_matrix);
+            println!(
+                "Currently visible nodes: {}, time to calculate: {:?}",
+                visible_nodes.len(),
+                now.elapsed()
+            );
+
+            let mut reply = proto::GetPointsInFrustumReply::new();
+
+            let bytes_per_point = {
+                let mut reply = proto::GetPointsInFrustumReply::new();
+                let initial_proto_size = reply.compute_size();
+                let mut v = point_viewer::proto::Vector3f::new();
+                v.set_x(1.);
+                v.set_y(1.);
+                v.set_z(1.);
+                reply.mut_points().push(v);
+                let final_proto_size = reply.compute_size();
+                final_proto_size - initial_proto_size
             };
 
-            let mut points = Vec::with_capacity(node_iterator.size_hint().unwrap());
-            node_iterator.for_each(|p| points.push((*p).clone()));
-            points.for_each(|p| {
-                let child_relation = frustum.contains(&p);
-                if child_relation == Relation::In {
-                    let mut v = point_viewer::proto::Vector3f::new();
-                    v.set_x(p.position.x);
-                    v.set_y(p.position.y);
-                    v.set_z(p.position.z);
-                    reply.mut_points().push(v);
+            // Proto message must be below 4 MB.
+            let max_message_size = 4 * 1024 * 1024;
+            let mut reply_size = 0;
+            octree.points_in_frustum(&frustum_matrix).for_each(|p| {
+                let mut v = point_viewer::proto::Vector3f::new();
+                v.set_x(p.position.x);
+                v.set_y(p.position.y);
+                v.set_z(p.position.z);
+                reply.mut_points().push(v);
+
+                reply_size += bytes_per_point;
+                if reply_size > max_message_size - bytes_per_point {
+                    tx.send((reply.clone(), WriteFlags::default())).unwrap();
+                    reply.mut_points().clear();
+                    reply_size = 0;
                 }
             });
-        }
-        reply
+        });
+
+        let rx = rx.map_err(|_| grpcio::Error::RemoteStopped);
+        let f = resp
+            .send_all(rx)
+            .map(|_| {})
+            .map_err(|e| println!("failed to reply: {:?}", e));
+        ctx.spawn(f)
     }
 
     fn get_points_in_box(

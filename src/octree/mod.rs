@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use {InternalIterator, Point};
-use cgmath::{EuclideanSpace, Matrix4, Point3};
+use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use errors::*;
 use fnv::FnvHashMap;
@@ -80,8 +80,8 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f32 {
 
 #[derive(Debug)]
 pub struct OnDiskOctree {
-    meta: OctreeMeta,
-    nodes: FnvHashMap<NodeId, NodeMeta>,
+    pub meta: OctreeMeta,
+    pub nodes: FnvHashMap<NodeId, NodeMeta>,
 }
 
 pub trait Octree: Send + Sync {
@@ -113,6 +113,48 @@ impl<'a> InternalIterator for PointsInBoxIterator<'a> {
             });
         }
     }
+}
+
+pub struct PointsInFrustumIterator<'a> {
+    octree_meta: &'a OctreeMeta,
+    frustum_matrix: &'a Matrix4<f32>,
+    intersecting_nodes: Vec<NodeId>,
+}
+
+impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
+    fn size_hint(&self) -> Option<usize> {
+        None
+    }
+
+    fn for_each<F: FnMut(&Point)>(self, mut f: F) {
+        for node_id in &self.intersecting_nodes {
+            // TODO(sirver): This crashes on error. We should bubble up an error.
+            let iterator = NodeIterator::from_disk(&self.octree_meta, node_id)
+                .expect("Could not read node points");
+            iterator.for_each(|p| {
+                if !contains(self.frustum_matrix, &Point3::from_vec(p.position)) {
+                    return;
+                }
+                f(p);
+            });
+        }
+    }
+}
+
+// TODO(ksavinash9) confirm with @Sirver and @thomasschiwietz about clipping vector approach
+// https://stackoverflow.com/questions/6301085/how-to-check-if-an-object-lies-outside-the-clipping-volume-in-opengl
+//
+// TODO(ksavinash9) check with @Sirver if contains should be a trait for Matrix4
+fn contains(
+    projection_matrix: &Matrix4<f32>,
+    point: &Point3<f32>,
+) -> bool {
+    let v = Vector4::new(point.x, point.y, point.z, 1.);
+    let clip_v = projection_matrix * v;
+    return f32::abs(clip_v.x) < clip_v.w &&
+       f32::abs(clip_v.y) < clip_v.w &&
+       0. < clip_v.z &&
+       clip_v.z < clip_v.w;
 }
 
 pub fn read_meta_proto<P: AsRef<Path>>(directory: P) -> Result<proto::Meta> {
@@ -209,9 +251,23 @@ impl OnDiskOctree {
         }
     }
 
+    pub fn points_in_frustum<'a>(&'a self, frustum_matrix: &'a Matrix4<f32>) -> PointsInFrustumIterator<'a> {
+        let intersecting_nodes = self.get_visible_nodes(&frustum_matrix);
+        PointsInFrustumIterator {
+            octree_meta: &self.meta,
+            frustum_matrix,
+            intersecting_nodes,
+        }
+    }
+
     pub fn bounding_box(&self) -> &Aabb3<f32> {
         &self.meta.bounding_box
     }
+}
+
+// TODO (ksavinash9) trait implementation for AABB3 and frustum maxtrix
+trait ContainsPoint {
+    fn contains_point(&self, p: &Vector3<f32>);
 }
 
 struct OpenNode {
