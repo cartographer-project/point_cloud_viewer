@@ -128,7 +128,6 @@ impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
 
     fn for_each<F: FnMut(&Point)>(self, mut f: F) {
         for node_id in &self.intersecting_nodes {
-            // TODO(sirver): This crashes on error. We should bubble up an error.
             let iterator = NodeIterator::from_disk(&self.octree_meta, node_id)
                 .expect("Could not read node points");
             iterator.for_each(|p| {
