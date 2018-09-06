@@ -41,7 +41,7 @@ members = [
    "point_viewer_proto_rust",
    "quadtree",
    "sdl_viewer",
-   "web_viewer",
+   "octree_web_viewer",
    "xray",
    "xray_proto_rust",
 ]

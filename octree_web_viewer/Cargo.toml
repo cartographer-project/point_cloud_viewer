@@ -14,7 +14,7 @@
 
 [package]
 authors = ["Holger Rapp <hrapp@google.com>"]
-name = "web_viewer"
+name = "octree_web_viewer"
 version = "0.1.0"
 
 [dependencies]

@@ -56,21 +56,21 @@ In the point cloud viewer, navigate with the keyboard or with the mouse or touch
 
 ### Web Viewer
 
-The `web_viewer` consists of [TypeScript](https://www.typescriptlang.org) code running in the browser and a web server binary.
+The `octree_web_viewer` consists of [TypeScript](https://www.typescriptlang.org) code running in the browser and a web server binary.
 
 To build,
 
-1. Change into the web viewer's client directory: `cd web_viewer/client`.
+1. Change into the web viewer's client directory: `cd octree_web_viewer/client`.
 2. Install npm. We strongly suggest using [nvm](https://github.com/creationix/nvm). On Mac `brew install nvm`. 
 3. Install node version 8: `nvm install 8`. Change to the web viewer's client directory: `cd client`, then set node version to 8: `nvm use 8`. 
 4. Install javascript dependencies: `npm install`.
 5. Build the client: `npm run build`.
 
 Then build the server: `cargo build --release`.
-Serve up the octree using `../target/release/web_viewer <octree directory>`, open Chrome to <http://localhost:5433>, navigate with WASD and left-click-drag on the mouse.
+Serve up the octree using `../target/release/octree_web_viewer <octree directory>`, open Chrome to <http://localhost:5433>, navigate with WASD and left-click-drag on the mouse.
 The mouse wheel adjusts movement speed.
 
-The client files (HTML and JavaScript) are embedded in the `web_viewer` binary, so it is fully stand alone.
+The client files (HTML and JavaScript) are embedded in the `octree_web_viewer` binary, so it is fully stand alone.
 
 ## Prior art
 
