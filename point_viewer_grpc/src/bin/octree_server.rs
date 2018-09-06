@@ -94,7 +94,7 @@ impl proto_grpc::Octree for OctreeService {
 
             let view_position = Point3::new(req_view_position.x, req_view_position.y, req_view_position.z);
             // view_direction: unit vector defining the direction vector
-            let view_direction = Vector3::new(req_view_direction.x, req_view_direction.y, req_view_direction.z);
+            let _view_direction = Vector3::new(req_view_direction.x, req_view_direction.y, req_view_direction.z);
             // view_up: unit vector defining the up vector
             let view_up = Vector3::new(req_view_up.x, req_view_up.y, req_view_up.z);
             let view_center = view_position + view_up;
@@ -102,16 +102,6 @@ impl proto_grpc::Octree for OctreeService {
             let view_transform: Matrix4<f32> = Transform::look_at(view_position, view_center, view_up);
             let view_matrix: Matrix4<f32> = view_transform.inverse_transform().unwrap().into();
             let frustum_matrix = projection_matrix * view_matrix;
-
-            let now = ::std::time::Instant::now();
-            // TODO(ksavinash9): Extract get_points_from_transformtion() as back end function for
-            // get_points_in_box() and get_points_in_frustum().
-            let visible_nodes = octree.get_visible_nodes(&frustum_matrix);
-            println!(
-                "Currently visible nodes: {}, time to calculate: {:?}",
-                visible_nodes.len(),
-                now.elapsed()
-            );
 
             let mut reply = proto::GetPointsInFrustumReply::new();
 
@@ -144,6 +134,7 @@ impl proto_grpc::Octree for OctreeService {
                     reply_size = 0;
                 }
             });
+            tx.send((reply, WriteFlags::default())).unwrap();
         });
 
         let rx = rx.map_err(|_| grpcio::Error::RemoteStopped);
