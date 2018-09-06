@@ -123,6 +123,7 @@ impl proto_grpc::Octree for OctreeService {
                     reply_size = 0;
                 }
             });
+            tx.send((reply, WriteFlags::default())).unwrap();
         });
 
         // TODO(sirver): I did not figure out how to return meaningful errors. At least we return
