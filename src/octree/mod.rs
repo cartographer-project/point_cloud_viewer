@@ -80,8 +80,8 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f32 {
 
 #[derive(Debug)]
 pub struct OnDiskOctree {
-    pub meta: OctreeMeta,
-    pub nodes: FnvHashMap<NodeId, NodeMeta>,
+    meta: OctreeMeta,
+    nodes: FnvHashMap<NodeId, NodeMeta>,
 }
 
 pub trait Octree: Send + Sync {
@@ -140,18 +140,14 @@ impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
     }
 }
 
-// TODO(ksavinash9) confirm with @Sirver and @thomasschiwietz about clipping vector approach
-// https://stackoverflow.com/questions/6301085/how-to-check-if-an-object-lies-outside-the-clipping-volume-in-opengl
-//
-// TODO(ksavinash9) check with @Sirver if contains should be a trait for Matrix4
 fn contains(
     projection_matrix: &Matrix4<f32>,
     point: &Point3<f32>,
 ) -> bool {
     let v = Vector4::new(point.x, point.y, point.z, 1.);
     let clip_v = projection_matrix * v;
-    return f32::abs(clip_v.x) < clip_v.w &&
-       f32::abs(clip_v.y) < clip_v.w &&
+    return clip_v.x.abs() < clip_v.w &&
+       clip_v.y.abs() < clip_v.w &&
        0. < clip_v.z &&
        clip_v.z < clip_v.w;
 }
@@ -262,11 +258,6 @@ impl OnDiskOctree {
     pub fn bounding_box(&self) -> &Aabb3<f32> {
         &self.meta.bounding_box
     }
-}
-
-// TODO (ksavinash9) trait implementation for AABB3 and frustum maxtrix
-trait ContainsPoint {
-    fn contains_point(&self, p: &Vector3<f32>);
 }
 
 struct OpenNode {

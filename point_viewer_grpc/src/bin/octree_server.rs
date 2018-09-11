@@ -30,6 +30,38 @@ struct OctreeService {
     meta: point_viewer::proto::Meta,
 }
 
+pub trait GetBytes {
+    fn get_bytes_per_point(&mut self) -> u32;
+}
+
+impl GetBytes for proto::GetPointsInFrustumReply {
+    fn get_bytes_per_point(&mut self) -> u32 {
+        let initial_proto_size = self.compute_size();
+        let mut v = point_viewer::proto::Vector3f::new();
+        v.set_x(1.);
+        v.set_y(1.);
+        v.set_z(1.);
+        self.mut_points().push(v);
+        let final_proto_size = self.compute_size();
+        self.mut_points().clear();
+        final_proto_size - initial_proto_size
+    }
+}
+
+impl GetBytes for proto::GetPointsInBoxReply {
+    fn get_bytes_per_point(&mut self) -> u32 {
+        let initial_proto_size = self.compute_size();
+        let mut v = point_viewer::proto::Vector3f::new();
+        v.set_x(1.);
+        v.set_y(1.);
+        v.set_z(1.);
+        self.mut_points().push(v);
+        let final_proto_size = self.compute_size();
+        self.mut_points().clear();
+        final_proto_size - initial_proto_size
+    }
+}
+
 impl proto_grpc::Octree for OctreeService {
     fn get_meta(
         &self,
@@ -89,14 +121,15 @@ impl proto_grpc::Octree for OctreeService {
                 far: (req.z_far as f32).into(),
             });
             let req_view_position = req.view_position.clone().unwrap();
-            let req_view_direction = req.view_position.clone().unwrap();
-            let req_view_up = req.view_position.clone().unwrap();
+            let req_view_direction = req.view_direction.clone().unwrap();
+            let req_view_up = req.view_up.clone().unwrap();
 
             let view_position = Point3::new(req_view_position.x, req_view_position.y, req_view_position.z);
-            // view_direction: unit vector defining the direction vector
+            // view_direction(not being used): unit vector defining the `direction` vector
             let _view_direction = Vector3::new(req_view_direction.x, req_view_direction.y, req_view_direction.z);
-            // view_up: unit vector defining the up vector
+            // view_up: unit vector defining the `up` vector
             let view_up = Vector3::new(req_view_up.x, req_view_up.y, req_view_up.z);
+            // view_center: a vector to look at `center` from `eye` using `up` for orientation.
             let view_center = view_position + view_up;
 
             let view_transform: Matrix4<f32> = Transform::look_at(view_position, view_center, view_up);
@@ -105,17 +138,7 @@ impl proto_grpc::Octree for OctreeService {
 
             let mut reply = proto::GetPointsInFrustumReply::new();
 
-            let bytes_per_point = {
-                let mut reply = proto::GetPointsInFrustumReply::new();
-                let initial_proto_size = reply.compute_size();
-                let mut v = point_viewer::proto::Vector3f::new();
-                v.set_x(1.);
-                v.set_y(1.);
-                v.set_z(1.);
-                reply.mut_points().push(v);
-                let final_proto_size = reply.compute_size();
-                final_proto_size - initial_proto_size
-            };
+            let bytes_per_point = reply.get_bytes_per_point();
 
             // Proto message must be below 4 MB.
             let max_message_size = 4 * 1024 * 1024;
@@ -176,17 +199,7 @@ impl proto_grpc::Octree for OctreeService {
 
             // Computing the protobuf size is very expensive.
             // We compute the byte size of a Vector3f in the reply proto once outside the loop.
-            let bytes_per_point = {
-                let mut reply = proto::GetPointsInBoxReply::new();
-                let initial_proto_size = reply.compute_size();
-                let mut v = point_viewer::proto::Vector3f::new();
-                v.set_x(1.);
-                v.set_y(1.);
-                v.set_z(1.);
-                reply.mut_points().push(v);
-                let final_proto_size = reply.compute_size();
-                final_proto_size - initial_proto_size
-            };
+            let bytes_per_point = reply.get_bytes_per_point();
             // Proto message must be below 4 MB.
             let max_message_size = 4 * 1024 * 1024;
             let mut reply_size = 0;
