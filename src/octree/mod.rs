@@ -140,6 +140,7 @@ impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
     }
 }
 
+// TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
 fn contains(
     projection_matrix: &Matrix4<f32>,
     point: &Point3<f32>,
