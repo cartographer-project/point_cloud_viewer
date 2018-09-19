@@ -20,20 +20,16 @@ extern crate point_viewer;
 extern crate point_viewer_grpc_proto_rust;
 extern crate protobuf;
 
-use cgmath::{Matrix4, EuclideanSpace, Point3, Rad, Deg};
+use cgmath::{Deg, EuclideanSpace, Point3, Rad};
 use collision::{Aabb3, Aabb};
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
-use point_viewer::errors::*;
-use point_viewer::math::Cube;
-use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, PositionEncoding};
 pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
 use point_viewer::{InternalIterator, Point};
 use point_viewer::color::Color;
 use point_viewer::generation::build_octree;
 use proto_grpc::OctreeClient;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 struct Points{
@@ -69,13 +65,13 @@ fn main() {
 
     let mut request = GetPointsInFrustumRequest::new();
     request.mut_rotation().set_x(-0.30282807);
-    request.mut_rotation().set_y(0.18231738 );
-    request.mut_rotation().set_z(0.48248893  );
-    request.mut_rotation().set_w(0.8014113  );
+    request.mut_rotation().set_y(0.18231738);
+    request.mut_rotation().set_z(0.48248893);
+    request.mut_rotation().set_w(0.8014113);
 
     request.mut_translation().set_x(-0.79101276);
     request.mut_translation().set_y(-105.560104);
-    request.mut_translation().set_z(-132.89323  );
+    request.mut_translation().set_z(-132.89323);
 
     request.set_fovy_rad(Rad::from(Deg(45.)).0);
     request.set_aspect(800./600.);

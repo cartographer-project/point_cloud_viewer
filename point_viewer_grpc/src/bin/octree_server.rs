@@ -8,7 +8,7 @@ extern crate point_viewer;
 extern crate point_viewer_grpc;
 extern crate protobuf;
 
-use cgmath::{Deg, Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector3};
+use cgmath::{Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector3};
 use collision::Aabb3;
 use futures::{Stream, Future, Sink};
 use futures::sync::oneshot;

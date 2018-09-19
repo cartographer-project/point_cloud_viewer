@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use {InternalIterator, Point};
-use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3, Vector4};
+use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use errors::*;
 use fnv::FnvHashMap;
