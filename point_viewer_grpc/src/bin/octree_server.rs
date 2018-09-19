@@ -8,7 +8,7 @@ extern crate point_viewer;
 extern crate point_viewer_grpc;
 extern crate protobuf;
 
-use cgmath::{Deg, Matrix4, PerspectiveFov, Point3, Rad, Transform, Vector3};
+use cgmath::{Deg, Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector3};
 use collision::Aabb3;
 use futures::{Stream, Future, Sink};
 use futures::sync::oneshot;
@@ -115,26 +115,28 @@ impl proto_grpc::Octree for OctreeService {
             let mut tx = tx.wait();
 
             let projection_matrix = Matrix4::from(PerspectiveFov {
-                fovy: Rad::from(Deg((req.fov_y as f32).into())),
+                fovy: Rad(req.fovy_rad as f32),
                 aspect: (req.aspect as f32).into(),
                 near: (req.z_near as f32).into(),
                 far: (req.z_far as f32).into(),
             });
-            let req_view_position = req.view_position.clone().unwrap();
-            let req_view_direction = req.view_direction.clone().unwrap();
-            let req_view_up = req.view_up.clone().unwrap();
 
-            let view_position = Point3::new(req_view_position.x, req_view_position.y, req_view_position.z);
-            // view_direction(not being used): unit vector defining the `direction` vector
-            let _view_direction = Vector3::new(req_view_direction.x, req_view_direction.y, req_view_direction.z);
-            // view_up: unit vector defining the `up` vector
-            let view_up = Vector3::new(req_view_up.x, req_view_up.y, req_view_up.z);
-            // view_center: a vector to look at `center` from `eye` using `up` for orientation.
-            let view_center = view_position + view_up;
+            let rotation = {
+                let q = req.rotation.unwrap();
+                Quaternion::new( q.w, q.x, q.y, q.z)
+            };
 
-            let view_transform: Matrix4<f32> = Transform::look_at(view_position, view_center, view_up);
-            let view_matrix: Matrix4<f32> = view_transform.inverse_transform().unwrap().into();
-            let frustum_matrix = projection_matrix * view_matrix;
+            let translation = {
+                let t = req.translation.unwrap();
+                Vector3::new(t.x, t.y, t.z)
+            };
+
+            let view_transform = Decomposed{
+                scale: 1.0,
+                rot: rotation,
+                disp: translation,
+            };
+            let frustum_matrix = projection_matrix.concat(&view_transform.into());
 
             let mut reply = proto::GetPointsInFrustumReply::new();
 

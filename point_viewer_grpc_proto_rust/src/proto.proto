@@ -55,13 +55,12 @@ message GetPointsInBoxReply {
 }
 
 message GetPointsInFrustumRequest {
-  point_viewer.proto.Vector3f view_position = 1;
-  point_viewer.proto.Vector3f view_direction = 2;
-  point_viewer.proto.Vector3f view_up = 3;
-  double fov_y = 4;
-  double aspect = 5;
-  double z_near = 6;
-  double z_far = 7;
+  point_viewer.proto.Vector3f translation = 1;
+  point_viewer.proto.Vector4f rotation = 2;
+  double fovy_rad = 3;
+  double aspect = 4;
+  double z_near = 5;
+  double z_far = 6;
 }
 
 message GetPointsInFrustumReply {
