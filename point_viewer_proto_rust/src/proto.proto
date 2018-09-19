@@ -31,6 +31,13 @@ message Vector4f {
   float w = 4;
 }
 
+message Color {
+  float red = 1;
+  float green = 2;
+  float blue = 3;
+  float alpha = 4;
+}
+
 message AxisAlignedCube {
   Vector3f min = 1;
   float edge_length = 2;

@@ -33,22 +33,13 @@ use proto_grpc::OctreeClient;
 use std::sync::Arc;
 
 struct Points{
-    points: Vec<Point3<f32>>
+    points: Vec<Point>
 }
 
 impl InternalIterator for Points {
     fn for_each<F: FnMut(&Point)>(self, mut func: F) {
-        for p in self.points {
-            func(&Point {
-                position: p.to_vec(),
-                color: Color{
-                    red: 255,
-                    green: 0,
-                    blue: 255,
-                    alpha: 255,
-                },
-                intensity: None,
-            });
+        for p in &self.points {
+            func(p);
         }
     }
     fn size_hint(&self) -> Option<usize> {
@@ -84,10 +75,26 @@ fn main() {
     let mut points = Vec::new();
     replies
         .for_each(|reply| {
-            for point in reply.points.iter() {
-                let p = Point3::new(point.x, point.y, point.z);
+            let last_num_points = points.len();
+            for (position, color) in reply.positions.iter().zip(reply.colors.iter()) {
+                let p = Point3::new(position.x, position.y, position.z);
                 bounding_box = bounding_box.grow(p);
-                points.push(p);
+                points.push(Point {
+                    position: p.to_vec(),
+                    color: Color { 
+                        red: color.red,
+                        green: color.green,
+                        blue: color.blue,
+                        alpha: color.alpha
+                    }.to_u8(),
+                    intensity: None,
+                });
+            }
+
+            if reply.intensities.len() == reply.positions.len() {
+                for (i, p) in reply.intensities.iter().zip(&mut points[last_num_points..]) {
+                    p.intensity = Some(*i);
+                }
             }
             Ok(())
         })

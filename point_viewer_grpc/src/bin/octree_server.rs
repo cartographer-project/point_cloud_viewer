@@ -60,9 +60,21 @@ fn stream_points_back_to_sink(
             v.set_x(1.);
             v.set_y(1.);
             v.set_z(1.);
-            reply.mut_points().push(v);
+            reply.mut_positions().push(v);
+
+            let mut v = point_viewer::proto::Color::new();
+            v.set_red(1.);
+            v.set_green(1.);
+            v.set_blue(1.);
+            v.set_alpha(1.);
+            reply.mut_colors().push(v);
+
+            reply.mut_intensities().push(1.);
+
             let final_proto_size = reply.compute_size();
-            reply.mut_points().clear();
+            reply.mut_positions().clear();
+            reply.mut_colors().clear();
+            reply.mut_intensities().clear();
             final_proto_size - initial_proto_size
         };
 
@@ -73,16 +85,34 @@ fn stream_points_back_to_sink(
         {
             // Extra scope to make sure that 'func' does not outlive 'reply'.
             let func = |p: &Point| {
-                let mut v = point_viewer::proto::Vector3f::new();
-                v.set_x(p.position.x);
-                v.set_y(p.position.y);
-                v.set_z(p.position.z);
-                reply.mut_points().push(v);
+                {
+                    let mut v = point_viewer::proto::Vector3f::new();
+                    v.set_x(p.position.x);
+                    v.set_y(p.position.y);
+                    v.set_z(p.position.z);
+                    reply.mut_positions().push(v);
+                }
+
+                {
+                    let mut v = point_viewer::proto::Color::new();
+                    let clr = p.color.to_f32();
+                    v.set_red(clr.red);
+                    v.set_green(clr.green);
+                    v.set_blue(clr.blue);
+                    v.set_alpha(clr.alpha);
+                    reply.mut_colors().push(v);
+                }
+
+                if let Some(i) = p.intensity {
+                    reply.mut_intensities().push(i);
+                }
 
                 reply_size += bytes_per_point;
                 if reply_size > max_message_size - bytes_per_point {
                     tx.send((reply.clone(), WriteFlags::default())).unwrap();
-                    reply.mut_points().clear();
+                    reply.mut_positions().clear();
+                    reply.mut_colors().clear();
+                    reply.mut_intensities().clear();
                     reply_size = 0;
                 }
             };

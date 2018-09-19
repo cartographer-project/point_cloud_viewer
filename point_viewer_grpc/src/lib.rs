@@ -20,12 +20,14 @@ extern crate point_viewer;
 extern crate point_viewer_grpc_proto_rust;
 extern crate protobuf;
 
-use cgmath::{Matrix4, Point3};
+use cgmath::{Matrix4, Vector3};
 use collision::Aabb3;
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::errors::*;
+use point_viewer::{Point};
 use point_viewer::math::Cube;
+use point_viewer::color::Color;
 use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, PositionEncoding};
 pub use point_viewer_grpc_proto_rust::proto;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
@@ -53,7 +55,7 @@ impl GrpcOctree {
     }
 
     // TODO(tschiwietz): This function should return Result<> for error handling.
-    pub fn get_points_in_box(&self, bounding_box: &Aabb3<f32>) -> Vec<Point3<f32>> {
+    pub fn get_points_in_box(&self, bounding_box: &Aabb3<f32>) -> Vec<Point> {
         let mut req = proto::GetPointsInBoxRequest::new();
         req.mut_bounding_box().mut_min().set_x(bounding_box.min.x);
         req.mut_bounding_box().mut_min().set_y(bounding_box.min.y);
@@ -65,8 +67,24 @@ impl GrpcOctree {
         let mut points = Vec::new();
         replies
             .for_each(|reply| {
-                for point in reply.points.iter() {
-                    points.push(Point3::new(point.x, point.y, point.z));
+                let last_num_points = points.len();
+                for (p, color) in reply.positions.iter().zip(reply.colors.iter()) {
+                    points.push(Point {
+                        position: Vector3::new(p.x, p.y, p.z),
+                        color: Color { 
+                            red: color.red,
+                            green: color.green,
+                            blue: color.blue,
+                            alpha: color.alpha
+                        }.to_u8(),
+                        intensity: None,
+                    });
+                }
+
+                if reply.intensities.len() == reply.positions.len() {
+                    for (i, p) in reply.intensities.iter().zip(&mut points[last_num_points..]) {
+                        p.intensity = Some(*i);
+                    }
                 }
                 Ok(())
             })
