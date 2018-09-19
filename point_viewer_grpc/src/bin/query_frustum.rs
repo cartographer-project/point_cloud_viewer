@@ -20,20 +20,16 @@ extern crate point_viewer;
 extern crate point_viewer_grpc_proto_rust;
 extern crate protobuf;
 
-use cgmath::{Matrix4, EuclideanSpace, Point3, Rad, Deg};
+use cgmath::{EuclideanSpace, Point3, Rad, Deg};
 use collision::{Aabb3, Aabb};
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
-use point_viewer::errors::*;
-use point_viewer::math::Cube;
-use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, PositionEncoding};
 pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
 use point_viewer::{InternalIterator, Point};
 use point_viewer::color::Color;
 use point_viewer::generation::build_octree;
 use proto_grpc::OctreeClient;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 struct Points{
