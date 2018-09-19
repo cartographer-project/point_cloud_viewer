@@ -68,14 +68,14 @@ fn main() {
     let client = OctreeClient::new(ch);
 
     let mut request = GetPointsInFrustumRequest::new();
-    request.mut_rotation().set_x(0.315802);
-    request.mut_rotation().set_y(-0.20744321);
-    request.mut_rotation().set_z(-0.50832415);
-    request.mut_rotation().set_w(0.7738494);
+    request.mut_rotation().set_x(-0.30282807);
+    request.mut_rotation().set_y(0.18231738 );
+    request.mut_rotation().set_z(0.48248893  );
+    request.mut_rotation().set_w(0.8014113  );
 
-    request.mut_translation().set_x(-41.65706);
-    request.mut_translation().set_y(-21.150549);
-    request.mut_translation().set_z(202.88289);
+    request.mut_translation().set_x(-0.79101276);
+    request.mut_translation().set_y(-105.560104);
+    request.mut_translation().set_z(-132.89323  );
 
     request.set_fovy_rad(Rad::from(Deg(45.)).0);
     request.set_aspect(800./600.);
