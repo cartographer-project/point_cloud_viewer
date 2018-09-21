@@ -25,6 +25,8 @@ service Octree {
   rpc GetNodeData(GetNodeDataRequest) returns (GetNodeDataReply);
   rpc GetPointsInBox(GetPointsInBoxRequest)
       returns (stream GetPointsInBoxReply);
+  rpc GetPointsInFrustum(GetPointsInFrustumRequest)
+      returns (stream GetPointsInFrustumReply);
 }
 
 message GetMetaRequest {
@@ -49,5 +51,19 @@ message GetPointsInBoxRequest {
 }
 
 message GetPointsInBoxReply {
+  repeated point_viewer.proto.Vector3f points = 1;
+}
+
+message GetPointsInFrustumRequest {
+  point_viewer.proto.Vector3f view_position = 1;
+  point_viewer.proto.Vector3f view_direction = 2;
+  point_viewer.proto.Vector3f view_up = 3;
+  double fov_y = 4;
+  double aspect = 5;
+  double z_near = 6;
+  double z_far = 7;
+}
+
+message GetPointsInFrustumReply {
   repeated point_viewer.proto.Vector3f points = 1;
 }
