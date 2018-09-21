@@ -8,7 +8,7 @@ extern crate point_viewer;
 extern crate point_viewer_grpc;
 extern crate protobuf;
 
-use cgmath::Point3;
+use cgmath::{Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector3};
 use collision::Aabb3;
 use futures::{Stream, Future, Sink};
 use futures::sync::oneshot;
@@ -28,6 +28,38 @@ use futures::sync::mpsc;
 struct OctreeService {
     octree: Arc<OnDiskOctree>,
     meta: point_viewer::proto::Meta,
+}
+
+pub trait GetBytes {
+    fn get_bytes_per_point(&mut self) -> u32;
+}
+
+impl GetBytes for proto::GetPointsInFrustumReply {
+    fn get_bytes_per_point(&mut self) -> u32 {
+        let initial_proto_size = self.compute_size();
+        let mut v = point_viewer::proto::Vector3f::new();
+        v.set_x(1.);
+        v.set_y(1.);
+        v.set_z(1.);
+        self.mut_points().push(v);
+        let final_proto_size = self.compute_size();
+        self.mut_points().clear();
+        final_proto_size - initial_proto_size
+    }
+}
+
+impl GetBytes for proto::GetPointsInBoxReply {
+    fn get_bytes_per_point(&mut self) -> u32 {
+        let initial_proto_size = self.compute_size();
+        let mut v = point_viewer::proto::Vector3f::new();
+        v.set_x(1.);
+        v.set_y(1.);
+        v.set_z(1.);
+        self.mut_points().push(v);
+        let final_proto_size = self.compute_size();
+        self.mut_points().clear();
+        final_proto_size - initial_proto_size
+    }
 }
 
 impl proto_grpc::Octree for OctreeService {
@@ -64,6 +96,80 @@ impl proto_grpc::Octree for OctreeService {
         ctx.spawn(f)
     }
 
+    fn get_points_in_frustum(
+        &self,
+        ctx: RpcContext,
+        req: proto::GetPointsInFrustumRequest,
+        resp: ServerStreamingSink<proto::GetPointsInFrustumReply>,
+    ) {
+        use std::thread;
+
+        // This creates a async-aware (tx, rx) pair that can wake up the event loop when new data
+        // is piped through it.
+        let (tx, rx) = mpsc::channel(4);
+        let octree = self.octree.clone();
+        thread::spawn(move || {
+            // This is the secret sauce connecting an OS thread to a event-based receiver. Calling
+            // wait() on this turns the event aware, i.e. async 'tx' into a blocking 'tx' that will
+            // make this thread block when the event loop is not quick enough with piping out data.
+            let mut tx = tx.wait();
+
+            let projection_matrix = Matrix4::from(PerspectiveFov {
+                fovy: Rad(req.fovy_rad as f32),
+                aspect: (req.aspect as f32).into(),
+                near: (req.z_near as f32).into(),
+                far: (req.z_far as f32).into(),
+            });
+
+            let rotation = {
+                let q = req.rotation.unwrap();
+                Quaternion::new( q.w, q.x, q.y, q.z)
+            };
+
+            let translation = {
+                let t = req.translation.unwrap();
+                Vector3::new(t.x, t.y, t.z)
+            };
+
+            let view_transform = Decomposed{
+                scale: 1.0,
+                rot: rotation,
+                disp: translation,
+            };
+            let frustum_matrix = projection_matrix.concat(&view_transform.into());
+
+            let mut reply = proto::GetPointsInFrustumReply::new();
+
+            let bytes_per_point = reply.get_bytes_per_point();
+
+            // Proto message must be below 4 MB.
+            let max_message_size = 4 * 1024 * 1024;
+            let mut reply_size = 0;
+            octree.points_in_frustum(&frustum_matrix).for_each(|p| {
+                let mut v = point_viewer::proto::Vector3f::new();
+                v.set_x(p.position.x);
+                v.set_y(p.position.y);
+                v.set_z(p.position.z);
+                reply.mut_points().push(v);
+
+                reply_size += bytes_per_point;
+                if reply_size > max_message_size - bytes_per_point {
+                    tx.send((reply.clone(), WriteFlags::default())).unwrap();
+                    reply.mut_points().clear();
+                    reply_size = 0;
+                }
+            });
+            tx.send((reply, WriteFlags::default())).unwrap();
+        });
+
+        let rx = rx.map_err(|_| grpcio::Error::RemoteStopped);
+        let f = resp
+            .send_all(rx)
+            .map(|_| {})
+            .map_err(|e| println!("failed to reply: {:?}", e));
+        ctx.spawn(f)
+    }
+
     fn get_points_in_box(
         &self,
         ctx: RpcContext,
@@ -95,17 +201,7 @@ impl proto_grpc::Octree for OctreeService {
 
             // Computing the protobuf size is very expensive.
             // We compute the byte size of a Vector3f in the reply proto once outside the loop.
-            let bytes_per_point = {
-                let mut reply = proto::GetPointsInBoxReply::new();
-                let initial_proto_size = reply.compute_size();
-                let mut v = point_viewer::proto::Vector3f::new();
-                v.set_x(1.);
-                v.set_y(1.);
-                v.set_z(1.);
-                reply.mut_points().push(v);
-                let final_proto_size = reply.compute_size();
-                final_proto_size - initial_proto_size
-            };
+            let bytes_per_point = reply.get_bytes_per_point();
             // Proto message must be below 4 MB.
             let max_message_size = 4 * 1024 * 1024;
             let mut reply_size = 0;
