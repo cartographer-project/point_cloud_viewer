@@ -16,7 +16,6 @@ extern crate clap;
 extern crate point_viewer;
 
 use std::path::PathBuf;
-
 use point_viewer::generation::build_octree_from_file;
 
 fn main() {
