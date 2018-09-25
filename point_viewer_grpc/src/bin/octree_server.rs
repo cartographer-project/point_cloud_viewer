@@ -54,7 +54,7 @@ fn stream_points_back_to_sink(
         let mut tx = tx.wait();
 
         let mut reply = proto::PointsReply::new();
-        let bytes_per_point = { 
+        let bytes_per_point = {
             let initial_proto_size = reply.compute_size();
             let mut v = point_viewer::proto::Vector3f::new();
             v.set_x(1.);

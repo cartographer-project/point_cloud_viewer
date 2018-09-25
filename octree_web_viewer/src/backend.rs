@@ -1,64 +1,23 @@
-// Copyright 2016 Google Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-extern crate byteorder;
-extern crate cgmath;
-#[macro_use]
-extern crate clap;
-extern crate iron;
-extern crate json;
-extern crate point_viewer;
-extern crate router;
-extern crate time;
-extern crate urlencoded;
-
 use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
 use iron::mime::Mime;
 use iron::prelude::*;
+use iron;
 use point_viewer::octree::{self, Octree};
-use router::Router;
 use std::io::Read;
-use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use json;
+use time;
 use urlencoded::UrlEncodedQuery;
 
-const INDEX_HTML: &'static str = include_str!("../client/index.html");
-const APP_BUNDLE: &'static str = include_str!("../../target/app_bundle.js");
-const APP_BUNDLE_MAP: &'static str = include_str!("../../target/app_bundle.js.map");
-
-fn index(_: &mut Request) -> IronResult<Response> {
-    let content_type = "text/html".parse::<Mime>().unwrap();
-    Ok(Response::with((content_type, iron::status::Ok, INDEX_HTML)))
-}
-
-fn app_bundle(_: &mut Request) -> IronResult<Response> {
-    let content_type = "text/html".parse::<Mime>().unwrap();
-    Ok(Response::with((content_type, iron::status::Ok, APP_BUNDLE)))
-}
-
-fn app_bundle_source_map(_: &mut Request) -> IronResult<Response> {
-    let content_type = "text/html".parse::<Mime>().unwrap();
-    Ok(Response::with((
-        content_type,
-        iron::status::Ok,
-        APP_BUNDLE_MAP,
-    )))
-}
-
-struct VisibleNodes {
+pub struct VisibleNodes {
     octree: Arc<RwLock<octree::OnDiskOctree>>,
+}
+
+impl VisibleNodes {
+    pub fn new(octree: Arc<RwLock<octree::OnDiskOctree>>) -> Self {
+        VisibleNodes {octree}
+    }
 }
 
 impl iron::Handler for VisibleNodes {
@@ -119,8 +78,14 @@ fn pad(input: &mut Vec<u8>) {
     }
 }
 
-struct NodesData {
+pub struct NodesData {
     octree: Arc<RwLock<octree::OnDiskOctree>>,
+}
+
+impl NodesData {
+    pub fn new(octree: Arc<RwLock<octree::OnDiskOctree>>) -> Self {
+        NodesData { octree }
+    }
 }
 
 impl iron::Handler for NodesData {
@@ -191,50 +156,4 @@ impl iron::Handler for NodesData {
         let content_type = "application/octet-stream".parse::<Mime>().unwrap();
         Ok(Response::with((content_type, iron::status::Ok, reply_blob)))
     }
-}
-
-fn main() {
-    let matches = clap::App::new("web_viewer")
-        .args(&[
-            clap::Arg::with_name("port")
-                .help("Port to listen on for connections.")
-                .long("port")
-                .takes_value(true),
-            clap::Arg::with_name("octree_directory")
-                .help("Input directory of the octree directory to serve.")
-                .index(1)
-                .required(true),
-        ])
-        .get_matches();
-
-    let port = value_t!(matches, "port", u16).unwrap_or(5433);
-    let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
-
-    let otree = {
-        let otree = match octree::OnDiskOctree::new(octree_directory) {
-            Ok(otree) => otree,
-            Err(err) => panic!("Could not load octree: {}", err),
-        };
-        Arc::new(RwLock::new(otree))
-    };
-
-    let mut router = Router::new();
-    router.get("/", index);
-    router.get("/app_bundle.js", app_bundle);
-    router.get("/app_bundle.js.map", app_bundle_source_map);
-    router.get(
-        "/visible_nodes",
-        VisibleNodes {
-            octree: otree.clone(),
-        },
-    );
-    router.post(
-        "/nodes_data",
-        NodesData {
-            octree: otree.clone(),
-        },
-    );
-
-    println!("Listening on port {}.", port);
-    Iron::new(router).http(("0.0.0.0", port)).unwrap();
 }

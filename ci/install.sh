@@ -8,7 +8,7 @@ install_javascript_stuff() {
 
   nvm install 5.0.0
 
-  pushd web_viewer/client
+  pushd octree_web_viewer/client
   npm install
   popd
 

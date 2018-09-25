@@ -36,6 +36,7 @@ pub mod color;
 pub mod errors;
 pub mod generation;
 pub mod math;
+pub mod generation;
 pub mod octree;
 pub mod ply;
 pub mod pts;
