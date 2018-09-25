@@ -24,6 +24,20 @@ message Vector3f {
   float z = 3;
 }
 
+message Vector4f {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+  float w = 4;
+}
+
+message Color {
+  float red = 1;
+  float green = 2;
+  float blue = 3;
+  float alpha = 4;
+}
+
 message AxisAlignedCube {
   Vector3f min = 1;
   float edge_length = 2;
