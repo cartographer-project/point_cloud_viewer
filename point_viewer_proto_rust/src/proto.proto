@@ -24,6 +24,13 @@ message Vector3f {
   float z = 3;
 }
 
+message Vector4f {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+  float w = 4;
+}
+
 // Based on OpenGL standards, the value of fields will be between 0 and 1
 message Color {
   float red = 1;
