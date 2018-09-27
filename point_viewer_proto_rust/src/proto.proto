@@ -31,6 +31,7 @@ message Vector4f {
   float w = 4;
 }
 
+// Based on OpenGL standards, the value of fields will be between 0 and 1
 message Color {
   float red = 1;
   float green = 2;

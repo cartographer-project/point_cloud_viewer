@@ -71,7 +71,7 @@ impl GrpcOctree {
                 for (p, color) in reply.positions.iter().zip(reply.colors.iter()) {
                     points.push(Point {
                         position: Vector3::new(p.x, p.y, p.z),
-                        color: Color { 
+                        color: Color {
                             red: color.red,
                             green: color.green,
                             blue: color.blue,

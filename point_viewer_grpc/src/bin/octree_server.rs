@@ -46,6 +46,10 @@ fn stream_points_back_to_sink(
 
     // This creates a async-aware (tx, rx) pair that can wake up the event loop when new data
     // is piped through it.
+
+    // We create a channel with a small buffer, which yields better performance than
+    // fully blocking without requiring a ton of memory. This has not been carefully benchmarked
+    // for best performance though.
     let (tx, rx) = mpsc::channel(4);
     thread::spawn(move || {
         // This is the secret sauce connecting an OS thread to a event-based receiver. Calling

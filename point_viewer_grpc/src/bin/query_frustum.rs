@@ -20,7 +20,7 @@ extern crate point_viewer;
 extern crate point_viewer_grpc_proto_rust;
 extern crate protobuf;
 
-use cgmath::{EuclideanSpace, Point3, Rad, Deg};
+use cgmath::{Deg, EuclideanSpace, Point3, Rad};
 use collision::{Aabb3, Aabb};
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
@@ -56,13 +56,13 @@ fn main() {
 
     let mut request = GetPointsInFrustumRequest::new();
     request.mut_rotation().set_x(-0.30282807);
-    request.mut_rotation().set_y(0.18231738 );
-    request.mut_rotation().set_z(0.48248893  );
-    request.mut_rotation().set_w(0.8014113  );
+    request.mut_rotation().set_y(0.18231738);
+    request.mut_rotation().set_z(0.48248893);
+    request.mut_rotation().set_w(0.8014113);
 
     request.mut_translation().set_x(-0.79101276);
     request.mut_translation().set_y(-105.560104);
-    request.mut_translation().set_z(-132.89323  );
+    request.mut_translation().set_z(-132.89323);
 
     request.set_fovy_rad(Rad::from(Deg(45.)).0);
     request.set_aspect(800./600.);
@@ -81,7 +81,7 @@ fn main() {
                 bounding_box = bounding_box.grow(p);
                 points.push(Point {
                     position: p.to_vec(),
-                    color: Color { 
+                    color: Color {
                         red: color.red,
                         green: color.green,
                         blue: color.blue,

@@ -60,13 +60,13 @@ message GetPointsInFrustumRequest {
 }
 
 message PointsReply {
-  // For every point a position. This is guaranteed to contain entries. 
+  // For every point a position. This is guaranteed to contain entries.
   repeated point_viewer.proto.Vector3f positions = 1;
 
   // For every point a color value (R, G, B, A).
   repeated point_viewer.proto.Color colors = 2;
 
-  // For every point an intensity value. Might not exist if there are no colors.
+  // For every point an intensity value. Might not exist if there are no intensities.
   repeated float intensities = 3;
 
 }
