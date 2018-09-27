@@ -12,34 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate byteorder;
-extern crate cgmath;
 extern crate clap;
-extern crate collision;
-extern crate fnv;
-extern crate pbr;
 extern crate point_viewer;
-extern crate protobuf;
-extern crate scoped_pool;
 
-use cgmath::{EuclideanSpace, Point3};
-use collision::{Aabb, Aabb3};
-use fnv::{FnvHashMap, FnvHashSet};
-use pbr::ProgressBar;
-use point_viewer::{InternalIterator, Point};
-use point_viewer::errors::*;
-use point_viewer::math::Cube;
-use point_viewer::octree;
-use point_viewer::ply::PlyIterator;
-use point_viewer::proto;
-use point_viewer::pts::PtsIterator;
-use protobuf::Message;
-use scoped_pool::{Pool, Scope};
-use std::fs::{self, File};
-use std::io::{BufWriter, Stdout};
 use std::path::PathBuf;
-use std::sync::mpsc;
-
 use point_viewer::generation::build_octree_from_file;
 
 fn main() {
