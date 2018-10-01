@@ -22,7 +22,7 @@ protoc-rust = "1.4.3"
 
 [dependencies]
 protobuf = "1.4.3"
-grpcio = "0.2"
+grpcio = "0.4.0"
 futures = "0.1.17"
 
 [dependencies.point_viewer]
