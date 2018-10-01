@@ -22,7 +22,7 @@ collision = "0.18.0"
 cgmath = "0.16.0"
 clap = "^2.31.2"
 futures = "0.1.17"
-grpcio = "0.2"
+grpcio = "0.4.0"
 protobuf = "1.4.3"
 
 [dependencies.point_viewer]
