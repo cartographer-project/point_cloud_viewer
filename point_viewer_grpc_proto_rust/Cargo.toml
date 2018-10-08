@@ -18,11 +18,12 @@ version = "0.1.0"
 authors = ["Holger Rapp <hrapp@lyft.com>"]
 
 [build-dependencies]
-protoc-rust = "1.4.3"
+protoc-rust = "2.0.0"
+protoc-grpcio = "0.2.1"
 
 [dependencies]
-protobuf = "1.4.3"
-grpcio = "0.2"
+protobuf = "2.0.0"
+grpcio = "0.4"
 futures = "0.1.17"
 
 [dependencies.point_viewer]

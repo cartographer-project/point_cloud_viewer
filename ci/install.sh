@@ -23,7 +23,6 @@ main() {
     bash ci/install_proto3.sh
     export PATH="$PATH:$HOME/bin"
 
-    cargo install --vers 1.4.3 --force protobuf
     cargo install --force grpcio-compiler
 }
 

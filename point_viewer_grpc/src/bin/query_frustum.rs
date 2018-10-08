@@ -50,7 +50,7 @@ impl InternalIterator for Points {
 fn main() {
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env)
-        .max_receive_message_len(::std::usize::MAX)
+        .max_receive_message_len(::std::i32::MAX)
         .connect("127.0.0.1:50051");
     let client = OctreeClient::new(ch);
 

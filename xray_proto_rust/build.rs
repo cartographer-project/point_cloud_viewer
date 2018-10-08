@@ -13,6 +13,7 @@ fn main() {
         out_dir: &out_dir,
         input: &["src/proto.proto"],
         includes: &[],
+        ..Default::default()
     }).expect("protoc");
 
     // Work around
