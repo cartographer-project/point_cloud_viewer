@@ -51,32 +51,6 @@ fn main() {
         &out_dir
     ).expect("Failed to compile gRPC definitions!");
 
-    // NOCOM(#sirver): what
-    // let mut cmd = process::Command::new("protoc");
-    // let plugin = find_executable("grpc_rust_plugin")
-        // .unwrap()
-        // .to_string_lossy()
-        // .into_owned();
-
-    // let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    // let root_path = Path::new(&manifest_dir).parent().unwrap();
-    // cmd.stdin(process::Stdio::null());
-    // cmd.args(&[
-        // format!("-I{}", git_repo_root.to_string_lossy()),
-        // format!("--rust_out={}", out_dir),
-        // format!("--grpc_out={}", out_dir),
-        // format!("--plugin=protoc-gen-grpc={}", plugin),
-        // root_path
-            // .join("point_viewer_grpc_proto_rust/src/proto.proto")
-            // .to_string_lossy()
-            // .into_owned(),
-    // ]);
-
-    // let mut child = cmd.spawn().unwrap();
-    // if !child.wait().unwrap().success() {
-        // panic!("protoc exited with non-zero exit code");
-    // }
-
     inplace_modify_file(&Path::new(&out_dir).join("proto.rs"), |c| {
         // Work around https://github.com/stepancheg/rust-protobuf/issues/260. The protobuf plugin
         // apparently gets confused that there is point_viewer::octree::proto and

@@ -15,7 +15,6 @@ fn main() {
         includes: &[],
         ..Default::default()
     }).expect("protoc");
-    println!("#sirver out_dir: {:#?}", out_dir);
 
     // Work around
     // https://github.com/stepancheg/rust-protobuf/issues/117
