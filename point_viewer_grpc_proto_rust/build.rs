@@ -1,8 +1,9 @@
+extern crate protoc_grpcio;
+
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process;
 
 // Finds the absolute path to the root of the repository.
 fn find_git_repo_root() -> PathBuf {
@@ -12,26 +13,6 @@ fn find_git_repo_root() -> PathBuf {
         path = path.parent().unwrap();
     }
     return path.to_owned();
-}
-
-// Finds 'exe_name' in $PATH and returns its full path.
-// From https://stackoverflow.com/a/37499032.
-fn find_executable<P>(exe_name: P) -> Option<PathBuf>
-where
-    P: AsRef<Path>,
-{
-    env::var_os("PATH").and_then(|paths| {
-        env::split_paths(&paths)
-            .filter_map(|dir| {
-                let full_path = dir.join(&exe_name);
-                if full_path.is_file() {
-                    Some(full_path)
-                } else {
-                    None
-                }
-            })
-            .next()
-    })
 }
 
 // Opens a file, calls 'func' with its contents and writes the new content back.
@@ -61,33 +42,40 @@ fn wrap_in_module(contents: String, mod_name: &str) -> String {
 fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    println!("cargo:rerun-if-changed=point_viewer_proto_rust/src/proto.proto");
-
-    let mut cmd = process::Command::new("protoc");
-    let plugin = find_executable("grpc_rust_plugin")
-        .unwrap()
-        .to_string_lossy()
-        .into_owned();
+    println!("cargo:rerun-if-changed=point_viewer_grpc_proto_rust/src/proto.proto");
 
     let git_repo_root = find_git_repo_root();
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let root_path = Path::new(&manifest_dir).parent().unwrap();
-    cmd.stdin(process::Stdio::null());
-    cmd.args(&[
-        format!("-I{}", git_repo_root.to_string_lossy()),
-        format!("--rust_out={}", out_dir),
-        format!("--grpc_out={}", out_dir),
-        format!("--plugin=protoc-gen-grpc={}", plugin),
-        root_path
-            .join("point_viewer_grpc_proto_rust/src/proto.proto")
-            .to_string_lossy()
-            .into_owned(),
-    ]);
+    protoc_grpcio::compile_grpc_protos(
+        &["point_viewer_grpc_proto_rust/src/proto.proto"],
+        &[git_repo_root.clone()],
+        &out_dir
+    ).expect("Failed to compile gRPC definitions!");
 
-    let mut child = cmd.spawn().unwrap();
-    if !child.wait().unwrap().success() {
-        panic!("protoc exited with non-zero exit code");
-    }
+    // NOCOM(#sirver): what
+    // let mut cmd = process::Command::new("protoc");
+    // let plugin = find_executable("grpc_rust_plugin")
+        // .unwrap()
+        // .to_string_lossy()
+        // .into_owned();
+
+    // let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    // let root_path = Path::new(&manifest_dir).parent().unwrap();
+    // cmd.stdin(process::Stdio::null());
+    // cmd.args(&[
+        // format!("-I{}", git_repo_root.to_string_lossy()),
+        // format!("--rust_out={}", out_dir),
+        // format!("--grpc_out={}", out_dir),
+        // format!("--plugin=protoc-gen-grpc={}", plugin),
+        // root_path
+            // .join("point_viewer_grpc_proto_rust/src/proto.proto")
+            // .to_string_lossy()
+            // .into_owned(),
+    // ]);
+
+    // let mut child = cmd.spawn().unwrap();
+    // if !child.wait().unwrap().success() {
+        // panic!("protoc exited with non-zero exit code");
+    // }
 
     inplace_modify_file(&Path::new(&out_dir).join("proto.rs"), |c| {
         // Work around https://github.com/stepancheg/rust-protobuf/issues/260. The protobuf plugin

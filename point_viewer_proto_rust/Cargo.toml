@@ -18,7 +18,7 @@ version = "0.1.0"
 authors = ["Holger Rapp <hrapp@lyft.com>"]
 
 [build-dependencies]
-protoc-rust = "1.4.3"
+protoc-rust = "2.0.0"
 
 [dependencies]
-protobuf = "1.4.3"
+protobuf = "2.0.0"

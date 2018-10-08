@@ -44,7 +44,7 @@ impl GrpcOctree {
     pub fn new(addr: &str) -> Self {
         let env = Arc::new(EnvBuilder::new().build());
         let ch = ChannelBuilder::new(env)
-            .max_receive_message_len(::std::usize::MAX)
+            .max_receive_message_len(::std::i32::MAX)
             .connect(addr);
         let client = OctreeClient::new(ch);
 
