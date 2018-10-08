@@ -35,6 +35,8 @@ use proto_grpc::OctreeClient;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+pub mod service;
+
 pub struct GrpcOctree {
     client: OctreeClient,
     octree: OnDiskOctree,
