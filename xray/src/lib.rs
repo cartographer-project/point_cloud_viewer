@@ -16,6 +16,7 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate urlencoded;
 extern crate xray_proto_rust;
+extern crate stats;
 
 use cgmath::Point2;
 use fnv::FnvHashSet;
