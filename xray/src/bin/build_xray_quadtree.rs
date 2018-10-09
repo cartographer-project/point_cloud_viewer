@@ -63,7 +63,7 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .required_if("coloring_strategy", "colored_with_intensity"),
             clap::Arg::with_name("max_stddev")
                 .help(
-                    "Maximum stddev for colored_with_height_stddev. Every stddev above this \
+                    "Maximum standard deviation for colored_with_height_stddev. Every stddev above this \
                      will be clamped to this value and appear saturated in the X-Rays. \
                      Only used for 'colored_with_height_stddev'.",
                 )
