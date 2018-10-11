@@ -51,16 +51,16 @@ message GetPointsInBoxRequest {
 }
 
 message GetPointsInFrustumRequest {
-  // Unit vector defining the translation.
+  // Vector defining the translation.
   point_viewer.proto.Vector3f translation = 1;
 
-  // Unit vector specifying the rotation quaternion.
-  point_viewer.proto.Vector4f rotation = 2;
+  // Quaternion specifying the rotation.
+  point_viewer.proto.Quaternion rotation = 2;
 
   // Field of view angle in radians.
   double fovy_rad = 3;
 
-  // Aspect ratio of width to y height.
+  // Aspect ratio of x (width) to y (height).
   double aspect = 4;
 
   // Distance from the viewer to the near clipping plane.
