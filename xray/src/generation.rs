@@ -4,13 +4,62 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image;
 use point_viewer::{octree, InternalIterator, Point, color::{Color, WHITE}};
+use point_viewer::math::clamp;
 use std::collections::hash_map::Entry;
 use std::path::Path;
+use stats::OnlineStats;
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
 // becomes.
 const NUM_Z_BUCKETS: f32 = 1024.;
+
+// Implementation of matlab's jet colormap from here:
+// https://stackoverflow.com/questions/7706339/grayscale-to-red-green-blue-matlab-jet-color-scale
+struct Jet;
+
+impl Jet {
+    fn red(&self, gray: f32) -> f32 {
+        self.base(gray - 0.5)
+    }
+
+    fn green(&self, gray: f32) -> f32 {
+        self.base(gray)
+    }
+
+    fn blue(&self, gray: f32) -> f32 {
+        self.base(gray + 0.5)
+    }
+
+    fn base(&self, val: f32) -> f32 {
+        if val <= -0.75 {
+            0.
+        } else if val <= -0.25 {
+            self.interpolate(val, 0.0, -0.75, 1.0, -0.25 )
+        } else if val <= 0.25 {
+            1.0
+        } else if val <= 0.75 {
+            self.interpolate( val, 1.0, 0.25, 0.0, 0.75 )
+        } else {
+            0.0
+        }
+    }
+
+    fn interpolate(&self, val: f32, y0: f32, x0: f32, y1: f32, x1: f32) -> f32 {
+        (val-x0)*(y1-y0)/(x1-x0) + y0
+    }
+
+    pub fn for_value(&self, val: f32) -> Color<u8> {
+        assert!(0. <= val);
+        assert!(val <= 1.);
+        Color {
+            red: self.red(val),
+            green: self.green(val),
+            blue: self.blue(val),
+            alpha: 1.
+        }.to_u8()
+    }
+}
 
 arg_enum! {
     #[derive(Debug)]
@@ -19,6 +68,7 @@ arg_enum! {
         xray,
         colored,
         colored_with_intensity,
+        colored_with_height_stddev,
     }
 }
 
@@ -29,6 +79,9 @@ pub enum ColoringStrategyKind {
 
     // Min and max intensities.
     ColoredWithIntensity(f32, f32),
+
+    // Colored in heat-map colors by stddev. Takes the max stddev to clamp on.
+    ColoredWithHeightStddev(f32),
 }
 impl ColoringStrategyKind {
     pub fn new_strategy(&self) -> Box<ColoringStrategy> {
@@ -37,7 +90,8 @@ impl ColoringStrategyKind {
             ColoringStrategyKind::Colored => Box::new(PointColorColoringStrategy::default()),
             ColoringStrategyKind::ColoredWithIntensity(min_intensity, max_intensity) => {
                 Box::new(IntensityColoringStrategy::new(min_intensity, max_intensity))
-            }
+            },
+            ColoringStrategyKind::ColoredWithHeightStddev(max_stddev) => Box::new(HeightStddevColoringStrategy::new(max_stddev)),
         }
     }
 }
@@ -153,6 +207,7 @@ impl ColoringStrategy for IntensityColoringStrategy {
             alpha: 1.,
         }.to_u8()
     }
+
 }
 
 struct PerColumnData {
@@ -200,6 +255,38 @@ impl ColoringStrategy for PointColorColoringStrategy {
             blue: c.color_sum.blue / c.count as f32,
             alpha: c.color_sum.alpha / c.count as f32,
         }.to_u8()
+    }
+}
+
+struct HeightStddevColoringStrategy {
+    per_column_data: FnvHashMap<(u32, u32), OnlineStats>,
+    max_stddev: f32,
+}
+
+impl HeightStddevColoringStrategy {
+    fn new(max_stddev: f32) -> Self {
+        HeightStddevColoringStrategy {
+            max_stddev, 
+            per_column_data: FnvHashMap::default(),
+        }
+    }
+}
+
+impl ColoringStrategy for HeightStddevColoringStrategy {
+    fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
+        self.per_column_data
+            .entry((x, y))
+            .or_insert_with(|| OnlineStats::new())
+            .add(p.position.z);
+    }
+
+    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+        if !self.per_column_data.contains_key(&(x, y)) {
+            return WHITE.to_u8();
+        }
+        let c = &self.per_column_data[&(x, y)];
+        let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
+        Jet{}.for_value(saturation)
     }
 }
 

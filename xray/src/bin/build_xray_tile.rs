@@ -54,6 +54,15 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .long("max_intensity")
                 .takes_value(true)
                 .required_if("coloring_strategy", "colored_with_intensity"),
+            clap::Arg::with_name("max_stddev")
+                .help(
+                    "Maximum stddev for colored_with_height_stddev. Every stddev above this \
+                     will be clamped to this value and appear saturated in the X-Rays. \
+                     Only used for 'colored_with_height_stddev'.",
+                )
+                .long("max_stddev")
+                .takes_value(true)
+                .required_if("coloring_strategy", "colored_with_height_stddev"),
             clap::Arg::with_name("octree_directory")
                 .help("Octree directory to turn into xrays.")
                 .index(1)
@@ -131,6 +140,9 @@ pub fn main() {
             colored_with_intensity => ColoringStrategyKind::ColoredWithIntensity(
                 value_t!(matches, "min_intensity", f32).unwrap_or(1.),
                 value_t!(matches, "max_intensity", f32).unwrap_or(1.),
+            ),
+            colored_with_height_stddev => ColoringStrategyKind::ColoredWithHeightStddev(
+                value_t!(matches, "max_stddev", f32).unwrap_or(1.),
             ),
         }
     };
