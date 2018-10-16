@@ -52,7 +52,7 @@ message GetPointsInBoxRequest {
 
 message GetPointsInFrustumRequest {
   point_viewer.proto.Vector3f translation = 1;
-  point_viewer.proto.Quaternion rotation = 2;
+  point_viewer.proto.Quaternionf rotation = 2;
   double fovy_rad = 3;
   double aspect = 4;
   double z_near = 5;
