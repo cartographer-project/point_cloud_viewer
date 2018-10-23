@@ -1,8 +1,8 @@
 set -ex
 
 main() {
-    # web viewer - client
-    pushd web_viewer/client
+    # octree_web_viewer - client
+    pushd octree_web_viewer/client
     npm run build
     popd
 

@@ -23,8 +23,8 @@ use num_traits;
 use octree::OctreeMeta;
 use proto;
 use std::{fmt, result};
-use std::fs::{self, File};
-use std::io::{BufReader, BufWriter};
+use std::fs::{self, File, OpenOptions};
+use std::io::{BufReader, BufWriter, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 pub const POSITION_EXT: &str = "xyz";
@@ -482,6 +482,50 @@ impl NodeWriter {
             num_written: 0,
         }
     }
+
+    pub fn append(octree_meta: &OctreeMeta, node_id: &NodeId) -> Self {
+        let stem = node_id.get_stem(&octree_meta.directory);
+        let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
+        let xyz = BufWriter::new(OpenOptions::new().write(true).append(true).open(&stem.with_extension(POSITION_EXT)).unwrap());
+        let rgb = BufWriter::new(OpenOptions::new().write(true).append(true).open(&stem.with_extension(COLOR_EXT)).unwrap());
+        let intensity = Some(BufWriter::new(OpenOptions::new().write(true).append(true).open(&stem.with_extension(INTENSITY_EXT)).unwrap()));
+        let nw = node_id.number_of_points(&octree_meta.directory).unwrap();
+        NodeWriter {
+            xyz_writer: xyz,
+            rgb_writer: rgb,
+            intensity_writer: intensity,
+            stem: stem,
+            position_encoding: PositionEncoding::new(&bounding_cube, octree_meta.resolution),
+            bounding_cube: bounding_cube,
+            num_written: nw,
+        }
+    }
+
+    // pub fn write_at(octree_meta: &OctreeMeta, node_id: &NodeId, p: &Point, index: i64) -> Self {
+    //     let stem = node_id.get_stem(&octree_meta.directory);
+    //     let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
+    //     let edge_length = bounding_cube.edge_length();
+    //     let min = bounding_cube.min();
+    //     let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
+    //     let bytes_per_coordinate = position_encoding.bytes_per_coordinate();
+    //     let position = bytes_per_coordinate * index as usize * 3;
+    //     let xyz_file = OpenOptions::new().write(true).open(&stem.with_extension(POSITION_EXT)).unwrap();
+    //     let rgb_file = OpenOptions::new().write(true).open(&stem.with_extension(COLOR_EXT)).unwrap();
+    //     let intensity_file = OpenOptions::new().write(true).open(&stem.with_extension(INTENSITY_EXT)).unwrap();
+    //     let xyz = BufWriter::new(xyz_file.seek(SeekFrom::Start(position as u64)));
+    //     let rgb = BufWriter::new(rgb_file.seek(SeekFrom::Start(position as u64)));
+    //     let intensity = Some(BufWriter::new(intensity_file.seek(SeekFrom::Start(position as u64))));
+    //     let nw = node_id.number_of_points(&octree_meta.directory).unwrap();
+    //     NodeWriter {
+    //         xyz_writer: xyz,
+    //         rgb_writer: rgb,
+    //         intensity_writer: intensity,
+    //         stem: stem,
+    //         position_encoding: PositionEncoding::new(&bounding_cube, octree_meta.resolution),
+    //         bounding_cube: bounding_cube,
+    //         num_written: nw,
+    //     }
+    // }
 
     pub fn write(&mut self, p: &Point) {
         // Note that due to floating point rounding errors while calculating bounding boxes, it

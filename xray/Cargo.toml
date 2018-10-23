@@ -6,17 +6,18 @@ authors = ["Holger Rapp <hrapp@lyft.com>"]
 [dependencies]
 fnv = "1.0.6"
 cgmath = "0.16.0"
-clap = "^2.31.2"
+clap = "2.32.0"
 collision = "0.18.0"
 image = "0.18.0"
 iron = "^0.3.0"
-protobuf = "1.4.3"
+protobuf = "2.0.0"
 router = "^0.1.1"
 scoped-pool = "^0.1"
 serde = "1.0.9"
 serde_json = "1.0.9"
 serde_derive = "1.0.9"
 urlencoded = "^0.3.0"
+streaming-stats = "0.2.2"
 
 [dependencies.point_viewer]
 path = ".."

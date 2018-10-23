@@ -20,10 +20,10 @@ version = "0.1.0"
 [dependencies]
 collision = "0.18.0"
 cgmath = "0.16.0"
-clap = "^2.31.2"
+clap = "2.32.0"
 futures = "0.1.17"
-grpcio = "0.2"
-protobuf = "1.4.3"
+grpcio = "0.4"
+protobuf = "2.0.0"
 
 [dependencies.point_viewer]
 path = ".."

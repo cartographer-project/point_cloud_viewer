@@ -19,19 +19,25 @@
 
 extern crate byteorder;
 extern crate cgmath;
+extern crate clap;
 extern crate collision;
 #[macro_use]
 extern crate error_chain;
 extern crate fnv;
+extern crate lru_cache;
 extern crate num;
 extern crate num_traits;
+extern crate pbr;
 extern crate point_viewer_proto_rust;
 extern crate protobuf;
+extern crate rand;
+extern crate scoped_pool;
 extern crate walkdir;
 
 pub mod color;
 pub mod errors;
 pub mod math;
+pub mod generation;
 pub mod octree;
 pub mod ply;
 pub mod pts;
