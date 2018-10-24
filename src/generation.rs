@@ -289,7 +289,20 @@ pub fn build_octree(output_directory: impl AsRef<Path>, resolution: f64, boundin
         for p in points {
             node_writer.write(&p);
         }
+
+        let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
+        let position_encoding =
+            octree::PositionEncoding::new(&bounding_cube, octree_meta.resolution);
+        let mut proto = proto::Node::new();
+        proto.mut_id().set_level(node_id.level() as i32);
+        proto.mut_id().set_index(node_id.index() as i64);
+        proto.set_num_points(num_points);
+        proto.set_position_encoding(position_encoding.to_proto());
+        meta.mut_nodes().push(proto);
+
         progress_bar.as_mut().map(|f| f.inc());
     }
     println!("Octree build completed!");
+    let mut buf_writer = BufWriter::new(File::create(&output_directory.as_ref().join("meta.pb")).unwrap());
+    meta.write_to_writer(&mut buf_writer).unwrap();
 }
