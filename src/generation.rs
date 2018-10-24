@@ -112,9 +112,7 @@ impl<'a> OctreeBuilder<'a> {
         // Case 1: New node with 0 points
         if !self.points_seen_in_node.contains_key(&node_id) {
             *self.points_seen_in_node.entry(*node_id).or_insert(1);
-            let mut node_writer = octree::NodeWriter::new(&self.octree_meta, &node_id);
             self.cache.insert(*node_id, vec![point.clone()]);
-            node_writer.write(&point);
             return;
         }
 
