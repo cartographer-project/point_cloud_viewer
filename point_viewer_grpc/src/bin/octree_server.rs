@@ -42,6 +42,7 @@ fn main() {
     let port = value_t!(matches, "port", u16).unwrap_or(50051);
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
     let mut server = start_grpc_server(octree_directory, "0.0.0.0", port);
+    server.start();
 
     for &(ref host, port) in server.bind_addrs() {
         println!("listening on {}:{}", host, port);
