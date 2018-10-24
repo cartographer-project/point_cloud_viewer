@@ -40,7 +40,7 @@ use std::collections::HashMap;
 
 const MAX_NODES_IN_CACHE: usize = 100000;
 const UPDATE_COUNT: i64 = 1000;
-const MAX_POINTS_PER_NODE: i64 = 100000;
+const MAX_POINTS_PER_NODE: i64 = 100;
 
 // Generate random number in range (0, range)
 fn random_num_in_range(range: i64) -> usize {
@@ -77,25 +77,11 @@ impl<'a> OctreeBuilder<'a> {
     }
 
     // Read from cache or disk
-    pub fn read_cache_or_disk(
+    pub fn read_cache(
         & mut self,
         node_id:  &octree::NodeId,
     ) -> Vec<Point> {
-        // match self.cache.get_mut(node_id) {
-        //     Some(points) => println!("Cached points {}: {}", node_id, count),
-        //     None => println!("{} is unreviewed.", node_id)
-        // }
-        if self.cache.contains_key(&node_id) {
-            let mut cached_points = self.cache.get_mut(&node_id).unwrap();
-            return cached_points.to_vec();
-        }
-
-        let node_iterator = octree::NodeIterator::from_disk(&self.octree_meta, &node_id).unwrap();
-        let mut points = &mut Vec::with_capacity(node_iterator.size_hint().unwrap());
-        node_iterator.for_each(|p| points.push((*p).clone()));
-        self.cache.remove(&node_id);
-        self.cache.insert(*node_id, points.to_vec());
-        points.clone()
+        self.cache.get_mut(&node_id).unwrap().to_vec()
     }
 
     // Sample the points in node using reservoir sampling algorithm
@@ -105,9 +91,6 @@ impl<'a> OctreeBuilder<'a> {
         bounding_cube: &Cube,
         point: &Point,
     ) {
-        let child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &point.position);
-        let child_id = node_id.get_child_id(child_index);
-        let child_bounding_cube = child_id.find_bounding_cube(&bounding_cube);
 
         // Case 1: New node with 0 points
         if !self.points_seen_in_node.contains_key(&node_id) {
@@ -117,27 +100,23 @@ impl<'a> OctreeBuilder<'a> {
         }
 
         *self.points_seen_in_node.entry(*node_id).or_insert(1) += 1;
-
-        let mut points = self.read_cache_or_disk(&node_id);
         let points_seen = self.points_seen_in_node[&node_id];
+        let mut points = self.read_cache(&node_id);
 
-        // Case 2: The current node has less than or equal to MAX_POINTS_PER_NODE points
+        // Case 1: The current node has less than or equal to MAX_POINTS_PER_NODE points
         if points_seen <= MAX_POINTS_PER_NODE as i64 {
             self.cache.get_mut(&node_id).unwrap().push(point.clone());
             return;
         }  else {
-            // Case 3: The current node has less than or equal to MAX_POINTS_PER_NODE points
+            // Case 2: The current node has less than or equal to MAX_POINTS_PER_NODE points
             let random_index: usize = random_num_in_range(points_seen);
             if random_index >= MAX_POINTS_PER_NODE as usize {
+                let child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &point.position);
+                let child_id = node_id.get_child_id(child_index);
+                let child_bounding_cube = child_id.find_bounding_cube(&bounding_cube);
                 self.reservoir_sample_node(&child_id, &child_bounding_cube, &point);
             } else {
-                if !self.cache.contains_key(&node_id) {
-                    let node_iterator = octree::NodeIterator::from_disk(&self.octree_meta, &node_id).unwrap();
-                    let mut points = Vec::with_capacity(node_iterator.size_hint().unwrap());
-                    node_iterator.for_each(|p| points.push((p).clone()));
-                    self.cache.insert(*node_id, points);
-                }
-                let mut points = self.read_cache_or_disk(&node_id);
+                let mut points = self.read_cache(&node_id);
                 let evicted_point = mem::replace(&mut points[random_index], point.clone());
                 let evicted_child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &evicted_point.position);
                 let evicted_child_id = node_id.get_child_id(evicted_child_index);
@@ -286,6 +265,7 @@ pub fn build_octree(output_directory: impl AsRef<Path>, resolution: f64, boundin
     progress_bar = Some(ProgressBar::new(octree_builder.cache.len() as u64));
     for (node_id, points) in octree_builder.cache {
         let mut node_writer = octree::NodeWriter::new(octree_meta, &node_id);
+        let num_points = points.len();
         for p in points {
             node_writer.write(&p);
         }
@@ -296,7 +276,7 @@ pub fn build_octree(output_directory: impl AsRef<Path>, resolution: f64, boundin
         let mut proto = proto::Node::new();
         proto.mut_id().set_level(node_id.level() as i32);
         proto.mut_id().set_index(node_id.index() as i64);
-        proto.set_num_points(num_points);
+        proto.set_num_points(num_points as i64);
         proto.set_position_encoding(position_encoding.to_proto());
         meta.mut_nodes().push(proto);
 
