@@ -40,7 +40,7 @@ use std::collections::HashMap;
 
 const MAX_NODES_IN_CACHE: usize = 100000;
 const UPDATE_COUNT: i64 = 1000;
-const MAX_POINTS_PER_NODE: i64 = 100;
+const MAX_POINTS_PER_NODE: i64 = 100000;
 
 // Generate random number in range (0, range)
 fn random_num_in_range(range: i64) -> usize {
