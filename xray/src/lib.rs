@@ -25,7 +25,7 @@ use std::fs::File;
 use std::io::{Cursor, Read};
 use std::path::Path;
 
-pub const CURRENT_VERSION: i32 = 1;
+pub const CURRENT_VERSION: i32 = 2;
 
 #[derive(Debug)]
 pub struct Meta {

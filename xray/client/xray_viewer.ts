@@ -49,7 +49,7 @@ class NodeData {
     geometry.applyMatrix(
       new THREE.Matrix4().makeTranslation(
         this.boundingRect["edge_length"] / 2,
-        -this.boundingRect["edge_length"] / 2,
+        this.boundingRect["edge_length"] / 2,
         0
       )
     );
@@ -58,7 +58,6 @@ class NodeData {
       side: THREE.DoubleSide
     });
     this.plane = new THREE.Mesh(geometry, material);
-    this.plane.scale.y = -1;
     this.plane.position.set(
       this.boundingRect["min_x"],
       this.boundingRect["min_y"],
@@ -172,6 +171,11 @@ export class XRayViewer {
       texture => {
         this.currentlyLoading -= 1;
         this.loadNext();
+        const level = nodeId.length - 1;
+        // Let's show all the beautiful pixels on the lowest zoom level.
+        if (level == this.meta['deepest_level']) {
+            texture.magFilter = THREE.NearestFilter;
+        }
         this.nodes[nodeId].setTexture(texture);
         this.swapIn(nodeId);
         if (this.currentlyLoading === 0) {

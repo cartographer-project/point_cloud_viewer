@@ -14,10 +14,11 @@
 
 'use strict';
 
+import * as THREE from 'three';
 import { FirstPersonController } from './control';
 import { OctreeViewer } from './octree_viewer';
 
-export function now(): number {
+function now(): number {
   return +new Date();
 }
 

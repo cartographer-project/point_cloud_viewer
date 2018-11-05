@@ -14,7 +14,7 @@
 
 'use strict';
 
-import { now } from './main';
+import * as THREE from 'three';
 
 const KEY_L = 'L'.charCodeAt(0);
 
@@ -245,6 +245,10 @@ class NodeData {
     this.threePoints = new THREE.Points(geometry, material);
     scene.add(this.threePoints);
   }
+}
+
+function now(): number {
+  return +new Date();
 }
 
 export class OctreeViewer {

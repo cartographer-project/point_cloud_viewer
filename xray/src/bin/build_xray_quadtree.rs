@@ -13,7 +13,6 @@ extern crate xray;
 use cgmath::{Point2, Point3};
 use collision::{Aabb, Aabb3};
 use fnv::FnvHashSet;
-use image::GenericImage;
 use octree::OnDiskOctree;
 use point_viewer::octree;
 use protobuf::Message;
@@ -183,20 +182,13 @@ fn run(
                 all_nodes_tx.send(node_id).unwrap();
                 let tx_clone = parents_to_create_tx.clone();
                 scope.execute(move || {
-                    let mut large_image = image::RgbImage::from_pixel(
-                        tile_size_px * 2,
-                        tile_size_px * 2,
-                        image::Rgb {
-                            data: [255, 255, 255],
-                        },
-                    );
+                    let mut children = [ None, None, None, None ];
 
-                    for &(id, xoffs, yoffs) in &[
-                        (0, 0, 0),
-                        (1, 0, tile_size_px),
-                        (2, tile_size_px, 0),
-                        (3, tile_size_px, tile_size_px),
-                    ] {
+                    // We a right handed coordinate system with the x-axis of world and images
+                    // aligning. This means that the y-axis aligns too, but the origin of the image
+                    // space must be at the bottom left. Since images have their origin at the top
+                    // left, we need actually have to invert y and go from the bottom of the image.
+                    for id in 0..4 {
                         let png = get_image_path(
                             output_directory,
                             node_id.get_child_id(ChildIndex::from_u8(id)),
@@ -204,9 +196,9 @@ fn run(
                         if !png.exists() {
                             continue;
                         }
-                        let img = image::open(&png).unwrap().to_rgb();
-                        large_image.copy_from(&img, xoffs, yoffs);
+                        children[id as usize] = Some(image::open(&png).unwrap().to_rgb());
                     }
+                    let large_image = xray::generation::build_parent(&children);
                     let image = image::DynamicImage::ImageRgb8(large_image).resize(
                         tile_size_px,
                         tile_size_px,
