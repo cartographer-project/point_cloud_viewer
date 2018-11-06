@@ -247,10 +247,6 @@ class NodeData {
   }
 }
 
-function now(): number {
-  return +new Date();
-}
-
 export class OctreeViewer {
   // TODO(hrapp): These are only public, so we can wire up DAT to affect
   // material.size. If DAT supports callbacks, we can encapsulate this nicer.
@@ -328,7 +324,7 @@ export class OctreeViewer {
   }
 
   private nodesUpdate(nodeIds: string[]) {
-    const start = now();
+    const start = performance.now();
     this.batches = [];
     let currentBatch: NodeData[] = [];
     for (let nodeId of nodeIds) {
@@ -347,7 +343,7 @@ export class OctreeViewer {
       this.batches.push(currentBatch);
     }
     this.handleNextBatch();
-    console.log(`nodeUpdate took ${now() - start}ms.`);
+    console.log(`nodeUpdate took ${performance.now() - start}ms.`);
   }
 
   private handleNextBatch() {

@@ -345,8 +345,8 @@ pub fn xray_from_points(
     let mut seen_any_points = false;
     octree.points_in_box(bbox).for_each(|p| {
         seen_any_points = true;
-        // We a right handed coordinate system with the x-axis of world and images aligning. This
-        // means that the y-axis aligns too, but the origin of the image space must be at the
+        // We want a right handed coordinate system with the x-axis of world and images aligning.
+        // This means that the y-axis aligns too, but the origin of the image space must be at the
         // bottom left. Since images have their origin at the top left, we need actually have to
         // invert y and go from the bottom of the image.
         let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * image_width as f32) as u32;
