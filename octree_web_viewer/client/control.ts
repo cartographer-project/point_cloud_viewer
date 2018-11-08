@@ -14,6 +14,8 @@
 
 'use strict';
 
+import * as THREE from 'three';
+
 enum MouseState {
   NONE,
   ROTATE,
@@ -90,7 +92,6 @@ export class FirstPersonController {
       changed = true;
       this.object.rotation.order = 'ZYX';
 
-      this.object.matrixWorld.applyToVector3Array([pan.x, pan.y, pan.z]);
       this.object.translateOnAxis(pan.normalize(), this.moveSpeed);
 
       this.object.updateMatrix();

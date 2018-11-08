@@ -14,12 +14,9 @@
 
 'use strict';
 
+import * as THREE from 'three';
 import { FirstPersonController } from './control';
 import { OctreeViewer } from './octree_viewer';
-
-export function now(): number {
-  return +new Date();
-}
 
 class App {
   private camera: THREE.PerspectiveCamera;
@@ -106,7 +103,7 @@ class App {
   public animate() {
     requestAnimationFrame(() => this.animate());
 
-    const time = now();
+    const time = performance.now();
     if (this.controller.update()) {
       this.lastMoveTime = time;
       this.viewer.setMoving(true);

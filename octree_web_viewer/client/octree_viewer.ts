@@ -14,7 +14,7 @@
 
 'use strict';
 
-import { now } from './main';
+import * as THREE from 'three';
 
 const KEY_L = 'L'.charCodeAt(0);
 
@@ -324,7 +324,7 @@ export class OctreeViewer {
   }
 
   private nodesUpdate(nodeIds: string[]) {
-    const start = now();
+    const start = performance.now();
     this.batches = [];
     let currentBatch: NodeData[] = [];
     for (let nodeId of nodeIds) {
@@ -343,7 +343,7 @@ export class OctreeViewer {
       this.batches.push(currentBatch);
     }
     this.handleNextBatch();
-    console.log(`nodeUpdate took ${now() - start}ms.`);
+    console.log(`nodeUpdate took ${performance.now() - start}ms.`);
   }
 
   private handleNextBatch() {

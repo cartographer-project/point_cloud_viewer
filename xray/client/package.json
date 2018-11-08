@@ -17,8 +17,8 @@
     "typescript": "=2.7.2"
   },
   "dependencies": {
-    "@types/three": "0.91.8",
-    "three": "0.91"
+    "@types/three": "0.92.17",
+    "three": "0.95.0"
   },
   "prettier": {
     "arrow-parens": "always",

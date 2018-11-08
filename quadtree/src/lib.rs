@@ -84,6 +84,32 @@ impl Node {
         }
     }
 
+    // TODO(hrapp): This function could use some testing.
+    pub fn parent(&self) -> Option<Node> {
+        let maybe_parent_id = self.id.parent_id();
+        if maybe_parent_id.is_none() {
+            return None;
+        }
+
+        let parent_rect = {
+            let child_index = self.id.child_index().unwrap().0;
+            let mut min = self.bounding_rect.min();
+            let edge_length = self.bounding_rect.edge_length();
+            if (child_index & 0b01) != 0 {
+                min.y -= edge_length;
+            }
+
+            if (child_index & 0b10) != 0 {
+                min.x -= edge_length;
+            }
+            Rect::new(min, edge_length * 2.)
+        };
+        Some(Node {
+            id: maybe_parent_id.unwrap(),
+            bounding_rect: parent_rect,
+        })
+    }
+
     /// Returns the level of this node in the quadtree, with 0 being the root.
     pub fn level(&self) -> u8 {
         self.id.level()
@@ -98,6 +124,10 @@ impl ChildIndex {
     pub fn from_u8(index: u8) -> Self {
         assert!(index < 4);
         ChildIndex(index)
+    }
+
+    pub fn as_u8(&self) -> u8 {
+        self.0
     }
 }
 

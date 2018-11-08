@@ -2,7 +2,7 @@
 
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
-use image;
+use image::{self, GenericImage};
 use point_viewer::{octree, InternalIterator, Point, color::{Color, WHITE}};
 use point_viewer::math::clamp;
 use std::collections::hash_map::Entry;
@@ -272,6 +272,50 @@ impl HeightStddevColoringStrategy {
     }
 }
 
+/// Build a parent image created of the 4 children tiles. All tiles are optionally, in which case
+/// they are left white in the resulting image. The input images must be square with length N, 
+/// the returned image is square with length 2*N.
+pub fn build_parent(children: &[Option<image::RgbImage>]) -> image::RgbImage {
+    assert_eq!(children.len(), 4);
+    let mut child_size_px = None;
+    for c in children.iter() {
+        if c.is_none() {
+            continue;
+        }
+        let c = c.as_ref().unwrap();
+        assert_eq!(c.width(), c.height(), "Expected width to be equal to height.");
+        match child_size_px {
+            None => child_size_px = Some(c.width()),
+            Some(w) => {
+                assert_eq!(w, c.width(), "Not all images have the same size.");
+            },
+        }
+    }
+    let child_size_px = child_size_px.expect("No children passed to 'build_parent'.");
+    let mut large_image = image::RgbImage::from_pixel(
+        child_size_px * 2,
+        child_size_px * 2,
+        image::Rgb {
+            data: [255, 255, 255],
+        },
+    );
+
+    // We want the x-direction to be up in the octree. Since (0, 0) is the top left
+    // position in the image, we actually have to invert y and go from the bottom
+    // of the image.
+    for &(id, xoffs, yoffs) in &[
+        (1, 0, 0),
+        (0, 0, child_size_px),
+        (3, child_size_px, 0),
+        (2, child_size_px, child_size_px),
+    ] {
+        if let Some(ref img) = children[id] {
+            large_image.copy_from(img, xoffs, yoffs);
+        }
+    }
+    large_image
+}
+
 impl ColoringStrategy for HeightStddevColoringStrategy {
     fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
         self.per_column_data
@@ -301,8 +345,12 @@ pub fn xray_from_points(
     let mut seen_any_points = false;
     octree.points_in_box(bbox).for_each(|p| {
         seen_any_points = true;
+        // We want a right handed coordinate system with the x-axis of world and images aligning.
+        // This means that the y-axis aligns too, but the origin of the image space must be at the
+        // bottom left. Since images have their origin at the top left, we need actually have to
+        // invert y and go from the bottom of the image.
         let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * image_width as f32) as u32;
-        let y = (((p.position.y - bbox.min().y) / bbox.dim().y) * image_height as f32) as u32;
+        let y = ((1. - ((p.position.y - bbox.min().y) / bbox.dim().y)) * image_height as f32) as u32;
         let z = (((p.position.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
         coloring_strategy.process_discretized_point(p, x, y, z);
     });
