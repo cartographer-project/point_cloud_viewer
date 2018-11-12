@@ -19,6 +19,7 @@ extern crate grpcio;
 extern crate point_viewer;
 extern crate point_viewer_grpc_proto_rust;
 extern crate protobuf;
+extern crate scoped_pool;
 
 use cgmath::{Deg, EuclideanSpace, Point3, Rad};
 use collision::{Aabb3, Aabb};
@@ -100,5 +101,6 @@ fn main() {
         })
         .wait()
         .unwrap();
-    build_octree("/tmp/octree", 0.001, bounding_box, Points{points});
+    let pool = scoped_pool::Pool::new(10);
+    build_octree(&pool, "/tmp/octree", 0.001, bounding_box, Points{points});
 }

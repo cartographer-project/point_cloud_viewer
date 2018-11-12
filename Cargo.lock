@@ -769,6 +769,7 @@ dependencies = [
  "point_viewer 0.1.0",
  "point_viewer_grpc_proto_rust 0.1.0",
  "protobuf 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "scoped-pool 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

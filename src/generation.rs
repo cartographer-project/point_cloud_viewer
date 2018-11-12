@@ -250,7 +250,7 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
     bounding_box
 }
 
-pub fn build_octree_from_file(output_directory: impl AsRef<Path>, resolution: f64, filename: impl AsRef<Path>) {
+pub fn build_octree_from_file(pool: &Pool, output_directory: impl AsRef<Path>, resolution: f64, filename: impl AsRef<Path>) {
     // TODO(ksavinash9): This function should return a Result.
     let input = {
         match filename.as_ref().extension().and_then(|s| s.to_str()) {
@@ -261,10 +261,10 @@ pub fn build_octree_from_file(output_directory: impl AsRef<Path>, resolution: f6
     };
     let bounding_box = find_bounding_box(&input);
     let (stream, _) = make_stream(&input);
-    build_octree(output_directory, resolution, bounding_box, stream)
+    build_octree(pool, output_directory, resolution, bounding_box, stream)
 }
 
-pub fn build_octree(output_directory: impl AsRef<Path>, resolution: f64, bounding_box: Aabb3<f32>, input: impl InternalIterator) {
+pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution: f64, bounding_box: Aabb3<f32>, input: impl InternalIterator) {
     // TODO(ksavinash9): This function should return a Result.
     let octree_meta = &octree::OctreeMeta {
         bounding_box,
@@ -301,7 +301,6 @@ pub fn build_octree(output_directory: impl AsRef<Path>, resolution: f64, boundin
     };
 
     println!("Creating octree structure.");
-    let pool = Pool::new(10);
 
     let (leaf_nodes_sender, leaf_nodes_receiver) = mpsc::channel();
     pool.scoped(move |scope| {

@@ -21,10 +21,10 @@
     "three": "0.95.0"
   },
   "prettier": {
-    "arrow-parens": "always",
-    "bracket-spacing": false,
-    "print-width": 80,
-    "single-quote": true,
-    "trailing-comma": "es5"
+    "arrowParens": "always",
+    "bracketSpacing": false,
+    "printWidth": 80,
+    "singleQuote": true,
+    "trailingComma": "es5"
   }
 }

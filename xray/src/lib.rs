@@ -10,6 +10,7 @@ extern crate point_viewer;
 extern crate protobuf;
 extern crate quadtree;
 extern crate router;
+extern crate scoped_pool;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
