@@ -265,6 +265,16 @@ pub fn build_octree_from_file(pool: &Pool, output_directory: impl AsRef<Path>, r
 }
 
 pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution: f64, bounding_box: Aabb3<f32>, input: impl InternalIterator) {
+    // We open a lot of files during our work. Sometimes users see errors with 'cannot open more
+    // files'. We attempt to increase the rlimits for the number of open files per process here,
+    // but we do not fail if we do not manage to do so.
+    unsafe {
+        let mut rl = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        libc::getrlimit(libc::RLIMIT_NOFILE, &mut rl);
+        rl.rlim_cur = rl.rlim_max;
+        libc::setrlimit(libc::RLIMIT_NOFILE, &rl);
+    }
+
     // TODO(ksavinash9): This function should return a Result.
     let octree_meta = &octree::OctreeMeta {
         bounding_box,
