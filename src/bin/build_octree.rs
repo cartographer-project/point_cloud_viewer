@@ -14,6 +14,7 @@
 
 extern crate clap;
 extern crate point_viewer;
+extern crate scoped_pool;
 
 use std::path::PathBuf;
 use point_viewer::generation::build_octree_from_file;
@@ -49,5 +50,6 @@ fn main() {
 
     let filename = PathBuf::from(matches.value_of("input").unwrap());
 
-    build_octree_from_file(output_directory, resolution, filename);
+    let pool = scoped_pool::Pool::new(10);
+    build_octree_from_file(&pool, output_directory, resolution, filename);
 }

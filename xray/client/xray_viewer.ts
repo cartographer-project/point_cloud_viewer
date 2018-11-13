@@ -1,6 +1,6 @@
-"use strict";
+'use strict';
 
-import * as THREE from "three";
+import * as THREE from 'three';
 
 function matrixToString(m: THREE.Matrix4): string {
   const me = m.elements;
@@ -20,8 +20,8 @@ function matrixToString(m: THREE.Matrix4): string {
     me[12].toFixed(10),
     me[13].toFixed(10),
     me[14].toFixed(10),
-    me[15].toFixed(10)
-  ].join(",");
+    me[15].toFixed(10),
+  ].join(',');
 }
 
 class NodeData {
@@ -42,32 +42,32 @@ class NodeData {
       return;
     }
     let geometry = new THREE.PlaneGeometry(
-      this.boundingRect["edge_length"],
-      this.boundingRect["edge_length"],
+      this.boundingRect['edge_length'],
+      this.boundingRect['edge_length'],
       1
     );
     geometry.applyMatrix(
       new THREE.Matrix4().makeTranslation(
-        this.boundingRect["edge_length"] / 2,
-        this.boundingRect["edge_length"] / 2,
+        this.boundingRect['edge_length'] / 2,
+        this.boundingRect['edge_length'] / 2,
         0
       )
     );
     let material = new THREE.MeshBasicMaterial({
       map: texture,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
     });
     this.plane = new THREE.Mesh(geometry, material);
     this.plane.position.set(
-      this.boundingRect["min_x"],
-      this.boundingRect["min_y"],
+      this.boundingRect['min_x'],
+      this.boundingRect['min_y'],
       -100
     );
   }
 }
 
 export class XRayViewer {
-  private nodes: { [key: string]: NodeData } = {};
+  private nodes: {[key: string]: NodeData} = {};
   private currentlyLoading: number;
   private nodesToLoad: string[] = [];
   private nextNodesForLevelQueryId: number;
@@ -81,7 +81,7 @@ export class XRayViewer {
     this.displayLevel = 0;
     window
       .fetch(`${this.prefix}/meta`)
-      .then(data => data.json())
+      .then((data) => data.json())
       .then((meta: any) => {
         this.meta = meta;
       });
@@ -91,16 +91,16 @@ export class XRayViewer {
     this.isDisposed = true;
     for (const [nodeId, node] of Object.entries(this.nodes)) {
       if (this.nodes[nodeId].inScene) {
-          this.removeFromScene(this.nodes[nodeId]);
+        this.removeFromScene(this.nodes[nodeId]);
       }
     }
     this.nodesToLoad = [];
   }
 
   private removeFromScene(node: NodeData) {
-      // TODO(sirver): This does not dispose of texture and plane geometry.
-      this.scene.remove(node.plane);
-      node.inScene = false;
+    // TODO(sirver): This does not dispose of texture and plane geometry.
+    this.scene.remove(node.plane);
+    node.inScene = false;
   }
 
   public isInitialized(): boolean {
@@ -113,12 +113,12 @@ export class XRayViewer {
     }
     // Figure out which view level represents our current zoom.
     let full_size_considering_zoom =
-      pixelsPerMeter * this.meta["bounding_rect"]["edge_length"];
+      pixelsPerMeter * this.meta['bounding_rect']['edge_length'];
     let level = 0;
-    let edge_length_px_for_level = this.meta["tile_size"];
+    let edge_length_px_for_level = this.meta['tile_size'];
     while (
       edge_length_px_for_level < full_size_considering_zoom &&
-      level < this.meta["deepest_level"]
+      level < this.meta['deepest_level']
     ) {
       edge_length_px_for_level *= 2;
       level += 1;
@@ -133,7 +133,7 @@ export class XRayViewer {
       .fetch(
         `${this.prefix}/nodes_for_level?level=${level}&matrix=${matrixStr}`
       )
-      .then(data => data.json())
+      .then((data) => data.json())
       .then((nodes: any) => {
         // Ignore responses that arrive after we've already issued a new request.
         // TODO(sirver): Look into axios for canceling running requests.
@@ -146,7 +146,7 @@ export class XRayViewer {
   private nodesUpdate(nodes: any) {
     this.nodesToLoad = [];
     for (let i = 0, len = nodes.length; i < len; i++) {
-      let node = this.getOrCreate(nodes[i]["id"], nodes[i]["bounding_rect"]);
+      let node = this.getOrCreate(nodes[i]['id'], nodes[i]['bounding_rect']);
       if (node.plane !== null) {
         this.swapIn(node.id);
         continue;
@@ -168,13 +168,13 @@ export class XRayViewer {
     let nodeId = this.nodesToLoad.shift();
     new THREE.TextureLoader().load(
       `${this.prefix}/node_image/${nodeId}`,
-      texture => {
+      (texture) => {
         this.currentlyLoading -= 1;
         this.loadNext();
         const level = nodeId.length - 1;
         // Let's show all the beautiful pixels on the lowest zoom level.
         if (level == this.meta['deepest_level']) {
-            texture.magFilter = THREE.NearestFilter;
+          texture.magFilter = THREE.NearestFilter;
         }
         this.nodes[nodeId].setTexture(texture);
         this.swapIn(nodeId);
