@@ -113,20 +113,27 @@ impl iron::Handler for HandleNodesForLevel {
         };
         let frustum = Frustum::from_matrix4(matrix).unwrap();
 
+        // TODO(sirver): This function could actually work much faster by not traversing the
+        // levels, but just finding the covering of the rectangle of the current bounding box.
+        //
+        // Also it should probably not take a frustum but the view bounding box we are interested
+        // in.
         let mut result = Vec::new();
         let mut open = vec![
             Node::root_with_bounding_rect(self.meta.bounding_rect.clone()),
         ];
         while !open.is_empty() {
             let node = open.pop().unwrap();
+            let aabb = Aabb3::new(
+                Point3::new(node.bounding_rect.min().x, node.bounding_rect.min().y, -0.1),
+                Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
+            );
+
+            if frustum.contains(&aabb) == Relation::Out || !self.meta.nodes.contains(&node.id) {
+                continue;
+            }
+
             if node.level() == level {
-                let aabb = Aabb3::new(
-                    Point3::new(node.bounding_rect.min().x, node.bounding_rect.min().y, -0.1),
-                    Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
-                );
-                if frustum.contains(&aabb) == Relation::Out || !self.meta.nodes.contains(&node.id) {
-                    continue;
-                }
                 result.push(NodeMeta {
                     id: node.id.to_string(),
                     bounding_rect: BoundingRect {
