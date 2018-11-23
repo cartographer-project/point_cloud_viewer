@@ -32,7 +32,7 @@ struct MetaReply {
     deepest_level: u8,
 }
 
-pub trait XRayProvider: Sync {
+pub trait XRay: Sync {
     /// Returns the meta for the X-Ray.
     fn get_meta(&self) -> io::Result<Meta>;
 
@@ -40,11 +40,11 @@ pub trait XRayProvider: Sync {
     fn get_node_image(&self, node_id: &str) -> io::Result<Vec<u8>>;
 }
 
-pub struct OnDiskXRayProvider {
+pub struct OnDiskXRay {
     directory: PathBuf,
 }
 
-impl OnDiskXRayProvider {
+impl OnDiskXRay {
     pub fn new(directory: PathBuf) -> io::Result<Self> {
         let me = Self { directory };
         // See if we can find a meta directory.
@@ -53,7 +53,7 @@ impl OnDiskXRayProvider {
     }
 }
 
-impl XRayProvider for OnDiskXRayProvider {
+impl XRay for OnDiskXRay {
     fn get_meta(&self) -> io::Result<Meta> {
         let meta = Meta::from_disk(self.directory.join("meta.pb"))?;
         Ok(meta)
@@ -67,11 +67,11 @@ impl XRayProvider for OnDiskXRayProvider {
     }
 }
 
-struct HandleNodeImage<T: XRayProvider> {
+struct HandleNodeImage<T: XRay> {
     xray_provider: T, 
 }
 
-impl<T: XRayProvider + Send + 'static> iron::Handler for HandleNodeImage<T> {
+impl<T: XRay + Send + 'static> iron::Handler for HandleNodeImage<T> {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
         let id = req.extensions.get::<Router>().unwrap().find("id");
         if id.is_none() {
@@ -184,7 +184,7 @@ impl iron::Handler for HandleNodesForLevel {
     }
 }
 
-pub fn serve(prefix: &str, router: &mut Router, xray_provider: impl XRayProvider + Send + 'static) -> io::Result<()> {
+pub fn serve(prefix: &str, router: &mut Router, xray_provider: impl XRay + Send + 'static) -> io::Result<()> {
     let meta = Arc::new(xray_provider.get_meta()?);
     router.get(
         format!("{}/meta", prefix),

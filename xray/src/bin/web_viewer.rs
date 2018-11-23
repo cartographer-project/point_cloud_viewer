@@ -67,7 +67,7 @@ fn main() {
     router.get("/", index);
     router.get("/app_bundle.js", app_bundle);
     router.get("/app_bundle.js.map", app_bundle_source_map);
-    xray::backend::serve("", &mut router, xray::backend::OnDiskXRayProvider::new(quadtree_directory).expect("Could not serve from directory. Not a xray directory?")).unwrap();
+    xray::backend::serve("", &mut router, xray::backend::OnDiskXRay::new(quadtree_directory).expect("Could not serve from directory. Not a xray directory?")).unwrap();
 
     println!("Listening on port {}.", port);
     Iron::new(router).http(("0.0.0.0", port)).unwrap();
