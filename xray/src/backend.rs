@@ -7,7 +7,7 @@ use iron::prelude::*;
 use quadtree::{ChildIndex, Node};
 use router::Router;
 use std::fs;
-use std::io::Read;
+use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 use urlencoded::UrlEncodedQuery;
@@ -32,24 +32,53 @@ struct MetaReply {
     deepest_level: u8,
 }
 
-struct HandleNodeImage {
+pub trait XRayProvider: Sync {
+    /// Returns the meta for the X-Ray.
+    fn get_meta(&self) -> io::Result<Meta>;
+
+    /// Returns the PNG blob of the node image for this 'image_id' or an Error.
+    fn get_node_image(&self, node_id: &str) -> io::Result<Vec<u8>>;
+}
+
+pub struct OnDiskXRayProvider {
     directory: PathBuf,
 }
 
-impl iron::Handler for HandleNodeImage {
+impl OnDiskXRayProvider {
+    pub fn new(directory: PathBuf) -> io::Result<Self> {
+        let me = Self { directory };
+        // See if we can find a meta directory.
+        let _ = me.get_meta()?;
+        Ok(me)
+    }
+}
+
+impl XRayProvider for OnDiskXRayProvider {
+    fn get_meta(&self) -> io::Result<Meta> {
+        let meta = Meta::from_disk(self.directory.join("meta.pb"))?;
+        Ok(meta)
+    }
+
+    fn get_node_image(&self, node_id: &str) -> io::Result<Vec<u8>> {
+        let mut filename = self.directory.join(node_id);
+        filename.set_extension("png");
+        let data = fs::read(&filename)?;
+        Ok(data)
+    }
+}
+
+struct HandleNodeImage<T: XRayProvider> {
+    xray_provider: T, 
+}
+
+impl<T: XRayProvider + Send + 'static> iron::Handler for HandleNodeImage<T> {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
         let id = req.extensions.get::<Router>().unwrap().find("id");
         if id.is_none() {
             return Ok(Response::with(iron::status::NotFound));
         }
         let id = id.unwrap();
-
-        let mut filename = self.directory.join(id);
-        filename.set_extension("png");
-        let mut file = itry!(fs::File::open(filename), iron::status::NotFound);
-
-        let mut reply = Vec::new();
-        itry!(file.read_to_end(&mut reply));
+        let reply = itry!(self.xray_provider.get_node_image(&id), iron::status::NotFound);
         let content_type = "image/png".parse::<Mime>().unwrap();
         Ok(Response::with((content_type, iron::status::Ok, reply)))
     }
@@ -155,8 +184,8 @@ impl iron::Handler for HandleNodesForLevel {
     }
 }
 
-pub fn serve(prefix: &str, router: &mut Router, quadtree_directory: PathBuf) {
-    let meta = Arc::new(Meta::from_disk(quadtree_directory.join("meta.pb")));
+pub fn serve(prefix: &str, router: &mut Router, xray_provider: impl XRayProvider + Send + 'static) -> io::Result<()> {
+    let meta = Arc::new(xray_provider.get_meta()?);
     router.get(
         format!("{}/meta", prefix),
         HandleMeta {
@@ -172,7 +201,8 @@ pub fn serve(prefix: &str, router: &mut Router, quadtree_directory: PathBuf) {
     router.get(
         format!("{}/node_image/:id", prefix),
         HandleNodeImage {
-            directory: quadtree_directory.clone(),
+            xray_provider: xray_provider,
         },
     );
+    Ok(())
 }
