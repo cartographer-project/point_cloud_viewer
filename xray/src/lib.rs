@@ -23,12 +23,27 @@ use cgmath::Point2;
 use fnv::FnvHashSet;
 use quadtree::{NodeId, Rect};
 use std::fs::File;
-use std::io::{Cursor, Read};
+use std::io::BufReader;
 use std::path::Path;
+
+pub use xray_proto_rust::proto;
 
 pub const CURRENT_VERSION: i32 = 2;
 
-#[derive(Debug)]
+pub fn read_meta_proto_from_file<P: AsRef<Path>>(filename: P) -> proto::Meta {
+    let f = File::open(&filename).expect("Could not open meta.pb");
+    let meta = protobuf::parse_from_reader::<proto::Meta>(&mut BufReader::new(f))
+        .expect("Could not parse meta.pb");
+
+    assert!(meta.version == CURRENT_VERSION,
+            "Invalid meta.pb version. We only support {}, but found {}.",
+            CURRENT_VERSION,
+            meta.version);
+
+    meta
+}
+
+#[derive(Clone, Debug)]
 pub struct Meta {
     pub nodes: FnvHashSet<NodeId>,
     pub bounding_rect: Rect,
@@ -39,22 +54,7 @@ pub struct Meta {
 impl Meta {
     // Reads the meta file from disk. Panics on error
     pub fn from_disk<P: AsRef<Path>>(filename: P) -> Self {
-        let meta = {
-            let mut data = Vec::new();
-            File::open(filename)
-                .expect("Could not proto file.")
-                .read_to_end(&mut data)
-                .unwrap();
-            protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
-                .expect("Could not parse meta.pb")
-        };
-
-        if meta.version != CURRENT_VERSION {
-            panic!(
-                "Invalid version. We only support {}, but found {}.",
-                CURRENT_VERSION, meta.version
-            );
-        }
+        let meta = read_meta_proto_from_file(filename);
 
         Meta {
             nodes: meta.nodes
@@ -76,5 +76,3 @@ impl Meta {
 
 pub mod backend;
 pub mod generation;
-
-pub use xray_proto_rust::proto;
