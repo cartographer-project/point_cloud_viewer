@@ -22,6 +22,10 @@ extern crate point_viewer_grpc;
 extern crate rand;
 extern crate sdl2;
 extern crate time;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 
 /// Unsafe macro to create a static null-terminated c-string for interop with OpenGL.
 #[macro_export]
@@ -49,10 +53,12 @@ use node_drawer::{NodeDrawer, NodeViewContainer};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree};
 use sdl2::event::{Event, WindowEvent};
-use sdl2::keyboard::Scancode;
+use sdl2::keyboard::{Scancode, LCTRLMOD, RCTRLMOD, LSHIFTMOD, RSHIFTMOD};
 use sdl2::video::GLProfile;
 use std::cmp;
+use std::io;
 use std::error::Error;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{mpsc, Arc};
 use std::thread;
@@ -271,6 +277,41 @@ impl PointCloudRenderer {
     }
 }
 
+#[derive(Debug,Serialize,Deserialize)]
+pub struct CameraStates {
+    states: Vec<camera::State>,
+}
+
+fn save_camera(index: usize, pose_path: &Option<PathBuf>, camera: &Camera) {
+    if pose_path.is_none() {
+        println!("Not serving from a local directory. Cannot save camera.");
+        return;
+    }
+    assert!(index < 10);
+    let mut states = ::std::fs::read_to_string(pose_path.as_ref().unwrap()).and_then(|data| {
+        serde_json::from_str(&data).map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
+    }).unwrap_or_else(|_| CameraStates{ states: vec![camera.state(); 10] });
+    states.states[index] = camera.state();
+
+    match std::fs::write(pose_path.as_ref().unwrap(), serde_json::to_string_pretty(&states).unwrap().as_bytes()) {
+        Ok(_) => (),
+        Err(e) => println!("Could not write {}: {}", pose_path.as_ref().unwrap().display(), e),
+    }
+    println!("Saved current camera position as {}.", index);
+}
+
+fn load_camera(index: usize, pose_path: &Option<PathBuf>, camera: &mut Camera) {
+    if pose_path.is_none() {
+        println!("Not serving from a local directory. Cannot load camera.");
+        return;
+    }
+    assert!(index < 10);
+    let states = ::std::fs::read_to_string(pose_path.as_ref().unwrap()).and_then(|data| {
+        serde_json::from_str(&data).map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
+    }).unwrap_or_else(|_| CameraStates{ states: vec![camera.state(); 10] });
+    camera.set_state(states.states[index]);
+}
+
 impl SdlViewer {
     pub fn new() -> Self {
         SdlViewer {
@@ -319,6 +360,7 @@ impl SdlViewer {
 
         // call octree generation functions
         let mut octree_opt: Option<Box<Octree>> = None;
+        let mut pose_path = None;
         for (prefix, octree_factory_function) in &self.octree_factories {
             if !octree_argument.starts_with(prefix) {
                 continue;
@@ -332,6 +374,7 @@ impl SdlViewer {
 
         // If no octree was generated create an FromDisc loader
         let octree = Arc::new(octree_opt.unwrap_or_else(|| {
+            pose_path = Some(PathBuf::from(&octree_argument).join("poses.json"));
             Box::new(octree::OnDiskOctree::new(&octree_argument).unwrap()) as Box<Octree>
         }));
 
@@ -375,32 +418,68 @@ impl SdlViewer {
 
         let mut events = ctx.event_pump().unwrap();
         'outer_loop: loop {
+
             for event in events.poll_iter() {
                 match event {
                     Event::Quit { .. } => break 'outer_loop,
                     Event::KeyDown {
                         scancode: Some(code),
+                        keymod,
                         ..
-                    } => match code {
-                        Scancode::Escape => break 'outer_loop,
-                        Scancode::W => camera.moving_forward = true,
-                        Scancode::S => camera.moving_backward = true,
-                        Scancode::A => camera.moving_left = true,
-                        Scancode::D => camera.moving_right = true,
-                        Scancode::Z => camera.moving_down = true,
-                        Scancode::Q => camera.moving_up = true,
-                        Scancode::Left => camera.turning_left = true,
-                        Scancode::Right => camera.turning_right = true,
-                        Scancode::Down => camera.turning_down = true,
-                        Scancode::Up => camera.turning_up = true,
-                        Scancode::O => renderer.toggle_show_octree_nodes(),
-                        Scancode::Num1 => renderer.decrement_max_level_moving(),
-                        Scancode::Num2 => renderer.increment_max_level_moving(),
-                        Scancode::Num7 => renderer.adjust_gamma(-0.1),
-                        Scancode::Num8 => renderer.adjust_gamma(0.1),
-                        Scancode::Num9 => renderer.adjust_point_size(-0.1),
-                        Scancode::Num0 => renderer.adjust_point_size(0.1),
-                        _ => (),
+                    } => {
+                        if keymod.is_empty() {
+                            match code {
+                                Scancode::Escape => break 'outer_loop,
+                                Scancode::W => camera.moving_forward = true,
+                                Scancode::S => camera.moving_backward = true,
+                                Scancode::A => camera.moving_left = true,
+                                Scancode::D => camera.moving_right = true,
+                                Scancode::Z => camera.moving_down = true,
+                                Scancode::Q => camera.moving_up = true,
+                                Scancode::Left => camera.turning_left = true,
+                                Scancode::Right => camera.turning_right = true,
+                                Scancode::Down => camera.turning_down = true,
+                                Scancode::Up => camera.turning_up = true,
+                                Scancode::O => renderer.toggle_show_octree_nodes(),
+                                Scancode::Num1 => renderer.decrement_max_level_moving(),
+                                Scancode::Num2 => renderer.increment_max_level_moving(),
+                                Scancode::Num7 => renderer.adjust_gamma(-0.1),
+                                Scancode::Num8 => renderer.adjust_gamma(0.1),
+                                Scancode::Num9 => renderer.adjust_point_size(-0.1),
+                                Scancode::Num0 => renderer.adjust_point_size(0.1),
+                                _ => (),
+                            }
+                        } else if keymod.intersects(LCTRLMOD | RCTRLMOD) && keymod.intersects(LSHIFTMOD | RSHIFTMOD) {
+                            // CTRL + SHIFT is pressed.
+                            match code {
+                                Scancode::Num1 => save_camera(0, &pose_path, &camera),
+                                Scancode::Num2 => save_camera(1, &pose_path, &camera),
+                                Scancode::Num3 => save_camera(2, &pose_path, &camera),
+                                Scancode::Num4 => save_camera(3, &pose_path, &camera),
+                                Scancode::Num5 => save_camera(4, &pose_path, &camera),
+                                Scancode::Num6 => save_camera(5, &pose_path, &camera),
+                                Scancode::Num7 => save_camera(6, &pose_path, &camera),
+                                Scancode::Num8 => save_camera(7, &pose_path, &camera),
+                                Scancode::Num9 => save_camera(8, &pose_path, &camera),
+                                Scancode::Num0 => save_camera(9, &pose_path, &camera),
+                                _ => (),
+                            }
+                        } else if keymod.intersects(LCTRLMOD | RCTRLMOD) {
+                            // CTRL is pressed.
+                            match code {
+                                Scancode::Num1 => load_camera(0, &pose_path, &mut camera),
+                                Scancode::Num2 => load_camera(1, &pose_path, &mut camera),
+                                Scancode::Num3 => load_camera(2, &pose_path, &mut camera),
+                                Scancode::Num4 => load_camera(3, &pose_path, &mut camera),
+                                Scancode::Num5 => load_camera(4, &pose_path, &mut camera),
+                                Scancode::Num6 => load_camera(5, &pose_path, &mut camera),
+                                Scancode::Num7 => load_camera(6, &pose_path, &mut camera),
+                                Scancode::Num8 => load_camera(7, &pose_path, &mut camera),
+                                Scancode::Num9 => load_camera(8, &pose_path, &mut camera),
+                                Scancode::Num0 => load_camera(9, &pose_path, &mut camera),
+                                _ => (),
+                            }
+                        }
                     },
                     Event::KeyUp {
                         scancode: Some(code),
