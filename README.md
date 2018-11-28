@@ -53,6 +53,8 @@ In the point cloud viewer, navigate with the keyboard or with the mouse or touch
 | Shift + Ctrl + 0-9 | Save current camera position. |
 | Ctrl + 0-9         | Load saved camera position.   |
 
+Saved camera positions are persisted in the octree directory and will therefore live through restarts of the program.
+
 ### Web Viewer
 
 The `octree_web_viewer` consists of [TypeScript](https://www.typescriptlang.org) code running in the browser and a web server binary.
