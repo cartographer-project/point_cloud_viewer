@@ -381,6 +381,17 @@ impl SdlViewer {
         let ctx = sdl2::init().unwrap();
         let video_subsystem = ctx.video().unwrap();
 
+        // We need to open the joysticks we are interested in and keep the object alive to receive
+        // input from it. We just open the first we find.
+        let joystick_subsystem = ctx.joystick().unwrap();
+        let joystick = match joystick_subsystem.open(0) {
+            Ok(j) => {
+                println!("Found a joystick and will use it.");
+                Some(j)
+            },
+            Err(_) => None,
+        };
+
         let gl_attr = video_subsystem.gl_attr();
 
         // TODO(hrapp): This should use OpenGL ES 2.0 to be compatible with WebGL, so this can be made
@@ -518,8 +529,19 @@ impl SdlViewer {
                     } => {
                         camera.set_size(&gl, w, h);
                     }
-                    _ => (),
+                    _ =(),
                 }
+            }
+
+            if let Some(j) = joystick.as_ref() {
+                let x = j.axis(0).unwrap() as f32 / 1000.;
+                let y = -j.axis(1).unwrap() as f32 / 1000.;
+                let z = -j.axis(2).unwrap() as f32 / 1000.;
+                let up = j.axis(3).unwrap() as f32 / 10000.;
+                // Combine tilting and turning on the knob.
+                let around = j.axis(4).unwrap() as f32 / 10000. - j.axis(5).unwrap() as f32 / 10000.;
+                camera.pan(x, y, z);
+                camera.rotate(up, around);
             }
 
             if camera.update() {
