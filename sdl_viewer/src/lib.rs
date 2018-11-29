@@ -529,7 +529,7 @@ impl SdlViewer {
                     } => {
                         camera.set_size(&gl, w, h);
                     }
-                    _ =(),
+                    _ => (),
                 }
             }
 
