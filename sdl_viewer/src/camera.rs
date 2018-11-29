@@ -45,6 +45,13 @@ pub struct Camera {
     projection_matrix: Matrix4<f32>,
 }
 
+#[derive(Debug,Serialize,Deserialize,Clone,Copy)]
+pub struct State {
+    transform: Decomposed<Vector3<f32>, Quaternion<f32>>,
+    phi: Rad<f32>,
+    theta: Rad<f32>,
+}
+
 impl Camera {
     pub fn new(gl: &opengl::Gl, width: i32, height: i32) -> Self {
         let mut camera = Camera {
@@ -78,6 +85,21 @@ impl Camera {
         };
         camera.set_size(gl, width, height);
         camera
+    }
+
+    pub fn state(&self) -> State  {
+        State {
+            transform: self.transform,
+            phi: self.phi,
+            theta: self.theta
+        }
+    }
+
+    pub fn set_state(&mut self, state: State) {
+        self.transform = state.transform;
+        self.phi = state.phi;
+        self.theta = state.theta;
+        self.moved = true;
     }
 
     pub fn set_size(&mut self, gl: &opengl::Gl, width: i32, height: i32) {

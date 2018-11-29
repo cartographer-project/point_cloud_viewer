@@ -31,25 +31,29 @@ This is a native client using [SDL2](https://libsdl.org).
 
 In the point cloud viewer, navigate with the keyboard or with the mouse or touchpad. Dragging while pressing the left mouse button rotates, dragging while pressing the right mouse button pans the view. The following keys are bound:
 
-| Key           | Action                        |
-| ------------- | ----------------------------- |
-| W             | Move forward                  |
-| A             | Move left                     |
-| S             | Move backwards                |
-| D             | Move right                    |
-| Q             | Move up                       |
-| Z             | Move down                     |
-| Up            | Turn up                       |
-| Left          | Turn left                     |
-| Down          | Turn down                     |
-| Right         | Move right                    |
-| 0             | Increase points size          |
-| 9             | Decrease points size          |
-| 8             | Brighten scene                |
-| 7             | Darken scene                  |
-| 2             | Show more points when moving  |
-| 1             | Show fewer points when moving |
-| O             | Show octree nodes             |
+| Key                | Action                        |
+| ------------------ | ----------------------------- |
+| W                  | Move forward                  |
+| A                  | Move left                     |
+| S                  | Move backwards                |
+| D                  | Move right                    |
+| Q                  | Move up                       |
+| Z                  | Move down                     |
+| Up                 | Turn up                       |
+| Left               | Turn left                     |
+| Down               | Turn down                     |
+| Right              | Move right                    |
+| 0                  | Increase points size          |
+| 9                  | Decrease points size          |
+| 8                  | Brighten scene                |
+| 7                  | Darken scene                  |
+| 2                  | Show more points when moving  |
+| 1                  | Show fewer points when moving |
+| O                  | Show octree nodes             |
+| Shift + Ctrl + 0-9 | Save current camera position. |
+| Ctrl + 0-9         | Load saved camera position.   |
+
+Saved camera positions are persisted in the octree directory and will therefore live through restarts of the program.
 
 ### Web Viewer
 
