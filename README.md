@@ -47,8 +47,6 @@ In the point cloud viewer, navigate with the keyboard or with the mouse or touch
 | 9                  | Decrease points size          |
 | 8                  | Brighten scene                |
 | 7                  | Darken scene                  |
-| 2                  | Show more points when moving  |
-| 1                  | Show fewer points when moving |
 | O                  | Show octree nodes             |
 | Shift + Ctrl + 0-9 | Save current camera position. |
 | Ctrl + 0-9         | Load saved camera position.   |
