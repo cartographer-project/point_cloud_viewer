@@ -21,14 +21,6 @@ addons:
       - libgoogle-glog-dev
       - libsdl2-dev
       - ninja-build
-      - build-essential
-      - make
-      - cmake
-      - autoconf
-      - automake
-      - libtool
-      - libx11-dev
-      - libxext-dev
 
 install:
   - bash ci/install.sh
