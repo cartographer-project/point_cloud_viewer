@@ -205,4 +205,15 @@ impl Camera {
         self.movement_speed += sign * 0.1 * self.movement_speed;
         self.movement_speed = self.movement_speed.max(0.01);
     }
+
+    pub fn pan(&mut self, x: f32, y: f32, z: f32) {
+        self.pan.x += x * self.movement_speed;
+        self.pan.y += y * self.movement_speed;
+        self.pan.z += z * self.movement_speed;
+    }
+
+    pub fn rotate(&mut self, up: f32, around: f32) {
+        self.delta_phi += Rad(up * self.movement_speed);
+        self.delta_theta += Rad(around * self.movement_speed);
+    }
 }

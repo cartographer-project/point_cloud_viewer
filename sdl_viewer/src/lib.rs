@@ -133,7 +133,7 @@ impl PointCloudRenderer {
             visible_nodes: Vec::new(),
             node_drawer: NodeDrawer::new(Rc::clone(&gl)),
             num_frames: 0,
-            point_size: 2.,
+            point_size: 1.,
             gamma: 1.,
             get_visible_nodes_params_tx,
             get_visible_nodes_result_rx,
@@ -161,18 +161,6 @@ impl PointCloudRenderer {
 
     pub fn toggle_show_octree_nodes(&mut self) {
         self.show_octree_nodes = !self.show_octree_nodes;
-    }
-
-    pub fn increment_max_level_moving(&mut self) {
-        self.max_level_moving += 1;
-        self.needs_drawing = true;
-    }
-
-    pub fn decrement_max_level_moving(&mut self) {
-        if self.max_level_moving > 0 {
-            self.max_level_moving -= 1;
-        }
-        self.needs_drawing = true;
     }
 
     pub fn adjust_gamma(&mut self, delta: f32) {
@@ -214,10 +202,12 @@ impl PointCloudRenderer {
             if moving { self.max_level_moving } else { 256 };
         let mut min_level_to_display = 0;
         let mut filtered_visible_nodes: Vec<_>;
+        let mut max_level_seen = 0;
         while (max_level_to_display - min_level_to_display) > 1 {
             let current = (max_level_to_display + min_level_to_display) / 2;
             filtered_visible_nodes = self.visible_nodes
                 .iter()
+                .inspect(|id| max_level_seen = max_level_seen.max(id.level()))
                 .filter(|id| id.level() <= current)
                 .collect();
             if filtered_visible_nodes.len() > self.max_nodes_in_memory {
@@ -261,6 +251,14 @@ impl PointCloudRenderer {
         if self.last_log.to(now) > time::Duration::seconds(1) {
             let duration = self.last_log.to(now).num_microseconds().unwrap();
             let fps = (self.num_frames * 1_000_000u32) as f32 / duration as f32;
+            if moving {
+                if fps < 20. && self.max_level_moving > 0 {
+                    self.max_level_moving -= 1;
+                }
+                if fps > 25. && self.max_level_moving < max_level_seen {
+                    self.max_level_moving += 1;
+                }
+            }
             self.num_frames = 0;
             self.last_log = now;
             println!(
@@ -381,6 +379,17 @@ impl SdlViewer {
         let ctx = sdl2::init().unwrap();
         let video_subsystem = ctx.video().unwrap();
 
+        // We need to open the joysticks we are interested in and keep the object alive to receive
+        // input from it. We just open the first we find.
+        let joystick_subsystem = ctx.joystick().unwrap();
+        let joystick = match joystick_subsystem.open(0) {
+            Ok(j) => {
+                println!("Found a joystick and will use it.");
+                Some(j)
+            },
+            Err(_) => None,
+        };
+
         let gl_attr = video_subsystem.gl_attr();
 
         // TODO(hrapp): This should use OpenGL ES 2.0 to be compatible with WebGL, so this can be made
@@ -441,8 +450,6 @@ impl SdlViewer {
                                 Scancode::Down => camera.turning_down = true,
                                 Scancode::Up => camera.turning_up = true,
                                 Scancode::O => renderer.toggle_show_octree_nodes(),
-                                Scancode::Num1 => renderer.decrement_max_level_moving(),
-                                Scancode::Num2 => renderer.increment_max_level_moving(),
                                 Scancode::Num7 => renderer.adjust_gamma(-0.1),
                                 Scancode::Num8 => renderer.adjust_gamma(0.1),
                                 Scancode::Num9 => renderer.adjust_point_size(-0.1),
@@ -520,6 +527,17 @@ impl SdlViewer {
                     }
                     _ => (),
                 }
+            }
+
+            if let Some(j) = joystick.as_ref() {
+                let x = j.axis(0).unwrap() as f32 / 1000.;
+                let y = -j.axis(1).unwrap() as f32 / 1000.;
+                let z = -j.axis(2).unwrap() as f32 / 1000.;
+                let up = j.axis(3).unwrap() as f32 / 10000.;
+                // Combine tilting and turning on the knob.
+                let around = j.axis(4).unwrap() as f32 / 10000. - j.axis(5).unwrap() as f32 / 10000.;
+                camera.pan(x, y, z);
+                camera.rotate(up, around);
             }
 
             if camera.update() {
