@@ -27,6 +27,8 @@ service Octree {
       returns (stream PointsReply);
   rpc GetPointsInFrustum(GetPointsInFrustumRequest)
       returns (stream PointsReply);
+  rpc GetAllPoints(GetAllPointsRequest)
+      returns (stream PointsReply);
 }
 
 message GetMetaRequest {
@@ -68,6 +70,9 @@ message GetPointsInFrustumRequest {
 
   // Distance from the viewer to the far clipping plane.
   double z_far = 6;
+}
+
+message GetAllPointsRequest {
 }
 
 message PointsReply {

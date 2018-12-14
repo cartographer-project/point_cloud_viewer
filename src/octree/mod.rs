@@ -33,7 +33,7 @@ pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWrite
 
 pub const CURRENT_VERSION: i32 = 9;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct OctreeMeta {
     pub directory: PathBuf,
     pub resolution: f64,
@@ -136,6 +136,33 @@ impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
                 }
                 f(p);
             });
+        }
+    }
+}
+
+pub struct AllPointsIterator<'a> {
+    octree_meta: &'a OctreeMeta,
+    octree_nodes: &'a FnvHashMap<NodeId, NodeMeta>,
+}
+
+impl<'a> InternalIterator for AllPointsIterator<'a> {
+    fn size_hint(&self) -> Option<usize> {
+        None
+    }
+
+    fn for_each<F: FnMut(&Point)>(self, mut f: F) {
+        let mut open_list = vec![NodeId::from_level_index(0, 0)];
+        while !open_list.is_empty() {
+            let current = open_list.pop().unwrap();
+            let iterator = NodeIterator::from_disk(&self.octree_meta, &current)
+                .expect("Could not read node points");
+            iterator.for_each(|p| { f(p) });
+            for child_index in 0..8 {
+                let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
+                if self.octree_nodes.contains_key(&child_id) {
+                    open_list.push(child_id);
+                }
+            }
         }
     }
 }
@@ -253,6 +280,13 @@ impl OnDiskOctree {
             octree_meta: &self.meta,
             frustum_matrix,
             intersecting_nodes,
+        }
+    }
+
+    pub fn all_points<'a>(&'a self) -> AllPointsIterator<'a> {
+        AllPointsIterator {
+            octree_meta: &self.meta,
+            octree_nodes: &self.nodes,
         }
     }
 
