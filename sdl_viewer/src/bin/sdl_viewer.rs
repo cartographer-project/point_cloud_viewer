@@ -20,7 +20,10 @@ use sdl_viewer::SdlViewer;
 fn main() {
     SdlViewer::new()
         .register_octree_factory("grpc:".into(), |p| {
-            Ok(Box::new(point_viewer_grpc::GrpcOctree::new(p.as_str())))
+            Ok(Box::new(
+                point_viewer_grpc::GrpcOctree::new(p.as_str())
+                    .expect("Could not connect to GRPC server"),
+            ))
         })
         .run();
 }
