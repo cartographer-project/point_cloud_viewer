@@ -37,5 +37,9 @@ error_chain! {
         NodeNotFound {
             description("The node does not exist.")
         }
+
+        Grpc {
+            description("Grpc request failed")
+        }
     }
 }
