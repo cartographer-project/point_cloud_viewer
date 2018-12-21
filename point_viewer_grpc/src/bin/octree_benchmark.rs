@@ -60,7 +60,7 @@ fn main() {
             .expect("octree_directory not given"),
     );
     let num_points = u64::from_str(matches.value_of("num-points").unwrap_or("50000000"))
-        .expect("Could not num-points");
+        .expect("num-points needs to be a number");
     if matches.is_present("no-client") {
         server_benchmark(octree_directory, num_points)
     } else {
@@ -70,7 +70,10 @@ fn main() {
 }
 
 fn server_benchmark(octree_directory: PathBuf, num_points: u64) {
-    let octree = OnDiskOctree::new(&octree_directory).unwrap();
+    let octree = OnDiskOctree::new(&octree_directory).expect(&format!(
+        "Could not create octree from '{}'",
+        octree_directory.display()
+    ));
     let mut counter: u64 = 0;
     octree.all_points().for_each(|_p: &Point| {
         if counter % 1000000 == 0 {
@@ -96,14 +99,14 @@ fn full_benchmark(octree_directory: PathBuf, num_points: u64, port: u16) {
 
     let mut counter: u64 = 0;
 
-    for rep in receiver.wait() {
+    'outer: for rep in receiver.wait() {
         for _pos in rep.expect("Stream error").get_positions().iter() {
             if counter % 1000000 == 0 {
                 println!("Streamed {}M points", counter / 1000000);
             }
             counter += 1;
             if counter == num_points {
-                std::process::exit(0)
+                break 'outer;
             }
         }
     }
