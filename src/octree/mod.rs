@@ -122,6 +122,14 @@ impl LayerData {
         }
     }
 
+    pub fn len(&self) -> usize {
+        match self {
+            LayerData::F32(data) => data.len(),
+            LayerData::F32Vec3(data) => data.len(),
+            LayerData::U8Vec3(data) => data.len(),
+        }
+    }
+
     pub fn write_point_with_index_into(&self, mut writer: impl io::Write, index: usize) -> std::result::Result<(), io::Error> {
         match self {
             LayerData::F32(data) => {

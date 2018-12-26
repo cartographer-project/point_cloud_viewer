@@ -41,7 +41,8 @@ pub mod ply;
 pub mod pts;
 
 
-const NUM_POINTS_PER_BATCH: i64 = 100_000;
+// Assuming 20 - 40 bytes per point, this translates to 10-20MB per points batch.
+const NUM_POINTS_PER_BATCH: i64 = 500_000;
 
 pub trait InternalIterator {
     fn for_each_batch<F: FnMut(&octree::PointData)>(self, F);

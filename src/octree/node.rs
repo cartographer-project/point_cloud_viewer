@@ -303,7 +303,7 @@ impl NodeIterator {
         let mut layer_readers = FnvHashMap::default();
         for (name, kind) in &octree_meta.layers {
             let ext = extension_from_layer_name(&name);
-            let reader = BufReader::new(File::create(&stem.with_extension(ext))?);
+            let reader = BufReader::new(File::open(&stem.with_extension(ext))?);
             layer_readers.insert(
                 name.to_string(),
                 LayerReader {
@@ -532,7 +532,7 @@ impl NodeWriter {
     pub fn write_point_with_index(&mut self, index: usize, point_data: &octree::PointData) {
         self.write_position(&point_data.position[index]);
 
-        let mut cnt = 0;
+        let mut layers_written = 0;
         for (name, mut writer) in &mut self.layer_writers {
             match point_data.layers.get(name) {
                 None => {
@@ -542,13 +542,13 @@ impl NodeWriter {
                 }
                 Some(data) => {
                     data.write_point_with_index_into(&mut writer, index).unwrap();
-                    cnt += 1;
+                    layers_written += 1;
                 }
             }
         }
         // TODO(sirver): Handle this assert case by writing default values for not-provided layers.
         assert_eq!(
-            cnt,
+            layers_written,
             self.layer_writers.len(),
             "We did not receive data for every layer. \
              This will be handled in the future, but right now is not"
@@ -605,7 +605,11 @@ impl NodeWriter {
     fn remove_all_files(&self) {
         // We are ignoring deletion errors here in case the file is already gone.
         let _ = fs::remove_file(&self.stem.with_extension(POSITION_EXT));
-        let _ = fs::remove_file(&self.stem.with_extension(COLOR_EXT));
+
+        for name in self.layer_writers.keys() {
+            let ext = extension_from_layer_name(&name);
+            let _ = fs::remove_file(&self.stem.with_extension(ext));
+        }
     }
 }
 

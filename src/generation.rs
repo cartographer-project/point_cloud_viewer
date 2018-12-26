@@ -60,8 +60,8 @@ where
     };
 
     let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
-    stream.for_each_batch(|layers: &octree::PointData| {
-        for (idx, position) in layers.position.iter().enumerate() {
+    stream.for_each_batch(|point_data: &octree::PointData| {
+        for (idx, position) in point_data.position.iter().enumerate() {
             let child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &position);
             let array_index = child_index.as_u8() as usize;
             if children[array_index].is_none() {
@@ -70,7 +70,7 @@ where
                         &node_id.get_child_id(child_index),
                         ));
             }
-            children[array_index].as_mut().unwrap().write_point_with_index(idx, layers);
+            children[array_index].as_mut().unwrap().write_point_with_index(idx, point_data);
         }
     });
 
@@ -252,8 +252,8 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
         .as_mut()
         .map(|pb| pb.message("Determining bounding box: "));
 
-    stream.for_each_batch(|layers: &octree::PointData| {
-        for p in &layers.position {
+    stream.for_each_batch(|point_data: &octree::PointData| {
+        for p in &point_data.position {
             bounding_box = bounding_box.grow(Point3::from_vec(*p));
             num_points += 1;
             if num_points % UPDATE_COUNT == 0 {
