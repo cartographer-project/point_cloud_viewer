@@ -18,13 +18,15 @@ name = "point_viewer_grpc"
 version = "0.1.0"
 
 [dependencies]
-collision = "0.18.0"
 cgmath = "0.16.0"
 clap = "2.32.0"
+collision = "0.18.0"
+floating-duration = "0.1.2"
 futures = "0.1.17"
 grpcio = "0.4"
 protobuf = "2.0.0"
 scoped-pool = "^0.1"
+streaming-stats = "0.2.2"
 
 [dependencies.point_viewer]
 path = ".."

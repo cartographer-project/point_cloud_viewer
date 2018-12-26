@@ -11,19 +11,20 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #[macro_use]
 extern crate clap;
+extern crate cgmath;
+extern crate floating_duration;
 extern crate futures;
 extern crate grpcio;
 extern crate point_viewer;
 extern crate point_viewer_grpc;
 extern crate point_viewer_grpc_proto_rust;
+extern crate stats;
 
-use point_viewer_grpc_proto_rust::proto;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::Arc;
-
+use cgmath::Vector3;
+use floating_duration::TimeFormat;
 use futures::future::Future;
 use futures::Stream;
 use grpcio::{ChannelBuilder, Environment};
@@ -31,6 +32,11 @@ use point_viewer::octree::OnDiskOctree;
 use point_viewer::{InternalIterator, Point};
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
+use point_viewer_grpc_proto_rust::proto;
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::sync::Arc;
+use stats::OnlineStats;
 
 fn main() {
     let matches = clap::App::new("octree_benchmark")
@@ -69,47 +75,80 @@ fn main() {
     }
 }
 
+#[derive(Debug, Default)]
+struct RunningStats {
+    count: u64,
+    x_stats: OnlineStats,
+    y_stats: OnlineStats,
+    z_stats: OnlineStats,
+}
+
+impl RunningStats {
+    pub fn update(&mut self, p: &Vector3<f32>) {
+        self.count += 1;
+        self.x_stats.add(p.x);
+        self.y_stats.add(p.y);
+        self.z_stats.add(p.z);
+    }
+}
+
 fn server_benchmark(octree_directory: PathBuf, num_points: u64) {
     let octree = OnDiskOctree::new(&octree_directory).expect(&format!(
         "Could not create octree from '{}'",
         octree_directory.display()
     ));
-    let mut counter: u64 = 0;
-    octree.all_points().for_each(|_p: &Point| {
-        if counter % 1000000 == 0 {
-            println!("Streamed {}M points", counter / 1000000);
+    let now = ::std::time::Instant::now();
+    let mut stats = RunningStats::default();
+    octree.all_points().for_each(|p: &Point| {
+        stats.update(&p.position);
+        if stats.count % 1000000 == 0 {
+            println!("Streamed {}M points", stats.count / 1_000_000);
         }
-        counter += 1;
-        if counter == num_points {
+        if stats.count == num_points {
+            println!(
+                "Streamed {} points in {}.",
+                stats.count,
+                TimeFormat(now.elapsed())
+            );
+            println!("Running Stats:\n{:#?}", stats);
             std::process::exit(0)
         }
     });
+
 }
 
 fn full_benchmark(octree_directory: PathBuf, num_points: u64, port: u16) {
     let mut server = start_grpc_server(octree_directory, "0.0.0.0", port);
     server.start();
 
-    let env = Arc::new(Environment::new(1));
-    let ch = ChannelBuilder::new(env).connect(&format!("localhost:{}", port));
-    let client = OctreeClient::new(ch);
+    let now = ::std::time::Instant::now();
+    let mut stats = RunningStats::default();
+    {
+        let env = Arc::new(Environment::new(1));
+        let ch = ChannelBuilder::new(env).connect(&format!("localhost:{}", port));
+        let client = OctreeClient::new(ch);
+        let req = proto::GetAllPointsRequest::new();
+        let receiver = client.get_all_points(&req).unwrap();
 
-    let req = proto::GetAllPointsRequest::new();
-    let receiver = client.get_all_points(&req).unwrap();
-
-    let mut counter: u64 = 0;
-
-    'outer: for rep in receiver.wait() {
-        for _pos in rep.expect("Stream error").get_positions().iter() {
-            if counter % 1000000 == 0 {
-                println!("Streamed {}M points", counter / 1000000);
-            }
-            counter += 1;
-            if counter == num_points {
-                break 'outer;
+        'outer: for rep in receiver.wait() {
+            for pos in rep.expect("Stream error").get_positions().iter() {
+                stats.update(&Vector3::new(pos.x, pos.y, pos.z));
+                if stats.count % 1000000 == 0 {
+                    println!("Streamed {}M points", stats.count / 1_000_000);
+                }
+                if stats.count == num_points {
+                    break 'outer;
+                }
             }
         }
     }
+
+    println!(
+        "Streamed {} points in {}.",
+        stats.count,
+        TimeFormat(now.elapsed())
+    );
+    println!("Running Stats:\n{:#?}", stats);
 
     let _ = server.shutdown().wait();
 }
