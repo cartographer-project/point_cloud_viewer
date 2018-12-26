@@ -12,9 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use {InternalIterator, Point};
+// NOCOM(#sirver): remove
+#![allow(unused_imports)]
+
+use {InternalIterator};
 use cgmath::Vector3;
 use color;
+use fnv::FnvHashMap;
+use octree;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -38,34 +43,36 @@ impl InternalIterator for PtsIterator {
         None
     }
 
-    fn for_each<F: FnMut(&Point)>(mut self, mut f: F) {
-        let mut line = String::new();
-        loop {
-            line.clear();
-            self.data.read_line(&mut line).unwrap();
-            if line.is_empty() {
-                break;
-            }
+    fn for_each_batch<F: FnMut(&octree::PointData)>(self, _: F) {
+        // NOCOM(#sirver): needs reimplementation
+        unimplemented!();
+        // let mut line = String::new();
+        // loop {
+            // line.clear();
+            // self.data.read_line(&mut line).unwrap();
+            // if line.is_empty() {
+                // break;
+            // }
 
-            let parts: Vec<&str> = line.trim().split(|c| c == ' ' || c == ',').collect();
-            if parts.len() != 7 {
-                continue;
-            }
-            let p = Point {
-                position: Vector3::new(
-                    parts[0].parse::<f32>().unwrap(),
-                    parts[1].parse::<f32>().unwrap(),
-                    parts[2].parse::<f32>().unwrap(),
-                ),
-                color: color::Color {
-                    red: parts[4].parse::<u8>().unwrap(),
-                    green: parts[5].parse::<u8>().unwrap(),
-                    blue: parts[6].parse::<u8>().unwrap(),
-                    alpha: 255,
-                },
-                intensity: None,
-            };
-            f(&p);
-        }
+            // let parts: Vec<&str> = line.trim().split(|c| c == ' ' || c == ',').collect();
+            // if parts.len() != 7 {
+                // continue;
+            // }
+            // let p = Point {
+                // position: Vector3::new(
+                    // parts[0].parse::<f32>().unwrap(),
+                    // parts[1].parse::<f32>().unwrap(),
+                    // parts[2].parse::<f32>().unwrap(),
+                // ),
+                // color: color::Color {
+                    // red: parts[4].parse::<u8>().unwrap(),
+                    // green: parts[5].parse::<u8>().unwrap(),
+                    // blue: parts[6].parse::<u8>().unwrap(),
+                    // alpha: 255,
+                // },
+                // intensity: None,
+            // };
+            // f(&p);
+        // }
     }
 }

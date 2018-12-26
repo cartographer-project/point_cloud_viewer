@@ -71,7 +71,7 @@ impl GrpcOctree {
         let mut points = Vec::new();
         let mut interrupted = false;
         let result = replies
-            .for_each(|reply| {
+            .for_each_batch(|reply| {
                 let last_num_points = points.len();
                 for (p, color) in reply.positions.iter().zip(reply.colors.iter()) {
                     points.push(Point {

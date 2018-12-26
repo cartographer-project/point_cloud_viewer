@@ -129,8 +129,8 @@ fn stream_points_back_to_sink(
                 }
             };
             match query {
-                OctreeQuery::BoxQuery(bounding_box) => octree.points_in_box(&bounding_box).for_each(func),
-                OctreeQuery::FrustumQuery(frustum_matrix) => octree.points_in_frustum(&frustum_matrix).for_each(func),
+                OctreeQuery::BoxQuery(bounding_box) => octree.points_in_box(&bounding_box).for_each_batch(func),
+                OctreeQuery::FrustumQuery(frustum_matrix) => octree.points_in_frustum(&frustum_matrix).for_each_batch(func),
             };
         }
         tx.send((reply, WriteFlags::default())).unwrap();

@@ -55,6 +55,7 @@ message NodeId {
 }
 
 message Node {
+   // NOCOM(#sirver): this needs to be more generic
   enum PositionEncoding {
     INVALID = 0;
     Uint8 = 1;
@@ -67,9 +68,21 @@ message Node {
   NodeId id = 4;
 }
 
+message LayerDescription {
+   enum Encoding {
+      // NOCOM(#sirver): consistent naming to PositionEncoding.
+      INVALID = 0;
+      U8Vec3 = 1;
+      F32 = 2;
+      F32Vec3 = 3;
+   }
+}
+
 message Meta {
   int32 version = 1;
   AxisAlignedCuboid bounding_box = 4;
   double resolution = 3;
+
+  map<string, LayerDescription> layers = 6;
   repeated Node nodes = 5;
 }

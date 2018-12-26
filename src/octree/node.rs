@@ -12,24 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use {InternalIterator, Point};
+// NOCOM(#sirver): what
+#![allow(unused_imports)]
+
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use cgmath::{Vector3, Zero};
 use color;
 use errors::*;
+use fnv::FnvHashMap;
 use math::{clamp, Cube};
 use num;
 use num_traits;
-use octree::OctreeMeta;
+use octree::{self, OctreeMeta};
 use proto;
-use std::{fmt, result};
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
+use std::{fmt, result};
+use {InternalIterator, Point, NUM_POINTS_PER_BATCH};
 
 pub const POSITION_EXT: &str = "xyz";
 pub const COLOR_EXT: &str = "rgb";
-pub const INTENSITY_EXT: &str = "intensity";
+
+fn extension_from_layer_name(name: &str) -> &str {
+    // For backwards compatibility, color extension is changed.
+    match name as &str {
+        "color" => "rgb",
+        other => other,
+    }
+}
 
 /// Represents a child of an octree Node.
 #[derive(Debug, PartialEq, Eq)]
@@ -169,6 +180,7 @@ impl NodeId {
     // Get number of points from the file size of the color data.
     // Color data is required and always present.
     fn number_of_points(&self, directory: &Path) -> Result<i64> {
+        // NOCOM(#sirver): This is broken now and should no longer be used.
         let file_meta_data_opt = fs::metadata(self.get_stem(directory).with_extension(COLOR_EXT));
         if file_meta_data_opt.is_err() {
             return Err(ErrorKind::NodeNotFound.into());
@@ -259,6 +271,7 @@ pub struct NodeMeta {
     pub num_points: i64,
     pub position_encoding: PositionEncoding,
     pub bounding_cube: Cube,
+    pub layers: FnvHashMap<String, octree::LayerKind>,
 }
 
 impl NodeMeta {
@@ -267,11 +280,16 @@ impl NodeMeta {
     }
 }
 
+/// All data required to read data from a written layer.
+struct LayerReader {
+    reader: BufReader<File>,
+    kind: octree::LayerKind,
+}
+
 /// Streams points from our node on-disk representation.
 pub struct NodeIterator {
     xyz_reader: BufReader<File>,
-    rgb_reader: BufReader<File>,
-    intensity_reader: Option<BufReader<File>>,
+    layer_readers: FnvHashMap<String, LayerReader>,
     meta: NodeMeta,
 }
 
@@ -281,20 +299,85 @@ impl NodeIterator {
         let num_points = id.number_of_points(&octree_meta.directory)?;
         let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
         let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
-        let intensity_reader = File::open(&stem.with_extension(INTENSITY_EXT))
-            .map(|f| Some(BufReader::new(f)))
-            .unwrap_or(None);
+
+        let mut layer_readers = FnvHashMap::default();
+        for (name, kind) in &octree_meta.layers {
+            let ext = extension_from_layer_name(&name);
+            let reader = BufReader::new(File::create(&stem.with_extension(ext))?);
+            layer_readers.insert(
+                name.to_string(),
+                LayerReader {
+                    reader,
+                    kind: *kind,
+                },
+            );
+        }
 
         Ok(NodeIterator {
             xyz_reader: BufReader::new(File::open(&stem.with_extension(POSITION_EXT))?),
-            rgb_reader: BufReader::new(File::open(&stem.with_extension(COLOR_EXT))?),
-            intensity_reader,
+            layer_readers,
             meta: NodeMeta {
                 bounding_cube: bounding_cube,
                 position_encoding: position_encoding,
                 num_points: num_points,
+                layers: octree_meta.layers.clone(),
             },
         })
+    }
+
+    fn read_positions(&mut self, num_points_to_process: usize, position: &mut Vec<Vector3<f32>>) {
+        let edge_length = self.meta.bounding_cube.edge_length();
+        let min = self.meta.bounding_cube.min();
+        match self.meta.position_encoding {
+            PositionEncoding::Float32 => {
+                for _ in 0..num_points_to_process {
+                    let x = decode(
+                        self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                        min.x,
+                        edge_length,
+                    );
+                    let y = decode(
+                        self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                        min.y,
+                        edge_length,
+                    );
+                    let z = decode(
+                        self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                        min.z,
+                        edge_length,
+                    );
+                    position.push(Vector3::new(x, y, z));
+                }
+            }
+            PositionEncoding::Uint8 => {
+                for _ in 0..num_points_to_process {
+                    let x = fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.x, edge_length);
+                    let y = fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.y, edge_length);
+                    let z = fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.z, edge_length);
+                    position.push(Vector3::new(x, y, z));
+                }
+            }
+            PositionEncoding::Uint16 => {
+                for _ in 0..num_points_to_process {
+                    let x = fixpoint_decode(
+                        self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                        min.x,
+                        edge_length,
+                    );
+                    let y = fixpoint_decode(
+                        self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                        min.y,
+                        edge_length,
+                    );
+                    let z = fixpoint_decode(
+                        self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                        min.z,
+                        edge_length,
+                    );
+                    position.push(Vector3::new(x, y, z));
+                }
+            }
+        }
     }
 }
 
@@ -303,71 +386,25 @@ impl InternalIterator for NodeIterator {
         Some(self.meta.num_points as usize)
     }
 
-    fn for_each<F: FnMut(&Point)>(mut self, mut f: F) {
-        let mut point = Point {
-            position: Vector3::zero(),
-            color: color::RED.to_u8(), // is overwritten
-            intensity: None,
-        };
+    fn for_each_batch<F: FnMut(&octree::PointData)>(mut self, mut func: F) {
+        let mut num_points_processed = 0;
+        while num_points_processed < self.meta.num_points {
+            let mut point_data = octree::PointData::default();
+            let num_points_to_process =
+                (self.meta.num_points - num_points_processed).min(NUM_POINTS_PER_BATCH);
 
-        let edge_length = self.meta.bounding_cube.edge_length();
-        let min = self.meta.bounding_cube.min();
-        for _ in 0..self.meta.num_points {
-            // I tried pulling out this match by taking a function pointer to a 'decode_position'
-            // function. This replaces a branch per point vs a function call per point and turned
-            // out to be marginally slower.
-            match self.meta.position_encoding {
-                PositionEncoding::Float32 => {
-                    point.position.x = decode(
-                        self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                        min.x,
-                        edge_length,
-                    );
-                    point.position.y = decode(
-                        self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                        min.y,
-                        edge_length,
-                    );
-                    point.position.z = decode(
-                        self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                        min.z,
-                        edge_length,
-                    );
-                }
-                PositionEncoding::Uint8 => {
-                    point.position.x =
-                        fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.x, edge_length);
-                    point.position.y =
-                        fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.y, edge_length);
-                    point.position.z =
-                        fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.z, edge_length);
-                }
-                PositionEncoding::Uint16 => {
-                    point.position.x = fixpoint_decode(
-                        self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
-                        min.x,
-                        edge_length,
-                    );
-                    point.position.y = fixpoint_decode(
-                        self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
-                        min.y,
-                        edge_length,
-                    );
-                    point.position.z = fixpoint_decode(
-                        self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
-                        min.z,
-                        edge_length,
-                    );
-                }
+            self.read_positions(num_points_to_process as usize, &mut point_data.position);
+
+            for (name, layer_reader) in &mut self.layer_readers {
+                let data = layer_reader
+                    .kind
+                    .read_from(num_points_to_process as usize, &mut layer_reader.reader)
+                    .unwrap();
+                point_data.layers.insert(name.to_string(), data);
             }
+            num_points_processed += num_points_to_process;
 
-            point.color.red = self.rgb_reader.read_u8().unwrap();
-            point.color.green = self.rgb_reader.read_u8().unwrap();
-            point.color.blue = self.rgb_reader.read_u8().unwrap();
-            self.intensity_reader.as_mut().map(|ir| {
-                point.intensity = Some(ir.read_f32::<LittleEndian>().unwrap());
-            });
-            f(&point);
+            func(&point_data);
         }
     }
 }
@@ -448,8 +485,7 @@ fn decode(value: f32, min: f32, edge_length: f32) -> f32 {
 #[derive(Debug)]
 pub struct NodeWriter {
     xyz_writer: BufWriter<File>,
-    rgb_writer: BufWriter<File>,
-    intensity_writer: Option<BufWriter<File>>,
+    layer_writers: FnvHashMap<String, BufWriter<File>>,
     bounding_cube: Cube,
     position_encoding: PositionEncoding,
     stem: PathBuf,
@@ -472,78 +508,94 @@ impl NodeWriter {
     pub fn new(octree_meta: &OctreeMeta, node_id: &NodeId) -> Self {
         let stem = node_id.get_stem(&octree_meta.directory);
         let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
+
+        // NOCOM(#sirver): change write to lift
+        let mut layer_writers = FnvHashMap::default();
+        for name in octree_meta.layers.keys() {
+            let ext = extension_from_layer_name(&name);
+            let writer = BufWriter::new(File::create(&stem.with_extension(ext)).unwrap());
+            layer_writers.insert(name.to_string(), writer);
+        }
+        let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
         NodeWriter {
+            bounding_cube,
             xyz_writer: BufWriter::new(File::create(&stem.with_extension(POSITION_EXT)).unwrap()),
-            rgb_writer: BufWriter::new(File::create(&stem.with_extension(COLOR_EXT)).unwrap()),
-            intensity_writer: None, // Will be created if needed on first point with intensities.
+            position_encoding,
+            layer_writers,
             stem: stem,
-            position_encoding: PositionEncoding::new(&bounding_cube, octree_meta.resolution),
-            bounding_cube: bounding_cube,
             num_written: 0,
         }
     }
 
-    pub fn write(&mut self, p: &Point) {
-        // Note that due to floating point rounding errors while calculating bounding boxes, it
-        // could be here that 'p' is not quite inside the bounding box of our node.
+    // NOCOM(#sirver): should return an error
+    /// Writers the point with the given 'index' from 'point_data' into this writer.
+    pub fn write_point_with_index(&mut self, index: usize, point_data: &octree::PointData) {
+        self.write_position(&point_data.position[index]);
+
+        let mut cnt = 0;
+        for (name, mut writer) in &mut self.layer_writers {
+            match point_data.layers.get(name) {
+                None => {
+                    // TODO(sirver): This should write a default value to make not every value for
+                    // every point mandatory. As soon as we compress the node data before writing
+                    // it to disk, this waste will not significantly matter anymore.
+                }
+                Some(data) => {
+                    data.write_point_with_index_into(&mut writer, index).unwrap();
+                    cnt += 1;
+                }
+            }
+        }
+        // TODO(sirver): Handle this assert case by writing default values for not-provided layers.
+        assert_eq!(
+            cnt,
+            self.layer_writers.len(),
+            "We did not receive data for every layer. \
+             This will be handled in the future, but right now is not"
+        );
+
+        self.num_written += 1;
+    }
+
+    fn write_position(&mut self, position: &Vector3<f32>) {
+        // NOCOM(#sirver): encoding should be applied to all float properties
         let edge_length = self.bounding_cube.edge_length();
         let min = self.bounding_cube.min();
         match self.position_encoding {
             PositionEncoding::Float32 => {
                 self.xyz_writer
-                    .write_f32::<LittleEndian>(encode(p.position.x, min.x, edge_length))
+                    .write_f32::<LittleEndian>(encode(position.x, min.x, edge_length))
                     .unwrap();
                 self.xyz_writer
-                    .write_f32::<LittleEndian>(encode(p.position.y, min.y, edge_length))
+                    .write_f32::<LittleEndian>(encode(position.y, min.y, edge_length))
                     .unwrap();
                 self.xyz_writer
-                    .write_f32::<LittleEndian>(encode(p.position.z, min.z, edge_length))
+                    .write_f32::<LittleEndian>(encode(position.z, min.z, edge_length))
                     .unwrap();
             }
             PositionEncoding::Uint8 => {
                 self.xyz_writer
-                    .write_u8(fixpoint_encode(p.position.x, min.x, edge_length))
+                    .write_u8(fixpoint_encode(position.x, min.x, edge_length))
                     .unwrap();
                 self.xyz_writer
-                    .write_u8(fixpoint_encode(p.position.y, min.y, edge_length))
+                    .write_u8(fixpoint_encode(position.y, min.y, edge_length))
                     .unwrap();
                 self.xyz_writer
-                    .write_u8(fixpoint_encode(p.position.z, min.z, edge_length))
+                    .write_u8(fixpoint_encode(position.z, min.z, edge_length))
                     .unwrap();
             }
             PositionEncoding::Uint16 => {
                 self.xyz_writer
-                    .write_u16::<LittleEndian>(fixpoint_encode(p.position.x, min.x, edge_length))
+                    .write_u16::<LittleEndian>(fixpoint_encode(position.x, min.x, edge_length))
                     .unwrap();
                 self.xyz_writer
-                    .write_u16::<LittleEndian>(fixpoint_encode(p.position.y, min.y, edge_length))
+                    .write_u16::<LittleEndian>(fixpoint_encode(position.y, min.y, edge_length))
                     .unwrap();
                 self.xyz_writer
-                    .write_u16::<LittleEndian>(fixpoint_encode(p.position.z, min.z, edge_length))
+                    .write_u16::<LittleEndian>(fixpoint_encode(position.z, min.z, edge_length))
                     .unwrap();
             }
         }
-
-        self.rgb_writer.write_u8(p.color.red).unwrap();
-        self.rgb_writer.write_u8(p.color.green).unwrap();
-        self.rgb_writer.write_u8(p.color.blue).unwrap();
-
-        // TODO(sirver): This is expensive. It would be preferable if we needn't branch on
-        // every point.
-        if let Some(intensity) = p.intensity {
-            if self.intensity_writer.is_none() {
-                self.intensity_writer = Some(BufWriter::new(
-                    File::create(&self.stem.with_extension(INTENSITY_EXT)).unwrap(),
-                ));
-            }
-            self.intensity_writer
-                .as_mut()
-                .unwrap()
-                .write_f32::<LittleEndian>(intensity)
-                .unwrap();
-        }
-
-        self.num_written += 1;
     }
 
     pub fn num_written(&self) -> i64 {

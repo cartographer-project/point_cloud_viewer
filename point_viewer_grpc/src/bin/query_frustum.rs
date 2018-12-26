@@ -38,7 +38,7 @@ struct Points{
 }
 
 impl InternalIterator for Points {
-    fn for_each<F: FnMut(&Point)>(self, mut func: F) {
+    fn for_each_batch<F: FnMut(&Point)>(self, mut func: F) {
         for p in &self.points {
             func(p);
         }
@@ -75,7 +75,7 @@ fn main() {
     let replies = client.get_points_in_frustum(&request).expect("rpc");
     let mut points = Vec::new();
     replies
-        .for_each(|reply| {
+        .for_each_batch(|reply| {
             let last_num_points = points.len();
             for (position, color) in reply.positions.iter().zip(reply.colors.iter()) {
                 let p = Point3::new(position.x, position.y, position.z);

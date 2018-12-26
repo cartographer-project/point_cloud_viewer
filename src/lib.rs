@@ -40,8 +40,11 @@ pub mod octree;
 pub mod ply;
 pub mod pts;
 
+
+const NUM_POINTS_PER_BATCH: i64 = 100_000;
+
 pub trait InternalIterator {
-    fn for_each<F: FnMut(&Point)>(self, F);
+    fn for_each_batch<F: FnMut(&octree::PointData)>(self, F);
     fn size_hint(&self) -> Option<usize>;
 }
 

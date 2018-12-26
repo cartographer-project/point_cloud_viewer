@@ -353,7 +353,7 @@ pub fn xray_from_points(
     mut coloring_strategy: Box<ColoringStrategy>,
 ) -> bool {
     let mut seen_any_points = false;
-    octree.points_in_box(bbox).for_each(|p| {
+    octree.points_in_box(bbox).for_each_batch(|p| {
         seen_any_points = true;
         // We want a right handed coordinate system with the x-axis of world and images aligning.
         // This means that the y-axis aligns too, but the origin of the image space must be at the

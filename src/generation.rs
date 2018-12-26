@@ -16,7 +16,7 @@ use cgmath::{EuclideanSpace, Point3};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use pbr::ProgressBar;
-use {InternalIterator, Point};
+use {InternalIterator};
 use errors::*;
 use math::Cube;
 use octree;
@@ -26,6 +26,7 @@ use pts::PtsIterator;
 use protobuf::Message;
 use scoped_pool::{Pool, Scope};
 use std::cmp;
+use std::collections::hash_map;
 use std::fs::{self, File};
 use std::io::{BufWriter, Stdout};
 use std::path::{Path, PathBuf};
@@ -59,16 +60,18 @@ where
     };
 
     let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
-    stream.for_each(|p| {
-        let child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &p.position);
-        let array_index = child_index.as_u8() as usize;
-        if children[array_index].is_none() {
-            children[array_index] = Some(octree::NodeWriter::new(
-                octree_meta,
-                &node_id.get_child_id(child_index),
-            ));
+    stream.for_each_batch(|layers: &octree::PointData| {
+        for (idx, position) in layers.position.iter().enumerate() {
+            let child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &position);
+            let array_index = child_index.as_u8() as usize;
+            if children[array_index].is_none() {
+                children[array_index] = Some(octree::NodeWriter::new(
+                        octree_meta,
+                        &node_id.get_child_id(child_index),
+                        ));
+            }
+            children[array_index].as_mut().unwrap().write_point_with_index(idx, layers);
         }
-        children[array_index].as_mut().unwrap().write(p);
     });
 
     // Remove the node file on disk by reopening the node and immediately dropping it again without
@@ -164,15 +167,25 @@ fn subsample_children_into(
 
         // We read all points into memory, because the new node writer will rewrite this child's
         // file(s).
-        let mut points = Vec::with_capacity(node_iterator.size_hint().unwrap());
-        node_iterator.for_each(|p| points.push((*p).clone()));
+        let mut all_data = octree::PointData::default();
+        node_iterator.for_each_batch(|point_data: &octree::PointData| {
+            all_data.position.extend(&point_data.position);
+            for (key, value) in &point_data.layers {
+                match all_data.layers.entry(key.to_string()) {
+                    hash_map::Entry::Vacant(e) => { e.insert(value.clone()); },
+                    hash_map::Entry::Occupied(mut v) => v.get_mut().extend(value.clone()),
+                }
+            }
+        });
 
         let mut child_writer = octree::NodeWriter::new(octree_meta, &child_id);
-        for (idx, p) in points.into_iter().enumerate() {
+        let mut num_points = all_data.position.len();
+        for idx in 0..num_points {
             if idx % 8 == 0 {
-                parent_writer.write(&p);
+                // NOCOM(#sirver): maybe this can just be write
+                parent_writer.write_point_with_index(idx, &all_data);
             } else {
-                child_writer.write(&p);
+                child_writer.write_point_with_index(idx, &all_data);
             }
         }
         // Update child.
@@ -209,10 +222,10 @@ impl InternalIterator for InputFileIterator {
         }
     }
 
-    fn for_each<F: FnMut(&Point)>(self, f: F) {
+    fn for_each_batch<F: FnMut(&octree::PointData)>(self, f: F) {
         match self {
-            InputFileIterator::Ply(p) => p.for_each(f),
-            InputFileIterator::Pts(p) => p.for_each(f),
+            InputFileIterator::Ply(p) => p.for_each_batch(f),
+            InputFileIterator::Pts(p) => p.for_each_batch(f),
         }
     }
 }
@@ -239,11 +252,13 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
         .as_mut()
         .map(|pb| pb.message("Determining bounding box: "));
 
-    stream.for_each(|p: &Point| {
-        bounding_box = bounding_box.grow(Point3::from_vec(p.position));
-        num_points += 1;
-        if num_points % UPDATE_COUNT == 0 {
-            progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
+    stream.for_each_batch(|layers: &octree::PointData| {
+        for p in &layers.position {
+            bounding_box = bounding_box.grow(Point3::from_vec(*p));
+            num_points += 1;
+            if num_points % UPDATE_COUNT == 0 {
+                progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
+            }
         }
     });
     progress_bar.map(|mut f| f.finish());
@@ -275,11 +290,17 @@ pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution:
         libc::setrlimit(libc::RLIMIT_NOFILE, &rl);
     }
 
+    // TODO(sirver): This should not be hardcoded, but provided at build time.
+    let mut layers = FnvHashMap::default();
+    layers.insert("color".to_string(), octree::LayerKind::U8Vec3);
+    layers.insert("intensity".to_string(), octree::LayerKind::F32);
+
     // TODO(ksavinash9): This function should return a Result.
     let octree_meta = &octree::OctreeMeta {
         bounding_box,
         resolution,
         directory: output_directory.as_ref().to_path_buf(),
+        layers: layers,
     };
 
     // Ignore errors, maybe directory is already there.

@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use {InternalIterator, Point};
-use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
+// NOCOM(#sirver): remove
+#![allow(unused_imports)]
+
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use errors::*;
 use fnv::FnvHashMap;
@@ -23,21 +26,137 @@ use protobuf;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fs::File;
-use std::io::{BufReader, Cursor, Read};
+use std::io::{self, BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
+use {InternalIterator, Point};
 
 mod node;
 
-pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter,
-                     PositionEncoding};
+pub use self::node::{
+    ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter, PositionEncoding,
+};
 
 pub const CURRENT_VERSION: i32 = 9;
+
+#[derive(Debug, Clone, Copy)]
+pub enum LayerKind {
+    // NOCOM(#sirver): explain resolution
+    // A vector of 3 floats, the parameter is the 'resolution'.
+    // NOCOM(#sirver): add resolution
+    F32Vec3,
+
+    // One float with its 'resolution'.
+    // NOCOM(#sirver): add resolution
+    F32,
+
+    // A Vector of 3 u8.
+    U8Vec3,
+}
+
+impl LayerKind {
+    pub fn read_from(&self, num_points: usize, mut reader: impl io::Read) -> std::result::Result<LayerData, io::Error> {
+        match *self {
+            LayerKind::F32 => {
+                let mut d = Vec::with_capacity(num_points);
+                for _ in 0 .. num_points {
+                    d.push(reader.read_f32::<LittleEndian>()?);
+                }
+                Ok(LayerData::F32(d))
+            }
+            LayerKind::F32Vec3 => {
+                let mut d = Vec::with_capacity(num_points);
+                for _ in 0 .. num_points {
+                    let x = reader.read_f32::<LittleEndian>()?;
+                    let y = reader.read_f32::<LittleEndian>()?;
+                    let z = reader.read_f32::<LittleEndian>()?;
+                    d.push(Vector3::new(x, y, z));
+                }
+                Ok(LayerData::F32Vec3(d))
+            }
+            LayerKind::U8Vec3 => {
+                let mut d = Vec::with_capacity(num_points);
+                for _ in 0 .. num_points {
+                    let x = reader.read_u8()?;
+                    let y = reader.read_u8()?;
+                    let z = reader.read_u8()?;
+                    d.push(Vector3::new(x, y, z));
+                }
+                Ok(LayerData::U8Vec3(d))
+            }
+        }
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub enum LayerData {
+    // NOCOM(#sirver): explain resolution
+    // A vector of 3 floats, the parameter is the 'resolution'.
+    // NOCOM(#sirver): add resolution
+    F32Vec3(Vec<cgmath::Vector3<f32>>),
+
+    // One float with its 'resolution'.
+    // NOCOM(#sirver): add resolution
+    F32(Vec<f32>),
+
+    // A Vector of 4 u8.
+    U8Vec3(Vec<cgmath::Vector3<u8>>),
+}
+
+impl LayerData {
+    // NOCOM(#sirver): this will be very slow
+    pub fn push(&mut self, item: cgmath::Vector3<f32>) {
+        match *self {
+            LayerData::F32Vec3(ref mut data) => data.push(item),
+            _ => panic!("Cannot push this data type onto this kind of layer."),
+        }
+    }
+
+    pub fn extend(&mut self, other: LayerData) {
+        use self::LayerData::*;
+        match (self, other) {
+            (F32Vec3(ref mut us), F32Vec3(ref them)) => us.extend(them),
+            (F32(ref mut us), F32(ref them)) => us.extend(them),
+            (U8Vec3(ref mut us), U8Vec3(ref them)) => us.extend(them),
+            _ => panic!("Cannot extent this data type on this other one."),
+        }
+    }
+
+    pub fn write_point_with_index_into(&self, mut writer: impl io::Write, index: usize) -> std::result::Result<(), io::Error> {
+        match self {
+            LayerData::F32(data) => {
+                writer.write_f32::<LittleEndian>(data[index])?;
+            }
+            LayerData::F32Vec3(data) => {
+                let p = data[index];
+                writer.write_f32::<LittleEndian>(p.x)?;
+                writer.write_f32::<LittleEndian>(p.y)?;
+                writer.write_f32::<LittleEndian>(p.z)?;
+            }
+            LayerData::U8Vec3(data) => {
+                let p = data[index];
+                writer.write_u8(p.x)?;
+                writer.write_u8(p.y)?;
+                writer.write_u8(p.z)?;
+            }
+        }
+        Ok(())
+    }
+
+}
+
+#[derive(Debug, Default)]
+pub struct PointData {
+    pub position: Vec<cgmath::Vector3<f32>>,
+    pub layers: FnvHashMap<String, LayerData>,
+}
 
 #[derive(Debug)]
 pub struct OctreeMeta {
     pub directory: PathBuf,
     pub resolution: f64,
     pub bounding_box: Aabb3<f32>,
+    pub layers: FnvHashMap<String, LayerKind>,
 }
 
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
@@ -100,18 +219,20 @@ impl<'a> InternalIterator for PointsInBoxIterator<'a> {
         None
     }
 
-    fn for_each<F: FnMut(&Point)>(self, mut f: F) {
-        for node_id in &self.intersecting_nodes {
-            // TODO(sirver): This crashes on error. We should bubble up an error.
-            let iterator = NodeIterator::from_disk(&self.octree_meta, node_id)
-                .expect("Could not read node points");
-            iterator.for_each(|p| {
-                if !self.aabb.contains(&Point3::from_vec(p.position)) {
-                    return;
-                }
-                f(p);
-            });
-        }
+    fn for_each_batch<F: FnMut(&PointData)>(self, _: F) {
+        unimplemented!();
+        // NOCOM(#sirver): needs reimplementation
+        // for node_id in &self.intersecting_nodes {
+        // // TODO(sirver): This crashes on error. We should bubble up an error.
+        // let iterator = NodeIterator::from_disk(&self.octree_meta, node_id)
+        // .expect("Could not read node points");
+        // iterator.for_each_batch(|p| {
+        // if !self.aabb.contains(&Point3::from_vec(p.position)) {
+        // return;
+        // }
+        // f(p);
+        // });
+        // }
     }
 }
 
@@ -126,31 +247,30 @@ impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
         None
     }
 
-    fn for_each<F: FnMut(&Point)>(self, mut f: F) {
-        for node_id in &self.intersecting_nodes {
-            let iterator = NodeIterator::from_disk(&self.octree_meta, node_id)
-                .expect("Could not read node points");
-            iterator.for_each(|p| {
-                if !contains(self.frustum_matrix, &Point3::from_vec(p.position)) {
-                    return;
-                }
-                f(p);
-            });
-        }
+    fn for_each_batch<F: FnMut(&PointData)>(self, _: F) {
+        unimplemented!();
+        // NOCOM(#sirver): needs reimplementation
+        // for node_id in &self.intersecting_nodes {
+        // let iterator = NodeIterator::from_disk(&self.octree_meta, node_id)
+        // .expect("Could not read node points");
+        // iterator.for_each_batch(|p| {
+        // if !contains(self.frustum_matrix, &Point3::from_vec(p.position)) {
+        // return;
+        // }
+        // f(p);
+        // });
+        // }
     }
 }
 
 // TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
-fn contains(
-    projection_matrix: &Matrix4<f32>,
-    point: &Point3<f32>,
-) -> bool {
+fn contains(projection_matrix: &Matrix4<f32>, point: &Point3<f32>) -> bool {
     let v = Vector4::new(point.x, point.y, point.z, 1.);
     let clip_v = projection_matrix * v;
-    return clip_v.x.abs() < clip_v.w &&
-       clip_v.y.abs() < clip_v.w &&
-       0. < clip_v.z &&
-       clip_v.z < clip_v.w;
+    return clip_v.x.abs() < clip_v.w
+        && clip_v.y.abs() < clip_v.w
+        && 0. < clip_v.z
+        && clip_v.z < clip_v.w;
 }
 
 pub fn read_meta_proto<P: AsRef<Path>>(directory: P) -> Result<proto::Meta> {
@@ -191,10 +311,24 @@ impl OnDiskOctree {
             )
         };
 
+        // NOCOM(#sirver): load the description from the proto.
+
+        // The layers description was not in the proto. This is presumably and older octree that
+        // still had a few hardcoded layers in it. Let's recreate its structure manually:
+        let layers = {
+            let mut layers = FnvHashMap::default();
+            layers.insert("color".to_string(), LayerKind::U8Vec3);
+            if directory.join("r.intensity").exists() {
+                layers.insert("intensity".to_string(), LayerKind::F32);
+            }
+            layers
+        };
+
         let meta = OctreeMeta {
             directory: directory.into(),
             resolution: meta_proto.resolution,
             bounding_box: bounding_box,
+            layers: layers.clone(),
         };
 
         let mut nodes = FnvHashMap::default();
@@ -209,6 +343,9 @@ impl OnDiskOctree {
                     num_points: node_proto.num_points,
                     position_encoding: PositionEncoding::from_proto(node_proto.position_encoding)?,
                     bounding_cube: node_id.find_bounding_cube(&Cube::bounding(&meta.bounding_box)),
+                    // NOCOM(#sirver): this feels wrong: not every node should duplicated the
+                    // knowledge about which layers are there or not from the octree base.
+                    layers: layers.clone(),
                 },
             );
         }
@@ -224,9 +361,9 @@ impl OnDiskOctree {
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
     pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f32>) -> PointsInBoxIterator<'a> {
         let mut intersecting_nodes = Vec::new();
-        let mut open_list = vec![
-            Node::root_with_bounding_cube(Cube::bounding(&self.meta.bounding_box)),
-        ];
+        let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
+            &self.meta.bounding_box,
+        ))];
         while !open_list.is_empty() {
             let current = open_list.pop().unwrap();
             if !aabb.intersects(&current.bounding_cube.to_aabb3()) {
@@ -247,7 +384,10 @@ impl OnDiskOctree {
         }
     }
 
-    pub fn points_in_frustum<'a>(&'a self, frustum_matrix: &'a Matrix4<f32>) -> PointsInFrustumIterator<'a> {
+    pub fn points_in_frustum<'a>(
+        &'a self,
+        frustum_matrix: &'a Matrix4<f32>,
+    ) -> PointsInFrustumIterator<'a> {
         let intersecting_nodes = self.get_visible_nodes(&frustum_matrix);
         PointsInFrustumIterator {
             octree_meta: &self.meta,
@@ -328,20 +468,22 @@ impl Octree for OnDiskOctree {
         let mut visible = Vec::new();
         while let Some(current) = open.pop() {
             match current.relation {
-                Relation::Cross => for child_index in 0..8 {
-                    let child = current.node.get_child(ChildIndex::from_u8(child_index));
-                    let child_relation = frustum.contains(&child.bounding_cube.to_aabb3());
-                    if child_relation == Relation::Out {
-                        continue;
+                Relation::Cross => {
+                    for child_index in 0..8 {
+                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
+                        let child_relation = frustum.contains(&child.bounding_cube.to_aabb3());
+                        if child_relation == Relation::Out {
+                            continue;
+                        }
+                        maybe_push_node(
+                            &mut open,
+                            &self.nodes,
+                            child_relation,
+                            child,
+                            projection_matrix,
+                        );
                     }
-                    maybe_push_node(
-                        &mut open,
-                        &self.nodes,
-                        child_relation,
-                        child,
-                        projection_matrix,
-                    );
-                },
+                }
                 Relation::In => {
                     // When the parent is fully in the frustum, so are the children.
                     for child_index in 0..8 {
@@ -380,8 +522,10 @@ impl Octree for OnDiskOctree {
         };
 
         let color = {
-            let mut rgb_reader = BufReader::new(File::open(&stem.with_extension(node::COLOR_EXT))
-                .chain_err(|| "Could not read color")?);
+            let mut rgb_reader = BufReader::new(
+                File::open(&stem.with_extension(node::COLOR_EXT))
+                    .chain_err(|| "Could not read color")?,
+            );
             let mut all_data = Vec::new();
             rgb_reader
                 .read_to_end(&mut all_data)
