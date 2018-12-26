@@ -304,7 +304,7 @@ pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution:
     };
 
     // Ignore errors, maybe directory is already there.
-    let _ = fs::create_dir(output_directory.as_ref());
+    let _ = fs::create_dir_all(output_directory.as_ref());
 
     let mut meta = {
         let mut meta = proto::Meta::new();
