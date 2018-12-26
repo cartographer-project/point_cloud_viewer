@@ -42,6 +42,7 @@ struct OctreeService {
 enum OctreeQuery {
     FrustumQuery(Matrix4<f32>),
     BoxQuery(Aabb3<f32>),
+    FullPointcloudQuery,
 }
 
 fn stream_points_back_to_sink(
@@ -131,6 +132,7 @@ fn stream_points_back_to_sink(
             match query {
                 OctreeQuery::BoxQuery(bounding_box) => octree.points_in_box(&bounding_box).for_each_batch(func),
                 OctreeQuery::FrustumQuery(frustum_matrix) => octree.points_in_frustum(&frustum_matrix).for_each_batch(func),
+                OctreeQuery::FullPointcloudQuery => octree.all_points().for_each_batch(func),
             };
         }
         tx.send((reply, WriteFlags::default())).unwrap();
@@ -226,6 +228,16 @@ impl proto_grpc::Octree for OctreeService {
         };
         stream_points_back_to_sink(OctreeQuery::BoxQuery(bounding_box), self.octree.clone(), ctx, resp)
     }
+
+    fn get_all_points(
+        &self,
+        ctx: RpcContext,
+        _req: proto::GetAllPointsRequest,
+        resp: ServerStreamingSink<proto::PointsReply>,
+    ) {
+        stream_points_back_to_sink(OctreeQuery::FullPointcloudQuery, self.octree.clone(), ctx, resp)
+    }
+
 }
 
 pub fn start_grpc_server(

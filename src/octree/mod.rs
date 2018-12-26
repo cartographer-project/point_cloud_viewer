@@ -263,6 +263,34 @@ impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
     }
 }
 
+pub struct AllPointsIterator<'a> {
+    octree_meta: &'a OctreeMeta,
+    octree_nodes: &'a FnvHashMap<NodeId, NodeMeta>,
+}
+
+impl<'a> InternalIterator for AllPointsIterator<'a> {
+    fn size_hint(&self) -> Option<usize> {
+        None
+    }
+
+    fn for_each_batch<F: FnMut(&PointData)>(self, _: F) {
+        // NOCOM(#sirver): needs reimplementation
+        // let mut open_list = vec![NodeId::from_level_index(0, 0)];
+        // while !open_list.is_empty() {
+            // let current = open_list.pop().unwrap();
+            // let iterator = NodeIterator::from_disk(&self.octree_meta, &current)
+                // .expect("Could not read node points");
+            // iterator.for_each(|p| { f(p) });
+            // for child_index in 0..8 {
+                // let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
+                // if self.octree_nodes.contains_key(&child_id) {
+                    // open_list.push(child_id);
+                // }
+            // }
+        // }
+    }
+}
+
 // TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
 fn contains(projection_matrix: &Matrix4<f32>, point: &Point3<f32>) -> bool {
     let v = Vector4::new(point.x, point.y, point.z, 1.);
@@ -393,6 +421,13 @@ impl OnDiskOctree {
             octree_meta: &self.meta,
             frustum_matrix,
             intersecting_nodes,
+        }
+    }
+
+    pub fn all_points<'a>(&'a self) -> AllPointsIterator<'a> {
+        AllPointsIterator {
+            octree_meta: &self.meta,
+            octree_nodes: &self.nodes,
         }
     }
 
