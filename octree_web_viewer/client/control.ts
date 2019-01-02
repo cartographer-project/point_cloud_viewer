@@ -52,6 +52,12 @@ export class FirstPersonController {
     this.domElement.addEventListener('mousedown', (event) =>
       this.onMouseDown(<MouseEvent>event)
     );
+    this.domElement.addEventListener('mousemove', (event) =>
+      this.onMouseMove(<MouseEvent>event)
+    );
+    this.domElement.addEventListener('mouseup', (event) =>
+      this.onMouseUp(<MouseEvent>event)
+    );
   }
 
   public update(): boolean {
@@ -155,22 +161,10 @@ export class FirstPersonController {
     if (event.button === 0) {
       this.mouseState = MouseState.ROTATE;
       this.rotateStart.set(event.clientX, event.clientY);
-      this.domElement.addEventListener('mousemove', (event) =>
-        this.onMouseMove(<MouseEvent>event)
-      );
-      this.domElement.addEventListener('mouseup', (event) =>
-        this.onMouseUp(<MouseEvent>event)
-      );
     }
   }
 
   private onMouseUp(event: MouseEvent) {
-    this.domElement.removeEventListener('mousemove', (event) =>
-      this.onMouseMove(<MouseEvent>event)
-    );
-    this.domElement.removeEventListener('mouseup', (event) =>
-      this.onMouseUp(<MouseEvent>event)
-    );
     this.mouseState = MouseState.NONE;
   }
 
