@@ -231,12 +231,13 @@ impl PointCloudRenderer {
             let duration = self.last_log.to(now).num_microseconds().unwrap();
             let fps = (self.num_frames * 1_000_000u32) as f32 / duration as f32;
             if moving {
-                if fps < 20. && self.max_nodes_moving > 100 {
-                    self.max_nodes_moving -= 100;
+                if fps < 20. {
+                    self.max_nodes_moving = (self.max_nodes_moving as f32 * 0.9) as usize;
                 }
                 if fps > 25. && self.max_nodes_moving < self.max_nodes_in_memory {
-                    self.max_nodes_moving += 100;
+                    self.max_nodes_moving = (self.max_nodes_moving as f32 * 1.1) as usize;
                 }
+                println!("#sirver self.max_nodes_moving: {:#?}", self.max_nodes_moving);
             }
             self.num_frames = 0;
             self.last_log = now;
