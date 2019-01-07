@@ -44,12 +44,11 @@ pub struct OctreeMeta {
 // that is impossible.
 fn project(m: &Matrix4<f32>, p: &Point3<f32>) -> Point3<f32> {
     let q = m * Vector4::new(p.x, p.y, p.z, 1.);
-    let p_clip_space = q / q.w;
-    Point3::new(
-        clamp(p_clip_space.x, -1., 1.),
-        clamp(p_clip_space.y, -1., 1.),
-        clamp(p_clip_space.z, 0., 1.),
-    )
+    Point3::from_homogeneous(q / q.w)
+}
+
+fn clip_point_to_hemicube(p: &Point3<f32>) -> Point3<f32> {
+    Point3::new(clamp(p.x, -1., 1.), clamp(p.y, -1., 1.), clamp(p.z, 0., 1.))
 }
 
 // This method projects world points through the matrix and returns a value proportional to the
@@ -63,7 +62,10 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f32 {
     // z is unused here.
     let min = bounding_cube.min();
     let max = bounding_cube.max();
-    let mut rv = Aabb3::new(project(matrix, &min), project(matrix, &min));
+    let mut rv = Aabb3::new(
+        clip_point_to_hemicube(&project(matrix, &min)),
+        clip_point_to_hemicube(&project(matrix, &min)),
+    );
     for p in &[
         Point3::new(max.x, min.y, min.z),
         Point3::new(min.x, max.y, min.z),
@@ -73,7 +75,7 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f32 {
         Point3::new(min.x, max.y, max.z),
         Point3::new(max.x, max.y, max.z),
     ] {
-        rv = rv.grow(project(matrix, p));
+        rv = rv.grow(clip_point_to_hemicube(&project(matrix, p)));
     }
     (rv.max().x - rv.min().x) * (rv.max().y - rv.min().y)
 }
