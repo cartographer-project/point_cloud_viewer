@@ -17,7 +17,7 @@ use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use errors::*;
 use fnv::FnvHashMap;
-use math::Cube;
+use math::{clamp, Cube};
 use proto;
 use protobuf;
 use std::cmp::Ordering;
@@ -43,12 +43,12 @@ pub struct OctreeMeta {
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
 // that is impossible.
 fn project(m: &Matrix4<f32>, p: &Point3<f32>) -> Point3<f32> {
-    let d = 1. / (m[0][3] * p.x + m[1][3] * p.y + m[2][3] * p.z + m[3][3]);
-    Point3::new(
-        (m[0][0] * p.x + m[1][0] * p.y + m[2][0] * p.z + m[3][0]) * d,
-        (m[0][1] * p.x + m[1][1] * p.y + m[2][1] * p.z + m[3][1]) * d,
-        (m[0][2] * p.x + m[1][2] * p.y + m[2][2] * p.z + m[3][2]) * d,
-    )
+    let q = m * Point3::to_homogeneous(*p);
+    Point3::from_homogeneous(q / q.w)
+}
+
+fn clip_point_to_hemicube(p: &Point3<f32>) -> Point3<f32> {
+    Point3::new(clamp(p.x, -1., 1.), clamp(p.y, -1., 1.), clamp(p.z, 0., 1.))
 }
 
 // This method projects world points through the matrix and returns a value proportional to the
@@ -62,9 +62,11 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f32 {
     // z is unused here.
     let min = bounding_cube.min();
     let max = bounding_cube.max();
-    let mut rv = Aabb3::zero();
+    let mut rv = Aabb3::new(
+        clip_point_to_hemicube(&project(matrix, &min)),
+        clip_point_to_hemicube(&project(matrix, &min)),
+    );
     for p in &[
-        Point3::new(min.x, min.y, min.z),
         Point3::new(max.x, min.y, min.z),
         Point3::new(min.x, max.y, min.z),
         Point3::new(max.x, max.y, min.z),
@@ -73,7 +75,7 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f32 {
         Point3::new(min.x, max.y, max.z),
         Point3::new(max.x, max.y, max.z),
     ] {
-        rv = rv.grow(project(matrix, p));
+        rv = rv.grow(clip_point_to_hemicube(&project(matrix, p)));
     }
     (rv.max().x - rv.min().x) * (rv.max().y - rv.min().y)
 }
@@ -156,7 +158,7 @@ impl<'a> InternalIterator for AllPointsIterator<'a> {
             let current = open_list.pop().unwrap();
             let iterator = NodeIterator::from_disk(&self.octree_meta, &current)
                 .expect("Could not read node points");
-            iterator.for_each(|p| { f(p) });
+            iterator.for_each(|p| f(p));
             for child_index in 0..8 {
                 let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
                 if self.octree_nodes.contains_key(&child_id) {
@@ -168,16 +170,11 @@ impl<'a> InternalIterator for AllPointsIterator<'a> {
 }
 
 // TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
-fn contains(
-    projection_matrix: &Matrix4<f32>,
-    point: &Point3<f32>,
-) -> bool {
+fn contains(projection_matrix: &Matrix4<f32>, point: &Point3<f32>) -> bool {
     let v = Vector4::new(point.x, point.y, point.z, 1.);
     let clip_v = projection_matrix * v;
-    return clip_v.x.abs() < clip_v.w &&
-       clip_v.y.abs() < clip_v.w &&
-       0. < clip_v.z &&
-       clip_v.z < clip_v.w;
+    return clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z
+        && clip_v.z < clip_v.w;
 }
 
 pub fn read_meta_proto<P: AsRef<Path>>(directory: P) -> Result<proto::Meta> {
@@ -274,7 +271,10 @@ impl OnDiskOctree {
         }
     }
 
-    pub fn points_in_frustum<'a>(&'a self, frustum_matrix: &'a Matrix4<f32>) -> PointsInFrustumIterator<'a> {
+    pub fn points_in_frustum<'a>(
+        &'a self,
+        frustum_matrix: &'a Matrix4<f32>,
+    ) -> PointsInFrustumIterator<'a> {
         let intersecting_nodes = self.get_visible_nodes(&frustum_matrix);
         PointsInFrustumIterator {
             octree_meta: &self.meta,
