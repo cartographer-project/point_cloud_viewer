@@ -340,6 +340,10 @@ fn maybe_push_node(
         return;
     }
     let size_on_screen = relative_size_on_screen(&node.bounding_cube, projection_matrix);
+    // Discard nodes that cover a very small area on screen only.
+    if size_on_screen < 0.001 {
+        return;
+    }
     v.push(OpenNode {
         node,
         relation,
