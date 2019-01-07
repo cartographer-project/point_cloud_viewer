@@ -184,7 +184,8 @@ impl PointCloudRenderer {
         self.needs_drawing |= self.node_views
             .consume_arrived_nodes(&self.node_drawer.program);
         while let Ok(visible_nodes) = self.get_visible_nodes_result_rx.try_recv() {
-            self.visible_nodes = visible_nodes;
+            self.visible_nodes.clear();
+            self.visible_nodes.extend(visible_nodes);
             self.needs_drawing = true;
         }
 
@@ -198,8 +199,7 @@ impl PointCloudRenderer {
 
         let max_nodes_to_display =
            if moving { self.max_nodes_moving } else { self.max_nodes_in_memory };
-        let mut filtered_visible_nodes = self.visible_nodes.clone();
-        filtered_visible_nodes.truncate(max_nodes_to_display);
+        let filtered_visible_nodes = self.visible_nodes.iter().take(max_nodes_to_display);
 
         for node_id in filtered_visible_nodes {
             let view = self.node_views.get_or_request(&node_id);
