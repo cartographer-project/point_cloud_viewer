@@ -43,7 +43,7 @@ pub struct OctreeMeta {
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
 // that is impossible.
 fn project(m: &Matrix4<f32>, p: &Point3<f32>) -> Point3<f32> {
-    let q = m * Vector4::new(p.x, p.y, p.z, 1.);
+    let q = m * Point3::to_homogeneous(*p);
     Point3::from_homogeneous(q / q.w)
 }
 
