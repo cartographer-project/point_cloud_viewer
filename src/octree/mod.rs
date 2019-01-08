@@ -64,7 +64,7 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f32 {
     let max = bounding_cube.max();
     let mut rv = Aabb3::new(
         clip_point_to_hemicube(&project(matrix, &min)),
-        clip_point_to_hemicube(&project(matrix, &min)),
+        clip_point_to_hemicube(&project(matrix, &max)),
     );
     for p in &[
         Point3::new(max.x, min.y, min.z),
@@ -73,7 +73,6 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f32 {
         Point3::new(min.x, min.y, max.z),
         Point3::new(max.x, min.y, max.z),
         Point3::new(min.x, max.y, max.z),
-        Point3::new(max.x, max.y, max.z),
     ] {
         rv = rv.grow(clip_point_to_hemicube(&project(matrix, p)));
     }

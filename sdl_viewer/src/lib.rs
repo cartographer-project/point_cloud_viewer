@@ -197,6 +197,7 @@ impl PointCloudRenderer {
             }
         }
 
+        // We use a heuristic to keep the frame rate as stable as possible by increasing/decreasing the number of nodes to draw.
         let max_nodes_to_display =
            if moving { self.max_nodes_moving } else { self.max_nodes_in_memory };
         let filtered_visible_nodes = self.visible_nodes.iter().take(max_nodes_to_display);
@@ -237,7 +238,6 @@ impl PointCloudRenderer {
                 if fps > 25. && self.max_nodes_moving < self.max_nodes_in_memory {
                     self.max_nodes_moving = (self.max_nodes_moving as f32 * 1.1) as usize;
                 }
-                println!("#sirver self.max_nodes_moving: {:#?}", self.max_nodes_moving);
             }
             self.num_frames = 0;
             self.last_log = now;
