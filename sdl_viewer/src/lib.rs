@@ -84,7 +84,7 @@ struct PointCloudRenderer {
     needs_drawing: bool,
     max_nodes_in_memory: usize,
     world_to_gl: Matrix4<f32>,
-    max_level_moving: usize,
+    max_nodes_moving: usize,
     show_octree_nodes: bool,
     node_views: NodeViewContainer,
     box_drawer: BoxDrawer,
@@ -137,7 +137,7 @@ impl PointCloudRenderer {
             gamma: 1.,
             get_visible_nodes_params_tx,
             get_visible_nodes_result_rx,
-            max_level_moving: 4,
+            max_nodes_moving: max_nodes_in_memory,
             needs_drawing: true,
             show_octree_nodes: false,
             max_nodes_in_memory,
@@ -184,7 +184,8 @@ impl PointCloudRenderer {
         self.needs_drawing |= self.node_views
             .consume_arrived_nodes(&self.node_drawer.program);
         while let Ok(visible_nodes) = self.get_visible_nodes_result_rx.try_recv() {
-            self.visible_nodes = visible_nodes;
+            self.visible_nodes.clear();
+            self.visible_nodes.extend(visible_nodes);
             self.needs_drawing = true;
         }
 
@@ -196,31 +197,10 @@ impl PointCloudRenderer {
             }
         }
 
-        // Bisect the actual level to choose, we want to be as close as possible to the max
-        // nodes to use.
-        let mut max_level_to_display =
-            if moving { self.max_level_moving } else { 256 };
-        let mut min_level_to_display = 0;
-        let mut filtered_visible_nodes: Vec<_>;
-        let mut max_level_seen = 0;
-        while (max_level_to_display - min_level_to_display) > 1 {
-            let current = (max_level_to_display + min_level_to_display) / 2;
-            filtered_visible_nodes = self.visible_nodes
-                .iter()
-                .inspect(|id| max_level_seen = max_level_seen.max(id.level()))
-                .filter(|id| id.level() <= current)
-                .collect();
-            if filtered_visible_nodes.len() > self.max_nodes_in_memory {
-                max_level_to_display = current;
-            } else {
-                min_level_to_display = current;
-            }
-        }
-        filtered_visible_nodes = self.visible_nodes
-            .iter()
-            .filter(|id| id.level() <= min_level_to_display)
-            .collect();
-        assert!(filtered_visible_nodes.len() < self.max_nodes_in_memory);
+        // We use a heuristic to keep the frame rate as stable as possible by increasing/decreasing the number of nodes to draw.
+        let max_nodes_to_display =
+           if moving { self.max_nodes_moving } else { self.max_nodes_in_memory };
+        let filtered_visible_nodes = self.visible_nodes.iter().take(max_nodes_to_display);
 
         for node_id in filtered_visible_nodes {
             let view = self.node_views.get_or_request(&node_id);
@@ -252,11 +232,11 @@ impl PointCloudRenderer {
             let duration = self.last_log.to(now).num_microseconds().unwrap();
             let fps = (self.num_frames * 1_000_000u32) as f32 / duration as f32;
             if moving {
-                if fps < 20. && self.max_level_moving > 0 {
-                    self.max_level_moving -= 1;
+                if fps < 20. {
+                    self.max_nodes_moving = (self.max_nodes_moving as f32 * 0.9) as usize;
                 }
-                if fps > 25. && self.max_level_moving < max_level_seen {
-                    self.max_level_moving += 1;
+                if fps > 25. && self.max_nodes_moving < self.max_nodes_in_memory {
+                    self.max_nodes_moving = (self.max_nodes_moving as f32 * 1.1) as usize;
                 }
             }
             self.num_frames = 0;
