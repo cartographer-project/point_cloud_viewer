@@ -17,10 +17,13 @@ extern crate cgmath;
 use cgmath::{Point2, Vector2};
 use std::fmt::{self, Write};
 
-#[derive(Debug, Clone)]
+#[macro_use]
+extern crate serde_derive;
+
+#[derive(Debug, Clone, Serialize)]
 pub struct Rect {
-    min: Point2<f32>,
-    edge_length: f32,
+    pub min: Point2<f32>,
+    pub edge_length: f32,
 }
 
 impl Rect {

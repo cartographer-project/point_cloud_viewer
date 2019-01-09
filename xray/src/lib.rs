@@ -1,3 +1,7 @@
+use cgmath::{Matrix4, Point3};
+use collision::{Aabb3, Frustum, Relation};
+use quadtree::{ChildIndex, Node};
+
 extern crate cgmath;
 #[macro_use]
 extern crate clap;
@@ -15,9 +19,9 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
+extern crate stats;
 extern crate urlencoded;
 extern crate xray_proto_rust;
-extern crate stats;
 
 use cgmath::Point2;
 use fnv::FnvHashSet;
@@ -27,12 +31,18 @@ use std::path::Path;
 
 pub const CURRENT_VERSION: i32 = 2;
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Meta {
     pub nodes: FnvHashSet<NodeId>,
     pub bounding_rect: Rect,
     pub tile_size: u32,
     pub deepest_level: u8,
+}
+
+#[derive(Serialize, Debug)]
+pub struct NodeMeta {
+    pub id: String,
+    pub bounding_rect: Rect,
 }
 
 // TODO(sirver): This should all return errors.
@@ -56,7 +66,8 @@ impl Meta {
         }
 
         Meta {
-            nodes: proto.nodes
+            nodes: proto
+                .nodes
                 .iter()
                 .map(|n| NodeId::new(n.level as u8, n.index))
                 .collect(),
@@ -70,6 +81,65 @@ impl Meta {
             tile_size: proto.tile_size,
             deepest_level: proto.deepest_level as u8,
         }
+    }
+
+    pub fn get_nodes_for_level(
+        &self,
+        level: u8,
+        matrix_entries: Vec<f32>,
+    ) -> Result<Vec<NodeMeta>, String> {
+        // TODO(sirver): This function could actually work much faster by not traversing the
+        // levels, but just finding the covering of the rectangle of the current bounding box.
+        //
+        // Also it should probably not take a frustum but the view bounding box we are interested in.
+        if matrix_entries.len() == 4 * 4 {
+            return Err(format!(
+                "Expected {} entries in matrix, got {}",
+                4 * 4,
+                matrix_entries.len()
+            ));
+        }
+
+        let matrix = {
+            let e = &matrix_entries;
+            Matrix4::new(
+                e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10], e[11], e[12],
+                e[13], e[14], e[15],
+            )
+        };
+        let frustum =
+            Frustum::from_matrix4(matrix).ok_or("Unable to create frustum from matrix")?;
+        let mut result = Vec::new();
+        let mut open = vec![Node::root_with_bounding_rect(self.bounding_rect.clone())];
+        while !open.is_empty() {
+            let node = open.pop().unwrap();
+            let aabb = Aabb3::new(
+                Point3::new(node.bounding_rect.min().x, node.bounding_rect.min().y, -0.1),
+                Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
+            );
+
+            if frustum.contains(&aabb) == Relation::Out || !self.nodes.contains(&node.id) {
+                continue;
+            }
+
+            if node.level() == level {
+                result.push(NodeMeta {
+                    id: node.id.to_string(),
+                    bounding_rect: Rect {
+                        min: Point2 {
+                            x: node.bounding_rect.min().x,
+                            y: node.bounding_rect.min().y,
+                        },
+                        edge_length: node.bounding_rect.edge_length(),
+                    },
+                });
+            } else {
+                for i in 0..4 {
+                    open.push(node.get_child(ChildIndex::from_u8(i)));
+                }
+            }
+        }
+        Ok(result)
     }
 }
 
