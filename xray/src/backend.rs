@@ -77,8 +77,8 @@ impl XRay for OnDiskXRay {
     }
 }
 
-struct HandleNodeImage<T: XRay> {
-    xray_provider: T,
+pub struct HandleNodeImage<T: XRay> {
+    pub xray_provider: T, 
 }
 
 impl<T: XRay + Send + 'static> iron::Handler for HandleNodeImage<T> {
@@ -97,8 +97,8 @@ impl<T: XRay + Send + 'static> iron::Handler for HandleNodeImage<T> {
     }
 }
 
-struct HandleMeta {
-    meta: Arc<Meta>,
+pub struct HandleMeta {
+    pub meta: Arc<Meta>,
 }
 
 impl iron::Handler for HandleMeta {
@@ -118,8 +118,8 @@ impl iron::Handler for HandleMeta {
     }
 }
 
-struct HandleNodesForLevel {
-    meta: Arc<Meta>,
+pub struct HandleNodesForLevel {
+    pub meta: Arc<Meta>,
 }
 
 pub fn get_nodes_for_level(
