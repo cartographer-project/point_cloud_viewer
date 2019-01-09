@@ -7,14 +7,7 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 use urlencoded::UrlEncodedQuery;
-use Meta;
-
-#[derive(Clone, Serialize, Debug)]
-struct BoundingRect {
-    min_x: f32,
-    min_y: f32,
-    edge_length: f32,
-}
+use {BoundingRect, Meta};
 
 #[derive(Serialize, Debug)]
 struct MetaReply {

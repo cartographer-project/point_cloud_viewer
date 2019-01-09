@@ -42,7 +42,14 @@ pub struct Meta {
 #[derive(Serialize, Debug)]
 pub struct NodeMeta {
     pub id: String,
-    pub bounding_rect: Rect,
+    pub bounding_rect: BoundingRect,
+}
+
+#[derive(Clone, Serialize, Debug)]
+pub struct BoundingRect {
+    pub min_x: f32,
+    pub min_y: f32,
+    pub edge_length: f32,
 }
 
 // TODO(sirver): This should all return errors.
@@ -125,11 +132,9 @@ impl Meta {
             if node.level() == level {
                 result.push(NodeMeta {
                     id: node.id.to_string(),
-                    bounding_rect: Rect {
-                        min: Point2 {
-                            x: node.bounding_rect.min().x,
-                            y: node.bounding_rect.min().y,
-                        },
+                    bounding_rect: BoundingRect {
+                        min_x: node.bounding_rect.min().x,
+                        min_y: node.bounding_rect.min().y,
                         edge_length: node.bounding_rect.edge_length(),
                     },
                 });
