@@ -4,18 +4,23 @@
   "description": "WebGL client for point cloud backend.",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && rollup -c",
     "format": "prettier --write **/*.ts **/*.js"
   },
   "author": "Holger Rapp <hrapp@google.com>",
   "license": "Apache-2.0",
-  "dependencies": {
+  "devDependencies": {
     "prettier": "^1.10.2",
+    "rollup": "^0.55.3",
+    "rollup-plugin-commonjs": "^8.3.0",
+    "rollup-plugin-node-resolve": "^3.0.2",
+    "typescript": "=2.7.2"
+  },
+  "dependencies": {
     "@types/dat-gui": "0.6.1",
-    "@types/three": "0.0.27",
+    "@types/three": "0.92.17",
     "dat-gui": "0.5.0",
-    "three": "0.83.0",
-    "typescript": "^2.2"
+    "three": "0.95.0"
   },
   "prettier": {
     "arrow-parens": "always",

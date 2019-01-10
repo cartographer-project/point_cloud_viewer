@@ -7,7 +7,7 @@ use iron::prelude::*;
 use quadtree::{ChildIndex, Node};
 use router::Router;
 use std::fs;
-use std::io::Read;
+use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 use urlencoded::UrlEncodedQuery;
@@ -32,31 +32,60 @@ struct MetaReply {
     deepest_level: u8,
 }
 
-struct HandleNodeImage {
+pub trait XRay: Sync {
+    /// Returns the meta for the X-Ray.
+    fn get_meta(&self) -> io::Result<Meta>;
+
+    /// Returns the PNG blob of the node image for this 'image_id' or an Error.
+    fn get_node_image(&self, node_id: &str) -> io::Result<Vec<u8>>;
+}
+
+pub struct OnDiskXRay {
     directory: PathBuf,
 }
 
-impl iron::Handler for HandleNodeImage {
+impl OnDiskXRay {
+    pub fn new(directory: PathBuf) -> io::Result<Self> {
+        let me = Self { directory };
+        // See if we can find a meta directory.
+        let _ = me.get_meta()?;
+        Ok(me)
+    }
+}
+
+impl XRay for OnDiskXRay {
+    fn get_meta(&self) -> io::Result<Meta> {
+        let meta = Meta::from_disk(self.directory.join("meta.pb"))?;
+        Ok(meta)
+    }
+
+    fn get_node_image(&self, node_id: &str) -> io::Result<Vec<u8>> {
+        let mut filename = self.directory.join(node_id);
+        filename.set_extension("png");
+        let data = fs::read(&filename)?;
+        Ok(data)
+    }
+}
+
+pub struct HandleNodeImage<T: XRay> {
+    pub xray_provider: T, 
+}
+
+impl<T: XRay + Send + 'static> iron::Handler for HandleNodeImage<T> {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
         let id = req.extensions.get::<Router>().unwrap().find("id");
         if id.is_none() {
             return Ok(Response::with(iron::status::NotFound));
         }
         let id = id.unwrap();
-
-        let mut filename = self.directory.join(id);
-        filename.set_extension("png");
-        let mut file = itry!(fs::File::open(filename), iron::status::NotFound);
-
-        let mut reply = Vec::new();
-        itry!(file.read_to_end(&mut reply));
+        let reply = itry!(self.xray_provider.get_node_image(&id), iron::status::NotFound);
         let content_type = "image/png".parse::<Mime>().unwrap();
         Ok(Response::with((content_type, iron::status::Ok, reply)))
     }
 }
 
-struct HandleMeta {
-    meta: Arc<Meta>,
+pub struct HandleMeta {
+    pub meta: Arc<Meta>,
 }
 
 impl iron::Handler for HandleMeta {
@@ -76,8 +105,8 @@ impl iron::Handler for HandleMeta {
     }
 }
 
-struct HandleNodesForLevel {
-    meta: Arc<Meta>,
+pub struct HandleNodesForLevel {
+    pub meta: Arc<Meta>,
 }
 
 impl iron::Handler for HandleNodesForLevel {
@@ -113,20 +142,27 @@ impl iron::Handler for HandleNodesForLevel {
         };
         let frustum = Frustum::from_matrix4(matrix).unwrap();
 
+        // TODO(sirver): This function could actually work much faster by not traversing the
+        // levels, but just finding the covering of the rectangle of the current bounding box.
+        //
+        // Also it should probably not take a frustum but the view bounding box we are interested
+        // in.
         let mut result = Vec::new();
         let mut open = vec![
             Node::root_with_bounding_rect(self.meta.bounding_rect.clone()),
         ];
         while !open.is_empty() {
             let node = open.pop().unwrap();
+            let aabb = Aabb3::new(
+                Point3::new(node.bounding_rect.min().x, node.bounding_rect.min().y, -0.1),
+                Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
+            );
+
+            if frustum.contains(&aabb) == Relation::Out || !self.meta.nodes.contains(&node.id) {
+                continue;
+            }
+
             if node.level() == level {
-                let aabb = Aabb3::new(
-                    Point3::new(node.bounding_rect.min().x, node.bounding_rect.min().y, -0.1),
-                    Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
-                );
-                if frustum.contains(&aabb) == Relation::Out || !self.meta.nodes.contains(&node.id) {
-                    continue;
-                }
                 result.push(NodeMeta {
                     id: node.id.to_string(),
                     bounding_rect: BoundingRect {
@@ -148,8 +184,8 @@ impl iron::Handler for HandleNodesForLevel {
     }
 }
 
-pub fn serve(prefix: &str, router: &mut Router, quadtree_directory: PathBuf) {
-    let meta = Arc::new(Meta::from_disk(quadtree_directory.join("meta.pb")));
+pub fn serve(prefix: &str, router: &mut Router, xray_provider: impl XRay + Send + 'static) -> io::Result<()> {
+    let meta = Arc::new(xray_provider.get_meta()?);
     router.get(
         format!("{}/meta", prefix),
         HandleMeta {
@@ -165,7 +201,8 @@ pub fn serve(prefix: &str, router: &mut Router, quadtree_directory: PathBuf) {
     router.get(
         format!("{}/node_image/:id", prefix),
         HandleNodeImage {
-            directory: quadtree_directory.clone(),
+            xray_provider: xray_provider,
         },
     );
+    Ok(())
 }

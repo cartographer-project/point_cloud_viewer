@@ -22,6 +22,10 @@ extern crate point_viewer_grpc;
 extern crate rand;
 extern crate sdl2;
 extern crate time;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 
 /// Unsafe macro to create a static null-terminated c-string for interop with OpenGL.
 #[macro_export]
@@ -49,10 +53,12 @@ use node_drawer::{NodeDrawer, NodeViewContainer};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree};
 use sdl2::event::{Event, WindowEvent};
-use sdl2::keyboard::Scancode;
+use sdl2::keyboard::{Scancode, LCTRLMOD, RCTRLMOD, LSHIFTMOD, RSHIFTMOD};
 use sdl2::video::GLProfile;
 use std::cmp;
+use std::io;
 use std::error::Error;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{mpsc, Arc};
 use std::thread;
@@ -78,7 +84,7 @@ struct PointCloudRenderer {
     needs_drawing: bool,
     max_nodes_in_memory: usize,
     world_to_gl: Matrix4<f32>,
-    max_level_moving: usize,
+    max_nodes_moving: usize,
     show_octree_nodes: bool,
     node_views: NodeViewContainer,
     box_drawer: BoxDrawer,
@@ -127,11 +133,11 @@ impl PointCloudRenderer {
             visible_nodes: Vec::new(),
             node_drawer: NodeDrawer::new(Rc::clone(&gl)),
             num_frames: 0,
-            point_size: 2.,
+            point_size: 1.,
             gamma: 1.,
             get_visible_nodes_params_tx,
             get_visible_nodes_result_rx,
-            max_level_moving: 4,
+            max_nodes_moving: max_nodes_in_memory,
             needs_drawing: true,
             show_octree_nodes: false,
             max_nodes_in_memory,
@@ -157,18 +163,6 @@ impl PointCloudRenderer {
         self.show_octree_nodes = !self.show_octree_nodes;
     }
 
-    pub fn increment_max_level_moving(&mut self) {
-        self.max_level_moving += 1;
-        self.needs_drawing = true;
-    }
-
-    pub fn decrement_max_level_moving(&mut self) {
-        if self.max_level_moving > 0 {
-            self.max_level_moving -= 1;
-        }
-        self.needs_drawing = true;
-    }
-
     pub fn adjust_gamma(&mut self, delta: f32) {
         self.gamma += delta;
         self.needs_drawing = true;
@@ -190,7 +184,8 @@ impl PointCloudRenderer {
         self.needs_drawing |= self.node_views
             .consume_arrived_nodes(&self.node_drawer.program);
         while let Ok(visible_nodes) = self.get_visible_nodes_result_rx.try_recv() {
-            self.visible_nodes = visible_nodes;
+            self.visible_nodes.clear();
+            self.visible_nodes.extend(visible_nodes);
             self.needs_drawing = true;
         }
 
@@ -202,29 +197,10 @@ impl PointCloudRenderer {
             }
         }
 
-        // Bisect the actual level to choose, we want to be as close as possible to the max
-        // nodes to use.
-        let mut max_level_to_display =
-            if moving { self.max_level_moving } else { 256 };
-        let mut min_level_to_display = 0;
-        let mut filtered_visible_nodes: Vec<_>;
-        while (max_level_to_display - min_level_to_display) > 1 {
-            let current = (max_level_to_display + min_level_to_display) / 2;
-            filtered_visible_nodes = self.visible_nodes
-                .iter()
-                .filter(|id| id.level() <= current)
-                .collect();
-            if filtered_visible_nodes.len() > self.max_nodes_in_memory {
-                max_level_to_display = current;
-            } else {
-                min_level_to_display = current;
-            }
-        }
-        filtered_visible_nodes = self.visible_nodes
-            .iter()
-            .filter(|id| id.level() <= min_level_to_display)
-            .collect();
-        assert!(filtered_visible_nodes.len() < self.max_nodes_in_memory);
+        // We use a heuristic to keep the frame rate as stable as possible by increasing/decreasing the number of nodes to draw.
+        let max_nodes_to_display =
+           if moving { self.max_nodes_moving } else { self.max_nodes_in_memory };
+        let filtered_visible_nodes = self.visible_nodes.iter().take(max_nodes_to_display);
 
         for node_id in filtered_visible_nodes {
             let view = self.node_views.get_or_request(&node_id);
@@ -255,6 +231,14 @@ impl PointCloudRenderer {
         if self.last_log.to(now) > time::Duration::seconds(1) {
             let duration = self.last_log.to(now).num_microseconds().unwrap();
             let fps = (self.num_frames * 1_000_000u32) as f32 / duration as f32;
+            if moving {
+                if fps < 20. {
+                    self.max_nodes_moving = (self.max_nodes_moving as f32 * 0.9) as usize;
+                }
+                if fps > 25. && self.max_nodes_moving < self.max_nodes_in_memory {
+                    self.max_nodes_moving = (self.max_nodes_moving as f32 * 1.1) as usize;
+                }
+            }
             self.num_frames = 0;
             self.last_log = now;
             println!(
@@ -269,6 +253,41 @@ impl PointCloudRenderer {
         }
         draw_result
     }
+}
+
+#[derive(Debug,Serialize,Deserialize)]
+pub struct CameraStates {
+    states: Vec<camera::State>,
+}
+
+fn save_camera(index: usize, pose_path: &Option<PathBuf>, camera: &Camera) {
+    if pose_path.is_none() {
+        println!("Not serving from a local directory. Cannot save camera.");
+        return;
+    }
+    assert!(index < 10);
+    let mut states = ::std::fs::read_to_string(pose_path.as_ref().unwrap()).and_then(|data| {
+        serde_json::from_str(&data).map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
+    }).unwrap_or_else(|_| CameraStates{ states: vec![camera.state(); 10] });
+    states.states[index] = camera.state();
+
+    match std::fs::write(pose_path.as_ref().unwrap(), serde_json::to_string_pretty(&states).unwrap().as_bytes()) {
+        Ok(_) => (),
+        Err(e) => println!("Could not write {}: {}", pose_path.as_ref().unwrap().display(), e),
+    }
+    println!("Saved current camera position as {}.", index);
+}
+
+fn load_camera(index: usize, pose_path: &Option<PathBuf>, camera: &mut Camera) {
+    if pose_path.is_none() {
+        println!("Not serving from a local directory. Cannot load camera.");
+        return;
+    }
+    assert!(index < 10);
+    let states = ::std::fs::read_to_string(pose_path.as_ref().unwrap()).and_then(|data| {
+        serde_json::from_str(&data).map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
+    }).unwrap_or_else(|_| CameraStates{ states: vec![camera.state(); 10] });
+    camera.set_state(states.states[index]);
 }
 
 impl SdlViewer {
@@ -319,6 +338,7 @@ impl SdlViewer {
 
         // call octree generation functions
         let mut octree_opt: Option<Box<Octree>> = None;
+        let mut pose_path = None;
         for (prefix, octree_factory_function) in &self.octree_factories {
             if !octree_argument.starts_with(prefix) {
                 continue;
@@ -332,11 +352,23 @@ impl SdlViewer {
 
         // If no octree was generated create an FromDisc loader
         let octree = Arc::new(octree_opt.unwrap_or_else(|| {
+            pose_path = Some(PathBuf::from(&octree_argument).join("poses.json"));
             Box::new(octree::OnDiskOctree::new(&octree_argument).unwrap()) as Box<Octree>
         }));
 
         let ctx = sdl2::init().unwrap();
         let video_subsystem = ctx.video().unwrap();
+
+        // We need to open the joysticks we are interested in and keep the object alive to receive
+        // input from it. We just open the first we find.
+        let joystick_subsystem = ctx.joystick().unwrap();
+        let joystick = match joystick_subsystem.open(0) {
+            Ok(j) => {
+                println!("Found a joystick and will use it.");
+                Some(j)
+            },
+            Err(_) => None,
+        };
 
         let gl_attr = video_subsystem.gl_attr();
 
@@ -375,32 +407,66 @@ impl SdlViewer {
 
         let mut events = ctx.event_pump().unwrap();
         'outer_loop: loop {
+
             for event in events.poll_iter() {
                 match event {
                     Event::Quit { .. } => break 'outer_loop,
                     Event::KeyDown {
                         scancode: Some(code),
+                        keymod,
                         ..
-                    } => match code {
-                        Scancode::Escape => break 'outer_loop,
-                        Scancode::W => camera.moving_forward = true,
-                        Scancode::S => camera.moving_backward = true,
-                        Scancode::A => camera.moving_left = true,
-                        Scancode::D => camera.moving_right = true,
-                        Scancode::Z => camera.moving_down = true,
-                        Scancode::Q => camera.moving_up = true,
-                        Scancode::Left => camera.turning_left = true,
-                        Scancode::Right => camera.turning_right = true,
-                        Scancode::Down => camera.turning_down = true,
-                        Scancode::Up => camera.turning_up = true,
-                        Scancode::O => renderer.toggle_show_octree_nodes(),
-                        Scancode::Num1 => renderer.decrement_max_level_moving(),
-                        Scancode::Num2 => renderer.increment_max_level_moving(),
-                        Scancode::Num7 => renderer.adjust_gamma(-0.1),
-                        Scancode::Num8 => renderer.adjust_gamma(0.1),
-                        Scancode::Num9 => renderer.adjust_point_size(-0.1),
-                        Scancode::Num0 => renderer.adjust_point_size(0.1),
-                        _ => (),
+                    } => {
+                        if keymod.is_empty() {
+                            match code {
+                                Scancode::Escape => break 'outer_loop,
+                                Scancode::W => camera.moving_forward = true,
+                                Scancode::S => camera.moving_backward = true,
+                                Scancode::A => camera.moving_left = true,
+                                Scancode::D => camera.moving_right = true,
+                                Scancode::Z => camera.moving_down = true,
+                                Scancode::Q => camera.moving_up = true,
+                                Scancode::Left => camera.turning_left = true,
+                                Scancode::Right => camera.turning_right = true,
+                                Scancode::Down => camera.turning_down = true,
+                                Scancode::Up => camera.turning_up = true,
+                                Scancode::O => renderer.toggle_show_octree_nodes(),
+                                Scancode::Num7 => renderer.adjust_gamma(-0.1),
+                                Scancode::Num8 => renderer.adjust_gamma(0.1),
+                                Scancode::Num9 => renderer.adjust_point_size(-0.1),
+                                Scancode::Num0 => renderer.adjust_point_size(0.1),
+                                _ => (),
+                            }
+                        } else if keymod.intersects(LCTRLMOD | RCTRLMOD) && keymod.intersects(LSHIFTMOD | RSHIFTMOD) {
+                            // CTRL + SHIFT is pressed.
+                            match code {
+                                Scancode::Num1 => save_camera(0, &pose_path, &camera),
+                                Scancode::Num2 => save_camera(1, &pose_path, &camera),
+                                Scancode::Num3 => save_camera(2, &pose_path, &camera),
+                                Scancode::Num4 => save_camera(3, &pose_path, &camera),
+                                Scancode::Num5 => save_camera(4, &pose_path, &camera),
+                                Scancode::Num6 => save_camera(5, &pose_path, &camera),
+                                Scancode::Num7 => save_camera(6, &pose_path, &camera),
+                                Scancode::Num8 => save_camera(7, &pose_path, &camera),
+                                Scancode::Num9 => save_camera(8, &pose_path, &camera),
+                                Scancode::Num0 => save_camera(9, &pose_path, &camera),
+                                _ => (),
+                            }
+                        } else if keymod.intersects(LCTRLMOD | RCTRLMOD) {
+                            // CTRL is pressed.
+                            match code {
+                                Scancode::Num1 => load_camera(0, &pose_path, &mut camera),
+                                Scancode::Num2 => load_camera(1, &pose_path, &mut camera),
+                                Scancode::Num3 => load_camera(2, &pose_path, &mut camera),
+                                Scancode::Num4 => load_camera(3, &pose_path, &mut camera),
+                                Scancode::Num5 => load_camera(4, &pose_path, &mut camera),
+                                Scancode::Num6 => load_camera(5, &pose_path, &mut camera),
+                                Scancode::Num7 => load_camera(6, &pose_path, &mut camera),
+                                Scancode::Num8 => load_camera(7, &pose_path, &mut camera),
+                                Scancode::Num9 => load_camera(8, &pose_path, &mut camera),
+                                Scancode::Num0 => load_camera(9, &pose_path, &mut camera),
+                                _ => (),
+                            }
+                        }
                     },
                     Event::KeyUp {
                         scancode: Some(code),
@@ -441,6 +507,17 @@ impl SdlViewer {
                     }
                     _ => (),
                 }
+            }
+
+            if let Some(j) = joystick.as_ref() {
+                let x = j.axis(0).unwrap() as f32 / 1000.;
+                let y = -j.axis(1).unwrap() as f32 / 1000.;
+                let z = -j.axis(2).unwrap() as f32 / 1000.;
+                let up = j.axis(3).unwrap() as f32 / 10000.;
+                // Combine tilting and turning on the knob.
+                let around = j.axis(4).unwrap() as f32 / 10000. - j.axis(5).unwrap() as f32 / 10000.;
+                camera.pan(x, y, z);
+                camera.rotate(up, around);
             }
 
             if camera.update() {

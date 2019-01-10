@@ -45,6 +45,13 @@ pub struct Camera {
     projection_matrix: Matrix4<f32>,
 }
 
+#[derive(Debug,Serialize,Deserialize,Clone,Copy)]
+pub struct State {
+    transform: Decomposed<Vector3<f32>, Quaternion<f32>>,
+    phi: Rad<f32>,
+    theta: Rad<f32>,
+}
+
 impl Camera {
     pub fn new(gl: &opengl::Gl, width: i32, height: i32) -> Self {
         let mut camera = Camera {
@@ -78,6 +85,21 @@ impl Camera {
         };
         camera.set_size(gl, width, height);
         camera
+    }
+
+    pub fn state(&self) -> State  {
+        State {
+            transform: self.transform,
+            phi: self.phi,
+            theta: self.theta
+        }
+    }
+
+    pub fn set_state(&mut self, state: State) {
+        self.transform = state.transform;
+        self.phi = state.phi;
+        self.theta = state.theta;
+        self.moved = true;
     }
 
     pub fn set_size(&mut self, gl: &opengl::Gl, width: i32, height: i32) {
@@ -182,5 +204,16 @@ impl Camera {
         let sign = delta.signum() as f32;
         self.movement_speed += sign * 0.1 * self.movement_speed;
         self.movement_speed = self.movement_speed.max(0.01);
+    }
+
+    pub fn pan(&mut self, x: f32, y: f32, z: f32) {
+        self.pan.x += x * self.movement_speed;
+        self.pan.y += y * self.movement_speed;
+        self.pan.z += z * self.movement_speed;
+    }
+
+    pub fn rotate(&mut self, up: f32, around: f32) {
+        self.delta_phi += Rad(up * self.movement_speed);
+        self.delta_theta += Rad(around * self.movement_speed);
     }
 }

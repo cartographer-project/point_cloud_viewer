@@ -24,7 +24,11 @@ service Octree {
   rpc GetMeta(GetMetaRequest) returns (GetMetaReply);
   rpc GetNodeData(GetNodeDataRequest) returns (GetNodeDataReply);
   rpc GetPointsInBox(GetPointsInBoxRequest)
-      returns (stream GetPointsInBoxReply);
+      returns (stream PointsReply);
+  rpc GetPointsInFrustum(GetPointsInFrustumRequest)
+      returns (stream PointsReply);
+  rpc GetAllPoints(GetAllPointsRequest)
+      returns (stream PointsReply);
 }
 
 message GetMetaRequest {
@@ -48,6 +52,37 @@ message GetPointsInBoxRequest {
   point_viewer.proto.AxisAlignedCuboid bounding_box = 1;
 }
 
-message GetPointsInBoxReply {
-  repeated point_viewer.proto.Vector3f points = 1;
+message GetPointsInFrustumRequest {
+  // Vector defining the translation.
+  point_viewer.proto.Vector3f translation = 1;
+
+  // Unit quaternion specifying the rotation.
+  point_viewer.proto.Quaternionf rotation = 2;
+
+  // Field of view angle in radians.
+  double fovy_rad = 3;
+
+  // Aspect ratio, i.e. width / height.
+  double aspect = 4;
+
+  // Distance from the viewer to the near clipping plane.
+  double z_near = 5;
+
+  // Distance from the viewer to the far clipping plane.
+  double z_far = 6;
+}
+
+message GetAllPointsRequest {
+}
+
+message PointsReply {
+  // For every point a position. This is guaranteed to contain entries.
+  repeated point_viewer.proto.Vector3f positions = 1;
+
+  // For every point a color value (R, G, B, A).
+  repeated point_viewer.proto.Color colors = 2;
+
+  // For every point an intensity value. Might not exist if there are no intensities.
+  repeated float intensities = 3;
+
 }
