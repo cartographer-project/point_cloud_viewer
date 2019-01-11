@@ -99,7 +99,7 @@ impl Meta {
         // levels, but just finding the covering of the rectangle of the current bounding box.
         //
         // Also it should probably not take a frustum but the view bounding box we are interested in.
-        if matrix_entries.len() == 4 * 4 {
+        if matrix_entries.len() != 4 * 4 {
             return Err(format!(
                 "Expected {} entries in matrix, got {}",
                 4 * 4,
