@@ -16,7 +16,7 @@ export default class AsyncTasksQueue<T> {
     this.pendingCount = 0;
   }
 
-  public addTask(fn: () => Promise<T>): Promise<T> {
+  public async addTask(fn: () => Promise<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       this.queue.push({ fn, resolve, reject });
       this.processQueue();

@@ -86,13 +86,13 @@ class NodeLoader {
   private maxConcurrentRequests = 2;
   private queue = new AsyncTasksQueue<void>(this.maxConcurrentRequests);
 
-  public load(
+  public async load(
     scene: THREE.Scene,
     material: THREE.ShaderMaterial,
     nodes: NodeData[],
     onNewNodeData: () => void
-  ): Promise<void[]> {
-    return Promise.all(
+  ) {
+    await Promise.all(
       chunk(
         nodes.filter((node) => !node.isUpToDate()),
         this.batchSize
@@ -345,13 +345,12 @@ export class OctreeViewer {
     }
   }
 
-  private nodesUpdate(nodeIds: string[]) {
+  private async nodesUpdate(nodeIds: string[]) {
     const start = performance.now();
     const nodes = nodeIds.map((nodeId) => this.getOrCreate(nodeId));
 
-    this.nodeLoader
-      .load(this.scene, this.material, nodes, this.onNewNodeData)
-      .then(() => console.log(`nodeUpdate took ${performance.now() - start}ms.`));
+    await this.nodeLoader.load(this.scene, this.material, nodes, this.onNewNodeData);
+    console.log(`nodeUpdate took ${performance.now() - start}ms.`);
   }
 
   private getOrCreate(nodeName: string): NodeData {
