@@ -1,22 +1,22 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
+use iron;
 use iron::mime::Mime;
 use iron::prelude::*;
-use iron;
+use json;
 use point_viewer::octree::{self, Octree};
 use std::io::Read;
 use std::sync::{Arc, RwLock};
-use json;
 use time;
 use urlencoded::UrlEncodedQuery;
 
 pub struct VisibleNodes {
-    octree: Arc<RwLock<octree::OnDiskOctree>>,
+    octree: Arc<RwLock<Octree>>,
 }
 
 impl VisibleNodes {
-    pub fn new(octree: Arc<RwLock<octree::OnDiskOctree>>) -> Self {
-        VisibleNodes {octree}
+    pub fn new(octree: Arc<RwLock<Octree>>) -> Self {
+        VisibleNodes { octree }
     }
 }
 
@@ -31,22 +31,8 @@ impl iron::Handler for VisibleNodes {
                 .map(|s| s.parse::<f32>().unwrap())
                 .collect();
             Matrix4::new(
-                e[0],
-                e[1],
-                e[2],
-                e[3],
-                e[4],
-                e[5],
-                e[6],
-                e[7],
-                e[8],
-                e[9],
-                e[10],
-                e[11],
-                e[12],
-                e[13],
-                e[14],
-                e[15],
+                e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10], e[11], e[12],
+                e[13], e[14], e[15],
             )
         };
 
@@ -79,11 +65,11 @@ fn pad(input: &mut Vec<u8>) {
 }
 
 pub struct NodesData {
-    octree: Arc<RwLock<octree::OnDiskOctree>>,
+    octree: Arc<RwLock<Octree>>,
 }
 
 impl NodesData {
-    pub fn new(octree: Arc<RwLock<octree::OnDiskOctree>>) -> Self {
+    pub fn new(octree: Arc<RwLock<Octree>>) -> Self {
         NodesData { octree }
     }
 }
@@ -95,7 +81,8 @@ impl iron::Handler for NodesData {
         // TODO(hrapp): This should not crash on error, but return a valid http response.
         req.body.read_to_string(&mut content).unwrap();
         let data = json::parse(&content).unwrap();
-        let nodes_to_load = data.members()
+        let nodes_to_load = data
+            .members()
             .map(|e| octree::NodeId::from_str(e.as_str().unwrap()));
 
         // So this is godawful: We need to get data to the GPU without JavaScript herp-derping with
