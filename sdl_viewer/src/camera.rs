@@ -153,7 +153,7 @@ impl Camera {
             self.pan += pan.normalize();
         }
 
-        let elapsed_seconds = elapsed.num_seconds() as f32;
+        let elapsed_seconds = elapsed.num_milliseconds() as f32 / 1000.;
 
         const TURNING_SPEED : Rad<f32> = Rad(0.15);
         if self.turning_left {
