@@ -21,8 +21,8 @@ extern crate point_viewer;
 extern crate point_viewer_grpc;
 extern crate rand;
 extern crate sdl2;
-extern crate time;
 extern crate serde;
+extern crate time;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
@@ -32,11 +32,11 @@ extern crate serde_json;
 macro_rules! c_str {
     ($s:expr) => {
         concat!($s, "\0").as_ptr() as *const i8
-    }
+    };
 }
 
-mod glhelper;
 mod camera;
+mod glhelper;
 #[allow(non_upper_case_globals)]
 pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
@@ -53,11 +53,11 @@ use node_drawer::{NodeDrawer, NodeViewContainer};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree};
 use sdl2::event::{Event, WindowEvent};
-use sdl2::keyboard::{Scancode, LCTRLMOD, RCTRLMOD, LSHIFTMOD, RSHIFTMOD};
+use sdl2::keyboard::{Scancode, LCTRLMOD, LSHIFTMOD, RCTRLMOD, RSHIFTMOD};
 use sdl2::video::GLProfile;
 use std::cmp;
-use std::io;
 use std::error::Error;
+use std::io;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{mpsc, Arc};
@@ -181,7 +181,8 @@ impl PointCloudRenderer {
 
         let now = time::PreciseTime::now();
         let moving = self.last_moving.to(now) < time::Duration::milliseconds(150);
-        self.needs_drawing |= self.node_views
+        self.needs_drawing |= self
+            .node_views
             .consume_arrived_nodes(&self.node_drawer.program);
         while let Ok(visible_nodes) = self.get_visible_nodes_result_rx.try_recv() {
             self.visible_nodes.clear();
@@ -198,8 +199,11 @@ impl PointCloudRenderer {
         }
 
         // We use a heuristic to keep the frame rate as stable as possible by increasing/decreasing the number of nodes to draw.
-        let max_nodes_to_display =
-           if moving { self.max_nodes_moving } else { self.max_nodes_in_memory };
+        let max_nodes_to_display = if moving {
+            self.max_nodes_moving
+        } else {
+            self.max_nodes_in_memory
+        };
         let filtered_visible_nodes = self.visible_nodes.iter().take(max_nodes_to_display);
 
         for node_id in filtered_visible_nodes {
@@ -217,8 +221,11 @@ impl PointCloudRenderer {
             num_nodes_drawn += 1;
 
             if self.show_octree_nodes {
-                self.box_drawer
-                    .draw_outlines(&view.meta.bounding_cube.to_aabb3(), &self.world_to_gl, &YELLOW);
+                self.box_drawer.draw_outlines(
+                    &view.meta.bounding_cube.to_aabb3(),
+                    &self.world_to_gl,
+                    &YELLOW,
+                );
             }
         }
         if self.needs_drawing {
@@ -255,7 +262,7 @@ impl PointCloudRenderer {
     }
 }
 
-#[derive(Debug,Serialize,Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CameraStates {
     states: Vec<camera::State>,
 }
@@ -266,14 +273,26 @@ fn save_camera(index: usize, pose_path: &Option<PathBuf>, camera: &Camera) {
         return;
     }
     assert!(index < 10);
-    let mut states = ::std::fs::read_to_string(pose_path.as_ref().unwrap()).and_then(|data| {
-        serde_json::from_str(&data).map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
-    }).unwrap_or_else(|_| CameraStates{ states: vec![camera.state(); 10] });
+    let mut states = ::std::fs::read_to_string(pose_path.as_ref().unwrap())
+        .and_then(|data| {
+            serde_json::from_str(&data)
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
+        })
+        .unwrap_or_else(|_| CameraStates {
+            states: vec![camera.state(); 10],
+        });
     states.states[index] = camera.state();
 
-    match std::fs::write(pose_path.as_ref().unwrap(), serde_json::to_string_pretty(&states).unwrap().as_bytes()) {
+    match std::fs::write(
+        pose_path.as_ref().unwrap(),
+        serde_json::to_string_pretty(&states).unwrap().as_bytes(),
+    ) {
         Ok(_) => (),
-        Err(e) => println!("Could not write {}: {}", pose_path.as_ref().unwrap().display(), e),
+        Err(e) => println!(
+            "Could not write {}: {}",
+            pose_path.as_ref().unwrap().display(),
+            e
+        ),
     }
     println!("Saved current camera position as {}.", index);
 }
@@ -284,9 +303,14 @@ fn load_camera(index: usize, pose_path: &Option<PathBuf>, camera: &mut Camera) {
         return;
     }
     assert!(index < 10);
-    let states = ::std::fs::read_to_string(pose_path.as_ref().unwrap()).and_then(|data| {
-        serde_json::from_str(&data).map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
-    }).unwrap_or_else(|_| CameraStates{ states: vec![camera.state(); 10] });
+    let states = ::std::fs::read_to_string(pose_path.as_ref().unwrap())
+        .and_then(|data| {
+            serde_json::from_str(&data)
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
+        })
+        .unwrap_or_else(|_| CameraStates {
+            states: vec![camera.state(); 10],
+        });
     camera.set_state(states.states[index]);
 }
 
@@ -366,7 +390,7 @@ impl SdlViewer {
             Ok(j) => {
                 println!("Found a joystick and will use it.");
                 Some(j)
-            },
+            }
             Err(_) => None,
         };
 
@@ -408,7 +432,6 @@ impl SdlViewer {
         let mut events = ctx.event_pump().unwrap();
         let mut last_frame_time = time::PreciseTime::now();
         'outer_loop: loop {
-
             for event in events.poll_iter() {
                 match event {
                     Event::Quit { .. } => break 'outer_loop,
@@ -437,7 +460,9 @@ impl SdlViewer {
                                 Scancode::Num0 => renderer.adjust_point_size(0.1),
                                 _ => (),
                             }
-                        } else if keymod.intersects(LCTRLMOD | RCTRLMOD) && keymod.intersects(LSHIFTMOD | RSHIFTMOD) {
+                        } else if keymod.intersects(LCTRLMOD | RCTRLMOD)
+                            && keymod.intersects(LSHIFTMOD | RSHIFTMOD)
+                        {
                             // CTRL + SHIFT is pressed.
                             match code {
                                 Scancode::Num1 => save_camera(0, &pose_path, &camera),
@@ -468,7 +493,7 @@ impl SdlViewer {
                                 _ => (),
                             }
                         }
-                    },
+                    }
                     Event::KeyUp {
                         scancode: Some(code),
                         ..

@@ -25,8 +25,8 @@ use std::os::raw::c_void;
 use std::ptr;
 use std::rc::Rc;
 use std::str;
-use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::Arc;
 
 const FRAGMENT_SHADER: &str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER: &str = include_str!("../shaders/points.vs");

@@ -48,8 +48,9 @@ fn main() {
     protoc_grpcio::compile_grpc_protos(
         &["point_viewer_grpc_proto_rust/src/proto.proto"],
         &[git_repo_root.clone()],
-        &out_dir
-    ).expect("Failed to compile gRPC definitions!");
+        &out_dir,
+    )
+    .expect("Failed to compile gRPC definitions!");
 
     inplace_modify_file(&Path::new(&out_dir).join("proto.rs"), |c| {
         // Work around https://github.com/stepancheg/rust-protobuf/issues/260. The protobuf plugin

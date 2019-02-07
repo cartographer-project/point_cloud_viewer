@@ -160,5 +160,6 @@ pub fn main() {
         resolution,
         coloring_strategy_kind,
         &bbox2,
-    ).unwrap();
+    )
+    .unwrap();
 }
