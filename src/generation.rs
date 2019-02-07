@@ -14,22 +14,22 @@
 
 use cgmath::{EuclideanSpace, Point3};
 use collision::{Aabb, Aabb3};
-use fnv::{FnvHashMap, FnvHashSet};
-use pbr::ProgressBar;
-use {InternalIterator, Point};
 use errors::*;
+use fnv::{FnvHashMap, FnvHashSet};
 use math::Cube;
 use octree;
+use pbr::ProgressBar;
 use ply::PlyIterator;
 use proto;
-use pts::PtsIterator;
 use protobuf::Message;
+use pts::PtsIterator;
 use scoped_pool::{Pool, Scope};
 use std::cmp;
 use std::fs::{self, File};
 use std::io::{BufWriter, Stdout};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
+use {InternalIterator, Point};
 
 const UPDATE_COUNT: i64 = 100000;
 const MAX_POINTS_PER_NODE: i64 = 100000;
@@ -250,7 +250,12 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
     bounding_box
 }
 
-pub fn build_octree_from_file(pool: &Pool, output_directory: impl AsRef<Path>, resolution: f64, filename: impl AsRef<Path>) {
+pub fn build_octree_from_file(
+    pool: &Pool,
+    output_directory: impl AsRef<Path>,
+    resolution: f64,
+    filename: impl AsRef<Path>,
+) {
     // TODO(ksavinash9): This function should return a Result.
     let input = {
         match filename.as_ref().extension().and_then(|s| s.to_str()) {
@@ -264,12 +269,21 @@ pub fn build_octree_from_file(pool: &Pool, output_directory: impl AsRef<Path>, r
     build_octree(pool, output_directory, resolution, bounding_box, stream)
 }
 
-pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution: f64, bounding_box: Aabb3<f32>, input: impl InternalIterator) {
+pub fn build_octree(
+    pool: &Pool,
+    output_directory: impl AsRef<Path>,
+    resolution: f64,
+    bounding_box: Aabb3<f32>,
+    input: impl InternalIterator,
+) {
     // We open a lot of files during our work. Sometimes users see errors with 'cannot open more
     // files'. We attempt to increase the rlimits for the number of open files per process here,
     // but we do not fail if we do not manage to do so.
     unsafe {
-        let mut rl = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        let mut rl = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
         libc::getrlimit(libc::RLIMIT_NOFILE, &mut rl);
         rl.rlim_cur = rl.rlim_max;
         libc::setrlimit(libc::RLIMIT_NOFILE, &rl);
@@ -315,13 +329,7 @@ pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution:
     let (leaf_nodes_sender, leaf_nodes_receiver) = mpsc::channel();
     pool.scoped(move |scope| {
         let root_node = octree::Node::root_with_bounding_cube(Cube::bounding(&bounding_box));
-        split_node(
-            scope,
-            octree_meta,
-            &root_node.id,
-            input,
-            &leaf_nodes_sender,
-        );
+        split_node(scope, octree_meta, &root_node.id, input, &leaf_nodes_sender);
     });
 
     let mut nodes_to_subsample = Vec::new();
@@ -342,7 +350,8 @@ pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution:
         nodes_to_subsample = res.1;
 
         // Unwrap is safe, since we stop at current_level = 1, so the root can never appear.
-        let parent_ids: FnvHashSet<_> = res.0
+        let parent_ids: FnvHashSet<_> = res
+            .0
             .into_iter()
             .map(|id| id.parent_id().unwrap())
             .collect();
@@ -398,6 +407,7 @@ pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution:
         meta.mut_nodes().push(proto);
     }
 
-    let mut buf_writer = BufWriter::new(File::create(&output_directory.as_ref().join("meta.pb")).unwrap());
+    let mut buf_writer =
+        BufWriter::new(File::create(&output_directory.as_ref().join("meta.pb")).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
 }

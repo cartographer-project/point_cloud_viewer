@@ -14,7 +14,8 @@ fn main() {
         input: &["src/proto.proto"],
         includes: &[],
         ..Default::default()
-    }).expect("protoc");
+    })
+    .expect("protoc");
 
     // Work around
     // https://github.com/stepancheg/rust-protobuf/issues/117

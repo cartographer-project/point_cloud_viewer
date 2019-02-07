@@ -17,13 +17,13 @@ extern crate clap;
 extern crate futures;
 extern crate point_viewer_grpc;
 
-use futures::{Future};
 use futures::sync::oneshot;
-use std::{io, thread};
+use futures::Future;
 use std::io::Read;
 use std::path::PathBuf;
+use std::{io, thread};
 
-use point_viewer_grpc::service::{start_grpc_server};
+use point_viewer_grpc::service::start_grpc_server;
 
 fn main() {
     let matches = clap::App::new("octree_server")

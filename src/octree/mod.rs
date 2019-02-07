@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use {InternalIterator, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use errors::*;
@@ -25,11 +24,13 @@ use std::collections::BinaryHeap;
 use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
+use {InternalIterator, Point};
 
 mod node;
 
-pub use self::node::{ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter,
-                     PositionEncoding};
+pub use self::node::{
+    ChildIndex, Node, NodeId, NodeIterator, NodeMeta, NodeWriter, PositionEncoding,
+};
 
 pub const CURRENT_VERSION: i32 = 9;
 
@@ -172,7 +173,9 @@ impl<'a> InternalIterator for AllPointsIterator<'a> {
 fn contains(projection_matrix: &Matrix4<f32>, point: &Point3<f32>) -> bool {
     let v = Vector4::new(point.x, point.y, point.z, 1.);
     let clip_v = projection_matrix * v;
-    return clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z
+    return clip_v.x.abs() < clip_v.w
+        && clip_v.y.abs() < clip_v.w
+        && 0. < clip_v.z
         && clip_v.z < clip_v.w;
 }
 
@@ -247,9 +250,9 @@ impl OnDiskOctree {
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
     pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f32>) -> PointsInBoxIterator<'a> {
         let mut intersecting_nodes = Vec::new();
-        let mut open_list = vec![
-            Node::root_with_bounding_cube(Cube::bounding(&self.meta.bounding_box)),
-        ];
+        let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
+            &self.meta.bounding_box,
+        ))];
         while !open_list.is_empty() {
             let current = open_list.pop().unwrap();
             if !aabb.intersects(&current.bounding_cube.to_aabb3()) {
@@ -361,20 +364,22 @@ impl Octree for OnDiskOctree {
         let mut visible = Vec::new();
         while let Some(current) = open.pop() {
             match current.relation {
-                Relation::Cross => for child_index in 0..8 {
-                    let child = current.node.get_child(ChildIndex::from_u8(child_index));
-                    let child_relation = frustum.contains(&child.bounding_cube.to_aabb3());
-                    if child_relation == Relation::Out {
-                        continue;
+                Relation::Cross => {
+                    for child_index in 0..8 {
+                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
+                        let child_relation = frustum.contains(&child.bounding_cube.to_aabb3());
+                        if child_relation == Relation::Out {
+                            continue;
+                        }
+                        maybe_push_node(
+                            &mut open,
+                            &self.nodes,
+                            child_relation,
+                            child,
+                            projection_matrix,
+                        );
                     }
-                    maybe_push_node(
-                        &mut open,
-                        &self.nodes,
-                        child_relation,
-                        child,
-                        projection_matrix,
-                    );
-                },
+                }
                 Relation::In => {
                     // When the parent is fully in the frustum, so are the children.
                     for child_index in 0..8 {
@@ -413,8 +418,10 @@ impl Octree for OnDiskOctree {
         };
 
         let color = {
-            let mut rgb_reader = BufReader::new(File::open(&stem.with_extension(node::COLOR_EXT))
-                .chain_err(|| "Could not read color")?);
+            let mut rgb_reader = BufReader::new(
+                File::open(&stem.with_extension(node::COLOR_EXT))
+                    .chain_err(|| "Could not read color")?,
+            );
             let mut all_data = Vec::new();
             rgb_reader
                 .read_to_end(&mut all_data)

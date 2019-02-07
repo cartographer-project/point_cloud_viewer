@@ -5,7 +5,11 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use point_viewer::math::clamp;
-use point_viewer::{octree, InternalIterator, Point, color::{Color, WHITE}};
+use point_viewer::{
+    color::{Color, WHITE},
+    octree, InternalIterator, Point,
+};
+use proto;
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -16,7 +20,6 @@ use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use proto;
 use CURRENT_VERSION;
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
@@ -45,18 +48,18 @@ impl Jet {
         if val <= -0.75 {
             0.
         } else if val <= -0.25 {
-            self.interpolate(val, 0.0, -0.75, 1.0, -0.25 )
+            self.interpolate(val, 0.0, -0.75, 1.0, -0.25)
         } else if val <= 0.25 {
             1.0
         } else if val <= 0.75 {
-            self.interpolate( val, 1.0, 0.25, 0.0, 0.75 )
+            self.interpolate(val, 1.0, 0.25, 0.0, 0.75)
         } else {
             0.0
         }
     }
 
     fn interpolate(&self, val: f32, y0: f32, x0: f32, y1: f32, x1: f32) -> f32 {
-        (val-x0)*(y1-y0)/(x1-x0) + y0
+        (val - x0) * (y1 - y0) / (x1 - x0) + y0
     }
 
     pub fn for_value(&self, val: f32) -> Color<u8> {
@@ -66,8 +69,9 @@ impl Jet {
             red: self.red(val),
             green: self.green(val),
             blue: self.blue(val),
-            alpha: 1.
-        }.to_u8()
+            alpha: 1.,
+        }
+        .to_u8()
     }
 }
 
@@ -100,8 +104,10 @@ impl ColoringStrategyKind {
             ColoringStrategyKind::Colored => Box::new(PointColorColoringStrategy::default()),
             ColoringStrategyKind::ColoredWithIntensity(min_intensity, max_intensity) => {
                 Box::new(IntensityColoringStrategy::new(min_intensity, max_intensity))
-            },
-            ColoringStrategyKind::ColoredWithHeightStddev(max_stddev) => Box::new(HeightStddevColoringStrategy::new(max_stddev)),
+            }
+            ColoringStrategyKind::ColoredWithHeightStddev(max_stddev) => {
+                Box::new(HeightStddevColoringStrategy::new(max_stddev))
+            }
         }
     }
 }
@@ -183,7 +189,8 @@ impl IntensityColoringStrategy {
 
 impl ColoringStrategy for IntensityColoringStrategy {
     fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
-        let intensity = p.intensity
+        let intensity = p
+            .intensity
             .expect("Coloring by intensity was requested, but point without intensity found.");
         if intensity < 0. {
             return;
@@ -215,9 +222,9 @@ impl ColoringStrategy for IntensityColoringStrategy {
             green: brighten,
             blue: brighten,
             alpha: 1.,
-        }.to_u8()
+        }
+        .to_u8()
     }
-
 }
 
 struct PerColumnData {
@@ -264,7 +271,8 @@ impl ColoringStrategy for PointColorColoringStrategy {
             green: c.color_sum.green / c.count as f32,
             blue: c.color_sum.blue / c.count as f32,
             alpha: c.color_sum.alpha / c.count as f32,
-        }.to_u8()
+        }
+        .to_u8()
     }
 }
 
@@ -276,14 +284,14 @@ struct HeightStddevColoringStrategy {
 impl HeightStddevColoringStrategy {
     fn new(max_stddev: f32) -> Self {
         HeightStddevColoringStrategy {
-            max_stddev, 
+            max_stddev,
             per_column_data: FnvHashMap::default(),
         }
     }
 }
 
 /// Build a parent image created of the 4 children tiles. All tiles are optionally, in which case
-/// they are left white in the resulting image. The input images must be square with length N, 
+/// they are left white in the resulting image. The input images must be square with length N,
 /// the returned image is square with length 2*N.
 pub fn build_parent(children: &[Option<image::RgbImage>]) -> image::RgbImage {
     assert_eq!(children.len(), 4);
@@ -293,12 +301,16 @@ pub fn build_parent(children: &[Option<image::RgbImage>]) -> image::RgbImage {
             continue;
         }
         let c = c.as_ref().unwrap();
-        assert_eq!(c.width(), c.height(), "Expected width to be equal to height.");
+        assert_eq!(
+            c.width(),
+            c.height(),
+            "Expected width to be equal to height."
+        );
         match child_size_px {
             None => child_size_px = Some(c.width()),
             Some(w) => {
                 assert_eq!(w, c.width(), "Not all images have the same size.");
-            },
+            }
         }
     }
     let child_size_px = child_size_px.expect("No children passed to 'build_parent'.");
@@ -340,7 +352,7 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
         }
         let c = &self.per_column_data[&(x, y)];
         let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
-        Jet{}.for_value(saturation)
+        Jet {}.for_value(saturation)
     }
 }
 
@@ -360,7 +372,8 @@ pub fn xray_from_points(
         // bottom left. Since images have their origin at the top left, we need actually have to
         // invert y and go from the bottom of the image.
         let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * image_width as f32) as u32;
-        let y = ((1. - ((p.position.y - bbox.min().y) / bbox.dim().y)) * image_height as f32) as u32;
+        let y =
+            ((1. - ((p.position.y - bbox.min().y) / bbox.dim().y)) * image_height as f32) as u32;
         let z = (((p.position.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
         coloring_strategy.process_discretized_point(p, x, y, z);
     });
@@ -479,7 +492,7 @@ pub fn build_xray_quadtree(
                 all_nodes_tx.send(node_id).unwrap();
                 let tx_clone = parents_to_create_tx.clone();
                 scope.execute(move || {
-                    let mut children = [ None, None, None, None ];
+                    let mut children = [None, None, None, None];
 
                     // We a right handed coordinate system with the x-axis of world and images
                     // aligning. This means that the y-axis aligns too, but the origin of the image
@@ -542,4 +555,3 @@ pub fn build_xray_quadtree(
 
     Ok(())
 }
-

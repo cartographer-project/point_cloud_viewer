@@ -74,11 +74,13 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
 
 pub fn main() {
     let args = parse_arguments();
-    let resolution = args.value_of("resolution")
+    let resolution = args
+        .value_of("resolution")
         .unwrap()
         .parse::<f32>()
         .expect("resolution could not be parsed.");
-    let tile_size = args.value_of("tile_size")
+    let tile_size = args
+        .value_of("tile_size")
         .unwrap()
         .parse::<u32>()
         .expect("tile_size could not be parsed.");
@@ -115,5 +117,6 @@ pub fn main() {
         resolution,
         tile_size,
         coloring_strategy_kind,
-    ).unwrap();
+    )
+    .unwrap();
 }

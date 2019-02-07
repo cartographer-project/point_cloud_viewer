@@ -34,8 +34,8 @@ extern crate walkdir;
 
 pub mod color;
 pub mod errors;
-pub mod math;
 pub mod generation;
+pub mod math;
 pub mod octree;
 pub mod ply;
 pub mod pts;

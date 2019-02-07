@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::{Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
-             Rotation3, Transform, Vector3, Zero};
+use cgmath::{
+    Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
+    Rotation3, Transform, Vector3, Zero,
+};
 use opengl;
 use std::f32;
 use time;
@@ -46,7 +48,7 @@ pub struct Camera {
     projection_matrix: Matrix4<f32>,
 }
 
-#[derive(Debug,Serialize,Deserialize,Clone,Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct State {
     transform: Decomposed<Vector3<f32>, Quaternion<f32>>,
     phi: Rad<f32>,
@@ -88,11 +90,11 @@ impl Camera {
         camera
     }
 
-    pub fn state(&self) -> State  {
+    pub fn state(&self) -> State {
         State {
             transform: self.transform,
             phi: self.phi,
-            theta: self.theta
+            theta: self.theta,
         }
     }
 
@@ -155,7 +157,7 @@ impl Camera {
 
         let elapsed_seconds = elapsed.num_milliseconds() as f32 / 1000.;
 
-        const TURNING_SPEED : Rad<f32> = Rad(0.15);
+        const TURNING_SPEED: Rad<f32> = Rad(0.15);
         if self.turning_left {
             self.delta_theta += TURNING_SPEED;
         }
@@ -172,7 +174,8 @@ impl Camera {
         // Apply changes
         if self.pan.magnitude2() > 0. {
             moved = true;
-            let translation = self.transform
+            let translation = self
+                .transform
                 .rot
                 .rotate_vector(self.pan * self.movement_speed * elapsed_seconds);
             self.transform.disp += translation;
@@ -210,9 +213,9 @@ impl Camera {
     }
 
     pub fn pan(&mut self, x: f32, y: f32, z: f32) {
-        self.pan.x += x ;
-        self.pan.y += y ;
-        self.pan.z += z ;
+        self.pan.x += x;
+        self.pan.y += y;
+        self.pan.z += z;
     }
 
     pub fn rotate(&mut self, up: f32, around: f32) {

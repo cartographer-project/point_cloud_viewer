@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use {InternalIterator, Point};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
 use color;
@@ -22,6 +21,7 @@ use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::ops::Index;
 use std::path::Path;
 use std::str;
+use {InternalIterator, Point};
 
 #[derive(Debug)]
 struct Header {
@@ -200,68 +200,54 @@ type ReadingFn = fn(nread: &mut usize, buf: &[u8], val: &mut Point);
 // calls '$assign' with it while casting it to the correct type. I did not find a way of doing this
 // purely using generic programming, so I resorted to this macro.
 macro_rules! create_and_return_reading_fn {
-    ($assign:expr, $size:ident, $num_bytes:expr, $reading_fn:expr) => (
-        {
-            $size += $num_bytes;
-            |nread: &mut usize, buf: &[u8], point: &mut Point| {
-                $assign(point, $reading_fn(buf) as _);
-                *nread += $num_bytes;
-            }
+    ($assign:expr, $size:ident, $num_bytes:expr, $reading_fn:expr) => {{
+        $size += $num_bytes;
+        |nread: &mut usize, buf: &[u8], point: &mut Point| {
+            $assign(point, $reading_fn(buf) as _);
+            *nread += $num_bytes;
         }
-    )
+    }};
 }
 
 macro_rules! read_casted_property {
-    ($data_type:expr, $assign:expr, &mut $size:ident) => (
+    ($data_type:expr, $assign:expr, &mut $size:ident) => {
         match $data_type {
             DataType::Uint8 => {
-                create_and_return_reading_fn!($assign, $size, 1,
-                    |buf: &[u8]| buf[0])
-            },
-            DataType::Int8 => {
-                create_and_return_reading_fn!($assign, $size, 1,
-                    |buf: &[u8]| buf[0])
-            },
+                create_and_return_reading_fn!($assign, $size, 1, |buf: &[u8]| buf[0])
+            }
+            DataType::Int8 => create_and_return_reading_fn!($assign, $size, 1, |buf: &[u8]| buf[0]),
             DataType::Uint16 => {
-                create_and_return_reading_fn!($assign, $size, 2,
-                    LittleEndian::read_u16)
-            },
+                create_and_return_reading_fn!($assign, $size, 2, LittleEndian::read_u16)
+            }
             DataType::Int16 => {
-                create_and_return_reading_fn!($assign, $size, 2,
-                    LittleEndian::read_i16)
-            },
+                create_and_return_reading_fn!($assign, $size, 2, LittleEndian::read_i16)
+            }
             DataType::Uint32 => {
-                create_and_return_reading_fn!($assign, $size, 4,
-                    LittleEndian::read_u32)
-            },
+                create_and_return_reading_fn!($assign, $size, 4, LittleEndian::read_u32)
+            }
             DataType::Int32 => {
-                create_and_return_reading_fn!($assign, $size, 4,
-                    LittleEndian::read_i32)
-            },
+                create_and_return_reading_fn!($assign, $size, 4, LittleEndian::read_i32)
+            }
             DataType::Float32 => {
-                create_and_return_reading_fn!($assign, $size, 4,
-                    LittleEndian::read_f32)
-            },
+                create_and_return_reading_fn!($assign, $size, 4, LittleEndian::read_f32)
+            }
             DataType::Float64 => {
-                create_and_return_reading_fn!($assign, $size, 8,
-                    LittleEndian::read_f64)
-            },
+                create_and_return_reading_fn!($assign, $size, 8, LittleEndian::read_f64)
+            }
         }
-    )
+    };
 }
 
 // Similar to 'create_and_return_reading_fn', but creates a function that just advances the read
 // pointer.
 macro_rules! create_skip_fn {
-    (&mut $size:ident, $num_bytes:expr) => (
-        {
-            $size += $num_bytes;
-            fn _read_fn(nread: &mut usize, _: &[u8], _: &mut Point) {
-                *nread += $num_bytes;
-            }
-            _read_fn
+    (&mut $size:ident, $num_bytes:expr) => {{
+        $size += $num_bytes;
+        fn _read_fn(nread: &mut usize, _: &[u8], _: &mut Point) {
+            *nread += $num_bytes;
         }
-    )
+        _read_fn
+    }};
 }
 
 /// Opens a PLY file and checks that it is the correct format we support. Seeks in the file to the

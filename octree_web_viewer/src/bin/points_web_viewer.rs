@@ -18,15 +18,15 @@ extern crate cgmath;
 extern crate clap;
 extern crate iron;
 extern crate json;
+extern crate octree_web_viewer;
 extern crate point_viewer;
 extern crate router;
 extern crate time;
 extern crate urlencoded;
-extern crate octree_web_viewer;
 
-use octree_web_viewer::backend::{VisibleNodes, NodesData};
 use iron::mime::Mime;
 use iron::prelude::*;
+use octree_web_viewer::backend::{NodesData, VisibleNodes};
 use point_viewer::octree;
 use router::Router;
 use std::path::PathBuf;

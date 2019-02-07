@@ -24,11 +24,11 @@ use cgmath::{Matrix4, Vector3};
 use collision::Aabb3;
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
-use point_viewer::errors::*;
-use point_viewer::{Point};
-use point_viewer::math::Cube;
 use point_viewer::color::Color;
+use point_viewer::errors::*;
+use point_viewer::math::Cube;
 use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, PositionEncoding};
+use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
 use proto_grpc::OctreeClient;
@@ -50,14 +50,19 @@ impl GrpcOctree {
             .connect(addr);
         let client = OctreeClient::new(ch);
 
-        let reply = client.get_meta(&proto::GetMetaRequest::new())
-           .map_err(|_| point_viewer::errors::ErrorKind::Grpc)? ;
+        let reply = client
+            .get_meta(&proto::GetMetaRequest::new())
+            .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
         // TODO(sirver): We pass a dummy directory and hope we never actually use it for anything.
         let octree = OnDiskOctree::from_meta(reply.meta.unwrap(), PathBuf::new())?;
         Ok(GrpcOctree { client, octree })
     }
 
-    pub fn get_points_in_box(&self, bounding_box: &Aabb3<f32>, mut func: impl FnMut(&[Point]) -> bool) -> Result<()> {
+    pub fn get_points_in_box(
+        &self,
+        bounding_box: &Aabb3<f32>,
+        mut func: impl FnMut(&[Point]) -> bool,
+    ) -> Result<()> {
         let mut req = proto::GetPointsInBoxRequest::new();
         req.mut_bounding_box().mut_min().set_x(bounding_box.min.x);
         req.mut_bounding_box().mut_min().set_y(bounding_box.min.y);
@@ -65,8 +70,10 @@ impl GrpcOctree {
         req.mut_bounding_box().mut_max().set_x(bounding_box.max.x);
         req.mut_bounding_box().mut_max().set_y(bounding_box.max.y);
         req.mut_bounding_box().mut_max().set_z(bounding_box.max.z);
-        let replies = self.client.get_points_in_box(&req)
-           .map_err(|_| point_viewer::errors::ErrorKind::Grpc)? ;
+        let replies = self
+            .client
+            .get_points_in_box(&req)
+            .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
 
         let mut points = Vec::new();
         let mut interrupted = false;
@@ -80,8 +87,9 @@ impl GrpcOctree {
                             red: color.red,
                             green: color.green,
                             blue: color.blue,
-                            alpha: color.alpha
-                        }.to_u8(),
+                            alpha: color.alpha,
+                        }
+                        .to_u8(),
                         intensity: None,
                     });
                 }
@@ -119,7 +127,10 @@ impl Octree for GrpcOctree {
 
         // TODO(sirver): This should most definitively not crash, but instead return an error.
         // Needs changes to the trait though.
-        let reply = self.client.get_node_data(&req).map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
+        let reply = self
+            .client
+            .get_node_data(&req)
+            .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
         let node = reply.node.unwrap();
         let result = NodeData {
             position: reply.position,
