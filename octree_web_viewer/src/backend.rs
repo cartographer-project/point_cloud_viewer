@@ -4,7 +4,7 @@ use actix_web::{
 };
 use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
-use futures::future::{result, Future};
+use futures::future::{self, result, Future};
 use point_viewer::octree::{self, Octree};
 use std::sync::Arc;
 use time;
@@ -19,12 +19,6 @@ impl VisibleNodes {
     }
 }
 
-// CAVEAT from actix docs
-//Be careful with synchronization primitives like Mutex or RwLock.
-//The actix-web framework handles requests asynchronously.
-//By blocking thread execution, all concurrent request handling processes would block.
-//If you need to share or update some state from multiple threads, consider using the actix actor system.
-
 impl<S> Handler<S> for VisibleNodes {
     type Result = Result<HttpResponse, Error>;
 
@@ -35,16 +29,17 @@ impl<S> Handler<S> for VisibleNodes {
                 .query()
                 .get("matrix")
                 .expect("4x4 Matrix information expected")
+                //.ok_or_else(|| Err("4x4 Matrix information expected".into()))? //todo construct error
                 .split(',')
                 .map(|s| s.parse::<f32>().unwrap())
                 .collect();
-            assert!(16 == e.len(), "4 by 4 Matrix required"); //matri
+            assert!(16 == e.len(), "4 by 4 Matrix required"); //matrix validity check?
             Matrix4::new(
                 e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10], e[11], e[12],
                 e[13], e[14], e[15],
             )
         };
-        //get the nodes from octree
+
         let visible_nodes = { self.octree.get_visible_nodes(&matrix) };
         let mut reply = String::from("[");
         let visible_nodes_string = visible_nodes
@@ -54,7 +49,7 @@ impl<S> Handler<S> for VisibleNodes {
             .join(",");
         reply.push_str(&visible_nodes_string);
         reply.push(']');
-        //create response
+
         Ok(HttpResponse::Ok()
             .content_type("application/json")
             .body(reply))
@@ -83,12 +78,18 @@ impl NodesData {
 }
 
 impl<S: 'static> Handler<S> for NodesData {
-    type Result = FutureResponse<HttpResponse>; //alias forBox<Future<Item=HttpResponse, Error=Error>>;
+    type Result = FutureResponse<HttpResponse>; //alias for Box<Future<Item=HttpResponse, Error=Error>>;
 
     fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
+        let mut start = 0;
+
         let octree = Arc::clone(&self.octree); //has to be moved into future
         let message_body_future = Json::<Vec<String>>::extract(req).from_err();
-        message_body_future
+        future::ok(())
+            .and_then(move |_| {
+                start = time::precise_time_ns();
+                message_body_future
+            })
             .and_then(move |extract_result| {
                 let data: Vec<String> = Json::into_inner(extract_result);
                 let nodes_to_load = data
@@ -102,7 +103,6 @@ impl<S: 'static> Handler<S> for NodesData {
                 // an Array with is very slow.
                 // The alternative is to binary encode the whole request and parse it on the client side,
                 // which requires careful constructing on the server and parsing on the client.
-                let start = time::precise_time_ns(); //timing is not comparable to the previous implementation in iron
                 let mut reply_blob = Vec::<u8>::new();
 
                 let mut num_nodes_fetched = 0;
@@ -146,7 +146,7 @@ impl<S: 'static> Handler<S> for NodesData {
 
                     num_nodes_fetched += 1;
                     num_points += node_data.meta.num_points;
-                } //end for
+                }
 
                 let duration_ms = (time::precise_time_ns() - start) as f32 / 1000000.;
                 println!(
@@ -156,7 +156,8 @@ impl<S: 'static> Handler<S> for NodesData {
 
                 result(Ok(HttpResponse::Ok()
                     .content_type("application/octet-stream")
-                    .content_encoding(ContentEncoding::Identity) //2x speed as we are sending bytes, ca. 10% compression lost
+                    //disabling default encoding: 2x speed obtained while sending 10% more data
+                    .content_encoding(ContentEncoding::Identity)
                     .body(reply_blob)))
             }) // Construct boxed future by using `AsyncResponder::responder()` method
             .responder()

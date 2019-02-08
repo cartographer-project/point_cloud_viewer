@@ -17,20 +17,13 @@ extern crate actix_web;
 extern crate byteorder;
 #[macro_use]
 extern crate clap;
-
-//extern crate env_logger;
 extern crate octree_web_viewer;
 extern crate point_viewer;
 
 use actix_web::http::Method;
-use actix_web::{
-    server, //middleware,
-    HttpRequest,
-    HttpResponse,
-};
+use actix_web::{server, HttpRequest, HttpResponse};
 use octree_web_viewer::backend::{NodesData, VisibleNodes};
 use point_viewer::octree;
-//use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -58,19 +51,7 @@ fn app_bundle_source_map(_req: &HttpRequest) -> HttpResponse {
         .body(APP_BUNDLE_MAP)
 }
 
-// CAVEAT from actix docs
-//Be careful with synchronization primitives like Mutex or RwLock.
-//The actix-web framework handles requests asynchronously.
-//By blocking thread execution, all concurrent request handling processes would block.
-//If you need to share or update some state from multiple threads, consider using the actix actor system.
-
 fn main() {
-    // debug
-    //::std::env::set_var("RUST_LOG", "actix_web=info");
-    //::std::env::set_var("RUST_LOG", "actix_web=debug");
-    //env::set_var("RUST_BACKTRACE", "1");
-    //env_logger::init();
-
     let matches = clap::App::new("octree_web_viewer")
         .args(&[
             clap::Arg::with_name("port")
@@ -89,7 +70,9 @@ fn main() {
     let ip_port = format!("127.0.0.1:{}", port);
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
 
-    let my_octree: Arc<dyn octree::Octree> = {
+    // CAVEAT: this actix-web framework handles requests asynchronously.
+    // For multithreading with tree updates consider using the actix actor system.
+    let octree: Arc<dyn octree::Octree> = {
         let my_octree = match octree::OnDiskOctree::new(octree_directory) {
             Ok(my_octree) => my_octree,
             Err(err) => panic!("Could not load octree: {}", err),
@@ -98,12 +81,11 @@ fn main() {
     };
 
     let sys = actix::System::new("octree-server");
-    let my_octree = Arc::clone(&my_octree); //->shadowing to let the first outlive the closure
+    let my_octree = Arc::clone(&octree); //->shadowing to let the first outlive the closure
     let _ = server::new(move || {
         let octree_cloned_visible_nodes = Arc::clone(&my_octree);
         let octree_cloned_nodes_data = Arc::clone(&my_octree);
         actix_web::App::new()
-            //.middleware(middleware::Logger::default()) //debug
             .resource("/", |r| r.method(Method::GET).f(index))
             .resource("/app_bundle.js", |r| r.method(Method::GET).f(app_bundle))
             .resource("/app_bundle.js.map", |r| {
@@ -117,7 +99,7 @@ fn main() {
                 r.method(Method::POST)
                     .h(NodesData::new(octree_cloned_nodes_data))
             })
-    }) //todo error handling?
+    })
     .bind(&ip_port)
     .expect(&format!("Can not bind to {}", &ip_port))
     .start();
