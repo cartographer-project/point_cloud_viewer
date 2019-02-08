@@ -12,55 +12,71 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate actix;
+extern crate actix_web;
 extern crate byteorder;
-extern crate cgmath;
 #[macro_use]
 extern crate clap;
-extern crate iron;
-extern crate json;
+
+//extern crate env_logger;
 extern crate octree_web_viewer;
 extern crate point_viewer;
-extern crate router;
-extern crate time;
-extern crate urlencoded;
 
-use iron::mime::Mime;
-use iron::prelude::*;
+use actix_web::http::Method;
+use actix_web::{
+    server, //middleware,
+    HttpRequest,
+    HttpResponse,
+};
 use octree_web_viewer::backend::{NodesData, VisibleNodes};
 use point_viewer::octree;
-use router::Router;
+//use std::env;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 const INDEX_HTML: &'static str = include_str!("../../client/index.html");
 const APP_BUNDLE: &'static str = include_str!("../../../target/app_bundle.js");
 const APP_BUNDLE_MAP: &'static str = include_str!("../../../target/app_bundle.js.map");
 
-fn index(_: &mut Request) -> IronResult<Response> {
-    let content_type = "text/html".parse::<Mime>().unwrap();
-    Ok(Response::with((content_type, iron::status::Ok, INDEX_HTML)))
+const DEFAULT_PORT: &str = "5433";
+
+fn index(_req: &HttpRequest) -> HttpResponse {
+    HttpResponse::Ok()
+        .content_type("text/html")
+        .body(INDEX_HTML)
 }
 
-fn app_bundle(_: &mut Request) -> IronResult<Response> {
-    let content_type = "text/html".parse::<Mime>().unwrap();
-    Ok(Response::with((content_type, iron::status::Ok, APP_BUNDLE)))
+fn app_bundle(_req: &HttpRequest) -> HttpResponse {
+    HttpResponse::Ok()
+        .content_type("text/html")
+        .body(APP_BUNDLE)
 }
 
-fn app_bundle_source_map(_: &mut Request) -> IronResult<Response> {
-    let content_type = "text/html".parse::<Mime>().unwrap();
-    Ok(Response::with((
-        content_type,
-        iron::status::Ok,
-        APP_BUNDLE_MAP,
-    )))
+fn app_bundle_source_map(_req: &HttpRequest) -> HttpResponse {
+    HttpResponse::Ok()
+        .content_type("text/html")
+        .body(APP_BUNDLE_MAP)
 }
+
+// CAVEAT from actix docs
+//Be careful with synchronization primitives like Mutex or RwLock.
+//The actix-web framework handles requests asynchronously.
+//By blocking thread execution, all concurrent request handling processes would block.
+//If you need to share or update some state from multiple threads, consider using the actix actor system.
 
 fn main() {
+    // debug
+    //::std::env::set_var("RUST_LOG", "actix_web=info");
+    //::std::env::set_var("RUST_LOG", "actix_web=debug");
+    //env::set_var("RUST_BACKTRACE", "1");
+    //env_logger::init();
+
     let matches = clap::App::new("octree_web_viewer")
         .args(&[
             clap::Arg::with_name("port")
                 .help("Port to listen on for connections.")
                 .long("port")
+                .default_value(DEFAULT_PORT)
                 .takes_value(true),
             clap::Arg::with_name("octree_directory")
                 .help("Input directory of the octree directory to serve.")
@@ -69,24 +85,43 @@ fn main() {
         ])
         .get_matches();
 
-    let port = value_t!(matches, "port", u16).unwrap_or(5433);
+    let port = value_t!(matches, "port", u16).unwrap();
+    let ip_port = format!("127.0.0.1:{}", port);
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
 
-    let octree = {
-        let octree = match octree::OnDiskOctree::new(octree_directory) {
-            Ok(octree) => octree,
+    let my_octree: Arc<dyn octree::Octree> = {
+        let my_octree = match octree::OnDiskOctree::new(octree_directory) {
+            Ok(my_octree) => my_octree,
             Err(err) => panic!("Could not load octree: {}", err),
         };
-        Arc::new(RwLock::new(octree))
+        Arc::new(my_octree)
     };
 
-    let mut router = Router::new();
-    router.get("/", index);
-    router.get("/app_bundle.js", app_bundle);
-    router.get("/app_bundle.js.map", app_bundle_source_map);
-    router.get("/visible_nodes", VisibleNodes::new(octree.clone()));
-    router.post("/nodes_data", NodesData::new(octree.clone()));
+    let sys = actix::System::new("octree-server");
+    let my_octree = Arc::clone(&my_octree); //->shadowing to let the first outlive the closure
+    let _ = server::new(move || {
+        let octree_cloned_visible_nodes = Arc::clone(&my_octree);
+        let octree_cloned_nodes_data = Arc::clone(&my_octree);
+        actix_web::App::new()
+            //.middleware(middleware::Logger::default()) //debug
+            .resource("/", |r| r.method(Method::GET).f(index))
+            .resource("/app_bundle.js", |r| r.method(Method::GET).f(app_bundle))
+            .resource("/app_bundle.js.map", |r| {
+                r.method(Method::GET).f(app_bundle_source_map)
+            })
+            .resource("/visible_nodes", |r| {
+                r.method(Method::GET)
+                    .h(VisibleNodes::new(octree_cloned_visible_nodes))
+            })
+            .resource("/nodes_data", |r| {
+                r.method(Method::POST)
+                    .h(NodesData::new(octree_cloned_nodes_data))
+            })
+    }) //todo error handling?
+    .bind(&ip_port)
+    .expect(&format!("Can not bind to {}", &ip_port))
+    .start();
 
-    println!("Listening on port {}.", port);
-    Iron::new(router).http(("0.0.0.0", port)).unwrap();
+    println!("Starting http server: {}", &ip_port);
+    let _ = sys.run();
 }

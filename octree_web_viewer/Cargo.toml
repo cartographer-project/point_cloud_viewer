@@ -18,14 +18,16 @@ name = "octree_web_viewer"
 version = "0.1.0"
 
 [dependencies]
+actix = "0.7.9"
+actix-web = "0.7.18"
 byteorder = "^0.5.3"
 cgmath = "0.16.0"
 clap = "2.32.0"
-iron = "^0.3.0"
+crossbeam-utils = "0.6.5"
+#env_logger = "0.6.0" #debug
+futures = "0.1.25"
 json = "0.11.3"
-router = "^0.1.1"
-time = "^0.1.35"
-urlencoded = "^0.3.0"
+time = "0.1.42"
 
 [dependencies.point_viewer]
 path = ".."
