@@ -33,8 +33,7 @@ impl<S> Handler<S> for VisibleNodes {
                 ))?
                 .split(',')
                 .map(|s| s.parse::<f32>().unwrap())
-                .collect();
-            assert!(16 == e.len(), "4 by 4 Matrix required"); //matrix validity check?
+                .collect(); //matrix validity check?
             Matrix4::new(
                 e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10], e[11], e[12],
                 e[13], e[14], e[15],
@@ -109,10 +108,12 @@ impl<S: 'static> Handler<S> for NodesData {
                 let mut num_nodes_fetched = 0;
                 let mut num_points = 0;
                 for node_id in nodes_to_load {
-                    let mut node_data = match octree.get_node_data(&node_id) {
-                        Ok(n) => n,
-                        Err(err) => panic!("Could not get node {}: {} ", node_id, err),
-                    };
+                    let mut node_data = octree.get_node_data(&node_id).map_err(|error| {
+                        crate::backend_error::PointsViewerError::NotFound(format!(
+                            "Could not get node {}",
+                            node_id
+                        ))
+                    });
 
                     // Write the bounding box information.
                     let min = node_data.meta.bounding_cube.min();
