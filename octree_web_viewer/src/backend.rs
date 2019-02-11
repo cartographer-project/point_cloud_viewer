@@ -1,6 +1,6 @@
 use actix_web::{
     dev::Handler, http::ContentEncoding, AsyncResponder, Error, FromRequest, FutureResponse,
-    HttpRequest, HttpResponse, Json, Result,
+    HttpRequest, HttpResponse, Json,
 };
 use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
@@ -28,8 +28,9 @@ impl<S> Handler<S> for VisibleNodes {
             let e: Vec<f32> = req
                 .query()
                 .get("matrix")
-                .expect("4x4 Matrix information expected")
-                //.ok_or_else(|| Err("4x4 Matrix information expected".into()))? //todo construct error
+                .ok_or(crate::backend_error::PointsViewerError::BadRequest(
+                    "4x4 Matrix information expected".to_string(),
+                ))?
                 .split(',')
                 .map(|s| s.parse::<f32>().unwrap())
                 .collect();
