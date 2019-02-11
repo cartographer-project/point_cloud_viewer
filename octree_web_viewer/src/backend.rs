@@ -170,10 +170,12 @@ impl<S: 'static> Handler<S> for NodesData {
 
                 result(Ok(HttpResponse::Ok()
                     .content_type("application/octet-stream")
-                    //disabling default encoding: 2x speed obtained while sending 10% more data
+                    //disabling default encoding:
+                    //same data and speed of the iron implementation (testing performances on the same machine for client and server)
+                    //default encoding doubles the computing time in that condition by saving only 10% of the data volume
                     .content_encoding(ContentEncoding::Identity)
                     .body(reply_blob)))
             })
-            .responder() //constructs a boxed Future with an AsyncResponder
+            .responder() //this method AsyncResponder::responder() constructs a boxed Future
     }
 }

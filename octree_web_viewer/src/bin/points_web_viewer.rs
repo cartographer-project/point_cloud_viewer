@@ -74,18 +74,19 @@ fn main() {
     // CAVEAT: this actix-web framework handles requests asynchronously.
     // For multithreading with tree updates consider using the actix actor system.
     let octree: Arc<dyn octree::Octree> = {
-        let my_octree = match octree::OnDiskOctree::new(octree_directory) {
-            Ok(my_octree) => my_octree,
+        let web_octree = match octree::OnDiskOctree::new(octree_directory) {
+            Ok(web_octree) => web_octree,
             Err(err) => panic!("Could not load octree: {}", err),
         };
-        Arc::new(my_octree)
+        Arc::new(web_octree)
     };
 
     let sys = actix::System::new("octree-server");
-    let my_octree = Arc::clone(&octree); //->shadowing to let the first outlive the closure
+    //octree shadowing to let the first declared octree outlive the closure
+    let octree = Arc::clone(&octree);
     let _ = server::new(move || {
-        let octree_cloned_visible_nodes = Arc::clone(&my_octree);
-        let octree_cloned_nodes_data = Arc::clone(&my_octree);
+        let octree_cloned_visible_nodes = Arc::clone(&octree);
+        let octree_cloned_nodes_data = Arc::clone(&octree);
         actix_web::App::new()
             .resource("/", |r| r.method(Method::GET).f(index))
             .resource("/app_bundle.js", |r| r.method(Method::GET).f(app_bundle))
