@@ -42,7 +42,7 @@ struct OctreeService {
 enum OctreeQuery {
     FrustumQuery(Matrix4<f32>),
     BoxQuery(Aabb3<f32>),
-    FullPointcloudQuery,
+    FullPointcloudQuery(i32, i32),
 }
 
 fn stream_points_back_to_sink(
@@ -122,7 +122,7 @@ fn stream_points_back_to_sink(
 
                 reply_size += bytes_per_point;
                 if reply_size > max_message_size - bytes_per_point {
-                    tx.send((reply.clone(), WriteFlags::default())).unwrap();
+                    tx.send((reply.clone(), WriteFlags::default())).unwrap_or(());
                     reply.mut_positions().clear();
                     reply.mut_colors().clear();
                     reply.mut_intensities().clear();
@@ -132,10 +132,10 @@ fn stream_points_back_to_sink(
             match query {
                 OctreeQuery::BoxQuery(bounding_box) => octree.points_in_box(&bounding_box).for_each(func),
                 OctreeQuery::FrustumQuery(frustum_matrix) => octree.points_in_frustum(&frustum_matrix).for_each(func),
-                OctreeQuery::FullPointcloudQuery => octree.all_points().for_each(func),
+                OctreeQuery::FullPointcloudQuery(idx, total) => octree.all_points(idx, total).for_each(func),
             };
         }
-        tx.send((reply, WriteFlags::default())).unwrap();
+        tx.send((reply, WriteFlags::default())).unwrap_or(println!("Request was cancelled."));
     });
 
     let rx = rx.map_err(|_| grpcio::Error::RemoteStopped);
@@ -143,7 +143,7 @@ fn stream_points_back_to_sink(
         .send_all(rx)
         .map(|_| {})
         .map_err(|e| println!("failed to reply: {:?}", e));
-    ctx.spawn(f)
+    ctx.spawn(f);
 }
 
 impl proto_grpc::Octree for OctreeService {
@@ -235,7 +235,16 @@ impl proto_grpc::Octree for OctreeService {
         _req: proto::GetAllPointsRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        stream_points_back_to_sink(OctreeQuery::FullPointcloudQuery, self.octree.clone(), ctx, resp)
+        stream_points_back_to_sink(OctreeQuery::FullPointcloudQuery(0, 1), self.octree.clone(), ctx, resp)
+    }
+
+    fn get_all_points_parallel(
+        &self,
+        ctx: RpcContext,
+        req: proto::GetAllPointsParallelRequest,
+        resp: ServerStreamingSink<proto::PointsReply>,
+    ) {
+        stream_points_back_to_sink(OctreeQuery::FullPointcloudQuery(req.get_reqIndex(), req.get_total()), self.octree.clone(), ctx, resp)
     }
 
 }
@@ -243,14 +252,17 @@ impl proto_grpc::Octree for OctreeService {
 pub fn start_grpc_server(
     octree_directory: PathBuf,
     host: &str,
-    port: u16
+    port: u16,
+    cq_count: usize,
+    rspcq: usize,
 ) -> Server {
-    let env = Arc::new(Environment::new(1));
+    let env = Arc::new(Environment::new(cq_count));
     let meta = read_meta_proto(&octree_directory).unwrap();
     let octree = Arc::new(OnDiskOctree::new(octree_directory).unwrap());
 
     let service = proto_grpc::create_octree(OctreeService { octree, meta });
     let server = ServerBuilder::new(env)
+        .requests_slot_per_cq(rspcq)
         .register_service(service)
         .bind(host /* ip to bind to */, port)
         .build()

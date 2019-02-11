@@ -144,6 +144,8 @@ impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
 pub struct AllPointsIterator<'a> {
     octree_meta: &'a OctreeMeta,
     octree_nodes: &'a FnvHashMap<NodeId, NodeMeta>,
+    idx: i32,
+    total: i32,
 }
 
 impl<'a> InternalIterator for AllPointsIterator<'a> {
@@ -155,9 +157,11 @@ impl<'a> InternalIterator for AllPointsIterator<'a> {
         let mut open_list = vec![NodeId::from_level_index(0, 0)];
         while !open_list.is_empty() {
             let current = open_list.pop().unwrap();
-            let iterator = NodeIterator::from_disk(&self.octree_meta, &current)
-                .expect("Could not read node points");
-            iterator.for_each(|p| f(p));
+            if current.index() as i32 % self.total == self.idx {
+                let iterator = NodeIterator::from_disk(&self.octree_meta, &current)
+                    .expect("Could not read node points");
+                iterator.for_each(|p| f(p));
+            }
             for child_index in 0..8 {
                 let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
                 if self.octree_nodes.contains_key(&child_id) {
@@ -282,10 +286,12 @@ impl OnDiskOctree {
         }
     }
 
-    pub fn all_points<'a>(&'a self) -> AllPointsIterator<'a> {
+    pub fn all_points<'a>(&'a self, idx: i32, total: i32) -> AllPointsIterator<'a> {
         AllPointsIterator {
             octree_meta: &self.meta,
             octree_nodes: &self.nodes,
+            idx,
+            total,
         }
     }
 

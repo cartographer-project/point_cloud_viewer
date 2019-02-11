@@ -29,6 +29,8 @@ service Octree {
       returns (stream PointsReply);
   rpc GetAllPoints(GetAllPointsRequest)
       returns (stream PointsReply);
+  rpc GetAllPointsParallel(GetAllPointsParallelRequest)
+      returns (stream PointsReply);
 }
 
 message GetMetaRequest {
@@ -73,6 +75,11 @@ message GetPointsInFrustumRequest {
 }
 
 message GetAllPointsRequest {
+}
+
+message GetAllPointsParallelRequest {
+  int32 reqIndex = 1;
+  int32 total = 2;
 }
 
 message PointsReply {
