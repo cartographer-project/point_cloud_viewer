@@ -30,9 +30,9 @@ impl<S> Handler<S> for VisibleNodes {
             let e: Vec<f32> = req
                 .query()
                 .get("matrix")
-                .ok_or(PointsViewerError::BadRequest(format!(
-                    "4x4 Matrix information expected"
-                )))?
+                .ok_or(PointsViewerError::BadRequest(
+                    "4x4 Matrix information expected".to_string(),
+                ))?
                 .split(',')
                 .map(|s| s.parse::<f32>().unwrap())
                 .collect();
@@ -44,9 +44,9 @@ impl<S> Handler<S> for VisibleNodes {
                 )
             } else {
                 return Err(PointsViewerError::BadRequest(
-                    "4x4 Matrix information expected".to_string(),
+                    "Parsed content error: 4x4 Matrix information expected".to_string(),
                 ));
-            } //Matrix4::one(), //default matrix
+            }
         };
 
         let visible_nodes = { self.octree.get_visible_nodes(&matrix) };
