@@ -1,6 +1,8 @@
+use crate::backend_error::PointsViewerError;
+
 use actix_web::{
-    dev::Handler, http::ContentEncoding, AsyncResponder, Error, FromRequest, FutureResponse,
-    HttpRequest, HttpResponse, Json,
+    dev::Handler, http::ContentEncoding, AsyncResponder, FromRequest, FutureResponse, HttpRequest,
+    HttpResponse, Json,
 };
 use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
@@ -20,7 +22,7 @@ impl VisibleNodes {
 }
 
 impl<S> Handler<S> for VisibleNodes {
-    type Result = Result<HttpResponse, Error>;
+    type Result = Result<HttpResponse, PointsViewerError>;
 
     fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
         let matrix = {
@@ -28,16 +30,23 @@ impl<S> Handler<S> for VisibleNodes {
             let e: Vec<f32> = req
                 .query()
                 .get("matrix")
-                .ok_or(crate::backend_error::PointsViewerError::BadRequest(
-                    format!("4x4 Matrix information expected"),
-                ))?
+                .ok_or(PointsViewerError::BadRequest(format!(
+                    "4x4 Matrix information expected"
+                )))?
                 .split(',')
                 .map(|s| s.parse::<f32>().unwrap())
                 .collect();
-            Matrix4::new(
-                e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10], e[11], e[12],
-                e[13], e[14], e[15],
-            )
+            // matrix size check
+            if 16 == e.len() {
+                Matrix4::new(
+                    e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10], e[11],
+                    e[12], e[13], e[14], e[15],
+                )
+            } else {
+                return Err(PointsViewerError::BadRequest(
+                    "4x4 Matrix information expected".to_string(),
+                ));
+            } //Matrix4::one(), //default matrix
         };
 
         let visible_nodes = { self.octree.get_visible_nodes(&matrix) };
@@ -164,7 +173,7 @@ impl<S: 'static> Handler<S> for NodesData {
                     //disabling default encoding: 2x speed obtained while sending 10% more data
                     .content_encoding(ContentEncoding::Identity)
                     .body(reply_blob)))
-            }) // Construct boxed future by using `AsyncResponder::responder()` method
-            .responder()
+            })
+            .responder() //constructs a boxed Future with an AsyncResponder
     }
 }
