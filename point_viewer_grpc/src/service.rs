@@ -124,7 +124,7 @@ fn stream_points_back_to_sink(
 
                 reply_size += bytes_per_point;
                 if reply_size > max_message_size - bytes_per_point {
-                    tx.send((reply.clone(), WriteFlags::default())).unwrap();
+                    tx.send((reply.clone(), WriteFlags::default())).unwrap_or(());
                     reply.mut_positions().clear();
                     reply.mut_colors().clear();
                     reply.mut_intensities().clear();
@@ -141,7 +141,8 @@ fn stream_points_back_to_sink(
                 OctreeQuery::FullPointcloudQuery => octree.all_points().for_each(func),
             };
         }
-        tx.send((reply, WriteFlags::default())).unwrap();
+        tx.send((reply, WriteFlags::default()))
+            .unwrap_or_else(|_e| println!("Request was cancelled."));
     });
 
     let rx = rx.map_err(|_| grpcio::Error::RemoteStopped);
