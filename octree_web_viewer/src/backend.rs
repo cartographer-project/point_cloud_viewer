@@ -172,7 +172,7 @@ impl<S: 'static> Handler<S> for NodesData {
                     .content_type("application/octet-stream")
                     // disabling default encoding:
                     // Local test (same machine) default encoding doubles the computing time in that condition by saving only 10% of the data volume
-                    // TODO tests are required to find the most meaningful option
+                    // TODO(catevita) tests are required to find the most meaningful option
                     .content_encoding(ContentEncoding::Identity)
                     .body(reply_blob)))
             })

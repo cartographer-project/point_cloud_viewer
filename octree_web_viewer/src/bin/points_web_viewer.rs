@@ -52,7 +52,7 @@ fn app_bundle_source_map(_req: &HttpRequest) -> HttpResponse {
 }
 
 fn main() {
-    //TODO(cvitadello): Convert this to structopt
+    //TODO(catevita): Convert this to structopt
     let matches = clap::App::new("octree_web_viewer")
         .args(&[
             clap::Arg::with_name("port")
@@ -82,7 +82,7 @@ fn main() {
     };
 
     let sys = actix::System::new("octree-server");
-    //octree shadowing to let the first declared octree outlive the closure
+    // octree shadowing to let the first declared octree outlive the closure
     let octree = Arc::clone(&octree);
     let _ = server::new(move || {
         let octree_cloned_visible_nodes = Arc::clone(&octree);
