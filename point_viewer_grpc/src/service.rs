@@ -135,7 +135,7 @@ fn stream_points_back_to_sink(
                 OctreeQuery::FullPointcloudQuery(idx, total) => octree.all_points(idx, total).for_each(func),
             };
         }
-        tx.send((reply, WriteFlags::default())).unwrap_or(println!("Request was cancelled."));
+        tx.send((reply, WriteFlags::default())).unwrap_or_else(|_| println!("Request was cancelled."));
     });
 
     let rx = rx.map_err(|_| grpcio::Error::RemoteStopped);
