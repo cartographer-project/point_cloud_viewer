@@ -31,7 +31,7 @@ impl<S> Handler<S> for VisibleNodes {
                 .query()
                 .get("matrix")
                 .ok_or(PointsViewerError::BadRequest(
-                    "4x4 Matrix information expected".to_string(),
+                    "Expected 4x4 Matrix".to_string(),
                 ))?
                 .split(',')
                 .map(|s| s.parse::<f32>().unwrap())
@@ -44,7 +44,7 @@ impl<S> Handler<S> for VisibleNodes {
                 )
             } else {
                 return Err(PointsViewerError::BadRequest(
-                    "Parsed content error: 4x4 Matrix information expected".to_string(),
+                    "Parsing Error: Expected matrix with 16 elements".to_string(),
                 ));
             }
         };
@@ -121,7 +121,7 @@ impl<S: 'static> Handler<S> for NodesData {
                         .get_node_data(&node_id)
                         .map_err(|_error| {
                             crate::backend_error::PointsViewerError::NotFound(format!(
-                                "Could not get node {}",
+                                "Could not get node {}.",
                                 node_id
                             ))
                         })

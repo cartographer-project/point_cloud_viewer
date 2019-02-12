@@ -50,8 +50,9 @@ fn app_bundle_source_map(_req: &HttpRequest) -> HttpResponse {
         .content_type("text/html")
         .body(APP_BUNDLE_MAP)
 }
-//todo convert this to structopt
+
 fn main() {
+    //TODO(cvitadello): Convert this to structopt
     let matches = clap::App::new("octree_web_viewer")
         .args(&[
             clap::Arg::with_name("port")
