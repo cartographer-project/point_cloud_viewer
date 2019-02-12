@@ -71,8 +71,8 @@ fn main() {
     let ip_port = format!("127.0.0.1:{}", port);
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
 
-    // CAVEAT: this actix-web framework handles requests asynchronously.
-    // For multithreading with tree updates consider using the actix actor system.
+    // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
+    // write access to the Octree, instead of using an RwLock we should use the actor system.
     let octree: Arc<dyn octree::Octree> = {
         let web_octree = match octree::OnDiskOctree::new(octree_directory) {
             Ok(web_octree) => web_octree,
