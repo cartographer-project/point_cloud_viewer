@@ -561,4 +561,3 @@ pub fn build_xray_quadtree(
 
     Ok(())
 }
-
