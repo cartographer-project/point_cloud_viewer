@@ -285,14 +285,14 @@ struct HeightStddevColoringStrategy {
 impl HeightStddevColoringStrategy {
     fn new(max_stddev: f32) -> Self {
         HeightStddevColoringStrategy {
-            max_stddev, 
+            max_stddev,
             per_column_data: FnvHashMap::default(),
         }
     }
 }
 
 /// Build a parent image created of the 4 children tiles. All tiles are optionally, in which case
-/// they are left white in the resulting image. The input images must be square with length N, 
+/// they are left white in the resulting image. The input images must be square with length N,
 /// the returned image is square with length 2*N.
 pub fn build_parent(children: &[Option<image::RgbaImage>]) -> image::RgbaImage {
     assert_eq!(children.len(), 4);
