@@ -30,9 +30,7 @@ impl<S> Handler<S> for VisibleNodes {
             let e: Vec<f32> = req
                 .query()
                 .get("matrix")
-                .ok_or(PointsViewerError::BadRequest(
-                    "Expected 4x4 Matrix".to_string(),
-                ))?
+                .ok_or_else(|| PointsViewerError::BadRequest("Expected 4x4 matrix".to_string()))?
                 .split(',')
                 .map(|s| s.parse::<f32>().unwrap())
                 .collect();
@@ -162,7 +160,7 @@ impl<S: 'static> Handler<S> for NodesData {
                     num_points += node_data.meta.num_points;
                 }
 
-                let duration_ms = (time::precise_time_ns() - start) as f32 / 1000000.;
+                let duration_ms = (time::precise_time_ns() - start) as f32 / 1_000_000.;
                 println!(
                     "Got {} nodes with {} points ({}ms).",
                     num_nodes_fetched, num_points, duration_ms

@@ -107,7 +107,7 @@ impl iron::Handler for HandleNodesForLevel {
             .split(',')
             .map(|s| s.parse::<f32>().unwrap())
             .collect();
-        match self.meta.get_nodes_for_level(level, matrix_entries) {
+        match self.meta.get_nodes_for_level(level, &matrix_entries) {
             Ok(result) => {
                 let reply = ::serde_json::to_string_pretty(&result).unwrap();
                 let content_type = "application/json".parse::<Mime>().unwrap();
@@ -138,9 +138,7 @@ pub fn serve(
     );
     router.get(
         format!("{}/node_image/:id", prefix),
-        HandleNodeImage {
-            xray_provider: xray_provider,
-        },
+        HandleNodeImage { xray_provider },
     );
     Ok(())
 }

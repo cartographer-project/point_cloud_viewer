@@ -72,7 +72,7 @@ impl Meta {
     pub fn get_nodes_for_level(
         &self,
         level: u8,
-        matrix_entries: Vec<f32>,
+        matrix_entries: &[f32],
     ) -> Result<Vec<NodeMeta>, String> {
         // TODO(sirver): This function could actually work much faster by not traversing the
         // levels, but just finding the covering of the rectangle of the current bounding box.

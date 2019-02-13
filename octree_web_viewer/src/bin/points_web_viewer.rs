@@ -96,7 +96,7 @@ fn main() {
             })
     })
     .bind(&ip_port)
-    .expect(&format!("Can not bind to {}", &ip_port))
+    .unwrap_or_else(|_| panic!("Can not bind to {}", &ip_port))
     .start();
 
     println!("Starting http server: {}", &ip_port);

@@ -84,7 +84,7 @@ fn run(
     octree_directory: &Path,
     output_filename: &Path,
     resolution: f32,
-    coloring_strategy_kind: ColoringStrategyKind,
+    coloring_strategy_kind: &ColoringStrategyKind,
     bbox2: &Aabb2<f32>,
 ) -> Result<(), Box<Error>> {
     let octree = &OnDiskOctree::new(octree_directory)?;
@@ -147,7 +147,7 @@ pub fn main() {
         octree_directory,
         output_filename,
         resolution,
-        coloring_strategy_kind,
+        &coloring_strategy_kind,
         &bbox2,
     )
     .unwrap();
