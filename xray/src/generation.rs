@@ -501,9 +501,8 @@ pub fn build_xray_quadtree(
                         tile_size_px,
                         image::FilterType::Lanczos3,
                     );
+                    let image = create_image_with_transparent_background(&image);
                     image
-                        .as_rgb8()
-                        .unwrap()
                         .save(&get_image_path(output_directory, node_id))
                         .unwrap();
                     node_id.parent_id().map(|id| tx_clone.send(id).unwrap());
@@ -543,3 +542,20 @@ pub fn build_xray_quadtree(
     Ok(())
 }
 
+const CHANNEL_THRESHOLD: u8 = 230;
+
+fn create_image_with_transparent_background(image: &image::DynamicImage) -> image::RgbaImage {
+    let mut image = image.to_rgba();
+
+    let is_white_pixel = |rgba: &image::Rgba<u8>| -> bool {
+        rgba[0] > CHANNEL_THRESHOLD && rgba[1] > CHANNEL_THRESHOLD && rgba[2] > CHANNEL_THRESHOLD
+    };
+    for rgba in image.pixels_mut() {
+        if is_white_pixel(&rgba) {
+            // Make it transparent
+            rgba[3] = 0;
+        }
+    }
+
+    image
+}
