@@ -5,7 +5,7 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use point_viewer::math::clamp;
-use point_viewer::{octree, InternalIterator, Point, color::{Color, WHITE}};
+use point_viewer::{octree, InternalIterator, Point, color::{Color, TRANSPARENT}};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -147,7 +147,7 @@ impl ColoringStrategy for XRayColoringStrategy {
 
     fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
         if !self.z_buckets.contains_key(&(x, y)) {
-            return WHITE.to_u8();
+            return TRANSPARENT.to_u8();
         }
         let saturation = (self.z_buckets[&(x, y)].len() as f32).ln() / self.max_saturation;
         let value = ((1. - saturation) * 255.) as u8;
@@ -205,7 +205,7 @@ impl ColoringStrategy for IntensityColoringStrategy {
 
     fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
         if !self.per_column_data.contains_key(&(x, y)) {
-            return WHITE.to_u8();
+            return TRANSPARENT.to_u8();
         }
         let c = &self.per_column_data[&(x, y)];
         let mean = (c.sum / c.count as f32).max(self.min).min(self.max);
@@ -256,7 +256,7 @@ impl ColoringStrategy for PointColorColoringStrategy {
 
     fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
         if !self.per_column_data.contains_key(&(x, y)) {
-            return WHITE.to_u8();
+            return TRANSPARENT.to_u8();
         }
         let c = &self.per_column_data[&(x, y)];
         Color {
@@ -285,7 +285,7 @@ impl HeightStddevColoringStrategy {
 /// Build a parent image created of the 4 children tiles. All tiles are optionally, in which case
 /// they are left white in the resulting image. The input images must be square with length N, 
 /// the returned image is square with length 2*N.
-pub fn build_parent(children: &[Option<image::RgbImage>]) -> image::RgbImage {
+pub fn build_parent(children: &[Option<image::RgbaImage>]) -> image::RgbaImage {
     assert_eq!(children.len(), 4);
     let mut child_size_px = None;
     for c in children.iter() {
@@ -302,11 +302,16 @@ pub fn build_parent(children: &[Option<image::RgbImage>]) -> image::RgbImage {
         }
     }
     let child_size_px = child_size_px.expect("No children passed to 'build_parent'.");
-    let mut large_image = image::RgbImage::from_pixel(
+    let mut large_image = image::RgbaImage::from_pixel(
         child_size_px * 2,
         child_size_px * 2,
-        image::Rgb {
-            data: [255, 255, 255],
+        image::Rgba {
+            data: [
+                TRANSPARENT.to_u8().red,
+                TRANSPARENT.to_u8().green,
+                TRANSPARENT.to_u8().blue,
+                TRANSPARENT.to_u8().alpha,
+            ],
         },
     );
 
@@ -336,7 +341,7 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
 
     fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
         if !self.per_column_data.contains_key(&(x, y)) {
-            return WHITE.to_u8();
+            return TRANSPARENT.to_u8();
         }
         let c = &self.per_column_data[&(x, y)];
         let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
@@ -369,15 +374,15 @@ pub fn xray_from_points(
         return false;
     }
 
-    let mut image = image::RgbImage::new(image_width, image_height);
+    let mut image = image::RgbaImage::new(image_width, image_height);
     for x in 0..image_width {
         for y in 0..image_height {
             let color = coloring_strategy.get_pixel_color(x, y);
             image.put_pixel(
                 x,
                 y,
-                image::Rgb {
-                    data: [color.red, color.green, color.blue],
+                image::Rgba {
+                    data: [color.red, color.green, color.blue, color.alpha],
                 },
             );
         }
@@ -493,16 +498,17 @@ pub fn build_xray_quadtree(
                         if !png.exists() {
                             continue;
                         }
-                        children[id as usize] = Some(image::open(&png).unwrap().to_rgb());
+                        children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
                     }
                     let large_image = build_parent(&children);
-                    let image = image::DynamicImage::ImageRgb8(large_image).resize(
+                    let image = image::DynamicImage::ImageRgba8(large_image).resize(
                         tile_size_px,
                         tile_size_px,
                         image::FilterType::Lanczos3,
                     );
-                    let image = create_image_with_transparent_background(&image);
                     image
+                        .as_rgba8()
+                        .unwrap()
                         .save(&get_image_path(output_directory, node_id))
                         .unwrap();
                     node_id.parent_id().map(|id| tx_clone.send(id).unwrap());
@@ -542,20 +548,3 @@ pub fn build_xray_quadtree(
     Ok(())
 }
 
-const CHANNEL_THRESHOLD: u8 = 230;
-
-fn create_image_with_transparent_background(image: &image::DynamicImage) -> image::RgbaImage {
-    let mut image = image.to_rgba();
-
-    let is_white_pixel = |rgba: &image::Rgba<u8>| -> bool {
-        rgba[0] > CHANNEL_THRESHOLD && rgba[1] > CHANNEL_THRESHOLD && rgba[2] > CHANNEL_THRESHOLD
-    };
-    for rgba in image.pixels_mut() {
-        if is_white_pixel(&rgba) {
-            // Make it transparent
-            rgba[3] = 0;
-        }
-    }
-
-    image
-}

@@ -85,3 +85,9 @@ pub const WHITE: Color<f32> = Color {
     blue: 1.,
     alpha: 1.,
 };
+pub const TRANSPARENT: Color<f32> = Color {
+    red: 1.,
+    green: 1.,
+    blue: 1.,
+    alpha: 0.,
+};
