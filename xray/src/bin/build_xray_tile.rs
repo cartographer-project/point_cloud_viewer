@@ -1,4 +1,3 @@
-use crate::octree::OnDiskOctree;
 use cgmath::{Point2, Point3};
 use clap::value_t;
 use collision::{Aabb, Aabb2, Aabb3};

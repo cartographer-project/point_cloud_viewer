@@ -15,15 +15,13 @@
 use crate::color;
 use crate::errors::*;
 use crate::math::{clamp, Cube};
-use crate::octree::OctreeMeta;
+use crate::octree::{OctreeDataProvider, OctreeMeta, OnDiskOctreeDataProvider};
 use crate::proto;
 use crate::{InternalIterator, Point};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use cgmath::{Vector3, Zero};
 use num;
 use num_traits;
-use octree::{OctreeDataProvider, OctreeMeta, OnDiskOctreeDataProvider};
-use proto;
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Read};
 use std::path::PathBuf;

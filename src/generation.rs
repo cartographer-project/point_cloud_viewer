@@ -14,7 +14,7 @@
 
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree;
+use crate::octree::{self, OnDiskOctreeDataProvider};
 use crate::ply::PlyIterator;
 use crate::proto;
 use crate::pts::PtsIterator;
@@ -22,8 +22,6 @@ use crate::{InternalIterator, Point};
 use cgmath::{EuclideanSpace, Point3};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
-use math::Cube;
-use octree::{self, OnDiskOctreeDataProvider};
 use pbr::ProgressBar;
 use protobuf::Message;
 use scoped_pool::{Pool, Scope};
