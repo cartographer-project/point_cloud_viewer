@@ -1,31 +1,10 @@
+use cgmath::Point2;
 use cgmath::{Matrix4, Point3};
 use collision::{Aabb3, Frustum, Relation};
-use quadtree::{ChildIndex, Node};
-
-extern crate cgmath;
-#[macro_use]
-extern crate clap;
-extern crate collision;
-extern crate fnv;
-extern crate image;
-#[macro_use]
-extern crate iron;
-extern crate point_viewer;
-extern crate protobuf;
-extern crate quadtree;
-extern crate router;
-extern crate scoped_pool;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate stats;
-extern crate urlencoded;
-extern crate xray_proto_rust;
-
-use cgmath::Point2;
 use fnv::FnvHashSet;
+use quadtree::{ChildIndex, Node};
 use quadtree::{NodeId, Rect};
+use serde_derive::Serialize;
 use std::io::{self, Cursor};
 use std::path::Path;
 

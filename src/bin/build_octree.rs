@@ -12,12 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate clap;
-extern crate point_viewer;
-extern crate scoped_pool;
-
-use std::path::PathBuf;
 use point_viewer::generation::build_octree_from_file;
+use std::path::PathBuf;
 
 fn main() {
     let matches = clap::App::new("build_octree")

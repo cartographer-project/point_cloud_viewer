@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
+use crate::opengl;
+use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use cgmath::{Array, Matrix, Matrix4};
 use fnv::FnvHashSet;
-use graphic::{GlBuffer, GlProgram, GlVertexArray};
 use lru_cache::LruCache;
-use opengl;
-use opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use point_viewer::octree;
 use rand::{thread_rng, Rng};
 use std;
@@ -25,8 +25,8 @@ use std::os::raw::c_void;
 use std::ptr;
 use std::rc::Rc;
 use std::str;
-use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::Arc;
 
 const FRAGMENT_SHADER: &str = include_str!("../shaders/points.fs");
 const VERTEX_SHADER: &str = include_str!("../shaders/points.vs");

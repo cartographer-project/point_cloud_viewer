@@ -1,18 +1,7 @@
-extern crate cgmath;
-#[macro_use]
-extern crate clap;
-extern crate collision;
-extern crate fnv;
-extern crate image;
-extern crate point_viewer;
-extern crate protobuf;
-extern crate quadtree;
-extern crate scoped_pool;
-extern crate xray;
-
+use crate::octree::OnDiskOctree;
 use cgmath::{Point2, Point3};
+use clap::value_t;
 use collision::{Aabb, Aabb2, Aabb3};
-use octree::OnDiskOctree;
 use point_viewer::octree;
 use std::error::Error;
 use std::path::Path;
@@ -131,7 +120,7 @@ pub fn main() {
     let matches = parse_arguments();
     let resolution = value_t!(matches, "resolution", f32).expect("resolution could not be parsed.");
     let coloring_strategy_kind = {
-        use ColoringStrategyArgument::*;
+        use crate::ColoringStrategyArgument::*;
         let arg = value_t!(matches, "coloring_strategy", ColoringStrategyArgument)
             .expect("coloring_strategy is invalid");
         match arg {
@@ -160,5 +149,6 @@ pub fn main() {
         resolution,
         coloring_strategy_kind,
         &bbox2,
-    ).unwrap();
+    )
+    .unwrap();
 }

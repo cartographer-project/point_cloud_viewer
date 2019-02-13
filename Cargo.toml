@@ -16,6 +16,7 @@
 authors = ["Holger Rapp <hrapp@google.com>"]
 name = "point_viewer"
 version = "0.1.0"
+edition = "2018"
 
 [dependencies]
 byteorder = "^0.5.3"

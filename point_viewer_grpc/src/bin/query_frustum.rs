@@ -12,29 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate cgmath;
-extern crate collision;
-extern crate futures;
-extern crate grpcio;
-extern crate point_viewer;
-extern crate point_viewer_grpc_proto_rust;
-extern crate protobuf;
-extern crate scoped_pool;
-
+use crate::proto_grpc::OctreeClient;
 use cgmath::{Deg, EuclideanSpace, Point3, Rad};
-use collision::{Aabb3, Aabb};
+use collision::{Aabb, Aabb3};
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
-pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
-pub use point_viewer_grpc_proto_rust::proto_grpc;
-use point_viewer::{InternalIterator, Point};
 use point_viewer::color::Color;
 use point_viewer::generation::build_octree;
-use proto_grpc::OctreeClient;
+use point_viewer::{InternalIterator, Point};
+pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
+pub use point_viewer_grpc_proto_rust::proto_grpc;
 use std::sync::Arc;
 
-struct Points{
-    points: Vec<Point>
+struct Points {
+    points: Vec<Point>,
 }
 
 impl InternalIterator for Points {
@@ -66,7 +57,7 @@ fn main() {
     request.mut_translation().set_z(-132.89323);
 
     request.set_fovy_rad(Rad::from(Deg(45.)).0);
-    request.set_aspect(800./600.);
+    request.set_aspect(800. / 600.);
     request.set_z_near(0.1);
     request.set_z_far(10000.);
 
@@ -86,8 +77,9 @@ fn main() {
                         red: color.red,
                         green: color.green,
                         blue: color.blue,
-                        alpha: color.alpha
-                    }.to_u8(),
+                        alpha: color.alpha,
+                    }
+                    .to_u8(),
                     intensity: None,
                 });
             }
@@ -102,5 +94,5 @@ fn main() {
         .wait()
         .unwrap();
     let pool = scoped_pool::Pool::new(10);
-    build_octree(&pool, "/tmp/octree", 0.001, bounding_box, Points{points});
+    build_octree(&pool, "/tmp/octree", 0.001, bounding_box, Points { points });
 }
