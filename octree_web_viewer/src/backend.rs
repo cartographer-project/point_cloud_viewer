@@ -12,11 +12,11 @@ use std::sync::Arc;
 use time;
 
 pub struct VisibleNodes {
-    octree: Arc<dyn Octree>,
+    octree: Arc<Octree>,
 }
 
 impl VisibleNodes {
-    pub fn new(octree: Arc<dyn Octree>) -> Self {
+    pub fn new(octree: Arc<Octree>) -> Self {
         VisibleNodes { octree }
     }
 }
@@ -77,11 +77,11 @@ fn pad(input: &mut Vec<u8>) {
 }
 
 pub struct NodesData {
-    octree: Arc<dyn Octree>,
+    octree: Arc<Octree>,
 }
 
 impl NodesData {
-    pub fn new(octree: Arc<dyn Octree>) -> Self {
+    pub fn new(octree: Arc<Octree>) -> Self {
         NodesData { octree }
     }
 }

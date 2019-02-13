@@ -18,8 +18,7 @@ fn main() {
     SdlViewer::new()
         .register_octree_factory("grpc:".into(), |p| {
             Ok(Box::new(
-                point_viewer_grpc::GrpcOctree::new(p.as_str())
-                    .expect("Could not connect to GRPC server"),
+                point_viewer_grpc::octree_from_address(p.as_str()).expect("Could not create octree."),
             ))
         })
         .run();

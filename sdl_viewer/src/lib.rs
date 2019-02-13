@@ -364,7 +364,7 @@ impl SdlViewer {
         // If no octree was generated create an FromDisc loader
         let octree = Arc::new(octree_opt.unwrap_or_else(|| {
             pose_path = Some(PathBuf::from(&octree_argument).join("poses.json"));
-            Box::new(octree::OnDiskOctree::new(&octree_argument).unwrap()) as Box<Octree>
+            Box::new(octree::octree_from_directory(octree_argument).unwrap()) as Box<Octree>
         }));
 
         let ctx = sdl2::init().unwrap();
