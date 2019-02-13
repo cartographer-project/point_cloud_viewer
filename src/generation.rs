@@ -14,22 +14,22 @@
 
 use cgmath::{EuclideanSpace, Point3};
 use collision::{Aabb, Aabb3};
-use errors::*;
+use crate::errors::*;
 use fnv::{FnvHashMap, FnvHashSet};
-use math::Cube;
-use octree;
+use crate::math::Cube;
+use crate::octree;
 use pbr::ProgressBar;
-use ply::PlyIterator;
-use proto;
+use crate::ply::PlyIterator;
+use crate::proto;
 use protobuf::Message;
-use pts::PtsIterator;
+use crate::pts::PtsIterator;
 use scoped_pool::{Pool, Scope};
 use std::cmp;
 use std::fs::{self, File};
 use std::io::{BufWriter, Stdout};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use {InternalIterator, Point};
+use crate::{InternalIterator, Point};
 
 const UPDATE_COUNT: i64 = 100000;
 const MAX_POINTS_PER_NODE: i64 = 100000;

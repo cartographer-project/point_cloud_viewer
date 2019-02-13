@@ -31,7 +31,7 @@ use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, Pos
 use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
-use proto_grpc::OctreeClient;
+use crate::proto_grpc::OctreeClient;
 use std::path::PathBuf;
 use std::sync::Arc;
 

@@ -9,7 +9,7 @@ use point_viewer::{
     color::{Color, WHITE},
     octree, InternalIterator, Point,
 };
-use proto;
+use crate::proto;
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -20,7 +20,7 @@ use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use CURRENT_VERSION;
+use crate::CURRENT_VERSION;
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel

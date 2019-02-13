@@ -10,7 +10,7 @@ extern crate quadtree;
 extern crate scoped_pool;
 extern crate xray;
 
-use octree::OnDiskOctree;
+use crate::octree::OnDiskOctree;
 use point_viewer::octree;
 use scoped_pool::Pool;
 use std::path::Path;
@@ -89,7 +89,7 @@ pub fn main() {
     }
 
     let coloring_strategy_kind = {
-        use ColoringStrategyArgument::*;
+        use crate::ColoringStrategyArgument::*;
         let arg = value_t!(args, "coloring_strategy", ColoringStrategyArgument)
             .expect("coloring_strategy is invalid");
         match arg {

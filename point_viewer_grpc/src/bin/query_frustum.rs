@@ -30,7 +30,7 @@ use point_viewer::generation::build_octree;
 use point_viewer::{InternalIterator, Point};
 pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
-use proto_grpc::OctreeClient;
+use crate::proto_grpc::OctreeClient;
 use std::sync::Arc;
 
 struct Points {

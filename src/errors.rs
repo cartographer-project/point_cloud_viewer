@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use octree;
+use crate::octree;
 use std::io;
 
 error_chain! {

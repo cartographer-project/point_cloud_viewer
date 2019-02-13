@@ -14,14 +14,14 @@
 
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
-use color;
-use errors::*;
+use crate::color;
+use crate::errors::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::ops::Index;
 use std::path::Path;
 use std::str;
-use {InternalIterator, Point};
+use crate::{InternalIterator, Point};
 
 #[derive(Debug)]
 struct Header {
@@ -109,7 +109,7 @@ impl<'a> Index<&'a str> for Element {
 }
 
 fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
-    use errors::ErrorKind::InvalidInput;
+    use crate::errors::ErrorKind::InvalidInput;
 
     let mut header_len = 0;
     let mut line = String::new();

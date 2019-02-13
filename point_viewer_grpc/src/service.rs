@@ -28,8 +28,8 @@ use grpcio::{
 };
 use point_viewer::octree::{read_meta_proto, NodeId, Octree, OnDiskOctree};
 use point_viewer::{InternalIterator, Point};
-use proto;
-use proto_grpc;
+use crate::proto;
+use crate::proto_grpc;
 use protobuf::Message;
 use std::path::PathBuf;
 use std::sync::Arc;

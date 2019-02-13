@@ -16,7 +16,7 @@ use cgmath::{
     Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
     Rotation3, Transform, Vector3, Zero,
 };
-use opengl;
+use crate::opengl;
 use std::f32;
 use time;
 

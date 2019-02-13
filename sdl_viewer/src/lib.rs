@@ -45,11 +45,11 @@ pub mod box_drawer;
 pub mod graphic;
 pub mod node_drawer;
 
-use box_drawer::BoxDrawer;
-use camera::Camera;
+use crate::box_drawer::BoxDrawer;
+use crate::camera::Camera;
 use cgmath::{Matrix4, SquareMatrix};
 use fnv::FnvHashMap;
-use node_drawer::{NodeDrawer, NodeViewContainer};
+use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree};
 use sdl2::event::{Event, WindowEvent};

@@ -14,9 +14,9 @@
 
 use cgmath::{EuclideanSpace, Matrix, Matrix4};
 use collision::{Aabb, Aabb3};
-use graphic::{GlBuffer, GlProgram, GlVertexArray};
-use opengl;
-use opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
+use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
+use crate::opengl;
+use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use point_viewer::color;
 use std::mem;
 use std::os::raw::c_void;

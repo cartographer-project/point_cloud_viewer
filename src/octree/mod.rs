@@ -14,17 +14,17 @@
 
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
-use errors::*;
+use crate::errors::*;
 use fnv::FnvHashMap;
-use math::{clamp, Cube};
-use proto;
+use crate::math::{clamp, Cube};
+use crate::proto;
 use protobuf;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
-use {InternalIterator, Point};
+use crate::{InternalIterator, Point};
 
 mod node;
 
