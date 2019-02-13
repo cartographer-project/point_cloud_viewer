@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::{EuclideanSpace, Matrix, Matrix4};
-use collision::{Aabb, Aabb3};
 use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use crate::opengl;
 use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
+use cgmath::{EuclideanSpace, Matrix, Matrix4};
+use collision::{Aabb, Aabb3};
 use point_viewer::color;
 use std::mem;
 use std::os::raw::c_void;

@@ -1,18 +1,7 @@
-extern crate cgmath;
-#[macro_use]
-extern crate clap;
-extern crate collision;
-extern crate fnv;
-extern crate image;
-extern crate point_viewer;
-extern crate protobuf;
-extern crate quadtree;
-extern crate scoped_pool;
-extern crate xray;
-
-use cgmath::{Point2, Point3};
-use collision::{Aabb, Aabb2, Aabb3};
 use crate::octree::OnDiskOctree;
+use cgmath::{Point2, Point3};
+use clap::value_t;
+use collision::{Aabb, Aabb2, Aabb3};
 use point_viewer::octree;
 use std::error::Error;
 use std::path::Path;

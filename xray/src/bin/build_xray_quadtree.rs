@@ -1,16 +1,5 @@
-extern crate cgmath;
-#[macro_use]
-extern crate clap;
-extern crate collision;
-extern crate fnv;
-extern crate image;
-extern crate point_viewer;
-extern crate protobuf;
-extern crate quadtree;
-extern crate scoped_pool;
-extern crate xray;
-
 use crate::octree::OnDiskOctree;
+use clap::value_t;
 use point_viewer::octree;
 use scoped_pool::Pool;
 use std::path::Path;

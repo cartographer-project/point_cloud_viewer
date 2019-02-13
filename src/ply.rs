@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use byteorder::{ByteOrder, LittleEndian};
-use cgmath::Vector3;
 use crate::color;
 use crate::errors::*;
+use crate::{InternalIterator, Point};
+use byteorder::{ByteOrder, LittleEndian};
+use cgmath::Vector3;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::ops::Index;
 use std::path::Path;
 use std::str;
-use crate::{InternalIterator, Point};
 
 #[derive(Debug)]
 struct Header {

@@ -12,16 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate actix;
-extern crate actix_web;
-extern crate byteorder;
-#[macro_use]
-extern crate clap;
-extern crate octree_web_viewer;
-extern crate point_viewer;
-
 use actix_web::http::Method;
 use actix_web::{server, HttpRequest, HttpResponse};
+use clap::value_t;
 use octree_web_viewer::backend::{NodesData, VisibleNodes};
 use point_viewer::octree;
 use std::path::PathBuf;

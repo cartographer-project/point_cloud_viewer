@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::{Array, Matrix, Matrix4};
-use fnv::FnvHashSet;
 use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
-use lru_cache::LruCache;
 use crate::opengl;
 use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
+use cgmath::{Array, Matrix, Matrix4};
+use fnv::FnvHashSet;
+use lru_cache::LruCache;
 use point_viewer::octree;
 use rand::{thread_rng, Rng};
 use std;

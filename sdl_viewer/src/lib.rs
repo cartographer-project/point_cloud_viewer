@@ -12,20 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate cgmath;
-extern crate clap;
-extern crate collision;
-extern crate fnv;
-extern crate lru_cache;
-extern crate point_viewer;
-extern crate point_viewer_grpc;
-extern crate rand;
-extern crate sdl2;
-extern crate serde;
-extern crate time;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
+use serde_derive::{Deserialize, Serialize};
 
 /// Unsafe macro to create a static null-terminated c-string for interop with OpenGL.
 #[macro_export]
@@ -47,9 +34,9 @@ pub mod node_drawer;
 
 use crate::box_drawer::BoxDrawer;
 use crate::camera::Camera;
+use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 use cgmath::{Matrix4, SquareMatrix};
 use fnv::FnvHashMap;
-use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree};
 use sdl2::event::{Event, WindowEvent};

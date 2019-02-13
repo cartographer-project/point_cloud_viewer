@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate point_viewer_grpc;
-extern crate sdl_viewer;
-
 use sdl_viewer::SdlViewer;
 
 fn main() {

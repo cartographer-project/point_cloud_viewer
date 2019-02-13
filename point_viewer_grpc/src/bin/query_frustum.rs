@@ -12,15 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate cgmath;
-extern crate collision;
-extern crate futures;
-extern crate grpcio;
-extern crate point_viewer;
-extern crate point_viewer_grpc_proto_rust;
-extern crate protobuf;
-extern crate scoped_pool;
-
+use crate::proto_grpc::OctreeClient;
 use cgmath::{Deg, EuclideanSpace, Point3, Rad};
 use collision::{Aabb, Aabb3};
 use futures::{Future, Stream};
@@ -30,7 +22,6 @@ use point_viewer::generation::build_octree;
 use point_viewer::{InternalIterator, Point};
 pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
-use crate::proto_grpc::OctreeClient;
 use std::sync::Arc;
 
 struct Points {

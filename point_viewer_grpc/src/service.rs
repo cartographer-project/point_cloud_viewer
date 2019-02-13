@@ -12,13 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate cgmath;
-extern crate collision;
-extern crate futures;
-extern crate grpcio;
-extern crate point_viewer;
-extern crate protobuf;
-
+use crate::proto;
+use crate::proto_grpc;
 use cgmath::{Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector3};
 use collision::Aabb3;
 use futures::sync::mpsc;
@@ -28,8 +23,6 @@ use grpcio::{
 };
 use point_viewer::octree::{read_meta_proto, NodeId, Octree, OnDiskOctree};
 use point_viewer::{InternalIterator, Point};
-use crate::proto;
-use crate::proto_grpc;
 use protobuf::Message;
 use std::path::PathBuf;
 use std::sync::Arc;

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::octree;
+use error_chain::*;
 use std::io;
 
 error_chain! {
