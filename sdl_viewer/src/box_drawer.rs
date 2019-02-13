@@ -42,7 +42,7 @@ pub struct BoxDrawer {
 impl BoxDrawer {
     pub fn new(gl: &Rc<opengl::Gl>) -> Self {
         let outline_program = GlProgram::new(
-            Rc::clone(&gl),
+            Rc::clone(gl),
             VERTEX_SHADER_OUTLINED_BOX,
             FRAGMENT_SHADER_OUTLINED_BOX,
         );
@@ -55,11 +55,11 @@ impl BoxDrawer {
             u_color = gl.GetUniformLocation(outline_program.id, c_str!("color"));
         }
 
-        let vertex_array = GlVertexArray::new(Rc::clone(&gl));
+        let vertex_array = GlVertexArray::new(Rc::clone(gl));
         vertex_array.bind();
 
         // vertex buffer: define 8 vertices of the box
-        let _buffer_position = GlBuffer::new_array_buffer(Rc::clone(&gl));
+        let _buffer_position = GlBuffer::new_array_buffer(Rc::clone(gl));
         _buffer_position.bind();
         let vertices: [[f32; 3]; 8] = [
             [-1.0, -1.0, 1.0],  // vertices of front quad
@@ -81,7 +81,7 @@ impl BoxDrawer {
         }
 
         // define index buffer for 24 edges of the box
-        let _buffer_indices = GlBuffer::new_element_array_buffer(Rc::clone(&gl));
+        let _buffer_indices = GlBuffer::new_element_array_buffer(Rc::clone(gl));
         _buffer_indices.bind();
         let line_indices: [[i32; 2]; 12] = [
             [0, 1],
