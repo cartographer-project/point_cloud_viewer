@@ -148,7 +148,7 @@ impl NodeId {
     pub fn get_child_id(&self, child_index: &ChildIndex) -> Self {
         NodeId {
             level: self.level + 1,
-            index: (self.index << 2) + child_index.0 as u64,
+            index: (self.index << 2) + u64::from(child_index.0),
         }
     }
 
