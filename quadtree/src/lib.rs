@@ -14,6 +14,8 @@
 
 use cgmath::{Point2, Vector2};
 use std::fmt::{self, Write};
+use std::num::ParseIntError;
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct Rect {
@@ -23,10 +25,7 @@ pub struct Rect {
 
 impl Rect {
     pub fn new(min: Point2<f32>, edge_length: f32) -> Self {
-        Rect {
-            min: min,
-            edge_length: edge_length,
-        }
+        Rect { min, edge_length }
     }
 
     pub fn edge_length(&self) -> f32 {
@@ -63,7 +62,7 @@ impl Node {
         }
     }
 
-    pub fn get_child(&self, child_index: ChildIndex) -> Node {
+    pub fn get_child(&self, child_index: &ChildIndex) -> Node {
         let child_bounding_rect = {
             let half_edge_length = self.bounding_rect.edge_length() / 2.;
             let mut min = self.bounding_rect.min();
@@ -84,10 +83,7 @@ impl Node {
 
     // TODO(hrapp): This function could use some testing.
     pub fn parent(&self) -> Option<Node> {
-        let maybe_parent_id = self.id.parent_id();
-        if maybe_parent_id.is_none() {
-            return None;
-        }
+        let maybe_parent_id = self.id.parent_id()?;
 
         let parent_rect = {
             let child_index = self.id.child_index().unwrap().0;
@@ -103,7 +99,7 @@ impl Node {
             Rect::new(min, edge_length * 2.)
         };
         Some(Node {
-            id: maybe_parent_id.unwrap(),
+            id: maybe_parent_id,
             bounding_rect: parent_rect,
         })
     }
@@ -143,24 +139,13 @@ impl NodeId {
         NodeId { level, index }
     }
 
-    /// Construct a NodeId. No checking is done if this is a valid Id.
-    pub fn from_str(name: &str) -> Self {
-        let level = (name.len() - 1) as u8;
-        let index = if level > 0 {
-            u64::from_str_radix(&name[1..], 4).unwrap()
-        } else {
-            0
-        };
-        NodeId { level, index }
-    }
-
     /// Returns the root node.
     pub fn root() -> Self {
         NodeId { index: 0, level: 0 }
     }
 
     /// Returns the NodeId for the corresponding 'child_index'.
-    pub fn get_child_id(&self, child_index: ChildIndex) -> Self {
+    pub fn get_child_id(&self, child_index: &ChildIndex) -> Self {
         NodeId {
             level: self.level + 1,
             index: (self.index << 2) + child_index.0 as u64,
@@ -196,12 +181,27 @@ impl NodeId {
     }
 }
 
+impl FromStr for NodeId {
+    type Err = ParseIntError;
+
+    /// Construct a NodeId. No checking is done if this is a valid Id.
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        let level = (name.len() - 1) as u8;
+        let index = if level > 0 {
+            u64::from_str_radix(&name[1..], 4)?
+        } else {
+            0
+        };
+        Ok(NodeId { level, index })
+    }
+}
+
 impl fmt::Display for NodeId {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_char('r')?;
         let index = self.index;
         for level in (0..self.level).rev() {
-            let c = match (index >> 2 * level) & 3 {
+            let c = match (index >> (2 * level)) & 3 {
                 0 => '0',
                 1 => '1',
                 2 => '2',
@@ -217,12 +217,13 @@ impl fmt::Display for NodeId {
 #[cfg(test)]
 mod tests {
     use super::{ChildIndex, NodeId};
+    use std::str::FromStr;
 
     #[test]
     fn test_parent_node_name() {
         assert_eq!(
-            Some(NodeId::from_str("r12321")),
-            NodeId::from_str("r123210").parent_id()
+            Some(NodeId::from_str("r12321").unwrap()),
+            NodeId::from_str("r123210").unwrap().parent_id()
         );
     }
 
@@ -230,19 +231,19 @@ mod tests {
     fn test_child_index() {
         assert_eq!(
             Some(ChildIndex(1)),
-            NodeId::from_str("r123321").child_index()
+            NodeId::from_str("r123321").unwrap().child_index()
         );
         assert_eq!(
             Some(ChildIndex(3)),
-            NodeId::from_str("r123323").child_index()
+            NodeId::from_str("r123323").unwrap().child_index()
         );
-        assert_eq!(None, NodeId::from_str("r").child_index());
+        assert_eq!(None, NodeId::from_str("r").unwrap().child_index());
     }
 
     #[test]
     fn test_to_string() {
         for id in &["r", "r0", "r123323"] {
-            assert_eq!(&NodeId::from_str(id).to_string(), id);
+            assert_eq!(&NodeId::from_str(id).unwrap().to_string(), id);
         }
     }
 }

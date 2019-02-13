@@ -476,7 +476,7 @@ pub fn build_xray_quadtree(
                 });
             } else {
                 for i in 0..4 {
-                    open.push(node.get_child(ChildIndex::from_u8(i)));
+                    open.push(node.get_child(&ChildIndex::from_u8(i)));
                 }
             }
         }
@@ -502,7 +502,7 @@ pub fn build_xray_quadtree(
                     for id in 0..4 {
                         let png = get_image_path(
                             output_directory,
-                            node_id.get_child_id(ChildIndex::from_u8(id)),
+                            node_id.get_child_id(&ChildIndex::from_u8(id)),
                         );
                         if !png.exists() {
                             continue;

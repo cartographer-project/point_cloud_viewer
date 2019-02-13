@@ -173,10 +173,7 @@ impl<'a> InternalIterator for AllPointsIterator<'a> {
 fn contains(projection_matrix: &Matrix4<f32>, point: &Point3<f32>) -> bool {
     let v = Vector4::new(point.x, point.y, point.z, 1.);
     let clip_v = projection_matrix * v;
-    return clip_v.x.abs() < clip_v.w
-        && clip_v.y.abs() < clip_v.w
-        && 0. < clip_v.z
-        && clip_v.z < clip_v.w;
+    clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z && clip_v.z < clip_v.w
 }
 
 pub fn read_meta_proto<P: AsRef<Path>>(directory: P) -> Result<proto::Meta> {
@@ -220,7 +217,7 @@ impl OnDiskOctree {
         let meta = OctreeMeta {
             directory: directory.into(),
             resolution: meta_proto.resolution,
-            bounding_box: bounding_box,
+            bounding_box,
         };
 
         let mut nodes = FnvHashMap::default();
@@ -305,13 +302,12 @@ struct OpenNode {
 
 impl Ord for OpenNode {
     fn cmp(&self, other: &OpenNode) -> Ordering {
-        if self.size_on_screen == other.size_on_screen {
-            return Ordering::Equal;
-        }
-        if self.size_on_screen < other.size_on_screen {
+        if self.size_on_screen > (other.size_on_screen + std::f32::EPSILON) {
+            Ordering::Greater
+        } else if self.size_on_screen < (other.size_on_screen - std::f32::EPSILON) {
             Ordering::Less
         } else {
-            Ordering::Greater
+            Ordering::Equal
         }
     }
 }
@@ -430,8 +426,8 @@ impl Octree for OnDiskOctree {
         };
 
         Ok(NodeData {
-            position: position,
-            color: color,
+            position,
+            color,
             meta: self.nodes[node_id].clone(),
         })
     }

@@ -164,7 +164,7 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
                         let data_type = DataType::from_str(data_type_str)?;
                         ScalarProperty {
                             name: entries[2].to_string(),
-                            data_type: data_type,
+                            data_type,
                         }
                     }
                     _ => return Err(InvalidInput(format!("Invalid line: {}", line)).into()),
@@ -187,7 +187,7 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
 
     Ok((
         Header {
-            elements: elements,
+            elements,
             format: format.unwrap(),
         },
         header_len,
@@ -368,9 +368,9 @@ impl PlyIterator {
     pub fn new<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
         let (reader, num_total_points, readers) = open(ply_file.as_ref())?;
         Ok(PlyIterator {
-            reader: reader,
-            readers: readers,
-            num_total_points: num_total_points,
+            reader,
+            readers,
+            num_total_points,
         })
     }
 }

@@ -18,9 +18,9 @@ use iron::prelude::*;
 use router::Router;
 use std::path::PathBuf;
 
-const INDEX_HTML: &'static str = include_str!("../../client/index.html");
-const APP_BUNDLE: &'static str = include_str!("../../../target/xray_app_bundle.js");
-const APP_BUNDLE_MAP: &'static str = include_str!("../../../target/xray_app_bundle.js.map");
+const INDEX_HTML: &str = include_str!("../../client/index.html");
+const APP_BUNDLE: &str = include_str!("../../../target/xray_app_bundle.js");
+const APP_BUNDLE_MAP: &str = include_str!("../../../target/xray_app_bundle.js.map");
 
 fn index(_: &mut Request) -> IronResult<Response> {
     let content_type = "text/html".parse::<Mime>().unwrap();

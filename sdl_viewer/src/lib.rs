@@ -24,7 +24,12 @@ macro_rules! c_str {
 
 mod camera;
 mod glhelper;
-#[allow(non_upper_case_globals)]
+#[allow(
+    non_upper_case_globals,
+    clippy::too_many_arguments,
+    clippy::unreadable_literal,
+    clippy::unused_unit
+)]
 pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
@@ -52,6 +57,7 @@ use std::thread;
 
 type OctreeFactory = fn(&String) -> Result<Box<Octree>, Box<Error>>;
 
+#[derive(Default)]
 pub struct SdlViewer {
     octree_factories: FnvHashMap<String, OctreeFactory>,
 }
@@ -118,7 +124,7 @@ impl PointCloudRenderer {
             last_moving: now,
             last_log: now,
             visible_nodes: Vec::new(),
-            node_drawer: NodeDrawer::new(Rc::clone(&gl)),
+            node_drawer: NodeDrawer::new(&Rc::clone(&gl)),
             num_frames: 0,
             point_size: 1.,
             gamma: 1.,
@@ -129,7 +135,7 @@ impl PointCloudRenderer {
             show_octree_nodes: false,
             max_nodes_in_memory,
             node_views: NodeViewContainer::new(octree, max_nodes_in_memory),
-            box_drawer: BoxDrawer::new(Rc::clone(&gl)),
+            box_drawer: BoxDrawer::new(&Rc::clone(&gl)),
             world_to_gl: Matrix4::identity(),
             gl,
         }
@@ -143,7 +149,7 @@ impl PointCloudRenderer {
             .send(world_to_gl.clone())
             .unwrap();
         self.last_moving = time::PreciseTime::now();
-        self.world_to_gl = world_to_gl.clone();
+        self.world_to_gl = *world_to_gl;
     }
 
     pub fn toggle_show_octree_nodes(&mut self) {
@@ -410,7 +416,7 @@ impl SdlViewer {
 
         let gl = Rc::new(opengl::Gl::load_with(|s| {
             let ptr = video_subsystem.gl_get_proc_address(s);
-            unsafe { std::mem::transmute(ptr) }
+            ptr as *const std::ffi::c_void
         }));
 
         let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
@@ -523,12 +529,13 @@ impl SdlViewer {
             }
 
             if let Some(j) = joystick.as_ref() {
-                let x = j.axis(0).unwrap() as f32 / 500.;
-                let y = -j.axis(1).unwrap() as f32 / 500.;
-                let z = -j.axis(2).unwrap() as f32 / 500.;
-                let up = j.axis(3).unwrap() as f32 / 500.;
+                let x = f32::from(j.axis(0).unwrap()) / 500.;
+                let y = f32::from(-j.axis(1).unwrap()) / 500.;
+                let z = f32::from(-j.axis(2).unwrap()) / 500.;
+                let up = f32::from(j.axis(3).unwrap()) / 500.;
                 // Combine tilting and turning on the knob.
-                let around = j.axis(4).unwrap() as f32 / 500. - j.axis(5).unwrap() as f32 / 500.;
+                let around =
+                    f32::from(j.axis(4).unwrap()) / 500. - f32::from(j.axis(5).unwrap()) / 500.;
                 camera.pan(x, y, z);
                 camera.rotate(up, around);
             }

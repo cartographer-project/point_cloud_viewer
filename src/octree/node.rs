@@ -290,9 +290,9 @@ impl NodeIterator {
             rgb_reader: BufReader::new(File::open(&stem.with_extension(COLOR_EXT))?),
             intensity_reader,
             meta: NodeMeta {
-                bounding_cube: bounding_cube,
-                position_encoding: position_encoding,
-                num_points: num_points,
+                bounding_cube,
+                position_encoding,
+                num_points,
             },
         })
     }
@@ -476,9 +476,9 @@ impl NodeWriter {
             xyz_writer: BufWriter::new(File::create(&stem.with_extension(POSITION_EXT)).unwrap()),
             rgb_writer: BufWriter::new(File::create(&stem.with_extension(COLOR_EXT)).unwrap()),
             intensity_writer: None, // Will be created if needed on first point with intensities.
-            stem: stem,
+            stem,
             position_encoding: PositionEncoding::new(&bounding_cube, octree_meta.resolution),
-            bounding_cube: bounding_cube,
+            bounding_cube,
             num_written: 0,
         }
     }

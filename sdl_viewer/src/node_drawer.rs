@@ -54,7 +54,7 @@ pub struct NodeDrawer {
 }
 
 impl NodeDrawer {
-    pub fn new(gl: Rc<opengl::Gl>) -> Self {
+    pub fn new(gl: &Rc<opengl::Gl>) -> Self {
         let program = GlProgram::new(Rc::clone(&gl), VERTEX_SHADER, FRAGMENT_SHADER);
         let u_world_to_gl;
         let u_edge_length;
@@ -249,8 +249,8 @@ impl NodeViewContainer {
         NodeViewContainer {
             node_views: LruCache::new(max_nodes_in_memory),
             requested: FnvHashSet::default(),
-            node_id_sender: node_id_sender,
-            node_data_receiver: node_data_receiver,
+            node_id_sender,
+            node_data_receiver,
         }
     }
 

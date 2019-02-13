@@ -28,7 +28,7 @@ impl Cube {
             .max(aabb.max().z - aabb.min().z);
         Cube {
             min: aabb.min,
-            edge_length: edge_length,
+            edge_length,
         }
     }
 
@@ -37,10 +37,7 @@ impl Cube {
     }
 
     pub fn new(min: Point3<f32>, edge_length: f32) -> Self {
-        Cube {
-            min: min,
-            edge_length: edge_length,
-        }
+        Cube { min, edge_length }
     }
 
     pub fn edge_length(&self) -> f32 {

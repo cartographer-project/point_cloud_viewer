@@ -31,8 +31,8 @@ use std::io::{BufWriter, Stdout};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
-const UPDATE_COUNT: i64 = 100000;
-const MAX_POINTS_PER_NODE: i64 = 100000;
+const UPDATE_COUNT: i64 = 100_000;
+const MAX_POINTS_PER_NODE: i64 = 100_000;
 
 // Return a list a leaf nodes and a list of nodes to be splitted further.
 fn split<P>(
@@ -235,9 +235,9 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
     let mut num_points = 0i64;
     let mut bounding_box = Aabb3::zero();
     let (stream, mut progress_bar) = make_stream(input);
-    progress_bar
-        .as_mut()
-        .map(|pb| pb.message("Determining bounding box: "));
+    if let Some(pb) = progress_bar.as_mut() {
+        pb.message("Determining bounding box: ")
+    }
 
     stream.for_each(|p: &Point| {
         bounding_box = bounding_box.grow(Point3::from_vec(p.position));
@@ -246,7 +246,9 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
             progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
         }
     });
-    progress_bar.map(|mut f| f.finish());
+    if let Some(mut f) = progress_bar {
+        f.finish()
+    }
     bounding_box
 }
 
@@ -342,7 +344,7 @@ pub fn build_octree(
 
     // sub sampling returns the list of finished nodes including all meta data
     // We start on the deepest level and work our way up the tree.
-    for current_level in (1..deepest_level + 1).rev() {
+    for current_level in (1..=deepest_level).rev() {
         // All nodes on the same level can be subsampled in parallel.
         let res = nodes_to_subsample
             .into_iter()

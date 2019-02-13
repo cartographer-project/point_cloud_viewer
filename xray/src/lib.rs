@@ -119,7 +119,7 @@ impl Meta {
                 });
             } else {
                 for i in 0..4 {
-                    open.push(node.get_child(ChildIndex::from_u8(i)));
+                    open.push(node.get_child(&ChildIndex::from_u8(i)));
                 }
             }
         }

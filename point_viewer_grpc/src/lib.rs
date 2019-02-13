@@ -35,7 +35,7 @@ pub struct GrpcOctree {
 }
 
 impl GrpcOctree {
-    pub fn new(addr: &str) -> Result<Self> {
+    pub fn from_address(addr: &str) -> Result<Self> {
         let env = Arc::new(EnvBuilder::new().build());
         let ch = ChannelBuilder::new(env)
             .max_receive_message_len(::std::i32::MAX)
