@@ -18,8 +18,8 @@
 // This code here was extracted from the glhelper crate. We could not depend on it directly, since
 // we generate our own gl module which cannot be easily injected.
 
-use opengl;
-use opengl::types::{GLchar, GLenum, GLint, GLuint};
+use crate::opengl;
+use crate::opengl::types::{GLchar, GLenum, GLint, GLuint};
 use std::ffi::CString;
 use std::ptr;
 use std::str;

@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use {InternalIterator, Point};
+use crate::color;
+use crate::errors::*;
+use crate::math::{clamp, Cube};
+use crate::octree::OctreeMeta;
+use crate::proto;
+use crate::{InternalIterator, Point};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use cgmath::{Vector3, Zero};
-use color;
-use errors::*;
-use math::{clamp, Cube};
 use num;
 use num_traits;
-use octree::OctreeMeta;
-use proto;
-use std::{fmt, result};
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
+use std::{fmt, result};
 
 pub const POSITION_EXT: &str = "xyz";
 pub const COLOR_EXT: &str = "rgb";

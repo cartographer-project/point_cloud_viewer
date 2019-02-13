@@ -16,6 +16,7 @@
 authors = ["Holger Rapp <hrapp@google.com>"]
 name = "sdl_viewer"
 version = "0.1.0"
+edition = "2018"
 
 [build-dependencies]
 gl_generator = "0.8.0"

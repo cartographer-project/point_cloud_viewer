@@ -12,18 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate clap;
-extern crate futures;
-extern crate point_viewer_grpc;
-
-use futures::{Future};
+use clap::value_t;
 use futures::sync::oneshot;
-use std::{io, thread};
+use futures::Future;
 use std::io::Read;
 use std::path::PathBuf;
+use std::{io, thread};
 
-use point_viewer_grpc::service::{start_grpc_server};
+use point_viewer_grpc::service::start_grpc_server;
 
 fn main() {
     let matches = clap::App::new("octree_server")

@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate clap;
-extern crate iron;
-extern crate router;
-extern crate xray;
-
+use clap::value_t;
 use iron::mime::Mime;
 use iron::prelude::*;
 use router::Router;
@@ -67,7 +62,13 @@ fn main() {
     router.get("/", index);
     router.get("/app_bundle.js", app_bundle);
     router.get("/app_bundle.js.map", app_bundle_source_map);
-    xray::backend::serve("", &mut router, xray::backend::OnDiskXRay::new(quadtree_directory).expect("Could not serve from directory. Not a xray directory?")).unwrap();
+    xray::backend::serve(
+        "",
+        &mut router,
+        xray::backend::OnDiskXRay::new(quadtree_directory)
+            .expect("Could not serve from directory. Not a xray directory?"),
+    )
+    .unwrap();
 
     println!("Listening on port {}.", port);
     Iron::new(router).http(("0.0.0.0", port)).unwrap();

@@ -12,10 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate futures;
-extern crate grpcio;
-extern crate point_viewer;
-extern crate protobuf;
-
 include!(concat!(env!("OUT_DIR"), "/proto.rs"));
 include!(concat!(env!("OUT_DIR"), "/proto_grpc.rs"));

@@ -1,5 +1,3 @@
-extern crate protoc_rust;
-
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -14,7 +12,8 @@ fn main() {
         input: &["src/proto.proto"],
         includes: &[],
         ..Default::default()
-    }).expect("protoc");
+    })
+    .expect("protoc");
 
     // Work around
     // https://github.com/stepancheg/rust-protobuf/issues/117

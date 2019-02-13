@@ -1,4 +1,5 @@
 /target
-/web_viewer/client/node_modules
-/xray/client/node_modules
+/octree_web_viewer/client/build
+/octree_web_viewer/client/node_modules
 /xray/client/build
+/xray/client/node_modules
