@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate clap;
-extern crate futures;
-extern crate point_viewer_grpc;
-
+use clap::value_t;
 use futures::sync::oneshot;
 use futures::Future;
 use std::io::Read;

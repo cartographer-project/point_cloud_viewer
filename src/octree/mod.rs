@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::errors::*;
+use crate::math::{clamp, Cube};
+use crate::proto;
+use crate::{InternalIterator, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
-use errors::*;
 use fnv::FnvHashMap;
-use math::{clamp, Cube};
-use proto;
 use protobuf;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
-use {InternalIterator, Point};
 
 mod node;
 

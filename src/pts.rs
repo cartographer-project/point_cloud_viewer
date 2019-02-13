@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::color;
+use crate::{InternalIterator, Point};
 use cgmath::Vector3;
-use color;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use {InternalIterator, Point};
 
 #[derive(Debug)]
 pub struct PtsIterator {

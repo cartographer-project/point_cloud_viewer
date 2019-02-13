@@ -1,5 +1,3 @@
-extern crate protoc_rust;
-
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};

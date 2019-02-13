@@ -12,24 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::errors::*;
+use crate::math::Cube;
+use crate::octree;
+use crate::ply::PlyIterator;
+use crate::proto;
+use crate::pts::PtsIterator;
+use crate::{InternalIterator, Point};
 use cgmath::{EuclideanSpace, Point3};
 use collision::{Aabb, Aabb3};
-use errors::*;
 use fnv::{FnvHashMap, FnvHashSet};
-use math::Cube;
-use octree;
 use pbr::ProgressBar;
-use ply::PlyIterator;
-use proto;
 use protobuf::Message;
-use pts::PtsIterator;
 use scoped_pool::{Pool, Scope};
 use std::cmp;
 use std::fs::{self, File};
 use std::io::{BufWriter, Stdout};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use {InternalIterator, Point};
 
 const UPDATE_COUNT: i64 = 100000;
 const MAX_POINTS_PER_NODE: i64 = 100000;

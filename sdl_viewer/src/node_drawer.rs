@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
+use crate::opengl;
+use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use cgmath::{Array, Matrix, Matrix4};
 use fnv::FnvHashSet;
-use graphic::{GlBuffer, GlProgram, GlVertexArray};
 use lru_cache::LruCache;
-use opengl;
-use opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use point_viewer::octree;
 use rand::{thread_rng, Rng};
 use std;

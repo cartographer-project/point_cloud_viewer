@@ -17,21 +17,6 @@
 #![allow(renamed_and_removed_lints)]
 #![recursion_limit = "1024"]
 
-extern crate byteorder;
-extern crate cgmath;
-extern crate collision;
-#[macro_use]
-extern crate error_chain;
-extern crate fnv;
-extern crate libc;
-extern crate num;
-extern crate num_traits;
-extern crate pbr;
-extern crate point_viewer_proto_rust;
-extern crate protobuf;
-extern crate scoped_pool;
-extern crate walkdir;
-
 pub mod color;
 pub mod errors;
 pub mod generation;
@@ -41,19 +26,19 @@ pub mod ply;
 pub mod pts;
 
 pub trait InternalIterator {
-    fn for_each<F: FnMut(&Point)>(self, F);
-    fn size_hint(&self) -> Option<usize>;
+  fn for_each<F: FnMut(&Point)>(self, _: F);
+  fn size_hint(&self) -> Option<usize>;
 }
 
 #[derive(Debug, Clone)]
 pub struct Point {
-    pub position: cgmath::Vector3<f32>,
-    // TODO(sirver): Make color optional, we might not always have it.
-    pub color: color::Color<u8>,
+  pub position: cgmath::Vector3<f32>,
+  // TODO(sirver): Make color optional, we might not always have it.
+  pub color: color::Color<u8>,
 
-    // The intensity of the point if it exists. This value is usually handed through directly by a
-    // sensor and has therefore no defined range - or even meaning.
-    pub intensity: Option<f32>,
+  // The intensity of the point if it exists. This value is usually handed through directly by a
+  // sensor and has therefore no defined range - or even meaning.
+  pub intensity: Option<f32>,
 }
 
 pub use point_viewer_proto_rust::proto;

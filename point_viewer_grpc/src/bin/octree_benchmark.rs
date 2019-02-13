@@ -11,26 +11,20 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#[macro_use]
-extern crate clap;
-extern crate futures;
-extern crate grpcio;
-extern crate point_viewer;
-extern crate point_viewer_grpc;
-extern crate point_viewer_grpc_proto_rust;
 
-use point_viewer_grpc_proto_rust::proto;
+use clap::value_t;
+use futures::future::Future;
+use futures::Stream;
+use grpcio::{ChannelBuilder, Environment};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use futures::future::Future;
-use futures::Stream;
-use grpcio::{ChannelBuilder, Environment};
 use point_viewer::octree::OnDiskOctree;
 use point_viewer::{InternalIterator, Point};
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
+use point_viewer_grpc_proto_rust::proto;
 
 fn main() {
     let matches = clap::App::new("octree_benchmark")

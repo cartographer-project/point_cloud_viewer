@@ -12,14 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate cgmath;
-extern crate collision;
-extern crate futures;
-extern crate grpcio;
-extern crate point_viewer;
-extern crate point_viewer_grpc_proto_rust;
-extern crate protobuf;
-
+use crate::proto_grpc::OctreeClient;
 use cgmath::{Matrix4, Vector3};
 use collision::Aabb3;
 use futures::{Future, Stream};
@@ -31,7 +24,6 @@ use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, Pos
 use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
-use proto_grpc::OctreeClient;
 use std::path::PathBuf;
 use std::sync::Arc;
 

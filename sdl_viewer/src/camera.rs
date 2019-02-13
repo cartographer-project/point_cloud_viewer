@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::opengl;
 use cgmath::{
     Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
     Rotation3, Transform, Vector3, Zero,
 };
-use opengl;
+use serde_derive::{Deserialize, Serialize};
 use std::f32;
 use time;
 
