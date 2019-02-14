@@ -1,4 +1,3 @@
-use crate::octree::OnDiskOctree;
 use clap::value_t;
 use point_viewer::color::{TRANSPARENT, WHITE};
 use point_viewer::octree::octree_from_directory;
@@ -113,7 +112,7 @@ pub fn main() {
     let output_directory = Path::new(args.value_of("output_directory").unwrap());
 
     let pool = Pool::new(10);
-    let octree = OnDiskOctree::new(octree_directory).expect("Could not open octree.");
+    let octree = octree_from_directory(octree_directory).expect("Could not open octree.");
     xray::generation::build_xray_quadtree(
         &pool,
         &octree,

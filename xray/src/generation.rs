@@ -372,7 +372,7 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
 }
 
 pub fn xray_from_points(
-    octree: &octree::OnDiskOctree,
+    octree: &octree::Octree,
     bbox: &Aabb3<f32>,
     png_file: &Path,
     image_width: u32,
@@ -436,7 +436,7 @@ pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
 
 pub fn build_xray_quadtree(
     pool: &Pool,
-    octree: &octree::OnDiskOctree,
+    octree: &octree::Octree,
     output_directory: &Path,
     resolution: f32,
     tile_size_px: u32,
