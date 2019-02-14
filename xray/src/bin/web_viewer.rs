@@ -65,7 +65,7 @@ fn main() {
     xray::backend::serve(
         "",
         &mut router,
-        xray::backend::OnDiskXRay::new(quadtree_directory)
+        xray::backend::OnDiskXRay::from_directory(quadtree_directory)
             .expect("Could not serve from directory. Not a xray directory?"),
     )
     .unwrap();

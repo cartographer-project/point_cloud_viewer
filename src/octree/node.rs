@@ -24,8 +24,8 @@ use num;
 use num_traits;
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Read};
-use std::path::PathBuf;
 use std::num::ParseIntError;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::{fmt, result};
 
@@ -47,7 +47,7 @@ impl NodeLayer {
 }
 
 /// Represents a child of an octree Node.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct ChildIndex(u8);
 
 impl ChildIndex {
@@ -67,7 +67,7 @@ impl ChildIndex {
         ChildIndex((gt_x as u8) << 2 | (gt_y as u8) << 1 | gt_z as u8)
     }
 
-    pub fn as_u8(&self) -> u8 {
+    pub fn as_u8(self) -> u8 {
         self.0
     }
 }
@@ -222,9 +222,7 @@ impl Node {
     // TODO(hrapp): This function could use some testing.
     pub fn parent(&self) -> Option<Node> {
         let maybe_parent_id = self.id.parent_id();
-        if maybe_parent_id.is_none() {
-            return None;
-        }
+        maybe_parent_id?;
 
         let parent_cube = {
             let child_index = self.id.child_index().unwrap().0;
@@ -383,9 +381,9 @@ impl InternalIterator for NodeIterator {
             point.color.red = self.rgb_reader.read_u8().unwrap();
             point.color.green = self.rgb_reader.read_u8().unwrap();
             point.color.blue = self.rgb_reader.read_u8().unwrap();
-            self.intensity_reader.as_mut().map(|ir| {
+            if let Some(ir) = self.intensity_reader.as_mut() {
                 point.intensity = Some(ir.read_f32::<LittleEndian>().unwrap());
-            });
+            }
             f(&point);
         }
     }

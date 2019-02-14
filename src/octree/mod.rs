@@ -218,7 +218,7 @@ pub struct NodeData {
 
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
-    pub fn new(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
+    pub fn from_data_provider(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
         if meta_proto.version != CURRENT_VERSION {
             return Err(ErrorKind::InvalidVersion(meta_proto.version).into());
@@ -332,8 +332,8 @@ impl Octree {
         let color = get_data(&NodeLayer::Color, "Could not read color")?;
 
         Ok(NodeData {
-            position: position,
-            color: color,
+            position,
+            color,
             meta: self.nodes[node_id].clone(),
         })
     }
@@ -378,7 +378,7 @@ impl Octree {
         }
     }
 
-    pub fn all_points<'a>(&'a self) -> AllPointsIterator<'a> {
+    pub fn all_points(&self) -> AllPointsIterator {
         AllPointsIterator {
             octree_data_provider: &*self.data_provider,
             octree_meta: &self.meta,
@@ -493,5 +493,5 @@ pub fn octree_from_directory(directory: impl Into<PathBuf>) -> Result<Octree> {
     let data_provider = OnDiskOctreeDataProvider {
         directory: directory.into(),
     };
-    Octree::new(Box::new(data_provider))
+    Octree::from_data_provider(Box::new(data_provider))
 }

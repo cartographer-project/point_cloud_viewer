@@ -203,6 +203,7 @@ macro_rules! create_and_return_reading_fn {
     ($assign:expr, $size:ident, $num_bytes:expr, $reading_fn:expr) => {{
         $size += $num_bytes;
         |nread: &mut usize, buf: &[u8], point: &mut Point| {
+            #[allow(clippy::cast_lossless)]
             $assign(point, $reading_fn(buf) as _);
             *nread += $num_bytes;
         }
@@ -365,7 +366,7 @@ pub struct PlyIterator {
 }
 
 impl PlyIterator {
-    pub fn new<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
+    pub fn from_file<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
         let (reader, num_total_points, readers) = open(ply_file.as_ref())?;
         Ok(PlyIterator {
             reader,
@@ -412,7 +413,7 @@ mod tests {
     use super::*;
 
     fn points_from_file<P: AsRef<Path>>(path: P) -> Vec<Point> {
-        let iterator = PlyIterator::new(path).unwrap();
+        let iterator = PlyIterator::from_file(path).unwrap();
         let mut points = Vec::new();
         iterator.for_each(|p| {
             points.push(p.clone());

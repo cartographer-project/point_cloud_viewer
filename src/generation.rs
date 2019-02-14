@@ -234,8 +234,10 @@ impl InternalIterator for InputFileIterator {
 
 fn make_stream(input: &InputFile) -> (InputFileIterator, Option<ProgressBar<Stdout>>) {
     let stream = match *input {
-        InputFile::Ply(ref filename) => InputFileIterator::Ply(PlyIterator::new(filename).unwrap()),
-        InputFile::Pts(ref filename) => InputFileIterator::Pts(PtsIterator::new(filename)),
+        InputFile::Ply(ref filename) => {
+            InputFileIterator::Ply(PlyIterator::from_file(filename).unwrap())
+        }
+        InputFile::Pts(ref filename) => InputFileIterator::Pts(PtsIterator::from_file(filename)),
     };
 
     let progress_bar = match stream.size_hint() {

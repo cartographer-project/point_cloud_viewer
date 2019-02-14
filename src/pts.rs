@@ -25,7 +25,7 @@ pub struct PtsIterator {
 }
 
 impl PtsIterator {
-    pub fn new(filename: &Path) -> Self {
+    pub fn from_file(filename: &Path) -> Self {
         let file = File::open(filename).unwrap();
         PtsIterator {
             data: BufReader::new(file),

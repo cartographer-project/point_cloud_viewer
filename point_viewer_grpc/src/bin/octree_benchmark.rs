@@ -64,10 +64,12 @@ fn main() {
 }
 
 fn server_benchmark(octree_directory: &Path, num_points: u64) {
-    let octree = octree_from_directory(octree_directory).expect(&format!(
-        "Could not create octree from '{}'",
-        octree_directory.display()
-    ));
+    let octree = octree_from_directory(octree_directory).unwrap_or_else(|_| {
+        panic!(
+            "Could not create octree from '{}'",
+            octree_directory.display()
+        )
+    });
     let mut counter: u64 = 0;
     octree.all_points().for_each(|_p: &Point| {
         if counter % 1_000_000 == 0 {

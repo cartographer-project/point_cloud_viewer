@@ -30,7 +30,7 @@ pub struct OnDiskXRay {
 }
 
 impl OnDiskXRay {
-    pub fn new(directory: PathBuf) -> io::Result<Self> {
+    pub fn from_directory(directory: PathBuf) -> io::Result<Self> {
         let me = Self { directory };
         // See if we can find a meta directory.
         let _ = me.get_meta()?;
