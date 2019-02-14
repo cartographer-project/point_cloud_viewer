@@ -3,7 +3,9 @@ use point_viewer::color::{TRANSPARENT, WHITE};
 use point_viewer::octree::octree_from_directory;
 use scoped_pool::Pool;
 use std::path::Path;
-use xray::generation::{ColoringStrategyArgument, ColoringStrategyKind};
+use xray::generation::{
+    ColoringStrategyArgument, ColoringStrategyKind, TileBackgroundColorArgument,
+};
 
 fn parse_arguments() -> clap::ArgMatches<'static> {
     clap::App::new("build_xray_quadtree")
