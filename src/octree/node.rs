@@ -24,7 +24,9 @@ use num;
 use num_traits;
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter};
+use std::num::ParseIntError;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::{fmt, result};
 
 pub const POSITION_EXT: &str = "xyz";
@@ -69,6 +71,21 @@ pub struct NodeId {
     index: usize,
 }
 
+impl FromStr for NodeId {
+    type Err = ParseIntError;
+
+    /// Construct a NodeId. No checking is done if this is a valid Id.
+    fn from_str(name: &str) -> std::result::Result<Self, Self::Err> {
+        let level = (name.len() - 1) as u8;
+        let index = if level > 0 {
+            usize::from_str_radix(&name[1..], 8)?
+        } else {
+            0
+        };
+        Ok(NodeId { level, index })
+    }
+}
+
 impl fmt::Display for NodeId {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
         if self.level == 0 {
@@ -85,17 +102,6 @@ impl fmt::Display for NodeId {
 }
 
 impl NodeId {
-    /// Construct a NodeId. No checking is done if this is a valid Id.
-    pub fn from_str(name: &str) -> Self {
-        let level = (name.len() - 1) as u8;
-        let index = if level > 0 {
-            usize::from_str_radix(&name[1..], 8).unwrap()
-        } else {
-            0
-        };
-        NodeId { level, index }
-    }
-
     pub fn from_level_index(level: u8, index: usize) -> Self {
         NodeId { level, index }
     }
@@ -156,7 +162,7 @@ impl NodeId {
             edge_length /= 2.;
             // Reverse order: process from root to leaf nodes.
             let child_index = (self.index >> (3 * level)) & 7;
-            let z = (child_index >> 0) & 1;
+            let z = child_index & 1;
             let y = (child_index >> 1) & 1;
             let x = (child_index >> 2) & 1;
             min.x += x as f32 * edge_length;

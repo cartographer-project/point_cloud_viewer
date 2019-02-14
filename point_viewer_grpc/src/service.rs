@@ -25,6 +25,7 @@ use point_viewer::octree::{read_meta_proto, NodeId, Octree, OnDiskOctree};
 use point_viewer::{InternalIterator, Point};
 use protobuf::Message;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -168,7 +169,7 @@ impl proto_grpc::Octree for OctreeService {
     ) {
         let data = self
             .octree
-            .get_node_data(&NodeId::from_str(&req.id))
+            .get_node_data(&NodeId::from_str(&req.id).unwrap())
             .unwrap();
         let mut resp = proto::GetNodeDataReply::new();
         resp.mut_node()

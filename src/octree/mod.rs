@@ -215,7 +215,7 @@ impl OnDiskOctree {
         };
 
         let meta = OctreeMeta {
-            directory: directory.into(),
+            directory,
             resolution: meta_proto.resolution,
             bounding_box,
         };
@@ -302,9 +302,9 @@ struct OpenNode {
 
 impl Ord for OpenNode {
     fn cmp(&self, other: &OpenNode) -> Ordering {
-        if self.size_on_screen > (other.size_on_screen + std::f32::EPSILON) {
+        if self.size_on_screen > other.size_on_screen {
             Ordering::Greater
-        } else if self.size_on_screen < (other.size_on_screen - std::f32::EPSILON) {
+        } else if self.size_on_screen < other.size_on_screen {
             Ordering::Less
         } else {
             Ordering::Equal

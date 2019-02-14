@@ -8,6 +8,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
 use futures::future::{self, result, Future};
 use point_viewer::octree::{self, Octree};
+use std::str::FromStr;
 use std::sync::Arc;
 use time;
 
@@ -101,7 +102,7 @@ impl<S: 'static> Handler<S> for NodesData {
                 let data: Vec<String> = Json::into_inner(extract_result);
                 let nodes_to_load = data
                     .into_iter()
-                    .map(|e| octree::NodeId::from_str(e.as_str()));
+                    .map(|e| octree::NodeId::from_str(e.as_str()).unwrap());
 
                 // So this is godawful: We need to get data to the GPU without JavaScript herp-derping with
                 // it - because that will stall interaction. The straight forward approach would be to ship
