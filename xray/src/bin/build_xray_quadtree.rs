@@ -1,7 +1,7 @@
 use crate::octree::OnDiskOctree;
 use clap::value_t;
-use point_viewer::octree;
 use point_viewer::color::{TRANSPARENT, WHITE};
+use point_viewer::octree::octree_from_directory;
 use scoped_pool::Pool;
 use std::path::Path;
 use xray::generation::{ColoringStrategyArgument, ColoringStrategyKind};
@@ -121,7 +121,7 @@ pub fn main() {
         resolution,
         tile_size,
         coloring_strategy_kind,
-        tile_background_color
+        tile_background_color,
     )
     .unwrap();
 }
