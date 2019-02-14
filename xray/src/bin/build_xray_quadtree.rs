@@ -1,6 +1,5 @@
-use crate::octree::OnDiskOctree;
 use clap::value_t;
-use point_viewer::octree;
+use point_viewer::octree::octree_from_directory;
 use scoped_pool::Pool;
 use std::path::Path;
 use xray::generation::{ColoringStrategyArgument, ColoringStrategyKind};
@@ -98,7 +97,7 @@ pub fn main() {
     let output_directory = Path::new(args.value_of("output_directory").unwrap());
 
     let pool = Pool::new(10);
-    let octree = OnDiskOctree::new(octree_directory).expect("Could not open octree.");
+    let octree = octree_from_directory(octree_directory).expect("Could not open octree.");
     xray::generation::build_xray_quadtree(
         &pool,
         &octree,

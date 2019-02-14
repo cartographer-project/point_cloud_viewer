@@ -13,28 +13,28 @@
 // limitations under the License.
 
 use crate::proto_grpc::OctreeClient;
-use cgmath::{Matrix4, Vector3};
+use cgmath::Vector3;
 use collision::Aabb3;
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::color::Color;
 use point_viewer::errors::*;
-use point_viewer::math::Cube;
-use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, PositionEncoding};
+use point_viewer::octree::{NodeId, NodeLayer, Octree, OctreeDataProvider};
+use point_viewer::proto::Meta;
 use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::io::{Cursor, Read};
 use std::sync::Arc;
 
 pub mod service;
 
-pub struct GrpcOctree {
+pub struct GrpcOctreeDataProvider {
     client: OctreeClient,
-    octree: OnDiskOctree,
 }
 
-impl GrpcOctree {
+impl GrpcOctreeDataProvider {
     pub fn from_address(addr: &str) -> Result<Self> {
         let env = Arc::new(EnvBuilder::new().build());
         let ch = ChannelBuilder::new(env)
@@ -42,12 +42,7 @@ impl GrpcOctree {
             .connect(addr);
         let client = OctreeClient::new(ch);
 
-        let reply = client
-            .get_meta(&proto::GetMetaRequest::new())
-            .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
-        // TODO(sirver): We pass a dummy directory and hope we never actually use it for anything.
-        let octree = OnDiskOctree::from_meta(reply.meta.unwrap(), PathBuf::new())?;
-        Ok(GrpcOctree { client, octree })
+        Ok(GrpcOctreeDataProvider { client })
     }
 
     pub fn get_points_in_box(
@@ -108,32 +103,56 @@ impl GrpcOctree {
     }
 }
 
-impl Octree for GrpcOctree {
-    fn get_visible_nodes(&self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
-        self.octree.get_visible_nodes(projection_matrix)
+impl OctreeDataProvider for GrpcOctreeDataProvider {
+    fn meta_proto(&self) -> Result<Meta> {
+        let reply = self
+            .client
+            .get_meta(&proto::GetMetaRequest::new())
+            .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
+        Ok(reply.meta.unwrap())
     }
 
-    fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData> {
+    fn data(
+        &self,
+        node_id: &NodeId,
+        node_layers: Vec<NodeLayer>,
+    ) -> Result<HashMap<NodeLayer, Box<dyn Read>>> {
         let mut req = proto::GetNodeDataRequest::new();
         req.set_id(node_id.to_string());
-
-        // TODO(sirver): This should most definitively not crash, but instead return an error.
-        // Needs changes to the trait though.
         let reply = self
             .client
             .get_node_data(&req)
             .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
-        let node = reply.node.unwrap();
-        let result = NodeData {
-            position: reply.position,
-            color: reply.color,
-            meta: NodeMeta {
-                num_points: node.num_points,
-                position_encoding: PositionEncoding::from_proto(node.position_encoding).unwrap(),
-                bounding_cube: node_id
-                    .find_bounding_cube(&Cube::bounding(&self.octree.bounding_box())),
-            },
-        };
-        Ok(result)
+        let mut readers = HashMap::<NodeLayer, Box<dyn Read>>::new();
+        for node_layer in node_layers {
+            let reader: Box<dyn Read> = match node_layer {
+                NodeLayer::Position => Box::new(Cursor::new(reply.position.clone())),
+                NodeLayer::Color => Box::new(Cursor::new(reply.color.clone())),
+                _ => {
+                    return Err("Unsupported node extension.".into());
+                }
+            };
+            readers.insert(node_layer.to_owned(), reader);
+        }
+        Ok(readers)
     }
+
+    fn number_of_points(&self, node_id: &NodeId) -> Result<i64> {
+        // TODO(mfeuerstein): We would need another proto to just get the number of nodes for one id.
+        for node_proto in self.meta_proto()?.nodes.iter() {
+            if *node_id
+                == NodeId::from_level_index(
+                    node_proto.id.as_ref().unwrap().level as u8,
+                    node_proto.id.as_ref().unwrap().index as usize,
+                )
+            {
+                return Ok(node_proto.num_points);
+            }
+        }
+        Err(ErrorKind::NodeNotFound.into())
+    }
+}
+
+pub fn octree_from_address(addr: &str) -> Result<Octree> {
+    Octree::new(Box::new(GrpcOctreeDataProvider::new(addr)?))
 }

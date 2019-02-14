@@ -14,7 +14,7 @@
 
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree;
+use crate::octree::{self, OnDiskOctreeDataProvider};
 use crate::ply::PlyIterator;
 use crate::proto;
 use crate::pts::PtsIterator;
@@ -36,6 +36,7 @@ const MAX_POINTS_PER_NODE: i64 = 100_000;
 
 // Return a list a leaf nodes and a list of nodes to be splitted further.
 fn split<P>(
+    octree_data_provider: &OnDiskOctreeDataProvider,
     octree_meta: &octree::OctreeMeta,
     node_id: &octree::NodeId,
     stream: P,
@@ -64,6 +65,7 @@ where
         let array_index = child_index.as_u8() as usize;
         if children[array_index].is_none() {
             children[array_index] = Some(octree::NodeWriter::new(
+                octree_data_provider,
                 octree_meta,
                 &node_id.get_child_id(child_index),
             ));
@@ -75,7 +77,7 @@ where
     // writing a point. This only saves some disk space during processing - all nodes will be
     // rewritten by subsampling the children in the second step anyways. We also ignore file
     // removing error. For example, we never write out the root, so it cannot be removed.
-    octree::NodeWriter::new(octree_meta, node_id);
+    octree::NodeWriter::new(octree_data_provider, octree_meta, node_id);
 
     let mut leaf_nodes = Vec::new();
     let mut split_nodes = Vec::new();
@@ -121,6 +123,7 @@ fn should_split_node(
 
 fn split_node<'a, P>(
     scope: &Scope<'a>,
+    octree_data_provider: &'a OnDiskOctreeDataProvider,
     octree_meta: &'a octree::OctreeMeta,
     node_id: &octree::NodeId,
     stream: P,
@@ -128,13 +131,19 @@ fn split_node<'a, P>(
 ) where
     P: InternalIterator,
 {
-    let (leaf_nodes, split_nodes) = split(octree_meta, node_id, stream);
+    let (leaf_nodes, split_nodes) = split(octree_data_provider, octree_meta, node_id, stream);
     for child_id in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
         scope.recurse(move |scope| {
-            let stream = octree::NodeIterator::from_disk(octree_meta, &child_id).unwrap();
+            let stream = octree::NodeIterator::from_data_provider(
+                octree_data_provider,
+                octree_meta,
+                &child_id,
+            )
+            .unwrap();
             split_node(
                 scope,
+                octree_data_provider,
                 octree_meta,
                 &child_id,
                 stream,
@@ -149,14 +158,19 @@ fn split_node<'a, P>(
 }
 
 fn subsample_children_into(
+    octree_data_provider: &OnDiskOctreeDataProvider,
     octree_meta: &octree::OctreeMeta,
     node_id: &octree::NodeId,
     nodes_sender: &mpsc::Sender<(octree::NodeId, i64)>,
 ) -> Result<()> {
-    let mut parent_writer = octree::NodeWriter::new(octree_meta, node_id);
+    let mut parent_writer = octree::NodeWriter::new(octree_data_provider, octree_meta, node_id);
     for i in 0..8 {
         let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(i));
-        let node_iterator = match octree::NodeIterator::from_disk(octree_meta, &child_id) {
+        let node_iterator = match octree::NodeIterator::from_data_provider(
+            octree_data_provider,
+            octree_meta,
+            &child_id,
+        ) {
             Ok(node_iterator) => node_iterator,
             Err(Error(ErrorKind::NodeNotFound, _)) => continue,
             Err(err) => return Err(err),
@@ -167,7 +181,8 @@ fn subsample_children_into(
         let mut points = Vec::with_capacity(node_iterator.size_hint().unwrap());
         node_iterator.for_each(|p| points.push((*p).clone()));
 
-        let mut child_writer = octree::NodeWriter::new(octree_meta, &child_id);
+        let mut child_writer =
+            octree::NodeWriter::new(octree_data_provider, octree_meta, &child_id);
         for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
                 parent_writer.write(&p);
@@ -295,8 +310,11 @@ pub fn build_octree(
     let octree_meta = &octree::OctreeMeta {
         bounding_box,
         resolution,
+    };
+    let octree_data_provider = OnDiskOctreeDataProvider {
         directory: output_directory.as_ref().to_path_buf(),
     };
+    let octree_data_provider = &octree_data_provider;
 
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory.as_ref());
@@ -331,7 +349,14 @@ pub fn build_octree(
     let (leaf_nodes_sender, leaf_nodes_receiver) = mpsc::channel();
     pool.scoped(move |scope| {
         let root_node = octree::Node::root_with_bounding_cube(Cube::bounding(&bounding_box));
-        split_node(scope, octree_meta, &root_node.id, input, &leaf_nodes_sender);
+        split_node(
+            scope,
+            octree_data_provider,
+            octree_meta,
+            &root_node.id,
+            input,
+            &leaf_nodes_sender,
+        );
     });
 
     let mut nodes_to_subsample = Vec::new();
@@ -381,7 +406,13 @@ pub fn build_octree(
                 let finished_nodes_sender_clone = finished_nodes_sender.clone();
                 let progress_tx_clone = progress_tx.clone();
                 scope.execute(move || {
-                    subsample_children_into(octree_meta, id, &finished_nodes_sender_clone).unwrap();
+                    subsample_children_into(
+                        octree_data_provider,
+                        octree_meta,
+                        id,
+                        &finished_nodes_sender_clone,
+                    )
+                    .unwrap();
                     progress_tx_clone.send(()).unwrap();
                 });
             }

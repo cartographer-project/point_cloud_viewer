@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use point_viewer::octree::OnDiskOctree;
+use point_viewer::octree::octree_from_directory;
 use point_viewer::{InternalIterator, Point};
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
@@ -63,13 +63,11 @@ fn main() {
     }
 }
 
-fn server_benchmark(octree_directory: &Path, num_points: u64) {
-    let octree = OnDiskOctree::new(&octree_directory).unwrap_or_else(|_| {
-        panic!(
-            "Could not create octree from '{}'",
-            octree_directory.display()
-        )
-    });
+fn server_benchmark(octree_directory: PathBuf, num_points: u64) {
+    let octree = octree_from_directory(&octree_directory).expect(&format!(
+        "Could not create octree from '{}'",
+        octree_directory.display()
+    ));
     let mut counter: u64 = 0;
     octree.all_points().for_each(|_p: &Point| {
         if counter % 1_000_000 == 0 {
