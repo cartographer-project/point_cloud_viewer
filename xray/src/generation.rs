@@ -9,7 +9,7 @@ use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use point_viewer::math::clamp;
 use point_viewer::{
-    color::{Color, TRANSPARENT},
+    color::Color,
     octree, InternalIterator, Point,
 };
 use protobuf::Message;
@@ -87,6 +87,15 @@ arg_enum! {
     }
 }
 
+arg_enum! {
+    #[derive(Debug)]
+    #[allow(non_camel_case_types)]
+    pub enum TileBackgroundColorArgument {
+        white,
+        transparent,
+    }
+}
+
 #[derive(Debug)]
 pub enum ColoringStrategyKind {
     XRay,
@@ -120,7 +129,7 @@ pub trait ColoringStrategy: Send {
 
     // After all points are processed, this is used to query the color that should be assigned to
     // the pixel (x, y) in the final tile image.
-    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8>;
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8>;
 }
 
 struct XRayColoringStrategy {
@@ -152,9 +161,9 @@ impl ColoringStrategy for XRayColoringStrategy {
         }
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
         if !self.z_buckets.contains_key(&(x, y)) {
-            return TRANSPARENT.to_u8();
+            return background_color;
         }
         let saturation = (self.z_buckets[&(x, y)].len() as f32).ln() / self.max_saturation;
         let value = ((1. - saturation) * 255.) as u8;
@@ -211,9 +220,9 @@ impl ColoringStrategy for IntensityColoringStrategy {
         }
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
         if !self.per_column_data.contains_key(&(x, y)) {
-            return TRANSPARENT.to_u8();
+            return background_color;
         }
         let c = &self.per_column_data[&(x, y)];
         let mean = (c.sum / c.count as f32).max(self.min).min(self.max);
@@ -262,9 +271,9 @@ impl ColoringStrategy for PointColorColoringStrategy {
         }
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
         if !self.per_column_data.contains_key(&(x, y)) {
-            return TRANSPARENT.to_u8();
+            return background_color;
         }
         let c = &self.per_column_data[&(x, y)];
         Color {
@@ -294,7 +303,7 @@ impl HeightStddevColoringStrategy {
 /// Build a parent image created of the 4 children tiles. All tiles are optionally, in which case
 /// they are left white in the resulting image. The input images must be square with length N,
 /// the returned image is square with length 2*N.
-pub fn build_parent(children: &[Option<image::RgbaImage>]) -> image::RgbaImage {
+pub fn build_parent(children: &[Option<image::RgbaImage>], tile_background_color: Color<u8>) -> image::RgbaImage {
     assert_eq!(children.len(), 4);
     let mut child_size_px = None;
     for c in children.iter() {
@@ -320,10 +329,10 @@ pub fn build_parent(children: &[Option<image::RgbaImage>]) -> image::RgbaImage {
         child_size_px * 2,
         image::Rgba {
             data: [
-                TRANSPARENT.to_u8().red,
-                TRANSPARENT.to_u8().green,
-                TRANSPARENT.to_u8().blue,
-                TRANSPARENT.to_u8().alpha,
+                tile_background_color.red,
+                tile_background_color.green,
+                tile_background_color.blue,
+                tile_background_color.alpha,
             ],
         },
     );
@@ -352,9 +361,9 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
             .add(p.position.z);
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
         if !self.per_column_data.contains_key(&(x, y)) {
-            return TRANSPARENT.to_u8();
+            return background_color;
         }
         let c = &self.per_column_data[&(x, y)];
         let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
@@ -369,6 +378,7 @@ pub fn xray_from_points(
     image_width: u32,
     image_height: u32,
     mut coloring_strategy: Box<ColoringStrategy>,
+    tile_background_color: Color<u8>,
 ) -> bool {
     let mut seen_any_points = false;
     octree.points_in_box(bbox).for_each(|p| {
@@ -391,7 +401,7 @@ pub fn xray_from_points(
     let mut image = image::RgbaImage::new(image_width, image_height);
     for x in 0..image_width {
         for y in 0..image_height {
-            let color = coloring_strategy.get_pixel_color(x, y);
+            let color = coloring_strategy.get_pixel_color(x, y, tile_background_color);
             image.put_pixel(
                 x,
                 y,
@@ -431,6 +441,7 @@ pub fn build_xray_quadtree(
     resolution: f32,
     tile_size_px: u32,
     coloring_strategy_kind: ColoringStrategyKind,
+    tile_background_color: Color<u8>
 ) -> Result<(), Box<Error>> {
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
@@ -472,6 +483,7 @@ pub fn build_xray_quadtree(
                         tile_size_px,
                         tile_size_px,
                         strategy,
+                        tile_background_color
                     ) {
                         all_nodes_tx_clone.send(node.id).unwrap();
                         node.id
@@ -514,7 +526,7 @@ pub fn build_xray_quadtree(
                         }
                         children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
                     }
-                    let large_image = build_parent(&children);
+                    let large_image = build_parent(&children, tile_background_color);
                     let image = image::DynamicImage::ImageRgba8(large_image).resize(
                         tile_size_px,
                         tile_size_px,

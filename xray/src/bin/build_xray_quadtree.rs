@@ -1,6 +1,7 @@
 use crate::octree::OnDiskOctree;
 use clap::value_t;
 use point_viewer::octree;
+use point_viewer::color::{TRANSPARENT, WHITE};
 use scoped_pool::Pool;
 use std::path::Path;
 use xray::generation::{ColoringStrategyArgument, ColoringStrategyKind};
@@ -57,6 +58,11 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .help("Octree directory to turn into xrays.")
                 .index(1)
                 .required(true),
+            clap::Arg::with_name("tile_background_color")
+                .long("tile_background_color")
+                .takes_value(true)
+                .possible_values(&TileBackgroundColorArgument::variants())
+                .default_value("white"),
         ])
         .get_matches()
 }
@@ -94,6 +100,15 @@ pub fn main() {
         }
     };
 
+    let tile_background_color = {
+        let arg = value_t!(args, "tile_background_color", TileBackgroundColorArgument)
+            .expect("tile_background_color is invalid");
+        match arg {
+            white => WHITE.to_u8(),
+            transparent => TRANSPARENT.to_u8(),
+        }
+    };
+
     let octree_directory = Path::new(args.value_of("octree_directory").unwrap());
     let output_directory = Path::new(args.value_of("output_directory").unwrap());
 
@@ -106,6 +121,7 @@ pub fn main() {
         resolution,
         tile_size,
         coloring_strategy_kind,
+        tile_background_color
     )
     .unwrap();
 }
