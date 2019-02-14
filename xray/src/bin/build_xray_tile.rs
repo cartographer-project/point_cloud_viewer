@@ -1,10 +1,13 @@
 use cgmath::{Point2, Point3};
 use clap::value_t;
 use collision::{Aabb, Aabb2, Aabb3};
+use point_viewer::color::{Color, TRANSPARENT, WHITE};
 use point_viewer::octree::octree_from_directory;
 use std::error::Error;
 use std::path::Path;
-use xray::generation::{xray_from_points, ColoringStrategyArgument, ColoringStrategyKind};
+use xray::generation::{
+    xray_from_points, ColoringStrategyArgument, ColoringStrategyKind, TileBackgroundColorArgument,
+};
 
 fn parse_arguments() -> clap::ArgMatches<'static> {
     // TODO(sirver): pull out a function for common args.
@@ -75,6 +78,11 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .takes_value(true)
                 .help("Bounding box maximum y in meters.")
                 .required(true),
+            clap::Arg::with_name("tile_background_color")
+                .long("tile_background_color")
+                .takes_value(true)
+                .possible_values(&TileBackgroundColorArgument::variants())
+                .default_value("white"),
         ])
         .get_matches()
 }
@@ -84,6 +92,7 @@ fn run(
     output_filename: &Path,
     resolution: f32,
     coloring_strategy_kind: &ColoringStrategyKind,
+    tile_background_color: Color<u8>,
     bbox2: &Aabb2<f32>,
 ) -> Result<(), Box<Error>> {
     let octree = &octree_from_directory(octree_directory)?;
@@ -109,6 +118,7 @@ fn run(
         image_width,
         image_height,
         coloring_strategy_kind.new_strategy(),
+        tile_background_color,
     ) {
         println!("No points in bounding box. No output written.");
     }
@@ -134,6 +144,18 @@ pub fn main() {
             ),
         }
     };
+    let tile_background_color = {
+        let arg = value_t!(
+            matches,
+            "tile_background_color",
+            TileBackgroundColorArgument
+        )
+        .expect("tile_background_color is invalid");
+        match arg {
+            TileBackgroundColorArgument::white => WHITE.to_u8(),
+            TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
+        }
+    };
     let octree_directory = Path::new(matches.value_of("octree_directory").unwrap());
     let output_filename = Path::new(matches.value_of("output_filename").unwrap());
     let min_x = value_t!(matches, "min_x", f32).expect("min_x could not be parsed.");
@@ -147,6 +169,7 @@ pub fn main() {
         output_filename,
         resolution,
         &coloring_strategy_kind,
+        tile_background_color,
         &bbox2,
     )
     .unwrap();
