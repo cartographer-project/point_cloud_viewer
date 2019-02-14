@@ -24,7 +24,9 @@ use num;
 use num_traits;
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Read};
+use std::num::ParseIntError;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::{fmt, result};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -45,7 +47,7 @@ impl NodeLayer {
 }
 
 /// Represents a child of an octree Node.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct ChildIndex(u8);
 
 impl ChildIndex {
@@ -65,7 +67,7 @@ impl ChildIndex {
         ChildIndex((gt_x as u8) << 2 | (gt_y as u8) << 1 | gt_z as u8)
     }
 
-    pub fn as_u8(&self) -> u8 {
+    pub fn as_u8(self) -> u8 {
         self.0
     }
 }
@@ -80,6 +82,21 @@ pub struct NodeId {
     // The index of this node. Multiple nodes can have the same index, but none can have the same
     // index and level.
     index: usize,
+}
+
+impl FromStr for NodeId {
+    type Err = ParseIntError;
+
+    /// Construct a NodeId. No checking is done if this is a valid Id.
+    fn from_str(name: &str) -> std::result::Result<Self, Self::Err> {
+        let level = (name.len() - 1) as u8;
+        let index = if level > 0 {
+            usize::from_str_radix(&name[1..], 8)?
+        } else {
+            0
+        };
+        Ok(NodeId { level, index })
+    }
 }
 
 impl fmt::Display for NodeId {
@@ -98,17 +115,6 @@ impl fmt::Display for NodeId {
 }
 
 impl NodeId {
-    /// Construct a NodeId. No checking is done if this is a valid Id.
-    pub fn from_str(name: &str) -> Self {
-        let level = (name.len() - 1) as u8;
-        let index = if level > 0 {
-            usize::from_str_radix(&name[1..], 8).unwrap()
-        } else {
-            0
-        };
-        NodeId { level, index }
-    }
-
     pub fn from_level_index(level: u8, index: usize) -> Self {
         NodeId { level, index }
     }
@@ -164,7 +170,7 @@ impl NodeId {
             edge_length /= 2.;
             // Reverse order: process from root to leaf nodes.
             let child_index = (self.index >> (3 * level)) & 7;
-            let z = (child_index >> 0) & 1;
+            let z = child_index & 1;
             let y = (child_index >> 1) & 1;
             let x = (child_index >> 2) & 1;
             min.x += x as f32 * edge_length;
@@ -216,9 +222,7 @@ impl Node {
     // TODO(hrapp): This function could use some testing.
     pub fn parent(&self) -> Option<Node> {
         let maybe_parent_id = self.id.parent_id();
-        if maybe_parent_id.is_none() {
-            return None;
-        }
+        maybe_parent_id?;
 
         let parent_cube = {
             let child_index = self.id.child_index().unwrap().0;
@@ -303,8 +307,8 @@ impl NodeIterator {
             ),
             intensity_reader,
             meta: NodeMeta {
-                bounding_cube: bounding_cube,
-                position_encoding: position_encoding,
+                bounding_cube,
+                position_encoding,
                 num_points: octree_data_provider.number_of_points(id)?,
             },
         })
@@ -377,9 +381,9 @@ impl InternalIterator for NodeIterator {
             point.color.red = self.rgb_reader.read_u8().unwrap();
             point.color.green = self.rgb_reader.read_u8().unwrap();
             point.color.blue = self.rgb_reader.read_u8().unwrap();
-            self.intensity_reader.as_mut().map(|ir| {
+            if let Some(ir) = self.intensity_reader.as_mut() {
                 point.intensity = Some(ir.read_f32::<LittleEndian>().unwrap());
-            });
+            }
             f(&point);
         }
     }
@@ -497,9 +501,9 @@ impl NodeWriter {
                 File::create(&stem.with_extension(NodeLayer::Color.extension())).unwrap(),
             ),
             intensity_writer: None, // Will be created if needed on first point with intensities.
-            stem: stem,
+            stem,
             position_encoding: PositionEncoding::new(&bounding_cube, octree_meta.resolution),
-            bounding_cube: bounding_cube,
+            bounding_cube,
             num_written: 0,
         }
     }
@@ -587,8 +591,8 @@ mod tests {
     #[test]
     fn test_parent_node_name() {
         assert_eq!(
-            Some(NodeId::from_str("r12345")),
-            NodeId::from_str("r123456").parent_id()
+            Some(NodeId::from_str("r12345").unwrap()),
+            NodeId::from_str("r123456").unwrap().parent_id()
         );
     }
 
@@ -596,26 +600,30 @@ mod tests {
     fn test_child_index() {
         assert_eq!(
             Some(ChildIndex(1)),
-            NodeId::from_str("r123451").child_index()
+            NodeId::from_str("r123451").unwrap().child_index()
         );
         assert_eq!(
             Some(ChildIndex(7)),
-            NodeId::from_str("r123457").child_index()
+            NodeId::from_str("r123457").unwrap().child_index()
         );
-        assert_eq!(None, NodeId::from_str("r").child_index());
+        assert_eq!(None, NodeId::from_str("r").unwrap().child_index());
     }
 
     #[test]
     fn test_bounding_box() {
         let root_bounding_cube = Cube::new(Point3::new(-5., -5., -5.), 10.);
 
-        let bounding_cube = NodeId::from_str("r0").find_bounding_cube(&root_bounding_cube);
+        let bounding_cube = NodeId::from_str("r0")
+            .unwrap()
+            .find_bounding_cube(&root_bounding_cube);
         assert_eq!(-5., bounding_cube.min().x);
         assert_eq!(-5., bounding_cube.min().y);
         assert_eq!(-5., bounding_cube.min().z);
         assert_eq!(5., bounding_cube.edge_length());
 
-        let bounding_cube = NodeId::from_str("r13").find_bounding_cube(&root_bounding_cube);
+        let bounding_cube = NodeId::from_str("r13")
+            .unwrap()
+            .find_bounding_cube(&root_bounding_cube);
         assert_eq!(-5., bounding_cube.min().x);
         assert_eq!(-2.5, bounding_cube.min().y);
         assert_eq!(2.5, bounding_cube.min().z);

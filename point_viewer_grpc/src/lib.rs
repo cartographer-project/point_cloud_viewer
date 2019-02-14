@@ -35,7 +35,7 @@ pub struct GrpcOctreeDataProvider {
 }
 
 impl GrpcOctreeDataProvider {
-    pub fn new(addr: &str) -> Result<Self> {
+    pub fn from_address(addr: &str) -> Result<Self> {
         let env = Arc::new(EnvBuilder::new().build());
         let ch = ChannelBuilder::new(env)
             .max_receive_message_len(::std::i32::MAX)
@@ -154,5 +154,5 @@ impl OctreeDataProvider for GrpcOctreeDataProvider {
 }
 
 pub fn octree_from_address(addr: &str) -> Result<Octree> {
-    Octree::new(Box::new(GrpcOctreeDataProvider::new(addr)?))
+    Octree::from_data_provider(Box::new(GrpcOctreeDataProvider::from_address(addr)?))
 }

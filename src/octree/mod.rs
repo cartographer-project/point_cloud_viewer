@@ -192,10 +192,7 @@ impl<'a> InternalIterator for AllPointsIterator<'a> {
 fn contains(projection_matrix: &Matrix4<f32>, point: &Point3<f32>) -> bool {
     let v = Vector4::new(point.x, point.y, point.z, 1.);
     let clip_v = projection_matrix * v;
-    return clip_v.x.abs() < clip_v.w
-        && clip_v.y.abs() < clip_v.w
-        && 0. < clip_v.z
-        && clip_v.z < clip_v.w;
+    clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z && clip_v.z < clip_v.w
 }
 
 pub fn read_meta_proto<P: AsRef<Path>>(directory: P) -> Result<proto::Meta> {
@@ -221,7 +218,7 @@ pub struct NodeData {
 
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
-    pub fn new(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
+    pub fn from_data_provider(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
         if meta_proto.version != CURRENT_VERSION {
             return Err(ErrorKind::InvalidVersion(meta_proto.version).into());
@@ -335,8 +332,8 @@ impl Octree {
         let color = get_data(&NodeLayer::Color, "Could not read color")?;
 
         Ok(NodeData {
-            position: position,
-            color: color,
+            position,
+            color,
             meta: self.nodes[node_id].clone(),
         })
     }
@@ -381,7 +378,7 @@ impl Octree {
         }
     }
 
-    pub fn all_points<'a>(&'a self) -> AllPointsIterator<'a> {
+    pub fn all_points(&self) -> AllPointsIterator {
         AllPointsIterator {
             octree_data_provider: &*self.data_provider,
             octree_meta: &self.meta,
@@ -402,13 +399,12 @@ struct OpenNode {
 
 impl Ord for OpenNode {
     fn cmp(&self, other: &OpenNode) -> Ordering {
-        if self.size_on_screen == other.size_on_screen {
-            return Ordering::Equal;
-        }
-        if self.size_on_screen < other.size_on_screen {
+        if self.size_on_screen > other.size_on_screen {
+            Ordering::Greater
+        } else if self.size_on_screen < other.size_on_screen {
             Ordering::Less
         } else {
-            Ordering::Greater
+            Ordering::Equal
         }
     }
 }
@@ -497,5 +493,5 @@ pub fn octree_from_directory(directory: impl Into<PathBuf>) -> Result<Octree> {
     let data_provider = OnDiskOctreeDataProvider {
         directory: directory.into(),
     };
-    Octree::new(Box::new(data_provider))
+    Octree::from_data_provider(Box::new(data_provider))
 }

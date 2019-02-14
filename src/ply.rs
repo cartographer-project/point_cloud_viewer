@@ -164,7 +164,7 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
                         let data_type = DataType::from_str(data_type_str)?;
                         ScalarProperty {
                             name: entries[2].to_string(),
-                            data_type: data_type,
+                            data_type,
                         }
                     }
                     _ => return Err(InvalidInput(format!("Invalid line: {}", line)).into()),
@@ -187,7 +187,7 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
 
     Ok((
         Header {
-            elements: elements,
+            elements,
             format: format.unwrap(),
         },
         header_len,
@@ -203,6 +203,7 @@ macro_rules! create_and_return_reading_fn {
     ($assign:expr, $size:ident, $num_bytes:expr, $reading_fn:expr) => {{
         $size += $num_bytes;
         |nread: &mut usize, buf: &[u8], point: &mut Point| {
+            #[allow(clippy::cast_lossless)]
             $assign(point, $reading_fn(buf) as _);
             *nread += $num_bytes;
         }
@@ -365,12 +366,12 @@ pub struct PlyIterator {
 }
 
 impl PlyIterator {
-    pub fn new<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
+    pub fn from_file<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
         let (reader, num_total_points, readers) = open(ply_file.as_ref())?;
         Ok(PlyIterator {
-            reader: reader,
-            readers: readers,
-            num_total_points: num_total_points,
+            reader,
+            readers,
+            num_total_points,
         })
     }
 }
@@ -412,7 +413,7 @@ mod tests {
     use super::*;
 
     fn points_from_file<P: AsRef<Path>>(path: P) -> Vec<Point> {
-        let iterator = PlyIterator::new(path).unwrap();
+        let iterator = PlyIterator::from_file(path).unwrap();
         let mut points = Vec::new();
         iterator.for_each(|p| {
             points.push(p.clone());
