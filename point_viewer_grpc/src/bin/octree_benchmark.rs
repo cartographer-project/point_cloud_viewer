@@ -16,7 +16,7 @@ use clap::value_t;
 use futures::future::Future;
 use futures::Stream;
 use grpcio::{ChannelBuilder, Environment};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -56,22 +56,24 @@ fn main() {
     let num_points = u64::from_str(matches.value_of("num-points").unwrap_or("50000000"))
         .expect("num-points needs to be a number");
     if matches.is_present("no-client") {
-        server_benchmark(octree_directory, num_points)
+        server_benchmark(&octree_directory, num_points)
     } else {
         let port = value_t!(matches, "port", u16).unwrap_or(50051);
-        full_benchmark(octree_directory, num_points, port)
+        full_benchmark(&octree_directory, num_points, port)
     }
 }
 
-fn server_benchmark(octree_directory: PathBuf, num_points: u64) {
-    let octree = octree_from_directory(&octree_directory).expect(&format!(
-        "Could not create octree from '{}'",
-        octree_directory.display()
-    ));
+fn server_benchmark(octree_directory: &Path, num_points: u64) {
+    let octree = octree_from_directory(octree_directory).unwrap_or_else(|_| {
+        panic!(
+            "Could not create octree from '{}'",
+            octree_directory.display()
+        )
+    });
     let mut counter: u64 = 0;
     octree.all_points().for_each(|_p: &Point| {
-        if counter % 1000000 == 0 {
-            println!("Streamed {}M points", counter / 1000000);
+        if counter % 1_000_000 == 0 {
+            println!("Streamed {}M points", counter / 1_000_000);
         }
         counter += 1;
         if counter == num_points {
@@ -80,7 +82,7 @@ fn server_benchmark(octree_directory: PathBuf, num_points: u64) {
     });
 }
 
-fn full_benchmark(octree_directory: PathBuf, num_points: u64, port: u16) {
+fn full_benchmark(octree_directory: &Path, num_points: u64, port: u16) {
     let mut server = start_grpc_server(octree_directory, "0.0.0.0", port);
     server.start();
 
@@ -95,8 +97,8 @@ fn full_benchmark(octree_directory: PathBuf, num_points: u64, port: u16) {
 
     'outer: for rep in receiver.wait() {
         for _pos in rep.expect("Stream error").get_positions().iter() {
-            if counter % 1000000 == 0 {
-                println!("Streamed {}M points", counter / 1000000);
+            if counter % 1_000_000 == 0 {
+                println!("Streamed {}M points", counter / 1_000_000);
             }
             counter += 1;
             if counter == num_points {

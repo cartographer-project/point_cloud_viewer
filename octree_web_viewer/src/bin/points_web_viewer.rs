@@ -20,9 +20,9 @@ use point_viewer::octree;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-const INDEX_HTML: &'static str = include_str!("../../client/index.html");
-const APP_BUNDLE: &'static str = include_str!("../../../target/app_bundle.js");
-const APP_BUNDLE_MAP: &'static str = include_str!("../../../target/app_bundle.js.map");
+const INDEX_HTML: &str = include_str!("../../client/index.html");
+const APP_BUNDLE: &str = include_str!("../../../target/app_bundle.js");
+const APP_BUNDLE_MAP: &str = include_str!("../../../target/app_bundle.js.map");
 
 const DEFAULT_PORT: &str = "5433";
 
@@ -96,7 +96,7 @@ fn main() {
             })
     })
     .bind(&ip_port)
-    .expect(&format!("Can not bind to {}", &ip_port))
+    .unwrap_or_else(|_| panic!("Can not bind to {}", &ip_port))
     .start();
 
     println!("Starting http server: {}", &ip_port);

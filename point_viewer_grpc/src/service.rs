@@ -24,7 +24,8 @@ use grpcio::{
 use point_viewer::octree::{octree_from_directory, read_meta_proto, NodeId, Octree};
 use point_viewer::{InternalIterator, Point};
 use protobuf::Message;
-use std::path::PathBuf;
+use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -35,15 +36,15 @@ struct OctreeService {
 
 #[derive(Debug)]
 enum OctreeQuery {
-    FrustumQuery(Matrix4<f32>),
-    BoxQuery(Aabb3<f32>),
-    FullPointcloudQuery,
+    Frustum(Matrix4<f32>),
+    Box(Aabb3<f32>),
+    FullPointcloud,
 }
 
 fn stream_points_back_to_sink(
     query: OctreeQuery,
     octree: Arc<Octree>,
-    ctx: RpcContext,
+    ctx: &RpcContext,
     resp: ServerStreamingSink<proto::PointsReply>,
 ) {
     use std::thread;
@@ -125,13 +126,13 @@ fn stream_points_back_to_sink(
                 }
             };
             match query {
-                OctreeQuery::BoxQuery(bounding_box) => {
+                OctreeQuery::Box(bounding_box) => {
                     octree.points_in_box(&bounding_box).for_each(func)
                 }
-                OctreeQuery::FrustumQuery(frustum_matrix) => {
+                OctreeQuery::Frustum(frustum_matrix) => {
                     octree.points_in_frustum(&frustum_matrix).for_each(func)
                 }
-                OctreeQuery::FullPointcloudQuery => octree.all_points().for_each(func),
+                OctreeQuery::FullPointcloud => octree.all_points().for_each(func),
             };
         }
         tx.send((reply, WriteFlags::default())).unwrap();
@@ -168,7 +169,7 @@ impl proto_grpc::Octree for OctreeService {
     ) {
         let data = self
             .octree
-            .get_node_data(&NodeId::from_str(&req.id))
+            .get_node_data(&NodeId::from_str(&req.id).unwrap())
             .unwrap();
         let mut resp = proto::GetNodeDataReply::new();
         resp.mut_node()
@@ -190,9 +191,9 @@ impl proto_grpc::Octree for OctreeService {
     ) {
         let projection_matrix = Matrix4::from(PerspectiveFov {
             fovy: Rad(req.fovy_rad as f32),
-            aspect: (req.aspect as f32).into(),
-            near: (req.z_near as f32).into(),
-            far: (req.z_far as f32).into(),
+            aspect: (req.aspect as f32),
+            near: (req.z_near as f32),
+            far: (req.z_far as f32),
         });
         let rotation = {
             let q = req.rotation.unwrap();
@@ -211,9 +212,9 @@ impl proto_grpc::Octree for OctreeService {
         };
         let frustum_matrix = projection_matrix.concat(&view_transform.into());
         stream_points_back_to_sink(
-            OctreeQuery::FrustumQuery(frustum_matrix),
+            OctreeQuery::Frustum(frustum_matrix),
             self.octree.clone(),
-            ctx,
+            &ctx,
             resp,
         )
     }
@@ -234,9 +235,9 @@ impl proto_grpc::Octree for OctreeService {
             )
         };
         stream_points_back_to_sink(
-            OctreeQuery::BoxQuery(bounding_box),
+            OctreeQuery::Box(bounding_box),
             self.octree.clone(),
-            ctx,
+            &ctx,
             resp,
         )
     }
@@ -247,25 +248,19 @@ impl proto_grpc::Octree for OctreeService {
         _req: proto::GetAllPointsRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        stream_points_back_to_sink(
-            OctreeQuery::FullPointcloudQuery,
-            self.octree.clone(),
-            ctx,
-            resp,
-        )
+        stream_points_back_to_sink(OctreeQuery::FullPointcloud, self.octree.clone(), &ctx, resp)
     }
 }
 
-pub fn start_grpc_server(octree_directory: PathBuf, host: &str, port: u16) -> Server {
+pub fn start_grpc_server(octree_directory: &Path, host: &str, port: u16) -> Server {
     let env = Arc::new(Environment::new(1));
-    let meta = read_meta_proto(&octree_directory).unwrap();
+    let meta = read_meta_proto(octree_directory).unwrap();
     let octree = Arc::new(octree_from_directory(octree_directory).unwrap());
 
     let service = proto_grpc::create_octree(OctreeService { octree, meta });
-    let server = ServerBuilder::new(env)
+    ServerBuilder::new(env)
         .register_service(service)
         .bind(host /* ip to bind to */, port)
         .build()
-        .unwrap();
-    server
+        .unwrap()
 }

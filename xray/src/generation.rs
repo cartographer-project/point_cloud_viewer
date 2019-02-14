@@ -154,9 +154,9 @@ impl ColoringStrategy for XRayColoringStrategy {
                 e.get_mut().insert(z);
             }
             Entry::Vacant(v) => {
-                let mut s = FnvHashSet::default();
-                s.insert(z);
-                v.insert(s);
+                let mut set = FnvHashSet::default();
+                set.insert(z);
+                v.insert(set);
             }
         }
     }
@@ -357,7 +357,7 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
     fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
         self.per_column_data
             .entry((x, y))
-            .or_insert_with(|| OnlineStats::new())
+            .or_insert_with(OnlineStats::new)
             .add(p.position.z);
     }
 
@@ -440,7 +440,7 @@ pub fn build_xray_quadtree(
     output_directory: &Path,
     resolution: f32,
     tile_size_px: u32,
-    coloring_strategy_kind: ColoringStrategyKind,
+    coloring_strategy_kind: &ColoringStrategyKind,
     tile_background_color: Color<u8>
 ) -> Result<(), Box<Error>> {
     // Ignore errors, maybe directory is already there.
@@ -486,14 +486,14 @@ pub fn build_xray_quadtree(
                         tile_background_color
                     ) {
                         all_nodes_tx_clone.send(node.id).unwrap();
-                        node.id
-                            .parent_id()
-                            .map(|id| parents_to_create_tx_clone.send(id).unwrap());
+                        if let Some(id) = node.id.parent_id() {
+                            parents_to_create_tx_clone.send(id).unwrap()
+                        }
                     }
                 });
             } else {
                 for i in 0..4 {
-                    open.push(node.get_child(ChildIndex::from_u8(i)));
+                    open.push(node.get_child(&ChildIndex::from_u8(i)));
                 }
             }
         }
@@ -519,7 +519,7 @@ pub fn build_xray_quadtree(
                     for id in 0..4 {
                         let png = get_image_path(
                             output_directory,
-                            node_id.get_child_id(ChildIndex::from_u8(id)),
+                            node_id.get_child_id(&ChildIndex::from_u8(id)),
                         );
                         if !png.exists() {
                             continue;
@@ -537,7 +537,9 @@ pub fn build_xray_quadtree(
                         .unwrap()
                         .save(&get_image_path(output_directory, node_id))
                         .unwrap();
-                    node_id.parent_id().map(|id| tx_clone.send(id).unwrap());
+                    if let Some(id) = node_id.parent_id() {
+                        tx_clone.send(id).unwrap()
+                    }
                 });
             }
         });
@@ -555,14 +557,14 @@ pub fn build_xray_quadtree(
             .set_y(bounding_rect.min().y);
         meta.mut_bounding_rect()
             .set_edge_length(bounding_rect.edge_length());
-        meta.set_deepest_level(deepest_level as u32);
+        meta.set_deepest_level(u32::from(deepest_level));
         meta.set_tile_size(tile_size_px);
         meta.set_version(CURRENT_VERSION);
 
         for node_id in all_nodes_rx {
             let mut proto = proto::NodeId::new();
             proto.set_index(node_id.index());
-            proto.set_level(node_id.level() as u32);
+            proto.set_level(u32::from(node_id.level()));
             meta.mut_nodes().push(proto);
         }
         meta

@@ -8,6 +8,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
 use futures::future::{self, result, Future};
 use point_viewer::octree::{self, Octree};
+use std::str::FromStr;
 use std::sync::Arc;
 use time;
 
@@ -30,9 +31,7 @@ impl<S> Handler<S> for VisibleNodes {
             let e: Vec<f32> = req
                 .query()
                 .get("matrix")
-                .ok_or(PointsViewerError::BadRequest(
-                    "Expected 4x4 Matrix".to_string(),
-                ))?
+                .ok_or_else(|| PointsViewerError::BadRequest("Expected 4x4 matrix".to_string()))?
                 .split(',')
                 .map(|s| s.parse::<f32>().unwrap())
                 .collect();
@@ -103,7 +102,7 @@ impl<S: 'static> Handler<S> for NodesData {
                 let data: Vec<String> = Json::into_inner(extract_result);
                 let nodes_to_load = data
                     .into_iter()
-                    .map(|e| octree::NodeId::from_str(e.as_str()));
+                    .map(|e| octree::NodeId::from_str(e.as_str()).unwrap());
 
                 // So this is godawful: We need to get data to the GPU without JavaScript herp-derping with
                 // it - because that will stall interaction. The straight forward approach would be to ship
@@ -162,7 +161,7 @@ impl<S: 'static> Handler<S> for NodesData {
                     num_points += node_data.meta.num_points;
                 }
 
-                let duration_ms = (time::precise_time_ns() - start) as f32 / 1000000.;
+                let duration_ms = (time::precise_time_ns() - start) as f32 / 1_000_000.;
                 println!(
                     "Got {} nodes with {} points ({}ms).",
                     num_nodes_fetched, num_points, duration_ms

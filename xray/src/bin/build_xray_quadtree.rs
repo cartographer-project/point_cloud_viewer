@@ -119,7 +119,7 @@ pub fn main() {
         output_directory,
         resolution,
         tile_size,
-        coloring_strategy_kind,
+        &coloring_strategy_kind,
         tile_background_color,
     )
     .unwrap();
