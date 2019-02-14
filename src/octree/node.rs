@@ -591,8 +591,8 @@ mod tests {
     #[test]
     fn test_parent_node_name() {
         assert_eq!(
-            Some(NodeId::from_str("r12345")),
-            NodeId::from_str("r123456").parent_id()
+            Some(NodeId::from_str("r12345").unwrap()),
+            NodeId::from_str("r123456").unwrap().parent_id()
         );
     }
 
@@ -600,26 +600,30 @@ mod tests {
     fn test_child_index() {
         assert_eq!(
             Some(ChildIndex(1)),
-            NodeId::from_str("r123451").child_index()
+            NodeId::from_str("r123451").unwrap().child_index()
         );
         assert_eq!(
             Some(ChildIndex(7)),
-            NodeId::from_str("r123457").child_index()
+            NodeId::from_str("r123457").unwrap().child_index()
         );
-        assert_eq!(None, NodeId::from_str("r").child_index());
+        assert_eq!(None, NodeId::from_str("r").unwrap().child_index());
     }
 
     #[test]
     fn test_bounding_box() {
         let root_bounding_cube = Cube::new(Point3::new(-5., -5., -5.), 10.);
 
-        let bounding_cube = NodeId::from_str("r0").find_bounding_cube(&root_bounding_cube);
+        let bounding_cube = NodeId::from_str("r0")
+            .unwrap()
+            .find_bounding_cube(&root_bounding_cube);
         assert_eq!(-5., bounding_cube.min().x);
         assert_eq!(-5., bounding_cube.min().y);
         assert_eq!(-5., bounding_cube.min().z);
         assert_eq!(5., bounding_cube.edge_length());
 
-        let bounding_cube = NodeId::from_str("r13").find_bounding_cube(&root_bounding_cube);
+        let bounding_cube = NodeId::from_str("r13")
+            .unwrap()
+            .find_bounding_cube(&root_bounding_cube);
         assert_eq!(-5., bounding_cube.min().x);
         assert_eq!(-2.5, bounding_cube.min().y);
         assert_eq!(2.5, bounding_cube.min().z);
