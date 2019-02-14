@@ -63,8 +63,8 @@ fn main() {
     }
 }
 
-fn server_benchmark(octree_directory: PathBuf, num_points: u64) {
-    let octree = octree_from_directory(&octree_directory).expect(&format!(
+fn server_benchmark(octree_directory: &Path, num_points: u64) {
+    let octree = octree_from_directory(octree_directory).expect(&format!(
         "Could not create octree from '{}'",
         octree_directory.display()
     ));
