@@ -32,7 +32,9 @@ pub use self::node::{
     ChildIndex, Node, NodeId, NodeIterator, NodeLayer, NodeMeta, NodeWriter, PositionEncoding,
 };
 
-pub const CURRENT_VERSION: i32 = 9;
+// Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
+// (u64). We are able to convert the proto on read, so the tools can still read version 9.
+pub const CURRENT_VERSION: i32 = 10;
 
 #[derive(Clone, Debug)]
 pub struct OctreeMeta {
@@ -40,8 +42,6 @@ pub struct OctreeMeta {
     pub bounding_box: Aabb3<f32>,
 }
 
-// TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
-// that is impossible.
 fn project(m: &Matrix4<f32>, p: &Point3<f32>) -> Point3<f32> {
     let q = m * Point3::to_homogeneous(*p);
     Point3::from_homogeneous(q / q.w)
@@ -220,8 +220,14 @@ impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
     pub fn from_data_provider(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
-        if meta_proto.version != CURRENT_VERSION {
-            return Err(ErrorKind::InvalidVersion(meta_proto.version).into());
+        match meta_proto.version {
+            9 => println!(
+                "Data is an older octree version: {}, current would be {}. \
+                 If feasible, try upgrading this octree using `upgrade_octree`.",
+                meta_proto.version, CURRENT_VERSION
+            ),
+            CURRENT_VERSION => (),
+            _ => return Err(ErrorKind::InvalidVersion(meta_proto.version).into()),
         }
 
         let bounding_box = {

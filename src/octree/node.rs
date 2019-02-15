@@ -120,7 +120,7 @@ impl NodeId {
         if deprecated_level != 0 || deprecated_index != 0 {
             NodeId::from_level_index(deprecated_level, deprecated_index as u128)
         } else {
-            NodeId(((high as u128) << 64) | low as u128)
+            NodeId((u128::from(high) << 64) | u128::from(low))
         }
     }
 
@@ -132,10 +132,9 @@ impl NodeId {
     }
 
     pub fn from_level_index(level: u8, index: u128) -> Self {
-        let value = ((level as u128) << 120) | index;
+        let value = (u128::from(level) << 120) | index;
         NodeId(value)
     }
-
 
     /// Returns the root node of the octree.
     fn root() -> Self {
@@ -147,7 +146,7 @@ impl NodeId {
     pub fn get_child_id(&self, child_index: ChildIndex) -> Self {
         NodeId::from_level_index(
             self.level() + 1,
-            (self.index() << 3) + child_index.0 as u128,
+            (self.index() << 3) + u128::from(child_index.0),
         )
     }
 
@@ -177,7 +176,7 @@ impl NodeId {
 
     /// Returns the index of this node at the current level.
     pub fn index(&self) -> u128 {
-        (self.0 & 0x00ffffff_ffffffff_ffffffff_ffffffff)
+        (self.0 & 0x00ff_ffff_ffff_ffff_ffff_ffff_ffff_ffff)
     }
 
     /// Computes the bounding cube from a NodeID.
