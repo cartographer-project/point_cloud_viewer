@@ -8,10 +8,7 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use point_viewer::math::clamp;
-use point_viewer::{
-    color::Color,
-    octree, InternalIterator, Point,
-};
+use point_viewer::{color::Color, octree, InternalIterator, Point};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -303,7 +300,10 @@ impl HeightStddevColoringStrategy {
 /// Build a parent image created of the 4 children tiles. All tiles are optionally, in which case
 /// they are left white in the resulting image. The input images must be square with length N,
 /// the returned image is square with length 2*N.
-pub fn build_parent(children: &[Option<image::RgbaImage>], tile_background_color: Color<u8>) -> image::RgbaImage {
+pub fn build_parent(
+    children: &[Option<image::RgbaImage>],
+    tile_background_color: Color<u8>,
+) -> image::RgbaImage {
     assert_eq!(children.len(), 4);
     let mut child_size_px = None;
     for c in children.iter() {
@@ -441,7 +441,7 @@ pub fn build_xray_quadtree(
     resolution: f32,
     tile_size_px: u32,
     coloring_strategy_kind: &ColoringStrategyKind,
-    tile_background_color: Color<u8>
+    tile_background_color: Color<u8>,
 ) -> Result<(), Box<Error>> {
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
@@ -483,7 +483,7 @@ pub fn build_xray_quadtree(
                         tile_size_px,
                         tile_size_px,
                         strategy,
-                        tile_background_color
+                        tile_background_color,
                     ) {
                         all_nodes_tx_clone.send(node.id).unwrap();
                         if let Some(id) = node.id.parent_id() {
