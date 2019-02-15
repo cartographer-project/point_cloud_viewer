@@ -12,6 +12,7 @@ main() {
     popd
 
     # root
+    cargo clippy --all -- -D warnings
     cargo build --all --verbose
     cargo test --all
 }

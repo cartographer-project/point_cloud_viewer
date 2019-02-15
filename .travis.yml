@@ -10,6 +10,12 @@ matrix:
   fast_finish: true
   allow_failures:
     - rust: nightly
+  include:
+    - rust: stable
+      before_script:
+        - rustup component add rustfmt
+      script:
+        - cargo fmt --all -- --check
 
 addons:
   apt:
@@ -24,6 +30,9 @@ addons:
 
 install:
   - bash ci/install.sh
+
+before_script:
+  - bash ci/before_script.sh
 
 script:
   - bash ci/script.sh
