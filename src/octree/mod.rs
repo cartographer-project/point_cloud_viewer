@@ -233,7 +233,6 @@ impl Octree {
                 Point3::new(max.x, max.y, max.z),
             )
         };
-
         let meta = OctreeMeta {
             resolution: meta_proto.resolution,
             bounding_box,
@@ -241,10 +240,7 @@ impl Octree {
 
         let mut nodes = FnvHashMap::default();
         for node_proto in meta_proto.nodes.iter() {
-            let node_id = NodeId::from_level_index(
-                node_proto.id.as_ref().unwrap().level as u8,
-                node_proto.id.as_ref().unwrap().index as usize,
-            );
+            let node_id = NodeId::from_proto(node_proto.id.as_ref().unwrap());
             nodes.insert(
                 node_id,
                 NodeMeta {

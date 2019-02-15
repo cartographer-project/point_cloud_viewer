@@ -50,8 +50,10 @@ message AxisAlignedCuboid {
 }
 
 message NodeId {
-  int32 level = 1;
-  int64 index = 2;
+  int32 deprecated_level = 1;
+  int64 deprecated_index = 2;
+  uint64 high = 3;
+  uint64 low = 4;
 }
 
 message Node {

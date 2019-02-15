@@ -362,7 +362,7 @@ pub fn build_octree(
     });
 
     let mut nodes_to_subsample = Vec::new();
-    let mut deepest_level = 0usize;
+    let mut deepest_level = 0u8;
     for id in leaf_nodes_receiver {
         deepest_level = cmp::max(deepest_level, id.level());
         nodes_to_subsample.push(id);
@@ -435,8 +435,7 @@ pub fn build_octree(
             octree::PositionEncoding::new(&bounding_cube, octree_meta.resolution);
 
         let mut proto = proto::Node::new();
-        proto.mut_id().set_level(id.level() as i32);
-        proto.mut_id().set_index(id.index() as i64);
+        *proto.mut_id() = id.to_proto();
         proto.set_num_points(num_points);
         proto.set_position_encoding(position_encoding.to_proto());
         meta.mut_nodes().push(proto);

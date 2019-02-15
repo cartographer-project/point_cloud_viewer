@@ -141,10 +141,7 @@ impl OctreeDataProvider for GrpcOctreeDataProvider {
         // TODO(mfeuerstein): We would need another proto to just get the number of nodes for one id.
         for node_proto in self.meta_proto()?.nodes.iter() {
             if *node_id
-                == NodeId::from_level_index(
-                    node_proto.id.as_ref().unwrap().level as u8,
-                    node_proto.id.as_ref().unwrap().index as usize,
-                )
+                == NodeId::from_proto(node_proto.id.as_ref().unwrap())
             {
                 return Ok(node_proto.num_points);
             }
