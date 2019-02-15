@@ -86,7 +86,6 @@ pub trait OctreeDataProvider: Send + Sync {
         node_id: &NodeId,
         node_layers: Vec<NodeLayer>,
     ) -> Result<HashMap<NodeLayer, Box<dyn Read>>>;
-    fn number_of_points(&self, node_id: &NodeId) -> Result<i64>;
 }
 
 pub struct Octree {
@@ -96,8 +95,7 @@ pub struct Octree {
 }
 
 pub struct PointsInBoxIterator<'a> {
-    octree_data_provider: &'a OctreeDataProvider,
-    octree_meta: &'a OctreeMeta,
+    octree: &'a Octree,
     aabb: &'a Aabb3<f32>,
     intersecting_nodes: Vec<NodeId>,
 }
@@ -111,9 +109,10 @@ impl<'a> InternalIterator for PointsInBoxIterator<'a> {
         for node_id in &self.intersecting_nodes {
             // TODO(sirver): This crashes on error. We should bubble up an error.
             let iterator = NodeIterator::from_data_provider(
-                self.octree_data_provider,
-                self.octree_meta,
+                &*self.octree.data_provider,
+                &self.octree.meta,
                 node_id,
+                self.octree.nodes[node_id].num_points,
             )
             .expect("Could not read node points");
             iterator.for_each(|p| {
@@ -127,8 +126,7 @@ impl<'a> InternalIterator for PointsInBoxIterator<'a> {
 }
 
 pub struct PointsInFrustumIterator<'a> {
-    octree_data_provider: &'a OctreeDataProvider,
-    octree_meta: &'a OctreeMeta,
+    octree: &'a Octree,
     frustum_matrix: &'a Matrix4<f32>,
     intersecting_nodes: Vec<NodeId>,
 }
@@ -141,9 +139,10 @@ impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
     fn for_each<F: FnMut(&Point)>(self, mut f: F) {
         for node_id in &self.intersecting_nodes {
             let iterator = NodeIterator::from_data_provider(
-                self.octree_data_provider,
-                self.octree_meta,
+                &*self.octree.data_provider,
+                &self.octree.meta,
                 node_id,
+                self.octree.nodes[node_id].num_points,
             )
             .expect("Could not read node points");
             iterator.for_each(|p| {
@@ -157,8 +156,7 @@ impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
 }
 
 pub struct AllPointsIterator<'a> {
-    octree_data_provider: &'a OctreeDataProvider,
-    octree_meta: &'a OctreeMeta,
+    octree: &'a Octree,
     octree_nodes: &'a FnvHashMap<NodeId, NodeMeta>,
 }
 
@@ -172,9 +170,10 @@ impl<'a> InternalIterator for AllPointsIterator<'a> {
         while !open_list.is_empty() {
             let current = open_list.pop().unwrap();
             let iterator = NodeIterator::from_data_provider(
-                self.octree_data_provider,
-                self.octree_meta,
+                &*self.octree.data_provider,
+                &self.octree.meta,
                 &current,
+                self.octree.nodes[&current].num_points,
             )
             .expect("Could not read node points");
             iterator.for_each(|p| f(p));
@@ -358,8 +357,7 @@ impl Octree {
             }
         }
         PointsInBoxIterator {
-            octree_data_provider: &*self.data_provider,
-            octree_meta: &self.meta,
+            octree: &*self,
             aabb,
             intersecting_nodes,
         }
@@ -371,8 +369,7 @@ impl Octree {
     ) -> PointsInFrustumIterator<'a> {
         let intersecting_nodes = self.get_visible_nodes(&frustum_matrix);
         PointsInFrustumIterator {
-            octree_data_provider: &*self.data_provider,
-            octree_meta: &self.meta,
+            octree: &*self,
             frustum_matrix,
             intersecting_nodes,
         }
@@ -380,8 +377,7 @@ impl Octree {
 
     pub fn all_points(&self) -> AllPointsIterator {
         AllPointsIterator {
-            octree_data_provider: &*self.data_provider,
-            octree_meta: &self.meta,
+            octree: &*self,
             octree_nodes: &self.nodes,
         }
     }
@@ -451,6 +447,20 @@ impl OnDiskOctreeDataProvider {
     pub fn stem(&self, node_id: &NodeId) -> PathBuf {
         self.directory.join(node_id.to_string())
     }
+
+    // Get number of points from the file size of the color data.
+    // Color data is required and always present.
+    pub fn number_of_points(&self, node_id: &NodeId) -> Result<i64> {
+        let stem = self.stem(node_id);
+        let file_meta_data_opt = fs::metadata(stem.with_extension(NodeLayer::Color.extension()));
+        if file_meta_data_opt.is_err() {
+            return Err(ErrorKind::NodeNotFound.into());
+        }
+
+        let file_size_bytes = file_meta_data_opt.unwrap().len();
+        // color has 3 bytes per point
+        Ok((file_size_bytes / 3) as i64)
+    }
 }
 
 impl OctreeDataProvider for OnDiskOctreeDataProvider {
@@ -472,20 +482,6 @@ impl OctreeDataProvider for OnDiskOctreeDataProvider {
             );
         }
         Ok(readers)
-    }
-
-    // Get number of points from the file size of the color data.
-    // Color data is required and always present.
-    fn number_of_points(&self, node_id: &NodeId) -> Result<i64> {
-        let stem = self.stem(node_id);
-        let file_meta_data_opt = fs::metadata(stem.with_extension(NodeLayer::Color.extension()));
-        if file_meta_data_opt.is_err() {
-            return Err(ErrorKind::NodeNotFound.into());
-        }
-
-        let file_size_bytes = file_meta_data_opt.unwrap().len();
-        // color has 3 bytes per point
-        Ok((file_size_bytes / 3) as i64)
     }
 }
 
