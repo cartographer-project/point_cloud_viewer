@@ -139,6 +139,7 @@ fn split_node<'a, P>(
                 octree_data_provider,
                 octree_meta,
                 &child_id,
+                octree_data_provider.number_of_points(&child_id).unwrap(),
             )
             .unwrap();
             split_node(
@@ -170,6 +171,7 @@ fn subsample_children_into(
             octree_data_provider,
             octree_meta,
             &child_id,
+            octree_data_provider.number_of_points(&child_id)?,
         ) {
             Ok(node_iterator) => node_iterator,
             Err(Error(ErrorKind::NodeNotFound, _)) => continue,

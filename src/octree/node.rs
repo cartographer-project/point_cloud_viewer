@@ -276,9 +276,10 @@ pub struct NodeIterator {
 
 impl NodeIterator {
     pub fn from_data_provider(
-        octree_data_provider: &OctreeDataProvider,
+        octree_data_provider: &dyn OctreeDataProvider,
         octree_meta: &OctreeMeta,
         id: &NodeId,
+        num_points: i64,
     ) -> Result<Self> {
         let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
         let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
@@ -309,7 +310,7 @@ impl NodeIterator {
             meta: NodeMeta {
                 bounding_cube,
                 position_encoding,
-                num_points: octree_data_provider.number_of_points(id)?,
+                num_points,
             },
         })
     }
