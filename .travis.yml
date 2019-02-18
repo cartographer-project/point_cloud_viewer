@@ -7,23 +7,27 @@ matrix:
   allow_failures:
     - rust: nightly
   include:
-    - rust: stable
+    - name: "stable fmt"
+      rust: stable
       install: true
       before_script:
         - rustup component add rustfmt
       script:
         - cargo fmt --all -- --check
-    - rust: stable
+    - name: "stable clippy|build|test"
+      rust: stable
       addons:
         apt:
           packages:
             - &build_deps [cmake, g++, git, libc-dev, libgoogle-glog-dev, libsdl2-dev, ninja-build]
-    - rust: beta
+    - name: "beta clippy|build|test"
+      rust: beta
       addons:
         apt:
           packages:
             - *build_deps
-    - rust: nightly
+    - name: "nightly clippy|build|test"
+      rust: nightly
       addons:
         apt:
           packages:
