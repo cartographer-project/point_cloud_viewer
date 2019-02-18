@@ -476,10 +476,13 @@ impl OctreeDataProvider for OnDiskOctreeDataProvider {
         let stem = self.stem(node_id);
         let mut readers = HashMap::<NodeLayer, Box<dyn Read>>::new();
         for node_layer in node_layers {
-            readers.insert(
-                node_layer.to_owned(),
-                Box::new(File::open(&stem.with_extension(node_layer.extension()))?),
-            );
+            let file = match File::open(&stem.with_extension(node_layer.extension())) {
+                Err(ref err) if err.kind() == ::std::io::ErrorKind::NotFound => {
+                    return Err(ErrorKind::NodeNotFound.into());
+                }
+                e => e,
+            }?;
+            readers.insert(node_layer.to_owned(), Box::new(file));
         }
         Ok(readers)
     }
