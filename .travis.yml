@@ -1,29 +1,39 @@
-# Based on https://github.com/japaric/rust-everywhere.
+language: rust
 
 cache: cargo
-language: rust
-rust:
-  - stable
-  - beta
-  - nightly
+
 matrix:
   fast_finish: true
   allow_failures:
     - rust: nightly
-
-addons:
-  apt:
-    packages:
-      - cmake
-      - g++
-      - git
-      - libc-dev
-      - libgoogle-glog-dev
-      - libsdl2-dev
-      - ninja-build
+  include:
+    - rust: stable
+      install: true
+      before_script:
+        - rustup component add rustfmt
+      script:
+        - cargo fmt --all -- --check
+    - rust: stable
+      addons:
+        apt:
+          packages:
+            - &build_deps [cmake, g++, git, libc-dev, libgoogle-glog-dev, libsdl2-dev, ninja-build]
+    - rust: beta
+      addons:
+        apt:
+          packages:
+            - *build_deps
+    - rust: nightly
+      addons:
+        apt:
+          packages:
+            - *build_deps
 
 install:
   - bash ci/install.sh
+
+before_script:
+  - bash ci/before_script.sh
 
 script:
   - bash ci/script.sh
