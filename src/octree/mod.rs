@@ -357,7 +357,7 @@ impl Octree {
             }
         }
         PointsInBoxIterator {
-            octree: &*self,
+            octree: &self,
             aabb,
             intersecting_nodes,
         }
@@ -369,7 +369,7 @@ impl Octree {
     ) -> PointsInFrustumIterator<'a> {
         let intersecting_nodes = self.get_visible_nodes(&frustum_matrix);
         PointsInFrustumIterator {
-            octree: &*self,
+            octree: &self,
             frustum_matrix,
             intersecting_nodes,
         }
@@ -377,7 +377,7 @@ impl Octree {
 
     pub fn all_points(&self) -> AllPointsIterator {
         AllPointsIterator {
-            octree: &*self,
+            octree: &self,
             octree_nodes: &self.nodes,
         }
     }

@@ -276,7 +276,7 @@ pub struct NodeIterator {
 
 impl NodeIterator {
     pub fn from_data_provider(
-        octree_data_provider: &OctreeDataProvider,
+        octree_data_provider: &dyn OctreeDataProvider,
         octree_meta: &OctreeMeta,
         id: &NodeId,
         num_points: i64,
