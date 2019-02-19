@@ -15,12 +15,12 @@
             "ScriptHost",
             "ES2017"
         ],
-        "typeRoots": [
-            "./node_modules/@types"
+        "types": [
+            "dat.gui",
+            "three"
         ]
     },
     "files": [
         "main.ts"
     ]
 }
-
