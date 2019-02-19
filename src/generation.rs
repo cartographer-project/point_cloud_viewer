@@ -167,16 +167,17 @@ fn subsample_children_into(
     let mut parent_writer = octree::NodeWriter::new(octree_data_provider, octree_meta, node_id);
     for i in 0..8 {
         let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(i));
-        let node_iterator = match octree::NodeIterator::from_data_provider(
-            octree_data_provider,
-            octree_meta,
-            &child_id,
-            octree_data_provider.number_of_points(&child_id)?,
-        ) {
-            Ok(node_iterator) => node_iterator,
+        let num_points = match octree_data_provider.number_of_points(&child_id) {
+            Ok(num_points) => num_points,
             Err(Error(ErrorKind::NodeNotFound, _)) => continue,
             Err(err) => return Err(err),
         };
+        let node_iterator = octree::NodeIterator::from_data_provider(
+            octree_data_provider,
+            octree_meta,
+            &child_id,
+            num_points,
+        )?;
 
         // We read all points into memory, because the new node writer will rewrite this child's
         // file(s).
