@@ -9,11 +9,11 @@
         "outDir": "build",
         "module": "es6",
         "lib": [
-            "dom",
-            "es6",
-            "dom.iterable",
-            "scripthost",
-            "es2017"
+            "DOM",
+            "ES6",
+            "DOM.Iterable",
+            "ScriptHost",
+            "ES2017"
         ],
         "types": [
             "dat.gui",
