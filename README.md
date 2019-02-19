@@ -65,6 +65,8 @@ To build,
 4. Install javascript dependencies: `npm install`.
 5. Build the client: `npm run build`.
 
+The client can also be built with `yarn`. From `cd octree_web_viewer/client` use the commands `yarn install` and `yarn build`.
+
 Then build the server: `cargo build --release`.
 Serve up the octree using `../target/release/points_web_viewer <octree directory>`, open Chrome to <http://localhost:5433>, navigate with WASD and left-click-drag on the mouse.
 The mouse wheel adjusts movement speed.
