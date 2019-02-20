@@ -453,3 +453,48 @@ pub fn build_octree(
         BufWriter::new(File::create(&output_directory.as_ref().join("meta.pb")).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::color::Color;
+    use cgmath::Vector3;
+    use tempdir::TempDir;
+
+    struct Points {
+        points: Vec<Point>,
+    }
+
+    impl InternalIterator for Points {
+        fn for_each<F: FnMut(&Point)>(self, mut func: F) {
+            for p in &self.points {
+                func(p);
+            }
+        }
+        fn size_hint(&self) -> Option<usize> {
+            Some(self.points.len())
+        }
+    }
+    #[test]
+    fn test_generation() {
+        let default_point = Point {
+            position: Vector3::new(0.0, 0.0, 0.0),
+            color: Color {
+                red: 255,
+                green: 0,
+                blue: 0,
+                alpha: 255,
+            },
+            intensity: None,
+        };
+        let mut points = vec![default_point; 100_001];
+        points[100_000].position = Vector3::new(2.0, 0.0, 0.0);
+        let mut bounding_box = Aabb3::zero();
+        for point in &points {
+            bounding_box = bounding_box.grow(Point3::from_vec(point.position));
+        }
+        let pool = scoped_pool::Pool::new(10);
+        let tmp_dir = TempDir::new("octree").unwrap();
+        build_octree(&pool, tmp_dir, 1.0, bounding_box, Points { points });
+    }
+}
