@@ -21,9 +21,7 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "points_web_viewer", about = "Visualizing points")]
 struct CommandlineArguments {
-    /// Input path of the octree directory to serve.
-    ///
-    /// input with a trailing backlash
+    /// The octree directory to serve, including a trailing slash.
     octree_path: String,
     /// Port to listen on.
     #[structopt(default_value = "5433", long = "--port")]
