@@ -30,12 +30,14 @@ num-traits = "0.1.36"
 pbr = "1.0.0-alpha.1"
 protobuf = "2.0.0"
 scoped-pool = "^0.1"
-tempdir = "0.3.7"
 walkdir = "^0.1.5"
 libc = "0.2.43"
 
 [dependencies.point_viewer_proto_rust]
 path = "point_viewer_proto_rust"
+
+[dev-dependencies]
+tempdir = "0.3.7"
 
 [workspace]
 members = [
