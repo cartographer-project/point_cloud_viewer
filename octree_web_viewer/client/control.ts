@@ -186,7 +186,7 @@ export class FirstPersonController {
 
   private onMouseWheel(event: WheelEvent) {
     event.preventDefault();
-    let sign = event.wheelDelta < 0 ? -1 : 1;
+    let sign = event.deltaY < 0 ? -1 : 1;
     this.moveSpeed += sign * this.moveSpeed * 0.1;
     this.moveSpeed = Math.max(0.1, this.moveSpeed);
   }

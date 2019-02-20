@@ -281,7 +281,7 @@ export class OctreeViewer {
     if (newUseTransparency != this.useTransparency) {
       this.material.transparent = newUseTransparency;
       this.scene.traverse(function(node) {
-        if (node instanceof THREE.Points) {
+        if (node instanceof THREE.Points && node.material instanceof THREE.ShaderMaterial) {
           node.material.transparent = newUseTransparency;
         }
       });
