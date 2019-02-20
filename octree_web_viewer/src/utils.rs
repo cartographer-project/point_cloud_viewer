@@ -65,10 +65,10 @@ pub fn start_octree_server(
     })
     .bind(&ip_port)
     .or_else(|_| {
-        return Err(PointsViewerError::BadRequest(format!(
+        Err(PointsViewerError::BadRequest(format!(
             "Can not bind to {}",
             &ip_port
-        )));
+        )))
     })?
     .start();
     Ok(())
