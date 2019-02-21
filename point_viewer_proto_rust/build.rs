@@ -1,9 +1,12 @@
-extern crate protoc_rust;
-
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+
+// This is a workaround for https://github.com/stepancheg/rust-protobuf/issues/331
+fn replace_clippy(contents: String) -> String {
+    contents.replace("#![allow(clippy)]", "#![allow(clippy::all)]")
+}
 
 fn main() {
     println!("cargo:rerun-if-changed=src/proto.proto");
@@ -14,7 +17,8 @@ fn main() {
         input: &["src/proto.proto"],
         includes: &[],
         ..Default::default()
-    }).expect("protoc");
+    })
+    .expect("protoc");
 
     // Work around
     // https://github.com/stepancheg/rust-protobuf/issues/117
@@ -27,7 +31,7 @@ fn main() {
         .unwrap()
         .read_to_string(&mut contents)
         .unwrap();
-    let new_contents = format!("pub mod proto {{\n{}\n}}", contents);
+    let new_contents = format!("pub mod proto {{\n{}\n}}", replace_clippy(contents));
 
     File::create(&proto_path)
         .unwrap()

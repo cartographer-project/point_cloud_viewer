@@ -12,29 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate cgmath;
-extern crate collision;
-extern crate futures;
-extern crate grpcio;
-extern crate point_viewer;
-extern crate point_viewer_grpc_proto_rust;
-extern crate protobuf;
-extern crate scoped_pool;
-
+use crate::proto_grpc::OctreeClient;
 use cgmath::{Deg, EuclideanSpace, Point3, Rad};
-use collision::{Aabb3, Aabb};
+use collision::{Aabb, Aabb3};
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
-pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
-pub use point_viewer_grpc_proto_rust::proto_grpc;
-use point_viewer::{InternalIterator, Point};
 use point_viewer::color::Color;
 use point_viewer::generation::build_octree;
-use proto_grpc::OctreeClient;
+use point_viewer::{InternalIterator, Point};
+pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
+pub use point_viewer_grpc_proto_rust::proto_grpc;
 use std::sync::Arc;
 
-struct Points{
-    points: Vec<Point>
+struct Points {
+    points: Vec<Point>,
 }
 
 impl InternalIterator for Points {
@@ -56,17 +47,17 @@ fn main() {
     let client = OctreeClient::new(ch);
 
     let mut request = GetPointsInFrustumRequest::new();
-    request.mut_rotation().set_x(-0.30282807);
-    request.mut_rotation().set_y(0.18231738);
-    request.mut_rotation().set_z(0.48248893);
-    request.mut_rotation().set_w(0.8014113);
+    request.mut_rotation().set_x(-0.302_828_07);
+    request.mut_rotation().set_y(0.182_317_38);
+    request.mut_rotation().set_z(0.482_488_93);
+    request.mut_rotation().set_w(0.801_411_3);
 
-    request.mut_translation().set_x(-0.79101276);
-    request.mut_translation().set_y(-105.560104);
-    request.mut_translation().set_z(-132.89323);
+    request.mut_translation().set_x(-0.791_012_76);
+    request.mut_translation().set_y(-105.560_104);
+    request.mut_translation().set_z(-132.893_23);
 
     request.set_fovy_rad(Rad::from(Deg(45.)).0);
-    request.set_aspect(800./600.);
+    request.set_aspect(800. / 600.);
     request.set_z_near(0.1);
     request.set_z_far(10000.);
 
@@ -86,8 +77,9 @@ fn main() {
                         red: color.red,
                         green: color.green,
                         blue: color.blue,
-                        alpha: color.alpha
-                    }.to_u8(),
+                        alpha: color.alpha,
+                    }
+                    .to_u8(),
                     intensity: None,
                 });
             }
@@ -102,5 +94,5 @@ fn main() {
         .wait()
         .unwrap();
     let pool = scoped_pool::Pool::new(10);
-    build_octree(&pool, "/tmp/octree", 0.001, bounding_box, Points{points});
+    build_octree(&pool, "/tmp/octree", 0.001, bounding_box, Points { points });
 }

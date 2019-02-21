@@ -1,22 +1,13 @@
-extern crate cgmath;
-#[macro_use]
-extern crate clap;
-extern crate collision;
-extern crate fnv;
-extern crate image;
-extern crate point_viewer;
-extern crate protobuf;
-extern crate quadtree;
-extern crate scoped_pool;
-extern crate xray;
-
 use cgmath::{Point2, Point3};
+use clap::value_t;
 use collision::{Aabb, Aabb2, Aabb3};
-use octree::OnDiskOctree;
-use point_viewer::octree;
+use point_viewer::color::{Color, TRANSPARENT, WHITE};
+use point_viewer::octree::octree_from_directory;
 use std::error::Error;
 use std::path::Path;
-use xray::generation::{xray_from_points, ColoringStrategyArgument, ColoringStrategyKind};
+use xray::generation::{
+    xray_from_points, ColoringStrategyArgument, ColoringStrategyKind, TileBackgroundColorArgument,
+};
 
 fn parse_arguments() -> clap::ArgMatches<'static> {
     // TODO(sirver): pull out a function for common args.
@@ -87,6 +78,11 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .takes_value(true)
                 .help("Bounding box maximum y in meters.")
                 .required(true),
+            clap::Arg::with_name("tile_background_color")
+                .long("tile_background_color")
+                .takes_value(true)
+                .possible_values(&TileBackgroundColorArgument::variants())
+                .default_value("white"),
         ])
         .get_matches()
 }
@@ -95,10 +91,11 @@ fn run(
     octree_directory: &Path,
     output_filename: &Path,
     resolution: f32,
-    coloring_strategy_kind: ColoringStrategyKind,
+    coloring_strategy_kind: &ColoringStrategyKind,
+    tile_background_color: Color<u8>,
     bbox2: &Aabb2<f32>,
 ) -> Result<(), Box<Error>> {
-    let octree = &OnDiskOctree::new(octree_directory)?;
+    let octree = &octree_from_directory(octree_directory)?;
     let bbox3 = octree.bounding_box();
     let bbox3 = Aabb3::new(
         Point3::new(
@@ -121,6 +118,7 @@ fn run(
         image_width,
         image_height,
         coloring_strategy_kind.new_strategy(),
+        tile_background_color,
     ) {
         println!("No points in bounding box. No output written.");
     }
@@ -131,7 +129,7 @@ pub fn main() {
     let matches = parse_arguments();
     let resolution = value_t!(matches, "resolution", f32).expect("resolution could not be parsed.");
     let coloring_strategy_kind = {
-        use ColoringStrategyArgument::*;
+        use crate::ColoringStrategyArgument::*;
         let arg = value_t!(matches, "coloring_strategy", ColoringStrategyArgument)
             .expect("coloring_strategy is invalid");
         match arg {
@@ -146,6 +144,18 @@ pub fn main() {
             ),
         }
     };
+    let tile_background_color = {
+        let arg = value_t!(
+            matches,
+            "tile_background_color",
+            TileBackgroundColorArgument
+        )
+        .expect("tile_background_color is invalid");
+        match arg {
+            TileBackgroundColorArgument::white => WHITE.to_u8(),
+            TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
+        }
+    };
     let octree_directory = Path::new(matches.value_of("octree_directory").unwrap());
     let output_filename = Path::new(matches.value_of("output_filename").unwrap());
     let min_x = value_t!(matches, "min_x", f32).expect("min_x could not be parsed.");
@@ -158,7 +168,9 @@ pub fn main() {
         octree_directory,
         output_filename,
         resolution,
-        coloring_strategy_kind,
+        &coloring_strategy_kind,
+        tile_background_color,
         &bbox2,
-    ).unwrap();
+    )
+    .unwrap();
 }

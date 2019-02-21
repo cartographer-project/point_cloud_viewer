@@ -1,20 +1,11 @@
-extern crate cgmath;
-#[macro_use]
-extern crate clap;
-extern crate collision;
-extern crate fnv;
-extern crate image;
-extern crate point_viewer;
-extern crate protobuf;
-extern crate quadtree;
-extern crate scoped_pool;
-extern crate xray;
-
-use octree::OnDiskOctree;
-use point_viewer::octree;
+use clap::value_t;
+use point_viewer::color::{TRANSPARENT, WHITE};
+use point_viewer::octree::octree_from_directory;
 use scoped_pool::Pool;
 use std::path::Path;
-use xray::generation::{ColoringStrategyArgument, ColoringStrategyKind};
+use xray::generation::{
+    ColoringStrategyArgument, ColoringStrategyKind, TileBackgroundColorArgument,
+};
 
 fn parse_arguments() -> clap::ArgMatches<'static> {
     clap::App::new("build_xray_quadtree")
@@ -68,17 +59,24 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .help("Octree directory to turn into xrays.")
                 .index(1)
                 .required(true),
+            clap::Arg::with_name("tile_background_color")
+                .long("tile_background_color")
+                .takes_value(true)
+                .possible_values(&TileBackgroundColorArgument::variants())
+                .default_value("white"),
         ])
         .get_matches()
 }
 
 pub fn main() {
     let args = parse_arguments();
-    let resolution = args.value_of("resolution")
+    let resolution = args
+        .value_of("resolution")
         .unwrap()
         .parse::<f32>()
         .expect("resolution could not be parsed.");
-    let tile_size = args.value_of("tile_size")
+    let tile_size = args
+        .value_of("tile_size")
         .unwrap()
         .parse::<u32>()
         .expect("tile_size could not be parsed.");
@@ -87,7 +85,7 @@ pub fn main() {
     }
 
     let coloring_strategy_kind = {
-        use ColoringStrategyArgument::*;
+        use crate::ColoringStrategyArgument::*;
         let arg = value_t!(args, "coloring_strategy", ColoringStrategyArgument)
             .expect("coloring_strategy is invalid");
         match arg {
@@ -103,17 +101,28 @@ pub fn main() {
         }
     };
 
+    let tile_background_color = {
+        let arg = value_t!(args, "tile_background_color", TileBackgroundColorArgument)
+            .expect("tile_background_color is invalid");
+        match arg {
+            TileBackgroundColorArgument::white => WHITE.to_u8(),
+            TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
+        }
+    };
+
     let octree_directory = Path::new(args.value_of("octree_directory").unwrap());
     let output_directory = Path::new(args.value_of("output_directory").unwrap());
 
     let pool = Pool::new(10);
-    let octree = OnDiskOctree::new(octree_directory).expect("Could not open octree.");
+    let octree = octree_from_directory(octree_directory).expect("Could not open octree.");
     xray::generation::build_xray_quadtree(
         &pool,
         &octree,
         output_directory,
         resolution,
         tile_size,
-        coloring_strategy_kind,
-    ).unwrap();
+        &coloring_strategy_kind,
+        tile_background_color,
+    )
+    .unwrap();
 }

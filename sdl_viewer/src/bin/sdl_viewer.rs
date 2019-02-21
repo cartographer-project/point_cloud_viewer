@@ -12,17 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate point_viewer_grpc;
-extern crate sdl_viewer;
-
 use sdl_viewer::SdlViewer;
 
 fn main() {
     SdlViewer::new()
         .register_octree_factory("grpc:".into(), |p| {
             Ok(Box::new(
-                point_viewer_grpc::GrpcOctree::new(p.as_str())
-                    .expect("Could not connect to GRPC server"),
+                point_viewer_grpc::octree_from_address(p.as_str())
+                    .expect("Could not create octree."),
             ))
         })
         .run();

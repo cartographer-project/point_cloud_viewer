@@ -12,32 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate cgmath;
-extern crate clap;
-extern crate collision;
-extern crate fnv;
-extern crate lru_cache;
-extern crate point_viewer;
-extern crate point_viewer_grpc;
-extern crate rand;
-extern crate sdl2;
-extern crate time;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
+use serde_derive::{Deserialize, Serialize};
 
 /// Unsafe macro to create a static null-terminated c-string for interop with OpenGL.
 #[macro_export]
 macro_rules! c_str {
     ($s:expr) => {
         concat!($s, "\0").as_ptr() as *const i8
-    }
+    };
 }
 
-mod glhelper;
 mod camera;
-#[allow(non_upper_case_globals)]
+mod glhelper;
+#[allow(
+    non_upper_case_globals,
+    clippy::too_many_arguments,
+    clippy::unreadable_literal,
+    clippy::unused_unit
+)]
 pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
@@ -45,19 +37,19 @@ pub mod box_drawer;
 pub mod graphic;
 pub mod node_drawer;
 
-use box_drawer::BoxDrawer;
-use camera::Camera;
+use crate::box_drawer::BoxDrawer;
+use crate::camera::Camera;
+use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 use cgmath::{Matrix4, SquareMatrix};
 use fnv::FnvHashMap;
-use node_drawer::{NodeDrawer, NodeViewContainer};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree};
 use sdl2::event::{Event, WindowEvent};
-use sdl2::keyboard::{Scancode, LCTRLMOD, RCTRLMOD, LSHIFTMOD, RSHIFTMOD};
+use sdl2::keyboard::{Scancode, LCTRLMOD, LSHIFTMOD, RCTRLMOD, RSHIFTMOD};
 use sdl2::video::GLProfile;
 use std::cmp;
-use std::io;
 use std::error::Error;
+use std::io;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{mpsc, Arc};
@@ -65,6 +57,7 @@ use std::thread;
 
 type OctreeFactory = fn(&String) -> Result<Box<Octree>, Box<Error>>;
 
+#[derive(Default)]
 pub struct SdlViewer {
     octree_factories: FnvHashMap<String, OctreeFactory>,
 }
@@ -131,7 +124,7 @@ impl PointCloudRenderer {
             last_moving: now,
             last_log: now,
             visible_nodes: Vec::new(),
-            node_drawer: NodeDrawer::new(Rc::clone(&gl)),
+            node_drawer: NodeDrawer::new(&Rc::clone(&gl)),
             num_frames: 0,
             point_size: 1.,
             gamma: 1.,
@@ -142,7 +135,7 @@ impl PointCloudRenderer {
             show_octree_nodes: false,
             max_nodes_in_memory,
             node_views: NodeViewContainer::new(octree, max_nodes_in_memory),
-            box_drawer: BoxDrawer::new(Rc::clone(&gl)),
+            box_drawer: BoxDrawer::new(&Rc::clone(&gl)),
             world_to_gl: Matrix4::identity(),
             gl,
         }
@@ -156,7 +149,7 @@ impl PointCloudRenderer {
             .send(world_to_gl.clone())
             .unwrap();
         self.last_moving = time::PreciseTime::now();
-        self.world_to_gl = world_to_gl.clone();
+        self.world_to_gl = *world_to_gl;
     }
 
     pub fn toggle_show_octree_nodes(&mut self) {
@@ -181,7 +174,8 @@ impl PointCloudRenderer {
 
         let now = time::PreciseTime::now();
         let moving = self.last_moving.to(now) < time::Duration::milliseconds(150);
-        self.needs_drawing |= self.node_views
+        self.needs_drawing |= self
+            .node_views
             .consume_arrived_nodes(&self.node_drawer.program);
         while let Ok(visible_nodes) = self.get_visible_nodes_result_rx.try_recv() {
             self.visible_nodes.clear();
@@ -198,8 +192,11 @@ impl PointCloudRenderer {
         }
 
         // We use a heuristic to keep the frame rate as stable as possible by increasing/decreasing the number of nodes to draw.
-        let max_nodes_to_display =
-           if moving { self.max_nodes_moving } else { self.max_nodes_in_memory };
+        let max_nodes_to_display = if moving {
+            self.max_nodes_moving
+        } else {
+            self.max_nodes_in_memory
+        };
         let filtered_visible_nodes = self.visible_nodes.iter().take(max_nodes_to_display);
 
         for node_id in filtered_visible_nodes {
@@ -217,8 +214,11 @@ impl PointCloudRenderer {
             num_nodes_drawn += 1;
 
             if self.show_octree_nodes {
-                self.box_drawer
-                    .draw_outlines(&view.meta.bounding_cube.to_aabb3(), &self.world_to_gl, &YELLOW);
+                self.box_drawer.draw_outlines(
+                    &view.meta.bounding_cube.to_aabb3(),
+                    &self.world_to_gl,
+                    &YELLOW,
+                );
             }
         }
         if self.needs_drawing {
@@ -255,7 +255,7 @@ impl PointCloudRenderer {
     }
 }
 
-#[derive(Debug,Serialize,Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CameraStates {
     states: Vec<camera::State>,
 }
@@ -266,14 +266,26 @@ fn save_camera(index: usize, pose_path: &Option<PathBuf>, camera: &Camera) {
         return;
     }
     assert!(index < 10);
-    let mut states = ::std::fs::read_to_string(pose_path.as_ref().unwrap()).and_then(|data| {
-        serde_json::from_str(&data).map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
-    }).unwrap_or_else(|_| CameraStates{ states: vec![camera.state(); 10] });
+    let mut states = ::std::fs::read_to_string(pose_path.as_ref().unwrap())
+        .and_then(|data| {
+            serde_json::from_str(&data)
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
+        })
+        .unwrap_or_else(|_| CameraStates {
+            states: vec![camera.state(); 10],
+        });
     states.states[index] = camera.state();
 
-    match std::fs::write(pose_path.as_ref().unwrap(), serde_json::to_string_pretty(&states).unwrap().as_bytes()) {
+    match std::fs::write(
+        pose_path.as_ref().unwrap(),
+        serde_json::to_string_pretty(&states).unwrap().as_bytes(),
+    ) {
         Ok(_) => (),
-        Err(e) => println!("Could not write {}: {}", pose_path.as_ref().unwrap().display(), e),
+        Err(e) => println!(
+            "Could not write {}: {}",
+            pose_path.as_ref().unwrap().display(),
+            e
+        ),
     }
     println!("Saved current camera position as {}.", index);
 }
@@ -284,9 +296,14 @@ fn load_camera(index: usize, pose_path: &Option<PathBuf>, camera: &mut Camera) {
         return;
     }
     assert!(index < 10);
-    let states = ::std::fs::read_to_string(pose_path.as_ref().unwrap()).and_then(|data| {
-        serde_json::from_str(&data).map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
-    }).unwrap_or_else(|_| CameraStates{ states: vec![camera.state(); 10] });
+    let states = ::std::fs::read_to_string(pose_path.as_ref().unwrap())
+        .and_then(|data| {
+            serde_json::from_str(&data)
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not read camera file."))
+        })
+        .unwrap_or_else(|_| CameraStates {
+            states: vec![camera.state(); 10],
+        });
     camera.set_state(states.states[index]);
 }
 
@@ -353,7 +370,7 @@ impl SdlViewer {
         // If no octree was generated create an FromDisc loader
         let octree = Arc::new(octree_opt.unwrap_or_else(|| {
             pose_path = Some(PathBuf::from(&octree_argument).join("poses.json"));
-            Box::new(octree::OnDiskOctree::new(&octree_argument).unwrap()) as Box<Octree>
+            Box::new(octree::octree_from_directory(octree_argument).unwrap()) as Box<Octree>
         }));
 
         let ctx = sdl2::init().unwrap();
@@ -366,7 +383,7 @@ impl SdlViewer {
             Ok(j) => {
                 println!("Found a joystick and will use it.");
                 Some(j)
-            },
+            }
             Err(_) => None,
         };
 
@@ -399,15 +416,15 @@ impl SdlViewer {
 
         let gl = Rc::new(opengl::Gl::load_with(|s| {
             let ptr = video_subsystem.gl_get_proc_address(s);
-            unsafe { std::mem::transmute(ptr) }
+            ptr as *const std::ffi::c_void
         }));
 
         let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
         let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
 
         let mut events = ctx.event_pump().unwrap();
+        let mut last_frame_time = time::PreciseTime::now();
         'outer_loop: loop {
-
             for event in events.poll_iter() {
                 match event {
                     Event::Quit { .. } => break 'outer_loop,
@@ -436,7 +453,9 @@ impl SdlViewer {
                                 Scancode::Num0 => renderer.adjust_point_size(0.1),
                                 _ => (),
                             }
-                        } else if keymod.intersects(LCTRLMOD | RCTRLMOD) && keymod.intersects(LSHIFTMOD | RSHIFTMOD) {
+                        } else if keymod.intersects(LCTRLMOD | RCTRLMOD)
+                            && keymod.intersects(LSHIFTMOD | RSHIFTMOD)
+                        {
                             // CTRL + SHIFT is pressed.
                             match code {
                                 Scancode::Num1 => save_camera(0, &pose_path, &camera),
@@ -467,7 +486,7 @@ impl SdlViewer {
                                 _ => (),
                             }
                         }
-                    },
+                    }
                     Event::KeyUp {
                         scancode: Some(code),
                         ..
@@ -510,17 +529,20 @@ impl SdlViewer {
             }
 
             if let Some(j) = joystick.as_ref() {
-                let x = j.axis(0).unwrap() as f32 / 1000.;
-                let y = -j.axis(1).unwrap() as f32 / 1000.;
-                let z = -j.axis(2).unwrap() as f32 / 1000.;
-                let up = j.axis(3).unwrap() as f32 / 10000.;
+                let x = f32::from(j.axis(0).unwrap()) / 500.;
+                let y = f32::from(-j.axis(1).unwrap()) / 500.;
+                let z = f32::from(-j.axis(2).unwrap()) / 500.;
+                let up = f32::from(j.axis(3).unwrap()) / 500.;
                 // Combine tilting and turning on the knob.
-                let around = j.axis(4).unwrap() as f32 / 10000. - j.axis(5).unwrap() as f32 / 10000.;
+                let around =
+                    f32::from(j.axis(4).unwrap()) / 500. - f32::from(j.axis(5).unwrap()) / 500.;
                 camera.pan(x, y, z);
                 camera.rotate(up, around);
             }
-
-            if camera.update() {
+            let current_time = time::PreciseTime::now();
+            let elapsed = last_frame_time.to(current_time);
+            last_frame_time = current_time;
+            if camera.update(elapsed) {
                 renderer.camera_changed(&camera.get_world_to_gl());
             }
 

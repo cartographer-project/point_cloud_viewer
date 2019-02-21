@@ -12,52 +12,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate cgmath;
-extern crate collision;
-extern crate futures;
-extern crate grpcio;
-extern crate point_viewer;
-extern crate point_viewer_grpc_proto_rust;
-extern crate protobuf;
-
-use cgmath::{Matrix4, Vector3};
+use crate::proto_grpc::OctreeClient;
+use cgmath::Vector3;
 use collision::Aabb3;
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
-use point_viewer::errors::*;
-use point_viewer::{Point};
-use point_viewer::math::Cube;
 use point_viewer::color::Color;
-use point_viewer::octree::{NodeData, NodeId, NodeMeta, Octree, OnDiskOctree, PositionEncoding};
+use point_viewer::errors::*;
+use point_viewer::octree::{NodeId, NodeLayer, Octree, OctreeDataProvider};
+use point_viewer::proto::Meta;
+use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
-use proto_grpc::OctreeClient;
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::io::{Cursor, Read};
 use std::sync::Arc;
 
 pub mod service;
 
-pub struct GrpcOctree {
+pub struct GrpcOctreeDataProvider {
     client: OctreeClient,
-    octree: OnDiskOctree,
 }
 
-impl GrpcOctree {
-    pub fn new(addr: &str) -> Result<Self> {
+impl GrpcOctreeDataProvider {
+    pub fn from_address(addr: &str) -> Result<Self> {
         let env = Arc::new(EnvBuilder::new().build());
         let ch = ChannelBuilder::new(env)
             .max_receive_message_len(::std::i32::MAX)
             .connect(addr);
         let client = OctreeClient::new(ch);
 
-        let reply = client.get_meta(&proto::GetMetaRequest::new())
-           .map_err(|_| point_viewer::errors::ErrorKind::Grpc)? ;
-        // TODO(sirver): We pass a dummy directory and hope we never actually use it for anything.
-        let octree = OnDiskOctree::from_meta(reply.meta.unwrap(), PathBuf::new())?;
-        Ok(GrpcOctree { client, octree })
+        Ok(GrpcOctreeDataProvider { client })
     }
 
-    pub fn get_points_in_box(&self, bounding_box: &Aabb3<f32>, mut func: impl FnMut(&[Point]) -> bool) -> Result<()> {
+    pub fn get_points_in_box(
+        &self,
+        bounding_box: &Aabb3<f32>,
+        mut func: impl FnMut(&[Point]) -> bool,
+    ) -> Result<()> {
         let mut req = proto::GetPointsInBoxRequest::new();
         req.mut_bounding_box().mut_min().set_x(bounding_box.min.x);
         req.mut_bounding_box().mut_min().set_y(bounding_box.min.y);
@@ -65,8 +57,10 @@ impl GrpcOctree {
         req.mut_bounding_box().mut_max().set_x(bounding_box.max.x);
         req.mut_bounding_box().mut_max().set_y(bounding_box.max.y);
         req.mut_bounding_box().mut_max().set_z(bounding_box.max.z);
-        let replies = self.client.get_points_in_box(&req)
-           .map_err(|_| point_viewer::errors::ErrorKind::Grpc)? ;
+        let replies = self
+            .client
+            .get_points_in_box(&req)
+            .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
 
         let mut points = Vec::new();
         let mut interrupted = false;
@@ -80,8 +74,9 @@ impl GrpcOctree {
                             red: color.red,
                             green: color.green,
                             blue: color.blue,
-                            alpha: color.alpha
-                        }.to_u8(),
+                            alpha: color.alpha,
+                        }
+                        .to_u8(),
                         intensity: None,
                     });
                 }
@@ -108,29 +103,41 @@ impl GrpcOctree {
     }
 }
 
-impl Octree for GrpcOctree {
-    fn get_visible_nodes(&self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
-        self.octree.get_visible_nodes(projection_matrix)
+impl OctreeDataProvider for GrpcOctreeDataProvider {
+    fn meta_proto(&self) -> Result<Meta> {
+        let reply = self
+            .client
+            .get_meta(&proto::GetMetaRequest::new())
+            .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
+        Ok(reply.meta.unwrap())
     }
 
-    fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData> {
+    fn data(
+        &self,
+        node_id: &NodeId,
+        node_layers: Vec<NodeLayer>,
+    ) -> Result<HashMap<NodeLayer, Box<dyn Read>>> {
         let mut req = proto::GetNodeDataRequest::new();
         req.set_id(node_id.to_string());
-
-        // TODO(sirver): This should most definitively not crash, but instead return an error.
-        // Needs changes to the trait though.
-        let reply = self.client.get_node_data(&req).map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
-        let node = reply.node.unwrap();
-        let result = NodeData {
-            position: reply.position,
-            color: reply.color,
-            meta: NodeMeta {
-                num_points: node.num_points,
-                position_encoding: PositionEncoding::from_proto(node.position_encoding).unwrap(),
-                bounding_cube: node_id
-                    .find_bounding_cube(&Cube::bounding(&self.octree.bounding_box())),
-            },
-        };
-        Ok(result)
+        let reply = self
+            .client
+            .get_node_data(&req)
+            .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
+        let mut readers = HashMap::<NodeLayer, Box<dyn Read>>::new();
+        for node_layer in node_layers {
+            let reader: Box<dyn Read> = match node_layer {
+                NodeLayer::Position => Box::new(Cursor::new(reply.position.clone())),
+                NodeLayer::Color => Box::new(Cursor::new(reply.color.clone())),
+                _ => {
+                    return Err("Unsupported node extension.".into());
+                }
+            };
+            readers.insert(node_layer.to_owned(), reader);
+        }
+        Ok(readers)
     }
+}
+
+pub fn octree_from_address(addr: &str) -> Result<Octree> {
+    Octree::from_data_provider(Box::new(GrpcOctreeDataProvider::from_address(addr)?))
 }

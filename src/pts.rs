@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use {InternalIterator, Point};
+use crate::color;
+use crate::{InternalIterator, Point};
 use cgmath::Vector3;
-use color;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -25,7 +25,7 @@ pub struct PtsIterator {
 }
 
 impl PtsIterator {
-    pub fn new(filename: &Path) -> Self {
+    pub fn from_file(filename: &Path) -> Self {
         let file = File::open(filename).unwrap();
         PtsIterator {
             data: BufReader::new(file),

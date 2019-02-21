@@ -1,11 +1,14 @@
 // Code related to X-Ray generation.
 
+use crate::proto;
+use crate::CURRENT_VERSION;
 use cgmath::{Point2, Point3};
+use clap::{_clap_count_exprs, arg_enum};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use point_viewer::math::clamp;
-use point_viewer::{octree, InternalIterator, Point, color::{Color, WHITE}};
+use point_viewer::{color::Color, octree, InternalIterator, Point};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -16,8 +19,6 @@ use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use proto;
-use CURRENT_VERSION;
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
@@ -45,18 +46,18 @@ impl Jet {
         if val <= -0.75 {
             0.
         } else if val <= -0.25 {
-            self.interpolate(val, 0.0, -0.75, 1.0, -0.25 )
+            self.interpolate(val, 0.0, -0.75, 1.0, -0.25)
         } else if val <= 0.25 {
             1.0
         } else if val <= 0.75 {
-            self.interpolate( val, 1.0, 0.25, 0.0, 0.75 )
+            self.interpolate(val, 1.0, 0.25, 0.0, 0.75)
         } else {
             0.0
         }
     }
 
     fn interpolate(&self, val: f32, y0: f32, x0: f32, y1: f32, x1: f32) -> f32 {
-        (val-x0)*(y1-y0)/(x1-x0) + y0
+        (val - x0) * (y1 - y0) / (x1 - x0) + y0
     }
 
     pub fn for_value(&self, val: f32) -> Color<u8> {
@@ -66,8 +67,9 @@ impl Jet {
             red: self.red(val),
             green: self.green(val),
             blue: self.blue(val),
-            alpha: 1.
-        }.to_u8()
+            alpha: 1.,
+        }
+        .to_u8()
     }
 }
 
@@ -79,6 +81,15 @@ arg_enum! {
         colored,
         colored_with_intensity,
         colored_with_height_stddev,
+    }
+}
+
+arg_enum! {
+    #[derive(Debug)]
+    #[allow(non_camel_case_types)]
+    pub enum TileBackgroundColorArgument {
+        white,
+        transparent,
     }
 }
 
@@ -100,8 +111,10 @@ impl ColoringStrategyKind {
             ColoringStrategyKind::Colored => Box::new(PointColorColoringStrategy::default()),
             ColoringStrategyKind::ColoredWithIntensity(min_intensity, max_intensity) => {
                 Box::new(IntensityColoringStrategy::new(min_intensity, max_intensity))
-            },
-            ColoringStrategyKind::ColoredWithHeightStddev(max_stddev) => Box::new(HeightStddevColoringStrategy::new(max_stddev)),
+            }
+            ColoringStrategyKind::ColoredWithHeightStddev(max_stddev) => {
+                Box::new(HeightStddevColoringStrategy::new(max_stddev))
+            }
         }
     }
 }
@@ -113,7 +126,7 @@ pub trait ColoringStrategy: Send {
 
     // After all points are processed, this is used to query the color that should be assigned to
     // the pixel (x, y) in the final tile image.
-    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8>;
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8>;
 }
 
 struct XRayColoringStrategy {
@@ -138,16 +151,16 @@ impl ColoringStrategy for XRayColoringStrategy {
                 e.get_mut().insert(z);
             }
             Entry::Vacant(v) => {
-                let mut s = FnvHashSet::default();
-                s.insert(z);
-                v.insert(s);
+                let mut set = FnvHashSet::default();
+                set.insert(z);
+                v.insert(set);
             }
         }
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
         if !self.z_buckets.contains_key(&(x, y)) {
-            return WHITE.to_u8();
+            return background_color;
         }
         let saturation = (self.z_buckets[&(x, y)].len() as f32).ln() / self.max_saturation;
         let value = ((1. - saturation) * 255.) as u8;
@@ -183,7 +196,8 @@ impl IntensityColoringStrategy {
 
 impl ColoringStrategy for IntensityColoringStrategy {
     fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
-        let intensity = p.intensity
+        let intensity = p
+            .intensity
             .expect("Coloring by intensity was requested, but point without intensity found.");
         if intensity < 0. {
             return;
@@ -203,9 +217,9 @@ impl ColoringStrategy for IntensityColoringStrategy {
         }
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
         if !self.per_column_data.contains_key(&(x, y)) {
-            return WHITE.to_u8();
+            return background_color;
         }
         let c = &self.per_column_data[&(x, y)];
         let mean = (c.sum / c.count as f32).max(self.min).min(self.max);
@@ -215,9 +229,9 @@ impl ColoringStrategy for IntensityColoringStrategy {
             green: brighten,
             blue: brighten,
             alpha: 1.,
-        }.to_u8()
+        }
+        .to_u8()
     }
-
 }
 
 struct PerColumnData {
@@ -254,9 +268,9 @@ impl ColoringStrategy for PointColorColoringStrategy {
         }
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
         if !self.per_column_data.contains_key(&(x, y)) {
-            return WHITE.to_u8();
+            return background_color;
         }
         let c = &self.per_column_data[&(x, y)];
         Color {
@@ -264,7 +278,8 @@ impl ColoringStrategy for PointColorColoringStrategy {
             green: c.color_sum.green / c.count as f32,
             blue: c.color_sum.blue / c.count as f32,
             alpha: c.color_sum.alpha / c.count as f32,
-        }.to_u8()
+        }
+        .to_u8()
     }
 }
 
@@ -276,16 +291,19 @@ struct HeightStddevColoringStrategy {
 impl HeightStddevColoringStrategy {
     fn new(max_stddev: f32) -> Self {
         HeightStddevColoringStrategy {
-            max_stddev, 
+            max_stddev,
             per_column_data: FnvHashMap::default(),
         }
     }
 }
 
 /// Build a parent image created of the 4 children tiles. All tiles are optionally, in which case
-/// they are left white in the resulting image. The input images must be square with length N, 
+/// they are left white in the resulting image. The input images must be square with length N,
 /// the returned image is square with length 2*N.
-pub fn build_parent(children: &[Option<image::RgbImage>]) -> image::RgbImage {
+pub fn build_parent(
+    children: &[Option<image::RgbaImage>],
+    tile_background_color: Color<u8>,
+) -> image::RgbaImage {
     assert_eq!(children.len(), 4);
     let mut child_size_px = None;
     for c in children.iter() {
@@ -293,20 +311,29 @@ pub fn build_parent(children: &[Option<image::RgbImage>]) -> image::RgbImage {
             continue;
         }
         let c = c.as_ref().unwrap();
-        assert_eq!(c.width(), c.height(), "Expected width to be equal to height.");
+        assert_eq!(
+            c.width(),
+            c.height(),
+            "Expected width to be equal to height."
+        );
         match child_size_px {
             None => child_size_px = Some(c.width()),
             Some(w) => {
                 assert_eq!(w, c.width(), "Not all images have the same size.");
-            },
+            }
         }
     }
     let child_size_px = child_size_px.expect("No children passed to 'build_parent'.");
-    let mut large_image = image::RgbImage::from_pixel(
+    let mut large_image = image::RgbaImage::from_pixel(
         child_size_px * 2,
         child_size_px * 2,
-        image::Rgb {
-            data: [255, 255, 255],
+        image::Rgba {
+            data: [
+                tile_background_color.red,
+                tile_background_color.green,
+                tile_background_color.blue,
+                tile_background_color.alpha,
+            ],
         },
     );
 
@@ -330,27 +357,28 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
     fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
         self.per_column_data
             .entry((x, y))
-            .or_insert_with(|| OnlineStats::new())
+            .or_insert_with(OnlineStats::new)
             .add(p.position.z);
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32) -> Color<u8> {
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
         if !self.per_column_data.contains_key(&(x, y)) {
-            return WHITE.to_u8();
+            return background_color;
         }
         let c = &self.per_column_data[&(x, y)];
         let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
-        Jet{}.for_value(saturation)
+        Jet {}.for_value(saturation)
     }
 }
 
 pub fn xray_from_points(
-    octree: &octree::OnDiskOctree,
+    octree: &octree::Octree,
     bbox: &Aabb3<f32>,
     png_file: &Path,
     image_width: u32,
     image_height: u32,
     mut coloring_strategy: Box<ColoringStrategy>,
+    tile_background_color: Color<u8>,
 ) -> bool {
     let mut seen_any_points = false;
     octree.points_in_box(bbox).for_each(|p| {
@@ -360,7 +388,8 @@ pub fn xray_from_points(
         // bottom left. Since images have their origin at the top left, we need actually have to
         // invert y and go from the bottom of the image.
         let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * image_width as f32) as u32;
-        let y = ((1. - ((p.position.y - bbox.min().y) / bbox.dim().y)) * image_height as f32) as u32;
+        let y =
+            ((1. - ((p.position.y - bbox.min().y) / bbox.dim().y)) * image_height as f32) as u32;
         let z = (((p.position.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
         coloring_strategy.process_discretized_point(p, x, y, z);
     });
@@ -369,15 +398,15 @@ pub fn xray_from_points(
         return false;
     }
 
-    let mut image = image::RgbImage::new(image_width, image_height);
+    let mut image = image::RgbaImage::new(image_width, image_height);
     for x in 0..image_width {
         for y in 0..image_height {
-            let color = coloring_strategy.get_pixel_color(x, y);
+            let color = coloring_strategy.get_pixel_color(x, y, tile_background_color);
             image.put_pixel(
                 x,
                 y,
-                image::Rgb {
-                    data: [color.red, color.green, color.blue],
+                image::Rgba {
+                    data: [color.red, color.green, color.blue, color.alpha],
                 },
             );
         }
@@ -407,11 +436,12 @@ pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
 
 pub fn build_xray_quadtree(
     pool: &Pool,
-    octree: &octree::OnDiskOctree,
+    octree: &octree::Octree,
     output_directory: &Path,
     resolution: f32,
     tile_size_px: u32,
-    coloring_strategy_kind: ColoringStrategyKind,
+    coloring_strategy_kind: &ColoringStrategyKind,
+    tile_background_color: Color<u8>,
 ) -> Result<(), Box<Error>> {
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
@@ -453,16 +483,17 @@ pub fn build_xray_quadtree(
                         tile_size_px,
                         tile_size_px,
                         strategy,
+                        tile_background_color,
                     ) {
                         all_nodes_tx_clone.send(node.id).unwrap();
-                        node.id
-                            .parent_id()
-                            .map(|id| parents_to_create_tx_clone.send(id).unwrap());
+                        if let Some(id) = node.id.parent_id() {
+                            parents_to_create_tx_clone.send(id).unwrap()
+                        }
                     }
                 });
             } else {
                 for i in 0..4 {
-                    open.push(node.get_child(ChildIndex::from_u8(i)));
+                    open.push(node.get_child(&ChildIndex::from_u8(i)));
                 }
             }
         }
@@ -479,7 +510,7 @@ pub fn build_xray_quadtree(
                 all_nodes_tx.send(node_id).unwrap();
                 let tx_clone = parents_to_create_tx.clone();
                 scope.execute(move || {
-                    let mut children = [ None, None, None, None ];
+                    let mut children = [None, None, None, None];
 
                     // We a right handed coordinate system with the x-axis of world and images
                     // aligning. This means that the y-axis aligns too, but the origin of the image
@@ -488,25 +519,27 @@ pub fn build_xray_quadtree(
                     for id in 0..4 {
                         let png = get_image_path(
                             output_directory,
-                            node_id.get_child_id(ChildIndex::from_u8(id)),
+                            node_id.get_child_id(&ChildIndex::from_u8(id)),
                         );
                         if !png.exists() {
                             continue;
                         }
-                        children[id as usize] = Some(image::open(&png).unwrap().to_rgb());
+                        children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
                     }
-                    let large_image = build_parent(&children);
-                    let image = image::DynamicImage::ImageRgb8(large_image).resize(
+                    let large_image = build_parent(&children, tile_background_color);
+                    let image = image::DynamicImage::ImageRgba8(large_image).resize(
                         tile_size_px,
                         tile_size_px,
                         image::FilterType::Lanczos3,
                     );
                     image
-                        .as_rgb8()
+                        .as_rgba8()
                         .unwrap()
                         .save(&get_image_path(output_directory, node_id))
                         .unwrap();
-                    node_id.parent_id().map(|id| tx_clone.send(id).unwrap());
+                    if let Some(id) = node_id.parent_id() {
+                        tx_clone.send(id).unwrap()
+                    }
                 });
             }
         });
@@ -524,14 +557,14 @@ pub fn build_xray_quadtree(
             .set_y(bounding_rect.min().y);
         meta.mut_bounding_rect()
             .set_edge_length(bounding_rect.edge_length());
-        meta.set_deepest_level(deepest_level as u32);
+        meta.set_deepest_level(u32::from(deepest_level));
         meta.set_tile_size(tile_size_px);
         meta.set_version(CURRENT_VERSION);
 
         for node_id in all_nodes_rx {
             let mut proto = proto::NodeId::new();
             proto.set_index(node_id.index());
-            proto.set_level(node_id.level() as u32);
+            proto.set_level(u32::from(node_id.level()));
             meta.mut_nodes().push(proto);
         }
         meta
@@ -542,4 +575,3 @@ pub fn build_xray_quadtree(
 
     Ok(())
 }
-

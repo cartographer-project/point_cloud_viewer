@@ -1,31 +1,10 @@
+use cgmath::Point2;
 use cgmath::{Matrix4, Point3};
 use collision::{Aabb3, Frustum, Relation};
-use quadtree::{ChildIndex, Node};
-
-extern crate cgmath;
-#[macro_use]
-extern crate clap;
-extern crate collision;
-extern crate fnv;
-extern crate image;
-#[macro_use]
-extern crate iron;
-extern crate point_viewer;
-extern crate protobuf;
-extern crate quadtree;
-extern crate router;
-extern crate scoped_pool;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate stats;
-extern crate urlencoded;
-extern crate xray_proto_rust;
-
-use cgmath::Point2;
 use fnv::FnvHashSet;
+use quadtree::{ChildIndex, Node};
 use quadtree::{NodeId, Rect};
+use serde_derive::Serialize;
 use std::io::{self, Cursor};
 use std::path::Path;
 
@@ -93,7 +72,7 @@ impl Meta {
     pub fn get_nodes_for_level(
         &self,
         level: u8,
-        matrix_entries: Vec<f32>,
+        matrix_entries: &[f32],
     ) -> Result<Vec<NodeMeta>, String> {
         // TODO(sirver): This function could actually work much faster by not traversing the
         // levels, but just finding the covering of the rectangle of the current bounding box.
@@ -140,7 +119,7 @@ impl Meta {
                 });
             } else {
                 for i in 0..4 {
-                    open.push(node.get_child(ChildIndex::from_u8(i)));
+                    open.push(node.get_child(&ChildIndex::from_u8(i)));
                 }
             }
         }

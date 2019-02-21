@@ -17,31 +17,18 @@
 #![allow(renamed_and_removed_lints)]
 #![recursion_limit = "1024"]
 
-extern crate byteorder;
-extern crate cgmath;
-extern crate collision;
-#[macro_use]
-extern crate error_chain;
-extern crate fnv;
-extern crate libc;
-extern crate num;
-extern crate num_traits;
-extern crate pbr;
-extern crate point_viewer_proto_rust;
-extern crate protobuf;
-extern crate scoped_pool;
-extern crate walkdir;
-
 pub mod color;
+// TODO(feuerste): Remove this, once https://github.com/rust-lang-nursery/error-chain/pull/255 is merged.
+#[allow(deprecated)]
 pub mod errors;
-pub mod math;
 pub mod generation;
+pub mod math;
 pub mod octree;
 pub mod ply;
 pub mod pts;
 
 pub trait InternalIterator {
-    fn for_each<F: FnMut(&Point)>(self, F);
+    fn for_each<F: FnMut(&Point)>(self, _: F);
     fn size_hint(&self) -> Option<usize>;
 }
 

@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::errors::*;
+use crate::math::Cube;
+use crate::octree::{self, OnDiskOctreeDataProvider};
+use crate::ply::PlyIterator;
+use crate::proto;
+use crate::pts::PtsIterator;
+use crate::{InternalIterator, Point};
 use cgmath::{EuclideanSpace, Point3};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use pbr::ProgressBar;
-use {InternalIterator, Point};
-use errors::*;
-use math::Cube;
-use octree;
-use ply::PlyIterator;
-use proto;
-use pts::PtsIterator;
 use protobuf::Message;
 use scoped_pool::{Pool, Scope};
 use std::cmp;
@@ -31,11 +31,12 @@ use std::io::{BufWriter, Stdout};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
-const UPDATE_COUNT: i64 = 100000;
-const MAX_POINTS_PER_NODE: i64 = 100000;
+const UPDATE_COUNT: i64 = 100_000;
+const MAX_POINTS_PER_NODE: i64 = 100_000;
 
 // Return a list a leaf nodes and a list of nodes to be splitted further.
 fn split<P>(
+    octree_data_provider: &OnDiskOctreeDataProvider,
     octree_meta: &octree::OctreeMeta,
     node_id: &octree::NodeId,
     stream: P,
@@ -64,6 +65,7 @@ where
         let array_index = child_index.as_u8() as usize;
         if children[array_index].is_none() {
             children[array_index] = Some(octree::NodeWriter::new(
+                octree_data_provider,
                 octree_meta,
                 &node_id.get_child_id(child_index),
             ));
@@ -75,7 +77,7 @@ where
     // writing a point. This only saves some disk space during processing - all nodes will be
     // rewritten by subsampling the children in the second step anyways. We also ignore file
     // removing error. For example, we never write out the root, so it cannot be removed.
-    octree::NodeWriter::new(octree_meta, node_id);
+    octree::NodeWriter::new(octree_data_provider, octree_meta, node_id);
 
     let mut leaf_nodes = Vec::new();
     let mut split_nodes = Vec::new();
@@ -121,6 +123,7 @@ fn should_split_node(
 
 fn split_node<'a, P>(
     scope: &Scope<'a>,
+    octree_data_provider: &'a OnDiskOctreeDataProvider,
     octree_meta: &'a octree::OctreeMeta,
     node_id: &octree::NodeId,
     stream: P,
@@ -128,13 +131,20 @@ fn split_node<'a, P>(
 ) where
     P: InternalIterator,
 {
-    let (leaf_nodes, split_nodes) = split(octree_meta, node_id, stream);
+    let (leaf_nodes, split_nodes) = split(octree_data_provider, octree_meta, node_id, stream);
     for child_id in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
         scope.recurse(move |scope| {
-            let stream = octree::NodeIterator::from_disk(octree_meta, &child_id).unwrap();
+            let stream = octree::NodeIterator::from_data_provider(
+                octree_data_provider,
+                octree_meta,
+                &child_id,
+                octree_data_provider.number_of_points(&child_id).unwrap(),
+            )
+            .unwrap();
             split_node(
                 scope,
+                octree_data_provider,
                 octree_meta,
                 &child_id,
                 stream,
@@ -149,14 +159,20 @@ fn split_node<'a, P>(
 }
 
 fn subsample_children_into(
+    octree_data_provider: &OnDiskOctreeDataProvider,
     octree_meta: &octree::OctreeMeta,
     node_id: &octree::NodeId,
     nodes_sender: &mpsc::Sender<(octree::NodeId, i64)>,
 ) -> Result<()> {
-    let mut parent_writer = octree::NodeWriter::new(octree_meta, node_id);
+    let mut parent_writer = octree::NodeWriter::new(octree_data_provider, octree_meta, node_id);
     for i in 0..8 {
         let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(i));
-        let node_iterator = match octree::NodeIterator::from_disk(octree_meta, &child_id) {
+        let node_iterator = match octree::NodeIterator::from_data_provider(
+            octree_data_provider,
+            octree_meta,
+            &child_id,
+            octree_data_provider.number_of_points(&child_id)?,
+        ) {
             Ok(node_iterator) => node_iterator,
             Err(Error(ErrorKind::NodeNotFound, _)) => continue,
             Err(err) => return Err(err),
@@ -167,7 +183,8 @@ fn subsample_children_into(
         let mut points = Vec::with_capacity(node_iterator.size_hint().unwrap());
         node_iterator.for_each(|p| points.push((*p).clone()));
 
-        let mut child_writer = octree::NodeWriter::new(octree_meta, &child_id);
+        let mut child_writer =
+            octree::NodeWriter::new(octree_data_provider, octree_meta, &child_id);
         for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
                 parent_writer.write(&p);
@@ -219,8 +236,10 @@ impl InternalIterator for InputFileIterator {
 
 fn make_stream(input: &InputFile) -> (InputFileIterator, Option<ProgressBar<Stdout>>) {
     let stream = match *input {
-        InputFile::Ply(ref filename) => InputFileIterator::Ply(PlyIterator::new(filename).unwrap()),
-        InputFile::Pts(ref filename) => InputFileIterator::Pts(PtsIterator::new(filename)),
+        InputFile::Ply(ref filename) => {
+            InputFileIterator::Ply(PlyIterator::from_file(filename).unwrap())
+        }
+        InputFile::Pts(ref filename) => InputFileIterator::Pts(PtsIterator::from_file(filename)),
     };
 
     let progress_bar = match stream.size_hint() {
@@ -235,9 +254,9 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
     let mut num_points = 0i64;
     let mut bounding_box = Aabb3::zero();
     let (stream, mut progress_bar) = make_stream(input);
-    progress_bar
-        .as_mut()
-        .map(|pb| pb.message("Determining bounding box: "));
+    if let Some(pb) = progress_bar.as_mut() {
+        pb.message("Determining bounding box: ")
+    }
 
     stream.for_each(|p: &Point| {
         bounding_box = bounding_box.grow(Point3::from_vec(p.position));
@@ -246,14 +265,25 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
             progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
         }
     });
-    progress_bar.map(|mut f| f.finish());
+    if let Some(mut f) = progress_bar {
+        f.finish()
+    }
     bounding_box
 }
 
-pub fn build_octree_from_file(pool: &Pool, output_directory: impl AsRef<Path>, resolution: f64, filename: impl AsRef<Path>) {
+pub fn build_octree_from_file(
+    pool: &Pool,
+    output_directory: impl AsRef<Path>,
+    resolution: f64,
+    filename: impl AsRef<Path>,
+) {
     // TODO(ksavinash9): This function should return a Result.
     let input = {
-        match filename.as_ref().extension().and_then(|s| s.to_str()) {
+        match filename
+            .as_ref()
+            .extension()
+            .and_then(std::ffi::OsStr::to_str)
+        {
             Some("ply") => InputFile::Ply(filename.as_ref().to_path_buf()),
             Some("pts") => InputFile::Pts(filename.as_ref().to_path_buf()),
             other => panic!("Unknown input file format: {:?}", other),
@@ -264,12 +294,21 @@ pub fn build_octree_from_file(pool: &Pool, output_directory: impl AsRef<Path>, r
     build_octree(pool, output_directory, resolution, bounding_box, stream)
 }
 
-pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution: f64, bounding_box: Aabb3<f32>, input: impl InternalIterator) {
+pub fn build_octree(
+    pool: &Pool,
+    output_directory: impl AsRef<Path>,
+    resolution: f64,
+    bounding_box: Aabb3<f32>,
+    input: impl InternalIterator,
+) {
     // We open a lot of files during our work. Sometimes users see errors with 'cannot open more
     // files'. We attempt to increase the rlimits for the number of open files per process here,
     // but we do not fail if we do not manage to do so.
     unsafe {
-        let mut rl = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        let mut rl = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
         libc::getrlimit(libc::RLIMIT_NOFILE, &mut rl);
         rl.rlim_cur = rl.rlim_max;
         libc::setrlimit(libc::RLIMIT_NOFILE, &rl);
@@ -279,8 +318,11 @@ pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution:
     let octree_meta = &octree::OctreeMeta {
         bounding_box,
         resolution,
+    };
+    let octree_data_provider = OnDiskOctreeDataProvider {
         directory: output_directory.as_ref().to_path_buf(),
     };
+    let octree_data_provider = &octree_data_provider;
 
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory.as_ref());
@@ -317,6 +359,7 @@ pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution:
         let root_node = octree::Node::root_with_bounding_cube(Cube::bounding(&bounding_box));
         split_node(
             scope,
+            octree_data_provider,
             octree_meta,
             &root_node.id,
             input,
@@ -334,7 +377,7 @@ pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution:
 
     // sub sampling returns the list of finished nodes including all meta data
     // We start on the deepest level and work our way up the tree.
-    for current_level in (1..deepest_level + 1).rev() {
+    for current_level in (1..=deepest_level).rev() {
         // All nodes on the same level can be subsampled in parallel.
         let res = nodes_to_subsample
             .into_iter()
@@ -342,7 +385,8 @@ pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution:
         nodes_to_subsample = res.1;
 
         // Unwrap is safe, since we stop at current_level = 1, so the root can never appear.
-        let parent_ids: FnvHashSet<_> = res.0
+        let parent_ids: FnvHashSet<_> = res
+            .0
             .into_iter()
             .map(|id| id.parent_id().unwrap())
             .collect();
@@ -370,7 +414,13 @@ pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution:
                 let finished_nodes_sender_clone = finished_nodes_sender.clone();
                 let progress_tx_clone = progress_tx.clone();
                 scope.execute(move || {
-                    subsample_children_into(octree_meta, id, &finished_nodes_sender_clone).unwrap();
+                    subsample_children_into(
+                        octree_data_provider,
+                        octree_meta,
+                        id,
+                        &finished_nodes_sender_clone,
+                    )
+                    .unwrap();
                     progress_tx_clone.send(()).unwrap();
                 });
             }
@@ -398,6 +448,7 @@ pub fn build_octree(pool: &Pool, output_directory: impl AsRef<Path>, resolution:
         meta.mut_nodes().push(proto);
     }
 
-    let mut buf_writer = BufWriter::new(File::create(&output_directory.as_ref().join("meta.pb")).unwrap());
+    let mut buf_writer =
+        BufWriter::new(File::create(&output_directory.as_ref().join("meta.pb")).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
 }

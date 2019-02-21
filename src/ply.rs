@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use {InternalIterator, Point};
+use crate::color;
+use crate::errors::*;
+use crate::{InternalIterator, Point};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
-use color;
-use errors::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::ops::Index;
@@ -109,7 +109,7 @@ impl<'a> Index<&'a str> for Element {
 }
 
 fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
-    use errors::ErrorKind::InvalidInput;
+    use crate::errors::ErrorKind::InvalidInput;
 
     let mut header_len = 0;
     let mut line = String::new();
@@ -164,7 +164,7 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
                         let data_type = DataType::from_str(data_type_str)?;
                         ScalarProperty {
                             name: entries[2].to_string(),
-                            data_type: data_type,
+                            data_type,
                         }
                     }
                     _ => return Err(InvalidInput(format!("Invalid line: {}", line)).into()),
@@ -187,7 +187,7 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
 
     Ok((
         Header {
-            elements: elements,
+            elements,
             format: format.unwrap(),
         },
         header_len,
@@ -200,68 +200,55 @@ type ReadingFn = fn(nread: &mut usize, buf: &[u8], val: &mut Point);
 // calls '$assign' with it while casting it to the correct type. I did not find a way of doing this
 // purely using generic programming, so I resorted to this macro.
 macro_rules! create_and_return_reading_fn {
-    ($assign:expr, $size:ident, $num_bytes:expr, $reading_fn:expr) => (
-        {
-            $size += $num_bytes;
-            |nread: &mut usize, buf: &[u8], point: &mut Point| {
-                $assign(point, $reading_fn(buf) as _);
-                *nread += $num_bytes;
-            }
+    ($assign:expr, $size:ident, $num_bytes:expr, $reading_fn:expr) => {{
+        $size += $num_bytes;
+        |nread: &mut usize, buf: &[u8], point: &mut Point| {
+            #[allow(clippy::cast_lossless)]
+            $assign(point, $reading_fn(buf) as _);
+            *nread += $num_bytes;
         }
-    )
+    }};
 }
 
 macro_rules! read_casted_property {
-    ($data_type:expr, $assign:expr, &mut $size:ident) => (
+    ($data_type:expr, $assign:expr, &mut $size:ident) => {
         match $data_type {
             DataType::Uint8 => {
-                create_and_return_reading_fn!($assign, $size, 1,
-                    |buf: &[u8]| buf[0])
-            },
-            DataType::Int8 => {
-                create_and_return_reading_fn!($assign, $size, 1,
-                    |buf: &[u8]| buf[0])
-            },
+                create_and_return_reading_fn!($assign, $size, 1, |buf: &[u8]| buf[0])
+            }
+            DataType::Int8 => create_and_return_reading_fn!($assign, $size, 1, |buf: &[u8]| buf[0]),
             DataType::Uint16 => {
-                create_and_return_reading_fn!($assign, $size, 2,
-                    LittleEndian::read_u16)
-            },
+                create_and_return_reading_fn!($assign, $size, 2, LittleEndian::read_u16)
+            }
             DataType::Int16 => {
-                create_and_return_reading_fn!($assign, $size, 2,
-                    LittleEndian::read_i16)
-            },
+                create_and_return_reading_fn!($assign, $size, 2, LittleEndian::read_i16)
+            }
             DataType::Uint32 => {
-                create_and_return_reading_fn!($assign, $size, 4,
-                    LittleEndian::read_u32)
-            },
+                create_and_return_reading_fn!($assign, $size, 4, LittleEndian::read_u32)
+            }
             DataType::Int32 => {
-                create_and_return_reading_fn!($assign, $size, 4,
-                    LittleEndian::read_i32)
-            },
+                create_and_return_reading_fn!($assign, $size, 4, LittleEndian::read_i32)
+            }
             DataType::Float32 => {
-                create_and_return_reading_fn!($assign, $size, 4,
-                    LittleEndian::read_f32)
-            },
+                create_and_return_reading_fn!($assign, $size, 4, LittleEndian::read_f32)
+            }
             DataType::Float64 => {
-                create_and_return_reading_fn!($assign, $size, 8,
-                    LittleEndian::read_f64)
-            },
+                create_and_return_reading_fn!($assign, $size, 8, LittleEndian::read_f64)
+            }
         }
-    )
+    };
 }
 
 // Similar to 'create_and_return_reading_fn', but creates a function that just advances the read
 // pointer.
 macro_rules! create_skip_fn {
-    (&mut $size:ident, $num_bytes:expr) => (
-        {
-            $size += $num_bytes;
-            fn _read_fn(nread: &mut usize, _: &[u8], _: &mut Point) {
-                *nread += $num_bytes;
-            }
-            _read_fn
+    (&mut $size:ident, $num_bytes:expr) => {{
+        $size += $num_bytes;
+        fn _read_fn(nread: &mut usize, _: &[u8], _: &mut Point) {
+            *nread += $num_bytes;
         }
-    )
+        _read_fn
+    }};
 }
 
 /// Opens a PLY file and checks that it is the correct format we support. Seeks in the file to the
@@ -379,12 +366,12 @@ pub struct PlyIterator {
 }
 
 impl PlyIterator {
-    pub fn new<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
+    pub fn from_file<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
         let (reader, num_total_points, readers) = open(ply_file.as_ref())?;
         Ok(PlyIterator {
-            reader: reader,
-            readers: readers,
-            num_total_points: num_total_points,
+            reader,
+            readers,
+            num_total_points,
         })
     }
 }
@@ -426,7 +413,7 @@ mod tests {
     use super::*;
 
     fn points_from_file<P: AsRef<Path>>(path: P) -> Vec<Point> {
-        let iterator = PlyIterator::new(path).unwrap();
+        let iterator = PlyIterator::from_file(path).unwrap();
         let mut points = Vec::new();
         iterator.for_each(|p| {
             points.push(p.clone());

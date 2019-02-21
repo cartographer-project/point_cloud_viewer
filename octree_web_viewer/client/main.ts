@@ -15,6 +15,7 @@
 'use strict';
 
 import * as THREE from 'three';
+import { GUI } from 'dat.gui';
 import { FirstPersonController } from './control';
 import { OctreeViewer } from './octree_viewer';
 
@@ -61,7 +62,7 @@ class App {
     this.viewer = new OctreeViewer(this.scene, () => {
       this.needsRender = true;
     });
-    const gui = new dat.GUI();
+    const gui = new GUI();
     gui
       .add(this.viewer.material.uniforms['size'], 'value')
       .name('Point size')

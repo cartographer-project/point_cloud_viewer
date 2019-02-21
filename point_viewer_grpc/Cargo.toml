@@ -16,6 +16,7 @@
 authors = ["Holger Rapp <holger@lyft.com>"]
 name = "point_viewer_grpc"
 version = "0.1.0"
+edition = "2018"
 
 [dependencies]
 collision = "0.18.0"

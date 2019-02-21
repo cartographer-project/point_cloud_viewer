@@ -33,12 +33,12 @@ impl Color<f32> {
 }
 
 impl Color<u8> {
-    pub fn to_f32(&self) -> Color<f32> {
+    pub fn to_f32(self) -> Color<f32> {
         Color {
-            red: (self.red as f32) / 255.,
-            green: (self.green as f32) / 255.,
-            blue: (self.blue as f32) / 255.,
-            alpha: (self.alpha as f32) / 255.,
+            red: f32::from(self.red) / 255.,
+            green: f32::from(self.green) / 255.,
+            blue: f32::from(self.blue) / 255.,
+            alpha: f32::from(self.alpha) / 255.,
         }
     }
 }
@@ -84,4 +84,10 @@ pub const WHITE: Color<f32> = Color {
     green: 1.,
     blue: 1.,
     alpha: 1.,
+};
+pub const TRANSPARENT: Color<f32> = Color {
+    red: 1.,
+    green: 1.,
+    blue: 1.,
+    alpha: 0.,
 };
