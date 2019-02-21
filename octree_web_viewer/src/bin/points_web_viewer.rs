@@ -39,7 +39,6 @@ fn main() {
     let octree_directory = PathBuf::from(&args.octree_path);
     // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
     // write access to the Octree, instead of using an RwLock we should use the actor system.
-
     // TODO(catevita) octree factory
 
     let octree: Arc<octree::Octree> = {
