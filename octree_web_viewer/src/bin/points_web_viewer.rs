@@ -34,10 +34,8 @@ struct CommandlineArguments {
 
 fn main() {
     let args = CommandlineArguments::from_args();
-    println!("{:?}", args);
 
     let ip_port = format!("{}:{}", args.ip, args.port);
-
     let octree_directory = PathBuf::from(&args.octree_path);
     // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
     // write access to the Octree, instead of using an RwLock we should use the actor system.
