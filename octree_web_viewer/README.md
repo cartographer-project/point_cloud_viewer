@@ -13,6 +13,7 @@ To build,
 
 Then build the server: `cargo build --release`.
 For help and customization arguments, type `../target/release/points_web_viewer --help`.
+
 Serve up the octree using `../target/release/points_web_viewer <octree directory>`, open Chrome to <http://localhost:5433>, navigate with WASD and left-click-drag on the mouse.
 The mouse wheel adjusts movement speed.
 
