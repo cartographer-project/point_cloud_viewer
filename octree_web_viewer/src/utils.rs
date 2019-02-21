@@ -4,7 +4,6 @@ use actix_web::{server, HttpRequest, HttpResponse};
 use crate::backend::{NodesData, VisibleNodes};
 use crate::backend_error::PointsViewerError;
 use point_viewer::octree;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 const INDEX_HTML: &str = include_str!("../client/index.html");
@@ -29,22 +28,11 @@ pub fn app_bundle_source_map(_req: &HttpRequest) -> HttpResponse {
         .body(APP_BUNDLE_MAP)
 }
 
-/// takes  a string input and builds the corresponding octree
-pub fn build_octree(octree_path: &str) -> Arc<octree::Octree> {
-    let octree_directory = PathBuf::from(octree_path);
-    let octree = match octree::octree_from_directory(octree_directory) {
-        Ok(octree) => octree,
-        Err(err) => panic!("Could not load octree: {}", err),
-    };
-    Arc::new(octree)
-}
-
 /// octree server function
 pub fn start_octree_server(
     octree: Arc<octree::Octree>,
     ip_port: &str,
 ) -> Result<(), PointsViewerError> {
-    let octree = Arc::clone(&octree);
     server::new(move || {
         let octree_cloned_visible_nodes = Arc::clone(&octree);
         let octree_cloned_nodes_data = Arc::clone(&octree);
@@ -64,12 +52,7 @@ pub fn start_octree_server(
             })
     })
     .bind(&ip_port)
-    .or_else(|_| {
-        Err(PointsViewerError::BadRequest(format!(
-            "Can not bind to {}",
-            &ip_port
-        )))
-    })?
+    .unwrap_or_else(|_| panic!("Can not bind to {}", &ip_port))
     .start();
     Ok(())
 }

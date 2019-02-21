@@ -14,6 +14,7 @@
 
 use octree_web_viewer::utils;
 use point_viewer::octree;
+use std::path::PathBuf;
 use std::sync::Arc;
 use structopt::StructOpt;
 
@@ -37,12 +38,21 @@ fn main() {
 
     let ip_port = format!("{}:{}", args.ip, args.port);
 
+    let octree_directory = PathBuf::from(&args.octree_path);
     // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
     // write access to the Octree, instead of using an RwLock we should use the actor system.
-    let octree: Arc<octree::Octree> = utils::build_octree(&args.octree_path);
 
+    // TODO(catevita) octree factory
+
+    let octree: Arc<octree::Octree> = {
+        let octree = match octree::octree_from_directory(octree_directory) {
+            Ok(octree) => octree,
+            Err(err) => panic!("Could not load octree: {}", err),
+        };
+        Arc::new(octree)
+    };
     let sys = actix::System::new("octree-server");
-    // octree shadowing to let the first declared octree outlive the closure
+
     let _ = utils::start_octree_server(octree, &ip_port);
 
     println!("Starting http server: {}", &ip_port);
