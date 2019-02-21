@@ -11,14 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-extern crate clap;
-extern crate futures;
-extern crate grpcio;
-extern crate point_viewer;
-extern crate point_viewer_grpc;
-extern crate point_viewer_grpc_proto_rust;
-
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
@@ -82,11 +75,11 @@ fn main() {
     let rspcq = usize::from_str(matches.value_of("rspcq").unwrap_or("1"))
         .expect("rspcq needs to be a number");
     if matches.is_present("no-client") {
-        server_benchmark(octree_directory, num_points, num_threads)
+        server_benchmark(&octree_directory, num_points, num_threads)
     } else {
         let port = value_t!(matches, "port", u16).unwrap_or(50051);
         full_benchmark(
-            octree_directory,
+            &octree_directory,
             num_points,
             port,
             num_threads,
@@ -96,10 +89,10 @@ fn main() {
     }
 }
 
-fn server_benchmark(octree_directory: PathBuf, num_points: u64, num_threads: u64) {
+fn server_benchmark(octree_directory: &Path, num_points: u64, num_threads: u64) {
     let mut handles = Vec::with_capacity(num_threads as usize);
     for i in 0..num_threads {
-        let octree = octree_from_directory(&octree_directory).expect(&format!(
+        let octree = octree_from_directory(octree_directory).expect(&format!(
             "Could not create octree from '{}'",
             octree_directory.display()
         ));
@@ -125,7 +118,7 @@ fn server_benchmark(octree_directory: PathBuf, num_points: u64, num_threads: u64
 }
 
 fn full_benchmark(
-    octree_directory: PathBuf,
+    octree_directory: &Path,
     num_points: u64,
     port: u16,
     num_threads: u64,
@@ -136,7 +129,7 @@ fn full_benchmark(
         cq_count: cq_count,
         requests_slot_per_cq: rspcq,
     };
-    let mut server = start_grpc_server(&octree_directory, "0.0.0.0", port, &opts);
+    let mut server = start_grpc_server(octree_directory, "0.0.0.0", port, &opts);
 
     server.start();
 

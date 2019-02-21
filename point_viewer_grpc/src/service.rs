@@ -118,8 +118,7 @@ fn stream_points_back_to_sink(
 
                 reply_size += bytes_per_point;
                 if reply_size > max_message_size - bytes_per_point {
-                    tx.send((reply.clone(), WriteFlags::default()))
-                        .unwrap_or(());
+                    tx.send((reply.clone(), WriteFlags::default())).unwrap();
                     reply.mut_positions().clear();
                     reply.mut_colors().clear();
                     reply.mut_intensities().clear();
@@ -138,8 +137,7 @@ fn stream_points_back_to_sink(
                 }
             };
         }
-        tx.send((reply, WriteFlags::default()))
-            .unwrap_or_else(|_| println!("Request was cancelled."));
+        tx.send((reply, WriteFlags::default())).unwrap();
     });
 
     let rx = rx.map_err(|_| grpcio::Error::RemoteStopped);
@@ -147,7 +145,7 @@ fn stream_points_back_to_sink(
         .send_all(rx)
         .map(|_| {})
         .map_err(|e| println!("failed to reply: {:?}", e));
-    ctx.spawn(f);
+    ctx.spawn(f)
 }
 
 impl proto_grpc::Octree for OctreeService {

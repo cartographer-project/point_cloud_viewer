@@ -171,7 +171,7 @@ impl<'a> InternalIterator for AllPointsIterator<'a> {
         let mut open_list = vec![NodeId::from_level_index(0, 0)];
         while !open_list.is_empty() {
             let current = open_list.pop().unwrap();
-            if current.index() as i32 % self.total == self.idx {
+            if current.index() % self.total as usize == self.idx as usize {
                 let iterator = NodeIterator::from_data_provider(
                     &*self.octree.data_provider,
                     &self.octree.meta,

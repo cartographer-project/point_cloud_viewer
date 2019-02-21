@@ -19,7 +19,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::{io, thread};
 
-use point_viewer_grpc::service::start_grpc_server;
+use point_viewer_grpc::service::{start_grpc_server, GrpcOptions};
 
 fn main() {
     let matches = clap::App::new("octree_server")
@@ -37,7 +37,7 @@ fn main() {
 
     let port = value_t!(matches, "port", u16).unwrap_or(50051);
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
-    let mut server = start_grpc_server(&octree_directory, "0.0.0.0", port);
+    let mut server = start_grpc_server(&octree_directory, "0.0.0.0", port, &GrpcOptions::default());
     server.start();
 
     for &(ref host, port) in server.bind_addrs() {
