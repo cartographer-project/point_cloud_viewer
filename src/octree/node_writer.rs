@@ -1,4 +1,5 @@
-use crate::math::{clamp, Cube};
+use crate::coder::{encode, fixpoint_encode};
+use crate::math::Cube;
 use crate::octree::{NodeId, NodeLayer, OctreeMeta, OnDiskOctreeDataProvider, PositionEncoding};
 use crate::Point;
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -125,17 +126,4 @@ impl NodeWriter {
         let _ = fs::remove_file(&self.stem.with_extension(NodeLayer::Position.extension()));
         let _ = fs::remove_file(&self.stem.with_extension(NodeLayer::Color.extension()));
     }
-}
-
-fn fixpoint_encode<T>(value: f32, min: f32, edge_length: f32) -> T
-where
-    T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
-{
-    let value =
-        clamp((value - min) / edge_length, 0., 1.) * num::cast::<T, f32>(T::max_value()).unwrap();
-    num::cast(value).unwrap()
-}
-
-fn encode(value: f32, min: f32, edge_length: f32) -> f32 {
-    clamp((value - min) / edge_length, 0., 1.)
 }

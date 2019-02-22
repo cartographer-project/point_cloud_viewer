@@ -1,3 +1,4 @@
+use crate::coder::{decode, fixpoint_decode};
 use crate::color;
 use crate::errors::*;
 use crate::math::Cube;
@@ -7,7 +8,6 @@ use crate::octree::{
 use crate::{InternalIterator, Point};
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::Vector3;
-use num;
 use num_traits::identities::Zero;
 use std::io::{BufReader, Read};
 
@@ -133,17 +133,4 @@ impl InternalIterator for NodeIterator {
             f(&point);
         }
     }
-}
-
-fn fixpoint_decode<T>(value: T, min: f32, edge_length: f32) -> f32
-where
-    T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
-{
-    let max: f32 = num::cast(T::max_value()).unwrap();
-    let v: f32 = num::cast(value).unwrap();
-    v / max * edge_length + min
-}
-
-fn decode(value: f32, min: f32, edge_length: f32) -> f32 {
-    value * edge_length + min
 }
