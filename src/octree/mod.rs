@@ -19,10 +19,8 @@ use crate::{InternalIterator, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use fnv::FnvHashMap;
-
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
-
 use std::io::{BufReader, Read};
 
 mod node;
@@ -35,7 +33,7 @@ mod node_writer;
 pub use self::node_writer::NodeWriter;
 
 mod on_disk;
-pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
+pub use self::on_disk::{octree_from_directory, read_meta_proto, OnDiskOctreeDataProvider};
 
 pub const CURRENT_VERSION: i32 = 9;
 
