@@ -26,11 +26,14 @@ use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
 
 mod node;
-pub use self::node::{
-    ChildIndex, Node, NodeId, NodeIterator, NodeLayer, NodeMeta, PositionEncoding,
-};
+pub use self::node::{ChildIndex, Node, NodeId, NodeLayer, NodeMeta, PositionEncoding};
+
+mod node_iterator;
+pub use self::node_iterator::NodeIterator;
+
 mod node_writer;
 pub use self::node_writer::NodeWriter;
+
 mod on_disk;
 pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 
