@@ -19,18 +19,23 @@ use crate::{InternalIterator, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use fnv::FnvHashMap;
-use protobuf;
+
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
-use std::fs::{self, File};
-use std::io::{BufReader, Cursor, Read};
-use std::path::{Path, PathBuf};
+
+use std::io::{BufReader, Read};
 
 mod node;
+pub use self::node::{ChildIndex, Node, NodeId, NodeLayer, NodeMeta, PositionEncoding};
 
-pub use self::node::{
-    ChildIndex, Node, NodeId, NodeIterator, NodeLayer, NodeMeta, NodeWriter, PositionEncoding,
-};
+mod node_iterator;
+pub use self::node_iterator::NodeIterator;
+
+mod node_writer;
+pub use self::node_writer::NodeWriter;
+
+mod on_disk;
+pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 
 pub const CURRENT_VERSION: i32 = 9;
 
@@ -192,20 +197,6 @@ fn contains(projection_matrix: &Matrix4<f32>, point: &Point3<f32>) -> bool {
     let v = Vector4::new(point.x, point.y, point.z, 1.);
     let clip_v = projection_matrix * v;
     clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z && clip_v.z < clip_v.w
-}
-
-pub fn read_meta_proto<P: AsRef<Path>>(directory: P) -> Result<proto::Meta> {
-    // We used to use JSON earlier.
-    if directory.as_ref().join("meta.json").exists() {
-        return Err(ErrorKind::InvalidVersion(3).into());
-    }
-
-    let mut data = Vec::new();
-    File::open(&directory.as_ref().join("meta.pb"))?.read_to_end(&mut data)?;
-    Ok(
-        protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
-            .chain_err(|| "Could not parse meta.pb")?,
-    )
 }
 
 #[derive(Debug)]
@@ -436,61 +427,4 @@ fn maybe_push_node(
         relation,
         size_on_screen,
     });
-}
-
-pub struct OnDiskOctreeDataProvider {
-    pub directory: PathBuf,
-}
-
-impl OnDiskOctreeDataProvider {
-    /// Returns the path on disk where the data for this node is saved.
-    pub fn stem(&self, node_id: &NodeId) -> PathBuf {
-        self.directory.join(node_id.to_string())
-    }
-
-    // Get number of points from the file size of the color data.
-    // Color data is required and always present.
-    pub fn number_of_points(&self, node_id: &NodeId) -> Result<i64> {
-        let stem = self.stem(node_id);
-        let file_meta_data_opt = fs::metadata(stem.with_extension(NodeLayer::Color.extension()));
-        if file_meta_data_opt.is_err() {
-            return Err(ErrorKind::NodeNotFound.into());
-        }
-
-        let file_size_bytes = file_meta_data_opt.unwrap().len();
-        // color has 3 bytes per point
-        Ok((file_size_bytes / 3) as i64)
-    }
-}
-
-impl OctreeDataProvider for OnDiskOctreeDataProvider {
-    fn meta_proto(&self) -> Result<proto::Meta> {
-        read_meta_proto(&self.directory)
-    }
-
-    fn data(
-        &self,
-        node_id: &NodeId,
-        node_layers: Vec<NodeLayer>,
-    ) -> Result<HashMap<NodeLayer, Box<dyn Read>>> {
-        let stem = self.stem(node_id);
-        let mut readers = HashMap::<NodeLayer, Box<dyn Read>>::new();
-        for node_layer in node_layers {
-            let file = match File::open(&stem.with_extension(node_layer.extension())) {
-                Err(ref err) if err.kind() == ::std::io::ErrorKind::NotFound => {
-                    return Err(ErrorKind::NodeNotFound.into());
-                }
-                e => e,
-            }?;
-            readers.insert(node_layer.to_owned(), Box::new(file));
-        }
-        Ok(readers)
-    }
-}
-
-pub fn octree_from_directory(directory: impl Into<PathBuf>) -> Result<Octree> {
-    let data_provider = OnDiskOctreeDataProvider {
-        directory: directory.into(),
-    };
-    Octree::from_data_provider(Box::new(data_provider))
 }
