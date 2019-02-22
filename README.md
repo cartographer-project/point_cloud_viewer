@@ -54,6 +54,7 @@ In the point cloud viewer, navigate with the keyboard or with the mouse or touch
 Saved camera positions are persisted in the octree directory and will therefore live through restarts of the program.
 
 ### Web Viewer
+The `octree_web_viewer` consists of [TypeScript](https://www.typescriptlang.org) code running in the browser and a web server binary.
 
 To build and run the `octree_web_viewer`  please look into [the `octree_web_viewer` README file](octree_web_viewer/README.md)
 
