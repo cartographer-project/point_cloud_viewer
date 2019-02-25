@@ -6,13 +6,13 @@ type OctreeFactoryFunction = fn(&str) -> Result<Box<Octree>>;
 
 #[derive(Default)]
 pub struct OctreeFactory {
-    octree_factories: FnvHashMap<String, OctreeFactoryFunction>,
+    octree_fn_map: FnvHashMap<String, OctreeFactoryFunction>,
 }
 
 impl OctreeFactory {
     pub fn new() -> Self {
         OctreeFactory {
-            octree_factories: FnvHashMap::default(),
+            octree_fn_map: FnvHashMap::default(),
         }
     }
 
@@ -21,13 +21,13 @@ impl OctreeFactory {
         prefix: impl Into<String>,
         function: OctreeFactoryFunction,
     ) -> OctreeFactory {
-        self.octree_factories.insert(prefix.into(), function);
+        self.octree_fn_map.insert(prefix.into(), function);
         self
     }
 
-    pub fn generate_octree(&self, octree_argument: impl AsRef<String>) -> Result<Box<Octree>> {
+    pub fn generate_octree(&self, octree_argument: impl AsRef<str>) -> Result<Box<Octree>> {
         let octree_argument = octree_argument.as_ref();
-        for (prefix, octree_factory_function) in &self.octree_factories {
+        for (prefix, octree_factory_function) in &self.octree_fn_map {
             if !octree_argument.starts_with(prefix) {
                 continue;
             }

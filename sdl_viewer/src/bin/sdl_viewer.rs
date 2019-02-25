@@ -11,16 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-use sdl_viewer::SdlViewer;
+use point_viewer::octree::OctreeFactory;
+use sdl_viewer::run;
 
 fn main() {
-    SdlViewer::new()
-        .register_octree_factory("grpc:".into(), |p| {
-            Ok(Box::new(
-                point_viewer_grpc::octree_from_address(p.as_str())
-                    .expect("Could not create octree."),
-            ))
-        })
-        .run();
+    let octree_factory = OctreeFactory::new().register_octree_factory("grpc:", |p| {
+        Ok(Box::new(
+            point_viewer_grpc::octree_from_address(p).expect("Could not create octree."),
+        ))
+    });
+    run(octree_factory);
 }
