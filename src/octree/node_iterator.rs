@@ -1,4 +1,4 @@
-use crate::coder::{decode, fixpoint_decode};
+use crate::codec::{decode, fixpoint_decode};
 use crate::color;
 use crate::errors::*;
 use crate::math::Cube;

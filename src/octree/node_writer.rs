@@ -1,4 +1,4 @@
-use crate::coder::{encode, fixpoint_encode};
+use crate::codec::{encode, fixpoint_encode};
 use crate::math::Cube;
 use crate::octree::{NodeId, NodeLayer, OctreeMeta, OnDiskOctreeDataProvider, PositionEncoding};
 use crate::Point;
