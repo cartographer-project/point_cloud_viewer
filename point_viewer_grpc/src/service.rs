@@ -255,7 +255,7 @@ impl proto_grpc::Octree for OctreeService {
 pub fn start_grpc_server(octree_directory: &Path, host: &str, port: u16) -> Server {
     let env = Arc::new(Environment::new(1));
     let meta = read_meta_proto(octree_directory).unwrap();
-    let octree = Arc::new(octree_from_directory(octree_directory).unwrap());
+    let octree = Arc::from(octree_from_directory(octree_directory).unwrap());
 
     let service = proto_grpc::create_octree(OctreeService { octree, meta });
     ServerBuilder::new(env)

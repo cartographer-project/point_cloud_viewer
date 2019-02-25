@@ -38,6 +38,6 @@ impl OctreeFactory {
         }
 
         // If no octree was generated, create it from disk
-        Ok(Box::new(octree_from_directory(octree_argument)?))
+        octree_from_directory(octree_argument)
     }
 }

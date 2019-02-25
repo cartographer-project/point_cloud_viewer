@@ -15,10 +15,7 @@ use point_viewer::octree::OctreeFactory;
 use sdl_viewer::run;
 
 fn main() {
-    let octree_factory = OctreeFactory::new().register_octree_factory("grpc:", |p| {
-        Ok(Box::new(
-            point_viewer_grpc::octree_from_address(p).expect("Could not create octree."),
-        ))
-    });
+    let octree_factory = OctreeFactory::new()
+        .register_octree_factory("grpc:", |p| point_viewer_grpc::octree_from_address(p));
     run(octree_factory);
 }

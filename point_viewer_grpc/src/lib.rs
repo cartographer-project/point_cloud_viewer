@@ -138,6 +138,7 @@ impl OctreeDataProvider for GrpcOctreeDataProvider {
     }
 }
 
-pub fn octree_from_address(addr: &str) -> Result<Octree> {
-    Octree::from_data_provider(Box::new(GrpcOctreeDataProvider::from_address(addr)?))
+pub fn octree_from_address(addr: &str) -> Result<Box<Octree>> {
+    let octree = Octree::from_data_provider(Box::new(GrpcOctreeDataProvider::from_address(addr)?))?;
+    Ok(Box::new(octree))
 }
