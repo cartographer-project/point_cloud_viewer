@@ -139,6 +139,7 @@ fn split_node<'a, P>(
                 octree_data_provider,
                 octree_meta,
                 &child_id,
+                octree_data_provider.number_of_points(&child_id).unwrap(),
             )
             .unwrap();
             split_node(
@@ -166,15 +167,17 @@ fn subsample_children_into(
     let mut parent_writer = octree::NodeWriter::new(octree_data_provider, octree_meta, node_id);
     for i in 0..8 {
         let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(i));
-        let node_iterator = match octree::NodeIterator::from_data_provider(
-            octree_data_provider,
-            octree_meta,
-            &child_id,
-        ) {
-            Ok(node_iterator) => node_iterator,
+        let num_points = match octree_data_provider.number_of_points(&child_id) {
+            Ok(num_points) => num_points,
             Err(Error(ErrorKind::NodeNotFound, _)) => continue,
             Err(err) => return Err(err),
         };
+        let node_iterator = octree::NodeIterator::from_data_provider(
+            octree_data_provider,
+            octree_meta,
+            &child_id,
+            num_points,
+        )?;
 
         // We read all points into memory, because the new node writer will rewrite this child's
         // file(s).
@@ -449,4 +452,49 @@ pub fn build_octree(
     let mut buf_writer =
         BufWriter::new(File::create(&output_directory.as_ref().join("meta.pb")).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::color::Color;
+    use cgmath::Vector3;
+    use tempdir::TempDir;
+
+    struct Points {
+        points: Vec<Point>,
+    }
+
+    impl InternalIterator for Points {
+        fn for_each<F: FnMut(&Point)>(self, mut func: F) {
+            for p in &self.points {
+                func(p);
+            }
+        }
+        fn size_hint(&self) -> Option<usize> {
+            Some(self.points.len())
+        }
+    }
+    #[test]
+    fn test_generation() {
+        let default_point = Point {
+            position: Vector3::new(0.0, 0.0, 0.0),
+            color: Color {
+                red: 255,
+                green: 0,
+                blue: 0,
+                alpha: 255,
+            },
+            intensity: None,
+        };
+        let mut points = vec![default_point; 100_001];
+        points[100_000].position = Vector3::new(2.0, 0.0, 0.0);
+        let mut bounding_box = Aabb3::zero();
+        for point in &points {
+            bounding_box = bounding_box.grow(Point3::from_vec(point.position));
+        }
+        let pool = scoped_pool::Pool::new(10);
+        let tmp_dir = TempDir::new("octree").unwrap();
+        build_octree(&pool, tmp_dir, 1.0, bounding_box, Points { points });
+    }
 }
