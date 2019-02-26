@@ -16,6 +16,6 @@ use sdl_viewer::run;
 
 fn main() {
     let octree_factory = OctreeFactory::new()
-        .register_octree_factory("grpc:", |p| point_viewer_grpc::octree_from_address(p));
+        .register_octree_factory("grpc:", point_viewer_grpc::octree_from_address);
     run(octree_factory);
 }
