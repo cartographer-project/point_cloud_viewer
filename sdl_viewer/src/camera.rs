@@ -210,8 +210,13 @@ impl Camera {
             || !self.delta_rotation.phi.is_zero()
         {
             moved = true;
-            self.theta += self.rotation_speed.theta * elapsed_seconds + self.delta_rotation.theta;
-            self.phi += self.rotation_speed.phi * elapsed_seconds + self.delta_rotation.phi;
+            if !self.delta_rotation.theta.is_zero() || !self.delta_rotation.phi.is_zero() {
+                self.theta += self.delta_rotation.theta;
+                self.phi += self.delta_rotation.phi;
+            } else {
+                self.theta += self.rotation_speed.theta * elapsed_seconds;
+                self.phi += self.rotation_speed.phi * elapsed_seconds;
+            }
             let rotation_z = Quaternion::from_angle_z(self.theta);
             let rotation_x = Quaternion::from_angle_x(self.phi);
             self.transform.rot = rotation_z * rotation_x;
