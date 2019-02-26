@@ -45,7 +45,7 @@ fn main() {
             Ok(octree) => octree,
             Err(err) => panic!("Could not load octree: {}", err),
         };
-        Arc::new(octree)
+        Arc::from(octree)
     };
     let sys = actix::System::new("octree-server");
 
