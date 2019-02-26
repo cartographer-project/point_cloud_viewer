@@ -328,13 +328,19 @@ pub fn run(octree_factory: OctreeFactory) {
 
     // Assuming about 200 KB per octree node on average
     let max_nodes_in_memory = limit_cache_size_mb * 5;
-    let pose_path = None;
+
     // If no octree was generated create an FromDisc loader
     let octree = Arc::from(
         octree_factory
             .generate_octree(octree_argument)
-            .expect("Valid Path to directory expected"),
+            .expect("Valid path expected"),
     );
+
+    let mut pose_path = None;
+    let pose_path_buf = PathBuf::from(&octree_argument).join("poses.json");
+    if pose_path_buf.exists() {
+        pose_path = Some(pose_path_buf);
+    }
 
     let ctx = sdl2::init().unwrap();
     let video_subsystem = ctx.video().unwrap();
