@@ -16,7 +16,7 @@ use point_viewer_grpc::octree_from_grpc_address;
 use sdl_viewer::run;
 
 fn main() {
-    let octree_factory = OctreeFactory::new().register("grpc:", octree_from_grpc_address);
+    let octree_factory = OctreeFactory::new().register("grpc://", octree_from_grpc_address);
     // TODO (catevita) hide octree factory details, simplify the run method interface
     run(octree_factory);
 }
