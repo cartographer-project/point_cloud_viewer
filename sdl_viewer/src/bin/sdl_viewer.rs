@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use point_viewer::octree::OctreeFactory;
+use point_viewer_grpc::octree_from_grpc_address;
 use sdl_viewer::run;
 
 fn main() {
-    let octree_factory = OctreeFactory::new()
-        .register_octree_factory("grpc:", point_viewer_grpc::octree_from_address);
+    let octree_factory = OctreeFactory::new().register("grpc:", octree_from_grpc_address);
     // ToDo (catevita) hide octree factory details, simplify the run method interface
     run(octree_factory);
 }

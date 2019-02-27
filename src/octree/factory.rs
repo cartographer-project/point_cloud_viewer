@@ -16,7 +16,7 @@ impl OctreeFactory {
         }
     }
 
-    pub fn register_octree_factory(
+    pub fn register(
         mut self,
         prefix: impl Into<String>,
         function: OctreeFactoryFunction,
@@ -31,8 +31,7 @@ impl OctreeFactory {
             if !octree_argument.starts_with(prefix) {
                 continue;
             }
-            let no_prefix = &octree_argument[prefix.len()..].to_string();
-            if let Ok(o) = octree_factory_function(no_prefix) {
+            if let Ok(o) = octree_factory_function(octree_argument) {
                 return Ok(o);
             }
         }
