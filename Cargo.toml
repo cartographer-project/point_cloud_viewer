@@ -36,6 +36,9 @@ libc = "0.2.43"
 [dependencies.point_viewer_proto_rust]
 path = "point_viewer_proto_rust"
 
+[dev-dependencies]
+tempdir = "0.3.7"
+
 [workspace]
 members = [
    "point_viewer_grpc",
