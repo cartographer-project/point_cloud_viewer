@@ -14,17 +14,15 @@
   limitations under the License.
 -->
 <!doctype html>
+
 <head>
 </head>
+
 <body>
   <div id="renderArea" style="position: absolute; width: 100%; height: 100%; overflow: hidden;"></div>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.5.1/dat.gui.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r82/three.min.js"></script>
-  <script data-main="app_bundle" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js"></script>
   <script>
-    requirejs(["app_bundle"], function(util) {
-      require(["main"]);
+    requirejs(["app_bundle"], function (util) {
     });
   </script>
 </body>
