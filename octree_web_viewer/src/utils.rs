@@ -1,8 +1,9 @@
-use actix_web::http::Method;
-use actix_web::{server, HttpRequest, HttpResponse};
-
 use crate::backend::{NodesData, VisibleNodes};
 use crate::backend_error::PointsViewerError;
+
+use actix_web::http::Method;
+use actix_web::{server, HttpRequest, HttpResponse};
+use lru_cache::LruCache;
 use point_viewer::octree;
 use std::sync::Arc;
 
@@ -26,6 +27,22 @@ pub fn app_bundle_source_map(_req: &HttpRequest) -> HttpResponse {
     HttpResponse::Ok()
         .content_type("text/html")
         .body(APP_BUNDLE_MAP)
+}
+
+struct AppState{
+    /// LRU Cache for Octrees
+    pub mut octree_cache : LruCache,
+    pub mut last_key: OctreeKey,   
+}
+
+struct OctreeKey
+{
+    /// Location prefix
+    prefix: String,
+    /// Tree ID
+    suffix: String,
+    /// Location suffix
+    OctreeID: String,
 }
 
 /// octree server function
