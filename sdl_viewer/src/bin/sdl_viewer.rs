@@ -17,6 +17,6 @@ use sdl_viewer::run;
 
 fn main() {
     let octree_factory = OctreeFactory::new().register("grpc:", octree_from_grpc_address);
-    // ToDo (catevita) hide octree factory details, simplify the run method interface
+    // TODO (catevita) hide octree factory details, simplify the run method interface
     run(octree_factory);
 }
