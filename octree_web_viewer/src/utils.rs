@@ -94,6 +94,7 @@ impl AppState {
 /// octree server function
 pub fn start_octree_server(app_state: AppState, ip_port: &str) -> Result<(), PointsViewerError> {
     server::new(move || {
+        
         let octree_cloned_visible_nodes = Arc::clone(&octree);
         let octree_cloned_nodes_data = Arc::clone(&octree);
         actix_web::App::new()

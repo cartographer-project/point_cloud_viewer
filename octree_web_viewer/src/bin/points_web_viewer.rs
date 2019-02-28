@@ -92,7 +92,7 @@ pub fn state_from( args: CommandLineArguments) -> Result<AppState>{
         Arc::new(octree)
     };
     //put octree arc in cache
-    app_state.cache.put_arc(uuid, octree, );
+    app_state.cache.put_arc(uuid, octree );
 }
 
 fn main() {
