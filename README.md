@@ -18,7 +18,7 @@ The project consist of a root crate that can build and read octrees on disk and 
 ### Creating Octrees
 
 In the root of the repo, run `cargo build --release`.
-Then use `target/release/build_octree` to generate an octree out of a PLY file.
+Then use `target/release/build_octree` to generate an octree out of a PLY file (`binary_little_endian` format). Sample files can be found [here](http://www.isi.imi.i.u-tokyo.ac.jp/~rodola/data.html)
 
 ### SDL client
 

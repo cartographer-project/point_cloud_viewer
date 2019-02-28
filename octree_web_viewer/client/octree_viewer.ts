@@ -14,6 +14,8 @@
 
 'use strict';
 
+import { chunk } from './lib/array-helper';
+import AsyncTasksQueue from './lib/async-tasks-queue';
 import * as THREE from 'three';
 
 const KEY_L = 'L'.charCodeAt(0);
@@ -79,7 +81,30 @@ class NodeRenderData {
 }
 
 class NodeLoader {
-  public load(
+
+  private batchSize = 50;
+  private maxConcurrentRequests = 2;
+  private queue = new AsyncTasksQueue<void>(this.maxConcurrentRequests);
+
+  public async load(
+    scene: THREE.Scene,
+    material: THREE.ShaderMaterial,
+    nodes: NodeData[],
+    onNewNodeData: () => void
+  ) {
+    await Promise.all(
+      chunk(
+        nodes.filter((node) => !node.isUpToDate()),
+        this.batchSize
+      ).map(
+        (batchNodes) => this.queue
+          .addTask(() => this.fetchNodesData(scene, material, batchNodes))
+          .then(() => onNewNodeData())
+      )
+    );
+  }
+
+  private fetchNodesData(
     scene: THREE.Scene,
     material: THREE.ShaderMaterial,
     nodes: NodeData[]
@@ -255,8 +280,6 @@ export class OctreeViewer {
 
   private loadedData: { [key: string]: NodeData } = {};
   private nodeLoader: NodeLoader;
-  private batches: NodeData[][] = [];
-  private currentlyLoading: number;
   private useTransparency: boolean;
 
   constructor(private scene: THREE.Scene, private onNewNodeData: () => void) {
@@ -273,7 +296,6 @@ export class OctreeViewer {
     this.maxLevelToDisplay = 3;
 
     this.nodeLoader = new NodeLoader();
-    this.currentlyLoading = 0;
   }
 
   public alphaChanged() {
@@ -323,41 +345,12 @@ export class OctreeViewer {
     }
   }
 
-  private nodesUpdate(nodeIds: string[]) {
+  private async nodesUpdate(nodeIds: string[]) {
     const start = performance.now();
-    this.batches = [];
-    let currentBatch: NodeData[] = [];
-    for (let nodeId of nodeIds) {
-      let node = this.getOrCreate(nodeId);
-      if (node.isUpToDate()) {
-        continue;
-      }
+    const nodes = nodeIds.map((nodeId) => this.getOrCreate(nodeId));
 
-      currentBatch.push(node);
-      if (currentBatch.length > 50) {
-        this.batches.push(currentBatch);
-        currentBatch = [];
-      }
-    }
-    if (currentBatch.length > 0) {
-      this.batches.push(currentBatch);
-    }
-    this.handleNextBatch();
+    await this.nodeLoader.load(this.scene, this.material, nodes, this.onNewNodeData);
     console.log(`nodeUpdate took ${performance.now() - start}ms.`);
-  }
-
-  private handleNextBatch() {
-    if (this.batches.length == 0 || this.currentlyLoading > 2) {
-      return;
-    }
-    this.currentlyLoading += 1;
-    this.nodeLoader
-      .load(this.scene, this.material, this.batches.shift())
-      .then(() => {
-        this.currentlyLoading -= 1;
-        this.onNewNodeData();
-        this.handleNextBatch();
-      });
   }
 
   private getOrCreate(nodeName: string): NodeData {
