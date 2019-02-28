@@ -21,27 +21,69 @@ use structopt::StructOpt;
 /// HTTP web viewer for 3d points stored in OnDiskOctrees
 #[derive(StructOpt, Debug)]
 #[structopt(name = "points_web_viewer", about = "Visualizing points")]
-struct CommandlineArguments {
+struct CommandLineArguments {
     /// The octree directory to serve, including a trailing slash.
-    octree_path: String,
+    #[structopt(name = "DIR", parse(from_os_str), required_unless ="use_custom")]
+    octree_path: PathBuf,
     /// Port to listen on.
     #[structopt(default_value = "5433", long = "--port")]
     port: u16,
     /// IP string.
     #[structopt(default_value = "127.0.0.1", long = "--ip")]
     ip: String,
+    /// use custom path prefix and suffix
+    #[structopt(short = "c", long = "--custom")]
+    use_custom: bool,
+    /// Optional: prefix for path
+    #[structopt(long = "--prefix", required_if("use_custom", true))]
+    path_prefix: Option(String),
+    /// Optional: suffix for path
+    #[structopt(long = "--suffix", required_if("use_custom", true))]
+    path_suffix: Option(String),
+    /// Optional: octree id
+    #[structopt(long = "--uuid", required_if("use_custom", true))] 
+    octree_id: Option(String),
+    /// Cache items
+    #[structopt(default_value = "1", long = "--cache_items")]
+    cache_max: usizeß,
+    
 }
 
-fn main() {
-    let args = CommandlineArguments::from_args();
+pub fn state_from( args: CommandLineArguments) -> Result<AppState>{
+     let mut octree_directory = args.octree_path;
+     // todo remove let octree_directory = PathBuf::from(&args.octree_path);
 
-    let ip_port = format!("{}:{}", args.ip, args.port);
-    let octree_directory = PathBuf::from(&args.octree_path);
-    // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
-    // write access to the Octree, instead of using an RwLock we should use the actor system.
+     //resolve suffix: trailing backslash
+     let suffix = match args.path_suffix{
+         Some(path) => {if !path.ends_with('/'){ path.append("/");} path},
+         None => "/"
+     };
 
-    // TODO(catevita) octree factory
+     //resolve prefix
+     let prefix = match args.path_prefix {
+         Some(path) => {if !path.ends_with('/'){ path.append("/");} path},
+         None => octree_directory.parent()
+     };
+    //resolve current octree id
+     let uuid = match args.octree_id{
+         Some(uuid) => uuid,
+         None => {let octree_id = octree_directory.strip_prefix(prefix)?;
+                  let tmp_suffix = suffix;
+                  if octree_id.ends_with(suffix){
+                      octree_id = octree_id.parent();
 
+                  }} //pop the last
+     };
+     
+     //
+     if args.use_custom && octree_directory.is_empty() {
+        // if available create from input string
+        octree_directory = Path::new(prefix).join(uuid).join(suffix);
+     }
+    // instantiate app_state
+    let app_state =  AppState::new(args.cache_max, prefix, suffix);
+    //if possible create first octree //todo factory
+    let mut octree_bytesize = 0;
     let octree: Arc<octree::Octree> = {
         let octree = match octree::octree_from_directory(octree_directory) {
             Ok(octree) => octree,
@@ -49,6 +91,24 @@ fn main() {
         };
         Arc::new(octree)
     };
+    //put octree arc in cache
+    app_state.cache.put_arc(uuid, octree, );
+}
+
+fn main() {
+    let args = CommandLineArguments::from_args();
+
+    let ip_port = format!("{}:{}", args.ip, args.port);
+    
+
+    // initialize app state
+    let mut app_state = state_from(args).unwrap();
+    // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
+    // write access to the Octree, instead of using an RwLock we should use the actor system.
+
+    // TODO(catevita) octree factory
+
+
     let sys = actix::System::new("octree-server");
 
     let _ = utils::start_octree_server(octree, &ip_port);
