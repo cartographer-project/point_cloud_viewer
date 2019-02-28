@@ -41,26 +41,17 @@ use crate::box_drawer::BoxDrawer;
 use crate::camera::Camera;
 use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 use cgmath::{Matrix4, SquareMatrix};
-use fnv::FnvHashMap;
 use point_viewer::color::YELLOW;
-use point_viewer::octree::{self, Octree};
+use point_viewer::octree::{self, OctreeFactory};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Scancode, LCTRLMOD, LSHIFTMOD, RCTRLMOD, RSHIFTMOD};
 use sdl2::video::GLProfile;
 use std::cmp;
-use std::error::Error;
 use std::io;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{mpsc, Arc};
 use std::thread;
-
-type OctreeFactory = fn(&String) -> Result<Box<Octree>, Box<Error>>;
-
-#[derive(Default)]
-pub struct SdlViewer {
-    octree_factories: FnvHashMap<String, OctreeFactory>,
-}
 
 struct PointCloudRenderer {
     gl: Rc<opengl::Gl>,
@@ -307,249 +298,226 @@ fn load_camera(index: usize, pose_path: &Option<PathBuf>, camera: &mut Camera) {
     camera.set_state(states.states[index]);
 }
 
-impl SdlViewer {
-    pub fn new() -> Self {
-        SdlViewer {
-            octree_factories: FnvHashMap::default(),
-        }
+pub fn run(octree_factory: OctreeFactory) {
+    let matches = clap::App::new("sdl_viewer")
+        .args(&[
+            clap::Arg::with_name("octree")
+                .help("Input path of the octree.")
+                .index(1)
+                .required(true),
+            clap::Arg::with_name("cache_size_mb")
+                .help(
+                    "Maximum cache size in MB for octree nodes in GPU memory. \
+                     The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.",
+                )
+                .required(false),
+        ])
+        .get_matches();
+
+    let octree_argument = matches.value_of("octree").unwrap();
+
+    // Maximum number of MB for the octree node cache. The default is 2 GB
+    let cache_size_mb: usize = matches
+        .value_of("cache_size_mb")
+        .unwrap_or("2000")
+        .parse()
+        .expect("Could not parse 'cache_size_mb' option.");
+
+    // Maximum number of MB for the octree node cache in range 1..16 GB. The default is 2 GB
+    let limit_cache_size_mb = cmp::max(1000, cmp::min(16_000, cache_size_mb));
+
+    // Assuming about 200 KB per octree node on average
+    let max_nodes_in_memory = limit_cache_size_mb * 5;
+
+    // If no octree was generated create an FromDisc loader
+    let octree = Arc::from(
+        octree_factory
+            .generate_octree(octree_argument)
+            .expect("Valid path expected"),
+    );
+
+    let mut pose_path = None;
+    let pose_path_buf = PathBuf::from(&octree_argument).join("poses.json");
+    if pose_path_buf.exists() {
+        pose_path = Some(pose_path_buf);
     }
 
-    // Registers a callback 'function' that is called whenever the octree commandline argument
-    // starts with its 'prefix'
-    // The callback function creates and returns an Octree
-    pub fn register_octree_factory(mut self, prefix: String, function: OctreeFactory) -> SdlViewer {
-        self.octree_factories.insert(prefix, function);
-        self
-    }
+    let ctx = sdl2::init().unwrap();
+    let video_subsystem = ctx.video().unwrap();
 
-    pub fn run(self) {
-        let matches = clap::App::new("sdl_viewer")
-            .args(&[
-                clap::Arg::with_name("octree")
-                    .help("Input path of the octree.")
-                    .index(1)
-                    .required(true),
-                clap::Arg::with_name("cache_size_mb")
-                    .help(
-                        "Maximum cache size in MB for octree nodes in GPU memory. \
-                         The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.",
-                    )
-                    .required(false),
-            ])
-            .get_matches();
-
-        let octree_argument = matches.value_of("octree").unwrap();
-
-        // Maximum number of MB for the octree node cache. The default is 2 GB
-        let cache_size_mb: usize = matches
-            .value_of("cache_size_mb")
-            .unwrap_or("2000")
-            .parse()
-            .expect("Could not parse 'cache_size_mb' option.");
-
-        // Maximum number of MB for the octree node cache in range 1..16 GB. The default is 2 GB
-        let limit_cache_size_mb = cmp::max(1000, cmp::min(16_000, cache_size_mb));
-
-        // Assuming about 200 KB per octree node on average
-        let max_nodes_in_memory = limit_cache_size_mb * 5;
-
-        // call octree generation functions
-        let mut octree_opt: Option<Box<Octree>> = None;
-        let mut pose_path = None;
-        for (prefix, octree_factory_function) in &self.octree_factories {
-            if !octree_argument.starts_with(prefix) {
-                continue;
-            }
-            let no_prefix = &octree_argument[prefix.len()..].to_string();
-            if let Ok(o) = octree_factory_function(no_prefix) {
-                octree_opt = Some(o);
-                break;
-            }
+    // We need to open the joysticks we are interested in and keep the object alive to receive
+    // input from it. We just open the first we find.
+    let joystick_subsystem = ctx.joystick().unwrap();
+    let joystick = match joystick_subsystem.open(0) {
+        Ok(j) => {
+            println!("Found a joystick and will use it.");
+            Some(j)
         }
+        Err(_) => None,
+    };
 
-        // If no octree was generated create an FromDisc loader
-        let octree = Arc::new(octree_opt.unwrap_or_else(|| {
-            pose_path = Some(PathBuf::from(&octree_argument).join("poses.json"));
-            Box::new(octree::octree_from_directory(octree_argument).unwrap()) as Box<Octree>
-        }));
+    let gl_attr = video_subsystem.gl_attr();
 
-        let ctx = sdl2::init().unwrap();
-        let video_subsystem = ctx.video().unwrap();
+    // TODO(hrapp): This should use OpenGL ES 2.0 to be compatible with WebGL, so this can be made
+    // to work with emscripten.
+    gl_attr.set_context_profile(GLProfile::Core);
+    gl_attr.set_context_version(3, 2);
 
-        // We need to open the joysticks we are interested in and keep the object alive to receive
-        // input from it. We just open the first we find.
-        let joystick_subsystem = ctx.joystick().unwrap();
-        let joystick = match joystick_subsystem.open(0) {
-            Ok(j) => {
-                println!("Found a joystick and will use it.");
-                Some(j)
-            }
-            Err(_) => None,
-        };
+    const WINDOW_WIDTH: i32 = 800;
+    const WINDOW_HEIGHT: i32 = 600;
+    let window = match video_subsystem
+        .window("sdl2_viewer", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
+        .position_centered()
+        .resizable()
+        .opengl()
+        .build()
+    {
+        Ok(window) => window,
+        Err(err) => panic!("failed to create window: {}", err),
+    };
 
-        let gl_attr = video_subsystem.gl_attr();
+    // We need to create a context now, only after can we actually legally load the gl functions
+    // and query 'gl_attr'.
+    let _context = window.gl_create_context().unwrap();
+    video_subsystem.gl_set_swap_interval(1);
 
-        // TODO(hrapp): This should use OpenGL ES 2.0 to be compatible with WebGL, so this can be made
-        // to work with emscripten.
-        gl_attr.set_context_profile(GLProfile::Core);
-        gl_attr.set_context_version(3, 2);
+    assert_eq!(gl_attr.context_profile(), GLProfile::Core);
 
-        const WINDOW_WIDTH: i32 = 800;
-        const WINDOW_HEIGHT: i32 = 600;
-        let window = match video_subsystem
-            .window("sdl2_viewer", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
-            .position_centered()
-            .resizable()
-            .opengl()
-            .build()
-        {
-            Ok(window) => window,
-            Err(err) => panic!("failed to create window: {}", err),
-        };
+    let gl = Rc::new(opengl::Gl::load_with(|s| {
+        let ptr = video_subsystem.gl_get_proc_address(s);
+        ptr as *const std::ffi::c_void
+    }));
 
-        // We need to create a context now, only after can we actually legally load the gl functions
-        // and query 'gl_attr'.
-        let _context = window.gl_create_context().unwrap();
-        video_subsystem.gl_set_swap_interval(1);
+    let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
+    let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-        assert_eq!(gl_attr.context_profile(), GLProfile::Core);
-
-        let gl = Rc::new(opengl::Gl::load_with(|s| {
-            let ptr = video_subsystem.gl_get_proc_address(s);
-            ptr as *const std::ffi::c_void
-        }));
-
-        let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
-        let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
-
-        let mut events = ctx.event_pump().unwrap();
-        let mut last_frame_time = time::PreciseTime::now();
-        'outer_loop: loop {
-            for event in events.poll_iter() {
-                match event {
-                    Event::Quit { .. } => break 'outer_loop,
-                    Event::KeyDown {
-                        scancode: Some(code),
-                        keymod,
-                        ..
-                    } => {
-                        if keymod.is_empty() {
-                            match code {
-                                Scancode::Escape => break 'outer_loop,
-                                Scancode::W => camera.moving_forward = true,
-                                Scancode::S => camera.moving_backward = true,
-                                Scancode::A => camera.moving_left = true,
-                                Scancode::D => camera.moving_right = true,
-                                Scancode::Z => camera.moving_down = true,
-                                Scancode::Q => camera.moving_up = true,
-                                Scancode::Left => camera.turning_left = true,
-                                Scancode::Right => camera.turning_right = true,
-                                Scancode::Down => camera.turning_down = true,
-                                Scancode::Up => camera.turning_up = true,
-                                Scancode::O => renderer.toggle_show_octree_nodes(),
-                                Scancode::Num7 => renderer.adjust_gamma(-0.1),
-                                Scancode::Num8 => renderer.adjust_gamma(0.1),
-                                Scancode::Num9 => renderer.adjust_point_size(-0.1),
-                                Scancode::Num0 => renderer.adjust_point_size(0.1),
-                                _ => (),
-                            }
-                        } else if keymod.intersects(LCTRLMOD | RCTRLMOD)
-                            && keymod.intersects(LSHIFTMOD | RSHIFTMOD)
-                        {
-                            // CTRL + SHIFT is pressed.
-                            match code {
-                                Scancode::Num1 => save_camera(0, &pose_path, &camera),
-                                Scancode::Num2 => save_camera(1, &pose_path, &camera),
-                                Scancode::Num3 => save_camera(2, &pose_path, &camera),
-                                Scancode::Num4 => save_camera(3, &pose_path, &camera),
-                                Scancode::Num5 => save_camera(4, &pose_path, &camera),
-                                Scancode::Num6 => save_camera(5, &pose_path, &camera),
-                                Scancode::Num7 => save_camera(6, &pose_path, &camera),
-                                Scancode::Num8 => save_camera(7, &pose_path, &camera),
-                                Scancode::Num9 => save_camera(8, &pose_path, &camera),
-                                Scancode::Num0 => save_camera(9, &pose_path, &camera),
-                                _ => (),
-                            }
-                        } else if keymod.intersects(LCTRLMOD | RCTRLMOD) {
-                            // CTRL is pressed.
-                            match code {
-                                Scancode::Num1 => load_camera(0, &pose_path, &mut camera),
-                                Scancode::Num2 => load_camera(1, &pose_path, &mut camera),
-                                Scancode::Num3 => load_camera(2, &pose_path, &mut camera),
-                                Scancode::Num4 => load_camera(3, &pose_path, &mut camera),
-                                Scancode::Num5 => load_camera(4, &pose_path, &mut camera),
-                                Scancode::Num6 => load_camera(5, &pose_path, &mut camera),
-                                Scancode::Num7 => load_camera(6, &pose_path, &mut camera),
-                                Scancode::Num8 => load_camera(7, &pose_path, &mut camera),
-                                Scancode::Num9 => load_camera(8, &pose_path, &mut camera),
-                                Scancode::Num0 => load_camera(9, &pose_path, &mut camera),
-                                _ => (),
-                            }
+    let mut events = ctx.event_pump().unwrap();
+    let mut last_frame_time = time::PreciseTime::now();
+    'outer_loop: loop {
+        for event in events.poll_iter() {
+            match event {
+                Event::Quit { .. } => break 'outer_loop,
+                Event::KeyDown {
+                    scancode: Some(code),
+                    keymod,
+                    ..
+                } => {
+                    if keymod.is_empty() {
+                        match code {
+                            Scancode::Escape => break 'outer_loop,
+                            Scancode::W => camera.moving_forward = true,
+                            Scancode::S => camera.moving_backward = true,
+                            Scancode::A => camera.moving_left = true,
+                            Scancode::D => camera.moving_right = true,
+                            Scancode::Z => camera.moving_down = true,
+                            Scancode::Q => camera.moving_up = true,
+                            Scancode::Left => camera.turning_left = true,
+                            Scancode::Right => camera.turning_right = true,
+                            Scancode::Down => camera.turning_down = true,
+                            Scancode::Up => camera.turning_up = true,
+                            Scancode::O => renderer.toggle_show_octree_nodes(),
+                            Scancode::Num7 => renderer.adjust_gamma(-0.1),
+                            Scancode::Num8 => renderer.adjust_gamma(0.1),
+                            Scancode::Num9 => renderer.adjust_point_size(-0.1),
+                            Scancode::Num0 => renderer.adjust_point_size(0.1),
+                            _ => (),
+                        }
+                    } else if keymod.intersects(LCTRLMOD | RCTRLMOD)
+                        && keymod.intersects(LSHIFTMOD | RSHIFTMOD)
+                    {
+                        // CTRL + SHIFT is pressed.
+                        match code {
+                            Scancode::Num1 => save_camera(0, &pose_path, &camera),
+                            Scancode::Num2 => save_camera(1, &pose_path, &camera),
+                            Scancode::Num3 => save_camera(2, &pose_path, &camera),
+                            Scancode::Num4 => save_camera(3, &pose_path, &camera),
+                            Scancode::Num5 => save_camera(4, &pose_path, &camera),
+                            Scancode::Num6 => save_camera(5, &pose_path, &camera),
+                            Scancode::Num7 => save_camera(6, &pose_path, &camera),
+                            Scancode::Num8 => save_camera(7, &pose_path, &camera),
+                            Scancode::Num9 => save_camera(8, &pose_path, &camera),
+                            Scancode::Num0 => save_camera(9, &pose_path, &camera),
+                            _ => (),
+                        }
+                    } else if keymod.intersects(LCTRLMOD | RCTRLMOD) {
+                        // CTRL is pressed.
+                        match code {
+                            Scancode::Num1 => load_camera(0, &pose_path, &mut camera),
+                            Scancode::Num2 => load_camera(1, &pose_path, &mut camera),
+                            Scancode::Num3 => load_camera(2, &pose_path, &mut camera),
+                            Scancode::Num4 => load_camera(3, &pose_path, &mut camera),
+                            Scancode::Num5 => load_camera(4, &pose_path, &mut camera),
+                            Scancode::Num6 => load_camera(5, &pose_path, &mut camera),
+                            Scancode::Num7 => load_camera(6, &pose_path, &mut camera),
+                            Scancode::Num8 => load_camera(7, &pose_path, &mut camera),
+                            Scancode::Num9 => load_camera(8, &pose_path, &mut camera),
+                            Scancode::Num0 => load_camera(9, &pose_path, &mut camera),
+                            _ => (),
                         }
                     }
-                    Event::KeyUp {
-                        scancode: Some(code),
-                        ..
-                    } => match code {
-                        Scancode::W => camera.moving_forward = false,
-                        Scancode::S => camera.moving_backward = false,
-                        Scancode::A => camera.moving_left = false,
-                        Scancode::D => camera.moving_right = false,
-                        Scancode::Z => camera.moving_down = false,
-                        Scancode::Q => camera.moving_up = false,
-                        Scancode::Left => camera.turning_left = false,
-                        Scancode::Right => camera.turning_right = false,
-                        Scancode::Down => camera.turning_down = false,
-                        Scancode::Up => camera.turning_up = false,
-                        _ => (),
-                    },
-                    Event::MouseMotion {
-                        xrel,
-                        yrel,
-                        mousestate,
-                        ..
-                    } => {
-                        if mousestate.left() {
-                            camera.mouse_drag_rotate(xrel, yrel)
-                        } else if mousestate.right() {
-                            camera.mouse_drag_pan(xrel, yrel)
-                        }
-                    }
-                    Event::MouseWheel { y, .. } => {
-                        camera.mouse_wheel(y);
-                    }
-                    Event::Window {
-                        win_event: WindowEvent::SizeChanged(w, h),
-                        ..
-                    } => {
-                        camera.set_size(&gl, w, h);
-                    }
-                    _ => (),
                 }
+                Event::KeyUp {
+                    scancode: Some(code),
+                    ..
+                } => match code {
+                    Scancode::W => camera.moving_forward = false,
+                    Scancode::S => camera.moving_backward = false,
+                    Scancode::A => camera.moving_left = false,
+                    Scancode::D => camera.moving_right = false,
+                    Scancode::Z => camera.moving_down = false,
+                    Scancode::Q => camera.moving_up = false,
+                    Scancode::Left => camera.turning_left = false,
+                    Scancode::Right => camera.turning_right = false,
+                    Scancode::Down => camera.turning_down = false,
+                    Scancode::Up => camera.turning_up = false,
+                    _ => (),
+                },
+                Event::MouseMotion {
+                    xrel,
+                    yrel,
+                    mousestate,
+                    ..
+                } => {
+                    if mousestate.left() {
+                        camera.mouse_drag_rotate(xrel, yrel)
+                    } else if mousestate.right() {
+                        camera.mouse_drag_pan(xrel, yrel)
+                    }
+                }
+                Event::MouseWheel { y, .. } => {
+                    camera.mouse_wheel(y);
+                }
+                Event::Window {
+                    win_event: WindowEvent::SizeChanged(w, h),
+                    ..
+                } => {
+                    camera.set_size(&gl, w, h);
+                }
+                _ => (),
             }
+        }
 
-            if let Some(j) = joystick.as_ref() {
-                let x = f32::from(j.axis(0).unwrap()) / 500.;
-                let y = f32::from(-j.axis(1).unwrap()) / 500.;
-                let z = f32::from(-j.axis(2).unwrap()) / 500.;
-                let up = f32::from(j.axis(3).unwrap()) / 500.;
-                // Combine tilting and turning on the knob.
-                let around =
-                    f32::from(j.axis(4).unwrap()) / 500. - f32::from(j.axis(5).unwrap()) / 500.;
-                camera.pan(x, y, z);
-                camera.rotate(up, around);
-            }
-            let current_time = time::PreciseTime::now();
-            let elapsed = last_frame_time.to(current_time);
-            last_frame_time = current_time;
-            if camera.update(elapsed) {
-                renderer.camera_changed(&camera.get_world_to_gl());
-            }
+        if let Some(j) = joystick.as_ref() {
+            let x = f32::from(j.axis(0).unwrap()) / 500.;
+            let y = f32::from(-j.axis(1).unwrap()) / 500.;
+            let z = f32::from(-j.axis(2).unwrap()) / 500.;
+            let up = f32::from(j.axis(3).unwrap()) / 500.;
+            // Combine tilting and turning on the knob.
+            let around =
+                f32::from(j.axis(4).unwrap()) / 500. - f32::from(j.axis(5).unwrap()) / 500.;
+            camera.pan(x, y, z);
+            camera.rotate(up, around);
+        }
+        let current_time = time::PreciseTime::now();
+        let elapsed = last_frame_time.to(current_time);
+        last_frame_time = current_time;
+        if camera.update(elapsed) {
+            renderer.camera_changed(&camera.get_world_to_gl());
+        }
 
-            match renderer.draw() {
-                DrawResult::HasDrawn => window.gl_swap_window(),
-                DrawResult::NoChange => (),
-            }
+        match renderer.draw() {
+            DrawResult::HasDrawn => window.gl_swap_window(),
+            DrawResult::NoChange => (),
         }
     }
 }
