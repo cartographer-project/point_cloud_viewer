@@ -223,7 +223,7 @@ impl proto_grpc::Octree for OctreeService {
         let frustum_matrix = projection_matrix.concat(&view_transform.into());
         stream_points_back_to_sink(
             OctreeQuery::Frustum(frustum_matrix),
-            self.get_service_meta(&req.octree_id).clone(),
+            Arc::clone(&self.get_service_meta(&req.octree_id)),
             &ctx,
             resp,
         )
@@ -246,7 +246,7 @@ impl proto_grpc::Octree for OctreeService {
         };
         stream_points_back_to_sink(
             OctreeQuery::Box(bounding_box),
-            self.get_service_meta(&req.octree_id).clone(),
+            Arc::clone(&self.get_service_meta(&req.octree_id)),
             &ctx,
             resp,
         )
@@ -260,7 +260,7 @@ impl proto_grpc::Octree for OctreeService {
     ) {
         stream_points_back_to_sink(
             OctreeQuery::FullPointcloud,
-            self.get_service_meta(&req.octree_id).clone(),
+            Arc::clone(&self.get_service_meta(&req.octree_id)),
             &ctx,
             resp,
         )
