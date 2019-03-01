@@ -40,14 +40,12 @@ fn main() {
     // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
     // write access to the Octree, instead of using an RwLock we should use the actor system.
 
-    // TODO(catevita) octree factory
-
     let octree: Arc<octree::Octree> = {
         let octree = match octree::octree_from_directory(octree_directory) {
             Ok(octree) => octree,
             Err(err) => panic!("Could not load octree: {}", err),
         };
-        Arc::new(octree)
+        Arc::from(octree)
     };
     let sys = actix::System::new("octree-server");
 
