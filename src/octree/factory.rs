@@ -4,7 +4,7 @@ use fnv::FnvHashMap;
 
 type OctreeFactoryFunction = fn(&str) -> Result<Box<Octree>>;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct OctreeFactory {
     octree_fn_map: FnvHashMap<String, OctreeFactoryFunction>,
 }

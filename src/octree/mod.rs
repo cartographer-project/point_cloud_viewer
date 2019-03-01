@@ -33,7 +33,7 @@ mod node_writer;
 pub use self::node_writer::NodeWriter;
 
 mod on_disk;
-pub use self::on_disk::{octree_from_directory, read_meta_proto, OnDiskOctreeDataProvider};
+pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 
 mod factory;
 pub use self::factory::OctreeFactory;
@@ -95,7 +95,7 @@ pub trait OctreeDataProvider: Send + Sync {
 }
 
 pub struct Octree {
-    data_provider: Box<dyn OctreeDataProvider>,
+    pub data_provider: Box<dyn OctreeDataProvider>,
     meta: OctreeMeta,
     nodes: FnvHashMap<NodeId, NodeMeta>,
 }

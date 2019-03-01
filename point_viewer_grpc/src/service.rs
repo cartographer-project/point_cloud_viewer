@@ -21,17 +21,24 @@ use futures::{Future, Sink, Stream};
 use grpcio::{
     Environment, RpcContext, Server, ServerBuilder, ServerStreamingSink, UnarySink, WriteFlags,
 };
-use point_viewer::octree::{octree_from_directory, read_meta_proto, NodeId, Octree};
+use lru::LruCache;
+use point_viewer::octree::{NodeId, Octree, OctreeFactory};
 use point_viewer::{InternalIterator, Point};
 use protobuf::Message;
-use std::path::Path;
+use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+
+struct OctreeServiceMeta {
+    octree: Box<Octree>,
+    meta: point_viewer::proto::Meta,
+}
 
 #[derive(Clone)]
 struct OctreeService {
-    octree: Arc<Octree>,
-    meta: point_viewer::proto::Meta,
+    location: PathBuf,
+    meta_cache: Arc<Mutex<LruCache<String, Arc<OctreeServiceMeta>>>>,
+    factory: OctreeFactory,
 }
 
 #[derive(Debug)]
@@ -43,7 +50,7 @@ enum OctreeQuery {
 
 fn stream_points_back_to_sink(
     query: OctreeQuery,
-    octree: Arc<Octree>,
+    service_meta: Arc<OctreeServiceMeta>,
     ctx: &RpcContext,
     resp: ServerStreamingSink<proto::PointsReply>,
 ) {
@@ -126,13 +133,15 @@ fn stream_points_back_to_sink(
                 }
             };
             match query {
-                OctreeQuery::Box(bounding_box) => {
-                    octree.points_in_box(&bounding_box).for_each(func)
-                }
-                OctreeQuery::Frustum(frustum_matrix) => {
-                    octree.points_in_frustum(&frustum_matrix).for_each(func)
-                }
-                OctreeQuery::FullPointcloud => octree.all_points().for_each(func),
+                OctreeQuery::Box(bounding_box) => service_meta
+                    .octree
+                    .points_in_box(&bounding_box)
+                    .for_each(func),
+                OctreeQuery::Frustum(frustum_matrix) => service_meta
+                    .octree
+                    .points_in_frustum(&frustum_matrix)
+                    .for_each(func),
+                OctreeQuery::FullPointcloud => service_meta.octree.all_points().for_each(func),
             };
         }
         tx.send((reply, WriteFlags::default())).unwrap();
@@ -154,7 +163,7 @@ impl proto_grpc::Octree for OctreeService {
         sink: UnarySink<proto::GetMetaReply>,
     ) {
         let mut resp = proto::GetMetaReply::new();
-        resp.set_meta(self.meta.clone());
+        resp.set_meta(self.get_service_meta(&req.octree_id).meta.clone());
         let f = sink
             .success(resp)
             .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
@@ -168,6 +177,7 @@ impl proto_grpc::Octree for OctreeService {
         sink: UnarySink<proto::GetNodeDataReply>,
     ) {
         let data = self
+            .get_service_meta(&req.octree_id)
             .octree
             .get_node_data(&NodeId::from_str(&req.id).unwrap())
             .unwrap();
@@ -213,7 +223,7 @@ impl proto_grpc::Octree for OctreeService {
         let frustum_matrix = projection_matrix.concat(&view_transform.into());
         stream_points_back_to_sink(
             OctreeQuery::Frustum(frustum_matrix),
-            self.octree.clone(),
+            self.get_service_meta(&req.octree_id).clone(),
             &ctx,
             resp,
         )
@@ -236,7 +246,7 @@ impl proto_grpc::Octree for OctreeService {
         };
         stream_points_back_to_sink(
             OctreeQuery::Box(bounding_box),
-            self.octree.clone(),
+            self.get_service_meta(&req.octree_id).clone(),
             &ctx,
             resp,
         )
@@ -245,19 +255,52 @@ impl proto_grpc::Octree for OctreeService {
     fn get_all_points(
         &self,
         ctx: RpcContext,
-        _req: proto::GetAllPointsRequest,
+        req: proto::GetAllPointsRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        stream_points_back_to_sink(OctreeQuery::FullPointcloud, self.octree.clone(), &ctx, resp)
+        stream_points_back_to_sink(
+            OctreeQuery::FullPointcloud,
+            self.get_service_meta(&req.octree_id).clone(),
+            &ctx,
+            resp,
+        )
     }
 }
 
-pub fn start_grpc_server(octree_directory: &Path, host: &str, port: u16) -> Server {
-    let env = Arc::new(Environment::new(1));
-    let meta = read_meta_proto(octree_directory).unwrap();
-    let octree = Arc::from(octree_from_directory(octree_directory).unwrap());
+impl OctreeService {
+    pub fn get_service_meta(&self, octree_id: &str) -> Arc<OctreeServiceMeta> {
+        let octree_id = octree_id.to_string();
+        let mut cache = self.meta_cache.lock().unwrap();
+        match cache.get(&octree_id) {
+            None => {
+                let octree = self
+                    .factory
+                    .generate_octree(self.location.join(&octree_id).to_string_lossy())
+                    .unwrap();
+                let meta = (*octree).data_provider.meta_proto().unwrap();
+                let service_meta = Arc::new(OctreeServiceMeta { octree, meta });
+                cache.put(octree_id, Arc::clone(&service_meta));
+                service_meta
+            }
+            Some(service_meta) => Arc::clone(service_meta),
+        }
+    }
+}
 
-    let service = proto_grpc::create_octree(OctreeService { octree, meta });
+pub fn start_grpc_server(
+    host: &str,
+    port: u16,
+    location: impl Into<PathBuf>,
+    factory: OctreeFactory,
+) -> Server {
+    let env = Arc::new(Environment::new(1));
+    let meta_cache = Arc::new(Mutex::new(LruCache::new(10)));
+
+    let service = proto_grpc::create_octree(OctreeService {
+        location: location.into(),
+        meta_cache,
+        factory,
+    });
     ServerBuilder::new(env)
         .register_service(service)
         .bind(host /* ip to bind to */, port)

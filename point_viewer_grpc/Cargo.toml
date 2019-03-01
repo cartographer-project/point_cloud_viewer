@@ -24,6 +24,7 @@ cgmath = "0.16.0"
 clap = "2.32.0"
 futures = "0.1.17"
 grpcio = "0.4"
+lru = "0.1.11"
 protobuf = "2.0.0"
 scoped-pool = "^0.1"
 
