@@ -37,7 +37,7 @@ pub struct GrpcOctreeDataProvider {
 
 impl GrpcOctreeDataProvider {
     pub fn from_address(addr: &str) -> Result<Self> {
-        let mut addr_parts = addr.trim_end_matches('/').splitn(2, '/');
+        let mut addr_parts = addr.trim_matches('/').splitn(2, '/');
         let addr = addr_parts.next().ok_or_else(|| "Invalid address.")?;
         let octree_id = addr_parts.next().unwrap_or_default().to_string();
         let env = Arc::new(EnvBuilder::new().build());
