@@ -70,113 +70,6 @@ fn send_fail<T>(ctx: &RpcContext, sink: UnarySink<T>, error: &Error) {
     ctx.spawn(f);
 }
 
-fn stream_points_back_to_sink(
-    query: OctreeQuery,
-    service_data: Arc<OctreeServiceData>,
-    ctx: &RpcContext,
-    resp: ServerStreamingSink<proto::PointsReply>,
-) {
-    use std::thread;
-
-    // This creates a async-aware (tx, rx) pair that can wake up the event loop when new data
-    // is piped through it.
-
-    // We create a channel with a small buffer, which yields better performance than
-    // fully blocking without requiring a ton of memory. This has not been carefully benchmarked
-    // for best performance though.
-    let (tx, rx) = mpsc::channel(4);
-    thread::spawn(move || {
-        // This is the secret sauce connecting an OS thread to a event-based receiver. Calling
-        // wait() on this turns the event aware, i.e. async 'tx' into a blocking 'tx' that will
-        // make this thread block when the event loop is not quick enough with piping out data.
-        let mut tx = tx.wait();
-
-        let mut reply = proto::PointsReply::new();
-        let bytes_per_point = {
-            let initial_proto_size = reply.compute_size();
-            let mut v = point_viewer::proto::Vector3f::new();
-            v.set_x(1.);
-            v.set_y(1.);
-            v.set_z(1.);
-            reply.mut_positions().push(v);
-
-            let mut v = point_viewer::proto::Color::new();
-            v.set_red(1.);
-            v.set_green(1.);
-            v.set_blue(1.);
-            v.set_alpha(1.);
-            reply.mut_colors().push(v);
-
-            reply.mut_intensities().push(1.);
-
-            let final_proto_size = reply.compute_size();
-            reply.mut_positions().clear();
-            reply.mut_colors().clear();
-            reply.mut_intensities().clear();
-            final_proto_size - initial_proto_size
-        };
-
-        // Proto message must be below 4 MB.
-        let max_message_size = 4 * 1024 * 1024;
-        let mut reply_size = 0;
-
-        {
-            // Extra scope to make sure that 'func' does not outlive 'reply'.
-            let func = |p: &Point| {
-                {
-                    let mut v = point_viewer::proto::Vector3f::new();
-                    v.set_x(p.position.x);
-                    v.set_y(p.position.y);
-                    v.set_z(p.position.z);
-                    reply.mut_positions().push(v);
-                }
-
-                {
-                    let mut v = point_viewer::proto::Color::new();
-                    let clr = p.color.to_f32();
-                    v.set_red(clr.red);
-                    v.set_green(clr.green);
-                    v.set_blue(clr.blue);
-                    v.set_alpha(clr.alpha);
-                    reply.mut_colors().push(v);
-                }
-
-                if let Some(i) = p.intensity {
-                    reply.mut_intensities().push(i);
-                }
-
-                reply_size += bytes_per_point;
-                if reply_size > max_message_size - bytes_per_point {
-                    tx.send((reply.clone(), WriteFlags::default())).unwrap();
-                    reply.mut_positions().clear();
-                    reply.mut_colors().clear();
-                    reply.mut_intensities().clear();
-                    reply_size = 0;
-                }
-            };
-            match query {
-                OctreeQuery::Box(bounding_box) => service_data
-                    .octree
-                    .points_in_box(&bounding_box)
-                    .for_each(func),
-                OctreeQuery::Frustum(frustum_matrix) => service_data
-                    .octree
-                    .points_in_frustum(&frustum_matrix)
-                    .for_each(func),
-                OctreeQuery::FullPointcloud => service_data.octree.all_points().for_each(func),
-            };
-        }
-        tx.send((reply, WriteFlags::default())).unwrap();
-    });
-
-    let rx = rx.map_err(|_| grpcio::Error::RemoteStopped);
-    let f = resp
-        .send_all(rx)
-        .map(|_| {})
-        .map_err(|e| println!("failed to reply: {:?}", e));
-    ctx.spawn(f)
-}
-
 impl proto_grpc::Octree for OctreeService {
     fn get_meta(
         &self,
@@ -250,13 +143,9 @@ impl proto_grpc::Octree for OctreeService {
             disp: translation,
         };
         let frustum_matrix = projection_matrix.concat(&view_transform.into());
-        let service_data = match self.get_service_data(&req.octree_id) {
-            Ok(service_data) => service_data,
-            Err(e) => return send_fail_stream(&ctx, resp, &e),
-        };
-        stream_points_back_to_sink(
+        self.stream_points_back_to_sink(
             OctreeQuery::Frustum(frustum_matrix),
-            service_data,
+            &req.octree_id,
             &ctx,
             resp,
         )
@@ -277,11 +166,7 @@ impl proto_grpc::Octree for OctreeService {
                 Point3::new(max.x, max.y, max.z),
             )
         };
-        let service_data = match self.get_service_data(&req.octree_id) {
-            Ok(service_data) => service_data,
-            Err(e) => return send_fail_stream(&ctx, resp, &e),
-        };
-        stream_points_back_to_sink(OctreeQuery::Box(bounding_box), service_data, &ctx, resp)
+        self.stream_points_back_to_sink(OctreeQuery::Box(bounding_box), &req.octree_id, &ctx, resp)
     }
 
     fn get_all_points(
@@ -290,16 +175,125 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetAllPointsRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        let service_data = match self.get_service_data(&req.octree_id) {
-            Ok(service_data) => service_data,
-            Err(e) => return send_fail_stream(&ctx, resp, &e),
-        };
-        stream_points_back_to_sink(OctreeQuery::FullPointcloud, service_data, &ctx, resp)
+        self.stream_points_back_to_sink(OctreeQuery::FullPointcloud, &req.octree_id, &ctx, resp)
     }
 }
 
 impl OctreeService {
-    pub fn get_service_data(&self, octree_id: &str) -> Result<Arc<OctreeServiceData>> {
+    fn stream_points_back_to_sink(
+        &self,
+        query: OctreeQuery,
+        octree_id: &str,
+        ctx: &RpcContext,
+        resp: ServerStreamingSink<proto::PointsReply>,
+    ) {
+        use std::thread;
+
+        let service_data = match self.get_service_data(octree_id) {
+            Ok(service_data) => service_data,
+            Err(e) => return send_fail_stream(&ctx, resp, &e),
+        };
+
+        // This creates a async-aware (tx, rx) pair that can wake up the event loop when new data
+        // is piped through it.
+
+        // We create a channel with a small buffer, which yields better performance than
+        // fully blocking without requiring a ton of memory. This has not been carefully benchmarked
+        // for best performance though.
+        let (tx, rx) = mpsc::channel(4);
+        thread::spawn(move || {
+            // This is the secret sauce connecting an OS thread to a event-based receiver. Calling
+            // wait() on this turns the event aware, i.e. async 'tx' into a blocking 'tx' that will
+            // make this thread block when the event loop is not quick enough with piping out data.
+            let mut tx = tx.wait();
+
+            let mut reply = proto::PointsReply::new();
+            let bytes_per_point = {
+                let initial_proto_size = reply.compute_size();
+                let mut v = point_viewer::proto::Vector3f::new();
+                v.set_x(1.);
+                v.set_y(1.);
+                v.set_z(1.);
+                reply.mut_positions().push(v);
+
+                let mut v = point_viewer::proto::Color::new();
+                v.set_red(1.);
+                v.set_green(1.);
+                v.set_blue(1.);
+                v.set_alpha(1.);
+                reply.mut_colors().push(v);
+
+                reply.mut_intensities().push(1.);
+
+                let final_proto_size = reply.compute_size();
+                reply.mut_positions().clear();
+                reply.mut_colors().clear();
+                reply.mut_intensities().clear();
+                final_proto_size - initial_proto_size
+            };
+
+            // Proto message must be below 4 MB.
+            let max_message_size = 4 * 1024 * 1024;
+            let mut reply_size = 0;
+
+            {
+                // Extra scope to make sure that 'func' does not outlive 'reply'.
+                let func = |p: &Point| {
+                    {
+                        let mut v = point_viewer::proto::Vector3f::new();
+                        v.set_x(p.position.x);
+                        v.set_y(p.position.y);
+                        v.set_z(p.position.z);
+                        reply.mut_positions().push(v);
+                    }
+
+                    {
+                        let mut v = point_viewer::proto::Color::new();
+                        let clr = p.color.to_f32();
+                        v.set_red(clr.red);
+                        v.set_green(clr.green);
+                        v.set_blue(clr.blue);
+                        v.set_alpha(clr.alpha);
+                        reply.mut_colors().push(v);
+                    }
+
+                    if let Some(i) = p.intensity {
+                        reply.mut_intensities().push(i);
+                    }
+
+                    reply_size += bytes_per_point;
+                    if reply_size > max_message_size - bytes_per_point {
+                        tx.send((reply.clone(), WriteFlags::default())).unwrap();
+                        reply.mut_positions().clear();
+                        reply.mut_colors().clear();
+                        reply.mut_intensities().clear();
+                        reply_size = 0;
+                    }
+                };
+                match query {
+                    OctreeQuery::Box(bounding_box) => service_data
+                        .octree
+                        .points_in_box(&bounding_box)
+                        .for_each(func),
+                    OctreeQuery::Frustum(frustum_matrix) => service_data
+                        .octree
+                        .points_in_frustum(&frustum_matrix)
+                        .for_each(func),
+                    OctreeQuery::FullPointcloud => service_data.octree.all_points().for_each(func),
+                };
+            }
+            tx.send((reply, WriteFlags::default())).unwrap();
+        });
+
+        let rx = rx.map_err(|_| grpcio::Error::RemoteStopped);
+        let f = resp
+            .send_all(rx)
+            .map(|_| {})
+            .map_err(|e| println!("failed to reply: {:?}", e));
+        ctx.spawn(f)
+    }
+
+    fn get_service_data(&self, octree_id: &str) -> Result<Arc<OctreeServiceData>> {
         match self.data_cache.read().unwrap().get(octree_id) {
             None => {
                 let octree = self
