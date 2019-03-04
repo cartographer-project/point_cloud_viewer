@@ -50,22 +50,16 @@ enum OctreeQuery {
     FullPointcloud,
 }
 
-fn send_fail_stream<T>(ctx: &RpcContext, sink: ServerStreamingSink<T>, error: &Error) {
+fn send_fail_stream<T>(ctx: &RpcContext, sink: ServerStreamingSink<T>, err_str: String) {
     let f = sink
-        .fail(RpcStatus::new(
-            RpcStatusCode::Internal,
-            Some(error.to_string()),
-        ))
+        .fail(RpcStatus::new(RpcStatusCode::Internal, Some(err_str)))
         .map_err(move |err| eprintln!("Failed to reply: {:?}", err));
     ctx.spawn(f);
 }
 
-fn send_fail<T>(ctx: &RpcContext, sink: UnarySink<T>, error: &Error) {
+fn send_fail<T>(ctx: &RpcContext, sink: UnarySink<T>, err_str: String) {
     let f = sink
-        .fail(RpcStatus::new(
-            RpcStatusCode::Internal,
-            Some(error.to_string()),
-        ))
+        .fail(RpcStatus::new(RpcStatusCode::Internal, Some(err_str)))
         .map_err(move |err| eprintln!("Failed to reply: {:?}", err));
     ctx.spawn(f);
 }
@@ -80,7 +74,7 @@ impl proto_grpc::Octree for OctreeService {
         let mut resp = proto::GetMetaReply::new();
         let service_data = match self.get_service_data(&req.octree_id) {
             Ok(service_data) => service_data,
-            Err(e) => return send_fail(&ctx, sink, &e),
+            Err(e) => return send_fail(&ctx, sink, e.to_string()),
         };
         resp.set_meta(service_data.meta.clone());
         let f = sink
@@ -97,14 +91,15 @@ impl proto_grpc::Octree for OctreeService {
     ) {
         let service_data = match self.get_service_data(&req.octree_id) {
             Ok(service_data) => service_data,
-            Err(e) => return send_fail(&ctx, sink, &e),
+            Err(e) => return send_fail(&ctx, sink, e.to_string()),
         };
-        let node_data = match service_data
-            .octree
-            .get_node_data(&NodeId::from_str(&req.id).unwrap())
-        {
+        let node_id = match NodeId::from_str(&req.id) {
+            Ok(node_id) => node_id,
+            Err(e) => return send_fail(&ctx, sink, e.to_string()),
+        };
+        let node_data = match service_data.octree.get_node_data(&node_id) {
             Ok(data) => data,
-            Err(e) => return send_fail(&ctx, sink, &e),
+            Err(e) => return send_fail(&ctx, sink, e.to_string()),
         };
         let mut resp = proto::GetNodeDataReply::new();
         resp.mut_node()
@@ -194,7 +189,7 @@ impl OctreeService {
 
         let service_data = match self.get_service_data(octree_id) {
             Ok(service_data) => service_data,
-            Err(e) => return send_fail_stream(&ctx, resp, &e),
+            Err(e) => return send_fail_stream(&ctx, resp, e.to_string()),
         };
 
         // This creates a async-aware (tx, rx) pair that can wake up the event loop when new data
