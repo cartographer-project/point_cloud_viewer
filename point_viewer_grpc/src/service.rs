@@ -99,16 +99,19 @@ impl proto_grpc::Octree for OctreeService {
             Ok(service_data) => service_data,
             Err(e) => return send_fail(&ctx, sink, &e),
         };
-        let data = service_data
+        let node_data = match service_data
             .octree
             .get_node_data(&NodeId::from_str(&req.id).unwrap())
-            .unwrap();
+        {
+            Ok(data) => data,
+            Err(e) => return send_fail(&ctx, sink, &e),
+        };
         let mut resp = proto::GetNodeDataReply::new();
         resp.mut_node()
-            .set_position_encoding(data.meta.position_encoding.to_proto());
-        resp.mut_node().set_num_points(data.meta.num_points);
-        resp.set_position(data.position);
-        resp.set_color(data.color);
+            .set_position_encoding(node_data.meta.position_encoding.to_proto());
+        resp.mut_node().set_num_points(node_data.meta.num_points);
+        resp.set_position(node_data.position);
+        resp.set_color(node_data.color);
         let f = sink
             .success(resp)
             .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
