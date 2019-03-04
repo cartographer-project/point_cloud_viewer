@@ -28,6 +28,7 @@ class App {
   private lastFrustumUpdateTime: number;
   private lastMoveTime: number;
   private needsRender: boolean;
+  private uuid: String;
 
   public run() {
     let renderArea = document.getElementById('renderArea');
@@ -59,7 +60,7 @@ class App {
     this.lastFrustumUpdateTime = 0;
     this.lastMoveTime = 0;
     this.needsRender = true;
-    this.viewer = new OctreeViewer(this.scene, () => {
+    this.viewer = new OctreeViewer(this.scene, this.uuid, () => {
       this.needsRender = true;
     });
     const gui = new GUI();
@@ -89,6 +90,13 @@ class App {
       .onChange(() => {
         this.needsRender = true;
       });
+    gui
+      .add(this.uuid, 'point_cloud_id')
+      .name('Point Cloud ID')
+      .onChange(() => {
+        this.needsRender = true;
+      });
+
     window.addEventListener('resize', () => this.onWindowResize(), false);
     this.animate();
   }
@@ -127,7 +135,8 @@ class App {
       this.viewer.frustumChanged(
         matrix,
         this.renderer.context.canvas.width,
-        this.renderer.context.canvas.height
+        this.renderer.context.canvas.height,
+        this.uuid
       );
     }
 

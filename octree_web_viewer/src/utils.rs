@@ -3,7 +3,7 @@ use crate::backend_error::PointsViewerError;
 
 use actix_web::http::Method;
 use actix_web::{server, HttpRequest, HttpResponse};
-use multicache::MultiCache; // alternative use multicache::MultiCache; //size limited cache v 0.5.0
+use lru::LruCache; // alternative use multicache::MultiCache; //size limited cache v 0.5.0
 use point_viewer::octree;
 use std::sync::Arc;
 
@@ -53,14 +53,14 @@ impl OctreeKeyParams {
 struct AppState {
     /// LRU Cache for Octrees
     // todo pub octree_cache : Cell<LruCache<String, Arc<Octree>>>,
-    pub octree_cache: MultiCache<String, octree::Octree>,
+    pub octree_cache: Arc<Mutex<Lru<String, octree::Octree>>>,
     //pub octree_factory: octree::OctreeFactory,
     pub key_params: OctreeKeyParams,
 }
 
 impl AppState {
     pub fn new(
-        cache: MultiCache<String, octree::Octree>,
+        cache: Arc<Mutex<LruCache<String, octree::Octree>>>,
         prefix: String,
         suffix: String,
     ) -> Self {
@@ -85,17 +85,17 @@ impl AppState {
             //let octree :Arc<octree::Octree>> = octree_factory.generate(&addr)?;
             let octree: Arc<octree::Octree> =
                 Arc::new(octree::octree_from_directory(&addr).map_err(|err| err.into())?); //from with
-            self.octree_cache.put_arc(uuid, octree);
-            Ok(octree.clone())
+            self.octree_cache.put(uuid, octree);
+            Ok(Arc::clone(octree))
         }
     }
 }
 
 /// octree server function
-pub fn start_octree_server(app_state: AppState, ip_port: &str) -> Result<(), PointsViewerError> {
+pub fn start_octree_server(app_state: AppState, ip_port: &str, uuid: Into<String>) -> Result<(), PointsViewerError> {
     server::new(move || {
-        
-        let octree_cloned_visible_nodes = Arc::clone(&octree);
+
+        let octree_cloned_visible_nodes = app_state.load_octree(uuid);
         let octree_cloned_nodes_data = Arc::clone(&octree);
         actix_web::App::new()
         //actix_web::App::with_state(app_state)

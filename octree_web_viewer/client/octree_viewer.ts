@@ -75,14 +75,15 @@ class NodeRenderData {
     public position: Float32Array | Uint16Array | Uint8Array,
     public normalizePosition: boolean,
     public color: Uint8Array
-  ) {}
+  ) { }
 }
 
 class NodeLoader {
   public load(
     scene: THREE.Scene,
     material: THREE.ShaderMaterial,
-    nodes: NodeData[]
+    nodes: NodeData[],
+    uuid: String
   ): Promise<void> {
     let query: string[] = [];
 
@@ -91,7 +92,7 @@ class NodeLoader {
     }
     const headers = new Headers();
     headers.append('Content-Type', 'application/json; charset=UTF-8');
-    const request = new Request('/nodes_data', {
+    const request = new Request('/nodes_data/${uuid}/', {
       method: 'POST',
       body: '[' + query.join(',') + ']',
       headers: headers,
@@ -258,8 +259,9 @@ export class OctreeViewer {
   private batches: NodeData[][] = [];
   private currentlyLoading: number;
   private useTransparency: boolean;
+  private uuid: String;
 
-  constructor(private scene: THREE.Scene, private onNewNodeData: () => void) {
+  constructor(private scene: THREE.Scene, uuid: String, private onNewNodeData: () => void) {
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         size: { value: 2 },
@@ -274,13 +276,14 @@ export class OctreeViewer {
 
     this.nodeLoader = new NodeLoader();
     this.currentlyLoading = 0;
+    this.uuid = uuid;
   }
 
   public alphaChanged() {
     let newUseTransparency = this.material.uniforms['alpha'].value < 1;
     if (newUseTransparency != this.useTransparency) {
       this.material.transparent = newUseTransparency;
-      this.scene.traverse(function(node) {
+      this.scene.traverse(function (node) {
         if (node instanceof THREE.Points && node.material instanceof THREE.ShaderMaterial) {
           node.material.transparent = newUseTransparency;
         }
@@ -289,10 +292,12 @@ export class OctreeViewer {
     this.useTransparency = newUseTransparency;
   }
 
-  public frustumChanged(matrix: THREE.Matrix4, width: number, height: number) {
+  public frustumChanged(matrix: THREE.Matrix4, width: number, height: number, uuid: String) {
+    //set uuid
+    this.uuid = uuid;
     // ThreeJS is column major.
     const request = new Request(
-      `/visible_nodes?width=${width}&height=${height}&matrix=${matrixToString(
+      `/visible_nodes/${uuid}/?width=${width}&height=${height}&matrix=${matrixToString(
         matrix
       )}`,
       {
@@ -352,7 +357,7 @@ export class OctreeViewer {
     }
     this.currentlyLoading += 1;
     this.nodeLoader
-      .load(this.scene, this.material, this.batches.shift())
+      .load(this.scene, this.material, this.batches.shift(), this.uuid)
       .then(() => {
         this.currentlyLoading -= 1;
         this.onNewNodeData();
