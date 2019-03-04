@@ -176,7 +176,7 @@ export class Maps2DController {
 
   private onMouseWheel(event: WheelEvent) {
     event.preventDefault();
-    let sign = event.deltaY < 0 ? -1 : 1;
+    let sign = event.deltaY < 0 ? 1 : -1;
     let scaleMultiplier = 1 + sign * 0.05;
 
     // Zoom around event.offsetX.
