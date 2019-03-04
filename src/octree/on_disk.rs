@@ -5,24 +5,10 @@ use protobuf;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{Cursor, Read};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub struct OnDiskOctreeDataProvider {
     pub directory: PathBuf,
-}
-
-pub fn read_meta_proto<P: AsRef<Path>>(directory: P) -> Result<proto::Meta> {
-    // We used to use JSON earlier.
-    if directory.as_ref().join("meta.json").exists() {
-        return Err(ErrorKind::InvalidVersion(3).into());
-    }
-
-    let mut data = Vec::new();
-    File::open(&directory.as_ref().join("meta.pb"))?.read_to_end(&mut data)?;
-    Ok(
-        protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
-            .chain_err(|| "Could not parse meta.pb")?,
-    )
 }
 
 impl OnDiskOctreeDataProvider {
@@ -48,7 +34,17 @@ impl OnDiskOctreeDataProvider {
 
 impl OctreeDataProvider for OnDiskOctreeDataProvider {
     fn meta_proto(&self) -> Result<proto::Meta> {
-        read_meta_proto(&self.directory)
+        // We used to use JSON earlier.
+        if self.directory.join("meta.json").exists() {
+            return Err(ErrorKind::InvalidVersion(3).into());
+        }
+
+        let mut data = Vec::new();
+        File::open(&self.directory.join("meta.pb"))?.read_to_end(&mut data)?;
+        Ok(
+            protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
+                .chain_err(|| "Could not parse meta.pb")?,
+        )
     }
 
     fn data(

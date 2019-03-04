@@ -257,6 +257,19 @@ impl NodeMeta {
     }
 }
 
+pub fn to_node_proto(
+    node_id: &NodeId,
+    num_points: i64,
+    position_encoding: &PositionEncoding,
+) -> proto::Node {
+    let mut proto = proto::Node::new();
+    proto.mut_id().set_level(node_id.level() as i32);
+    proto.mut_id().set_index(node_id.index() as i64);
+    proto.set_num_points(num_points);
+    proto.set_position_encoding(position_encoding.to_proto());
+    proto
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PositionEncoding {
     Uint8,
