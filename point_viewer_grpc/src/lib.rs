@@ -138,6 +138,14 @@ impl OctreeDataProvider for GrpcOctreeDataProvider {
     }
 }
 
-pub fn octree_from_address(addr: &str) -> Result<Octree> {
-    Octree::from_data_provider(Box::new(GrpcOctreeDataProvider::from_address(addr)?))
+pub fn octree_from_grpc_address(addr: &str) -> Result<Box<Octree>> {
+    let prefix = "grpc://";
+    if !addr.starts_with(prefix) {
+        return Err(format!("Invalid grpc address: it has to start with {}.", prefix).into());
+    }
+    let addr_no_prefix: &str = &addr[prefix.len()..];
+    let octree = Octree::from_data_provider(Box::new(GrpcOctreeDataProvider::from_address(
+        addr_no_prefix,
+    )?))?;
+    Ok(Box::new(octree))
 }

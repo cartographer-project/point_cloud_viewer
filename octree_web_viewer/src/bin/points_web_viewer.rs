@@ -51,7 +51,6 @@ struct CommandLineArguments {
 
 pub fn state_from( args: CommandLineArguments) -> Result<AppState>{
      let mut octree_directory = args.octree_path;
-     // todo remove let octree_directory = PathBuf::from(&args.octree_path);
 
      //resolve suffix: trailing backslash
      let suffix = match args.path_suffix{
@@ -82,17 +81,18 @@ pub fn state_from( args: CommandLineArguments) -> Result<AppState>{
      }
     // instantiate app_state
     let app_state =  AppState::new(args.cache_max, prefix, suffix);
-    //if possible create first octree //todo factory
+    //if possible create first octree 
     let mut octree_bytesize = 0;
+    
     let octree: Arc<octree::Octree> = {
         let octree = match octree::octree_from_directory(octree_directory) {
             Ok(octree) => octree,
             Err(err) => panic!("Could not load octree: {}", err),
         };
-        Arc::new(octree)
+        Arc::from(octree)
     };
     //put octree arc in cache
-    app_state.cache.put_arc(uuid, octree );
+    app_state.cache.put(uuid, octree );
 }
 
 fn main() {
@@ -105,9 +105,6 @@ fn main() {
     let mut app_state = state_from(args).unwrap();
     // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
     // write access to the Octree, instead of using an RwLock we should use the actor system.
-
-    // TODO(catevita) octree factory
-
 
     let sys = actix::System::new("octree-server");
 

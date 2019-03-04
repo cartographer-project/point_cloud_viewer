@@ -35,6 +35,9 @@ pub use self::node_writer::NodeWriter;
 mod on_disk;
 pub use self::on_disk::{octree_from_directory, read_meta_proto, OnDiskOctreeDataProvider};
 
+mod factory;
+pub use self::factory::OctreeFactory;
+
 pub const CURRENT_VERSION: i32 = 9;
 
 #[derive(Clone, Debug)]
