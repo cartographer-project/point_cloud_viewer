@@ -19,8 +19,10 @@ use collision::Aabb3;
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};
 use grpcio::{
-    Environment, RpcContext, Server, ServerBuilder, ServerStreamingSink, UnarySink, WriteFlags,
+    Environment, RpcContext, RpcStatus, RpcStatusCode, Server, ServerBuilder, ServerStreamingSink,
+    UnarySink, WriteFlags,
 };
+use point_viewer::errors::*;
 use point_viewer::octree::{NodeId, Octree, OctreeFactory};
 use point_viewer::{InternalIterator, Point};
 use protobuf::Message;
@@ -46,6 +48,26 @@ enum OctreeQuery {
     Frustum(Matrix4<f32>),
     Box(Aabb3<f32>),
     FullPointcloud,
+}
+
+fn send_fail_stream<T>(ctx: &RpcContext, sink: ServerStreamingSink<T>, error: &Error) {
+    let f = sink
+        .fail(RpcStatus::new(
+            RpcStatusCode::Internal,
+            Some(error.to_string()),
+        ))
+        .map_err(move |err| eprintln!("Failed to reply: {:?}", err));
+    ctx.spawn(f);
+}
+
+fn send_fail<T>(ctx: &RpcContext, sink: UnarySink<T>, error: &Error) {
+    let f = sink
+        .fail(RpcStatus::new(
+            RpcStatusCode::Internal,
+            Some(error.to_string()),
+        ))
+        .map_err(move |err| eprintln!("Failed to reply: {:?}", err));
+    ctx.spawn(f);
 }
 
 fn stream_points_back_to_sink(
@@ -163,7 +185,11 @@ impl proto_grpc::Octree for OctreeService {
         sink: UnarySink<proto::GetMetaReply>,
     ) {
         let mut resp = proto::GetMetaReply::new();
-        resp.set_meta(self.get_service_data(&req.octree_id).meta.clone());
+        let service_data = match self.get_service_data(&req.octree_id) {
+            Ok(service_data) => service_data,
+            Err(e) => return send_fail(&ctx, sink, &e),
+        };
+        resp.set_meta(service_data.meta.clone());
         let f = sink
             .success(resp)
             .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
@@ -176,8 +202,11 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetNodeDataRequest,
         sink: UnarySink<proto::GetNodeDataReply>,
     ) {
-        let data = self
-            .get_service_data(&req.octree_id)
+        let service_data = match self.get_service_data(&req.octree_id) {
+            Ok(service_data) => service_data,
+            Err(e) => return send_fail(&ctx, sink, &e),
+        };
+        let data = service_data
             .octree
             .get_node_data(&NodeId::from_str(&req.id).unwrap())
             .unwrap();
@@ -221,9 +250,13 @@ impl proto_grpc::Octree for OctreeService {
             disp: translation,
         };
         let frustum_matrix = projection_matrix.concat(&view_transform.into());
+        let service_data = match self.get_service_data(&req.octree_id) {
+            Ok(service_data) => service_data,
+            Err(e) => return send_fail_stream(&ctx, resp, &e),
+        };
         stream_points_back_to_sink(
             OctreeQuery::Frustum(frustum_matrix),
-            self.get_service_data(&req.octree_id),
+            service_data,
             &ctx,
             resp,
         )
@@ -244,12 +277,11 @@ impl proto_grpc::Octree for OctreeService {
                 Point3::new(max.x, max.y, max.z),
             )
         };
-        stream_points_back_to_sink(
-            OctreeQuery::Box(bounding_box),
-            self.get_service_data(&req.octree_id),
-            &ctx,
-            resp,
-        )
+        let service_data = match self.get_service_data(&req.octree_id) {
+            Ok(service_data) => service_data,
+            Err(e) => return send_fail_stream(&ctx, resp, &e),
+        };
+        stream_points_back_to_sink(OctreeQuery::Box(bounding_box), service_data, &ctx, resp)
     }
 
     fn get_all_points(
@@ -258,17 +290,16 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetAllPointsRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        stream_points_back_to_sink(
-            OctreeQuery::FullPointcloud,
-            self.get_service_data(&req.octree_id),
-            &ctx,
-            resp,
-        )
+        let service_data = match self.get_service_data(&req.octree_id) {
+            Ok(service_data) => service_data,
+            Err(e) => return send_fail_stream(&ctx, resp, &e),
+        };
+        stream_points_back_to_sink(OctreeQuery::FullPointcloud, service_data, &ctx, resp)
     }
 }
 
 impl OctreeService {
-    pub fn get_service_data(&self, octree_id: &str) -> Arc<OctreeServiceData> {
+    pub fn get_service_data(&self, octree_id: &str) -> Result<Arc<OctreeServiceData>> {
         match self.data_cache.read().unwrap().get(octree_id) {
             None => {
                 let octree = self
@@ -281,9 +312,9 @@ impl OctreeService {
                     .write()
                     .unwrap()
                     .insert(octree_id.to_string(), Arc::clone(&service_data));
-                service_data
+                Ok(service_data)
             }
-            Some(service_data) => Arc::clone(service_data),
+            Some(service_data) => Ok(Arc::clone(service_data)),
         }
     }
 }
