@@ -298,8 +298,7 @@ impl OctreeService {
             None => {
                 let octree = self
                     .factory
-                    .generate_octree(self.location.join(&octree_id).to_string_lossy())
-                    .unwrap();
+                    .generate_octree(self.location.join(&octree_id).to_string_lossy())?;
                 let meta = octree.to_meta_proto();
                 let service_data = Arc::new(OctreeServiceData { octree, meta });
                 self.data_cache
