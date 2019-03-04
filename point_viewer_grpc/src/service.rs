@@ -269,8 +269,7 @@ impl proto_grpc::Octree for OctreeService {
 
 impl OctreeService {
     pub fn get_service_data(&self, octree_id: &str) -> Arc<OctreeServiceData> {
-        let octree_id = octree_id.to_string();
-        match self.data_cache.read().unwrap().get(&octree_id) {
+        match self.data_cache.read().unwrap().get(octree_id) {
             None => {
                 let octree = self
                     .factory
@@ -281,7 +280,7 @@ impl OctreeService {
                 self.data_cache
                     .write()
                     .unwrap()
-                    .insert(octree_id, Arc::clone(&service_data));
+                    .insert(octree_id.to_string(), Arc::clone(&service_data));
                 service_data
             }
             Some(service_data) => Arc::clone(service_data),
