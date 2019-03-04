@@ -163,7 +163,7 @@ impl proto_grpc::Octree for OctreeService {
         sink: UnarySink<proto::GetMetaReply>,
     ) {
         let mut resp = proto::GetMetaReply::new();
-        resp.set_meta(self.get_service_meta(&req.octree_id).meta.clone());
+        resp.set_meta(self.get_service_data(&req.octree_id).meta.clone());
         let f = sink
             .success(resp)
             .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
@@ -177,7 +177,7 @@ impl proto_grpc::Octree for OctreeService {
         sink: UnarySink<proto::GetNodeDataReply>,
     ) {
         let data = self
-            .get_service_meta(&req.octree_id)
+            .get_service_data(&req.octree_id)
             .octree
             .get_node_data(&NodeId::from_str(&req.id).unwrap())
             .unwrap();
@@ -223,7 +223,7 @@ impl proto_grpc::Octree for OctreeService {
         let frustum_matrix = projection_matrix.concat(&view_transform.into());
         stream_points_back_to_sink(
             OctreeQuery::Frustum(frustum_matrix),
-            Arc::clone(&self.get_service_meta(&req.octree_id)),
+            Arc::clone(&self.get_service_data(&req.octree_id)),
             &ctx,
             resp,
         )
@@ -246,7 +246,7 @@ impl proto_grpc::Octree for OctreeService {
         };
         stream_points_back_to_sink(
             OctreeQuery::Box(bounding_box),
-            Arc::clone(&self.get_service_meta(&req.octree_id)),
+            Arc::clone(&self.get_service_data(&req.octree_id)),
             &ctx,
             resp,
         )
@@ -260,7 +260,7 @@ impl proto_grpc::Octree for OctreeService {
     ) {
         stream_points_back_to_sink(
             OctreeQuery::FullPointcloud,
-            Arc::clone(&self.get_service_meta(&req.octree_id)),
+            Arc::clone(&self.get_service_data(&req.octree_id)),
             &ctx,
             resp,
         )
@@ -268,7 +268,7 @@ impl proto_grpc::Octree for OctreeService {
 }
 
 impl OctreeService {
-    pub fn get_service_meta(&self, octree_id: &str) -> Arc<OctreeServiceData> {
+    pub fn get_service_data(&self, octree_id: &str) -> Arc<OctreeServiceData> {
         let octree_id = octree_id.to_string();
         match self.data_cache.read().unwrap().get(&octree_id) {
             None => {
