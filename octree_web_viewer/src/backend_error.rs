@@ -52,3 +52,9 @@ impl From<std::path::StripPrefixError> for PointsViewerError {
         PointsViewerError::InternalServerError(err.description().to_string())
     }
 }
+
+impl From<actix_web::error::Error> for PointsViewerError {
+    fn from(err: actix_web::error::Error) -> PointsViewerError {
+        PointsViewerError::InternalServerError(err.to_string())
+    }
+}

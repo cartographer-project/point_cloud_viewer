@@ -26,6 +26,8 @@ impl<S> Handler<S> for VisibleNodes {
     type Result = Result<HttpResponse, PointsViewerError>;
 
     fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
+        //tree query
+        let uuid: String = Path::<String>::extract(req)?.into_inner();
         let matrix = {
             // Entries are column major.
             let e: Vec<f32> = req

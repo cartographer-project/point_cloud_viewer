@@ -53,7 +53,7 @@ pub fn state_from(args: CommandLineArguments) -> Result<(AppState, String), Poin
         suffix.push('/');
     }
 
-    let mut uuid: String = "".to_string();
+    let mut _uuid: String = "".to_string();
     let app_state = match args.octree_path {
         Some(path) => {
             let octree_directory = PathBuf::from(path);
@@ -61,7 +61,7 @@ pub fn state_from(args: CommandLineArguments) -> Result<(AppState, String), Poin
             if octree_directory.ends_with(&suffix) {
                 prefix = prefix.parent().unwrap();
             }
-            uuid = octree_directory
+            _uuid = octree_directory
                 .strip_prefix(&prefix)?
                 .to_str()
                 .unwrap()
@@ -77,7 +77,7 @@ pub fn state_from(args: CommandLineArguments) -> Result<(AppState, String), Poin
                     )
                 })
                 .unwrap();
-            uuid = args
+            _uuid = args
                 .octree_id
                 .ok_or_else(|| {
                     PointsViewerError::NotFound(
@@ -90,7 +90,7 @@ pub fn state_from(args: CommandLineArguments) -> Result<(AppState, String), Poin
         }
     };
 
-    Ok((app_state, uuid))
+    Ok((app_state, _uuid))
 }
 
 fn main() {
