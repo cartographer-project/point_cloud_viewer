@@ -3,9 +3,9 @@ use crate::backend_error::PointsViewerError;
 
 use actix_web::http::Method;
 use actix_web::{server, HttpRequest, HttpResponse};
-use lru::LruCache; // alternative use multicache::MultiCache; //size limited cache v 0.5.0
 use point_viewer::octree;
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 const INDEX_HTML: &str = include_str!("../client/index.html");
 const APP_BUNDLE: &str = include_str!("../../target/app_bundle.js");
@@ -29,7 +29,8 @@ pub fn app_bundle_source_map(_req: &HttpRequest) -> HttpResponse {
         .body(APP_BUNDLE_MAP)
 }
 
-struct OctreeKeyParams {
+#[derive(Clone)]
+pub struct OctreeKeyParams {
     /// Location prefix, including
     prefix: String,
     /// Tree ID
@@ -37,78 +38,82 @@ struct OctreeKeyParams {
 }
 
 impl OctreeKeyParams {
-    pub fn get_octree_address(
-        &self,
-        octree_key: impl Into<String>,
-    ) -> Result<String, PointsViewerError> {
-        Ok(format!(
-            "{}/{}/{}",
-            self.prefix,
-            octree_key.into(),
-            self.suffix
-        ))
+    pub fn get_octree_address(&self, octree_key: String) -> Result<String, PointsViewerError> {
+        Ok(format!("{}/{}/{}", self.prefix, octree_key, self.suffix))
     }
 }
 
-struct AppState {
+#[derive(Clone)]
+pub struct AppState {
     /// LRU Cache for Octrees
-    // todo pub octree_cache : Cell<LruCache<String, Arc<Octree>>>,
-    pub octree_cache: Arc<Mutex<Lru<String, octree::Octree>>>,
+    pub octree_map: Arc<RwLock<HashMap<String, Arc<octree::Octree>>>>,
     //pub octree_factory: octree::OctreeFactory,
     pub key_params: OctreeKeyParams,
 }
 
 impl AppState {
-    pub fn new(
-        cache: Arc<Mutex<LruCache<String, octree::Octree>>>,
-        prefix: String,
-        suffix: String,
-    ) -> Self {
+    pub fn new(map_size: usize, prefix: impl Into<String>, suffix: impl Into<String>) -> Self {
         AppState {
-            //todo: does it make sense to have item number or cache with byte size?
-            //octree_cache : Cell::new(LruCache::new(max_cache_items)),//todo: mutable in docs examples
-            octree_cache: cache,
+            octree_map: Arc::new(RwLock::new(HashMap::with_capacity(map_size))),
             //octree_factory: octree::OctreeFactory::new(),
             key_params: OctreeKeyParams {
-                prefix: prefix,
-                suffix: suffix,
+                prefix: prefix.into(),
+                suffix: suffix.into(),
             },
         }
     }
 
-    pub fn load_octree(&self, uuid: String) -> Result<Arc<octree::Octree>, PointsViewerError> {
+    pub fn load_octree(
+        &self,
+        uuid: impl AsRef<String>,
+    ) -> Result<Arc<octree::Octree>, PointsViewerError> {
         //exists
-        if self.octree_cache.contains_key(&uuid) {
-            Ok( self.octree_cache.get(&uuid)?)
-        } else {
-            let addr = &self.key_params.get_octree_address(uuid)?;
-            //let octree :Arc<octree::Octree>> = octree_factory.generate(&addr)?;
-            let octree: Arc<octree::Octree> =
-                Arc::new(octree::octree_from_directory(&addr).map_err(|err| err.into())?); //from with
-            self.octree_cache.put(uuid, octree);
-            Ok(Arc::clone(octree))
+        let octree_id = uuid.as_ref();
+        {
+            let map = self.octree_map.read().unwrap();
+            let octree = map.get(octree_id);
+
+            if let Some(tree) = octree {
+                return Ok(Arc::clone(&tree));
+            }
         }
+        return self.insert_octree(octree_id.to_string()); //todo ownwership
+    }
+
+    pub fn insert_octree(&self, uuid: String) -> Result<Arc<octree::Octree>, PointsViewerError> {
+        let uuid_key = uuid.clone();
+        let addr = &self.key_params.get_octree_address(uuid)?;
+        let octree: Arc<octree::Octree> = Arc::from(octree::octree_from_directory(&addr)?);
+        {
+            let mut wmap = self.octree_map.write().unwrap(); //todo try?
+            wmap.insert(uuid_key, Arc::clone(&octree));
+        }
+        Ok(octree)
     }
 }
 
 /// octree server function
-pub fn start_octree_server(app_state: AppState, ip_port: &str, uuid: Into<String>) -> Result<(), PointsViewerError> {
+pub fn start_octree_server(
+    app_state: AppState,
+    ip_port: &str,
+    uuid: impl AsRef<String>,
+) -> Result<(), PointsViewerError> {
+    let octree = app_state.load_octree(uuid).unwrap();
     server::new(move || {
-
-        let octree_cloned_visible_nodes = app_state.load_octree(uuid);
+        let octree_cloned_visible_nodes = Arc::clone(&octree); //test
         let octree_cloned_nodes_data = Arc::clone(&octree);
         actix_web::App::new()
-        //actix_web::App::with_state(app_state)
+            //actix_web::App::with_state(app_state)
             .resource("/", |r| r.method(Method::GET).f(index))
             .resource("/app_bundle.js", |r| r.method(Method::GET).f(app_bundle))
             .resource("/app_bundle.js.map", |r| {
                 r.method(Method::GET).f(app_bundle_source_map)
             })
             .resource("/visible_nodes/{uuid}/", |r| {
-                .h(VisibleNodes::new(octree_cloned_visible_nodes)) //todo
+                r.h(VisibleNodes::new(octree_cloned_visible_nodes)) //todo
             })
             .resource("/nodes_data/{uuid}/", |r| {
-                .h(NodesData::new(octree_cloned_nodes_data)) //todo
+                r.h(NodesData::new(octree_cloned_nodes_data)) //todo
             })
     })
     .bind(&ip_port)

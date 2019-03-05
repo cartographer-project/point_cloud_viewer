@@ -1,5 +1,6 @@
 use actix_web::{error::ResponseError, HttpResponse};
 use failure::Fail;
+use point_viewer;
 use std::error::Error;
 
 #[derive(Fail, Debug)]
@@ -37,6 +38,17 @@ impl From<std::str::Utf8Error> for PointsViewerError {
 
 impl From<std::num::ParseIntError> for PointsViewerError {
     fn from(err: std::num::ParseIntError) -> PointsViewerError {
+        PointsViewerError::InternalServerError(err.description().to_string())
+    }
+}
+
+impl From<point_viewer::errors::Error> for PointsViewerError {
+    fn from(err: point_viewer::errors::Error) -> PointsViewerError {
+        PointsViewerError::InternalServerError(err.description().to_string())
+    }
+}
+impl From<std::path::StripPrefixError> for PointsViewerError {
+    fn from(err: std::path::StripPrefixError) -> PointsViewerError {
         PointsViewerError::InternalServerError(err.description().to_string())
     }
 }

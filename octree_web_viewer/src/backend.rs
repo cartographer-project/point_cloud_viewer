@@ -2,7 +2,7 @@ use crate::backend_error::PointsViewerError;
 
 use actix_web::{
     dev::Handler, http::ContentEncoding, AsyncResponder, FromRequest, FutureResponse, HttpRequest,
-    HttpResponse, Json,
+    HttpResponse, Json, Path,
 };
 use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
@@ -90,12 +90,14 @@ impl<S: 'static> Handler<S> for NodesData {
 
     fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
         let mut start = 0;
-
+        //let uuid = Path::<String>::extract(req);
         let octree = Arc::clone(&self.octree); //has to be moved into future
         let message_body_future = Json::<Vec<String>>::extract(req).from_err();
         future::ok(())
+            //uuid
             .and_then(move |_| {
                 start = time::precise_time_ns();
+                //todo uuid and octree
                 message_body_future
             })
             .and_then(move |extract_result| {
