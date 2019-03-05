@@ -12,103 +12,102 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use octree_web_viewer::utils;
-use point_viewer::octree;
+use octree_web_viewer::backend_error::PointsViewerError;
+use octree_web_viewer::utils::{start_octree_server, AppState};
+//use point_viewer::octree;
 use std::path::PathBuf;
-use std::sync::Arc;
+//use std::sync::Arc;
 use structopt::StructOpt;
 
 /// HTTP web viewer for 3d points stored in OnDiskOctrees
 #[derive(StructOpt, Debug)]
 #[structopt(name = "points_web_viewer", about = "Visualizing points")]
-struct CommandLineArguments {
+pub struct CommandLineArguments {
     /// The octree directory to serve, including a trailing slash.
-    #[structopt(name = "DIR", parse(from_os_str), required_unless ="use_custom")]
-    octree_path: PathBuf,
+    #[structopt(name = "DIR")]
+    octree_path: Option<String>,
     /// Port to listen on.
     #[structopt(default_value = "5433", long = "--port")]
     port: u16,
     /// IP string.
     #[structopt(default_value = "127.0.0.1", long = "--ip")]
     ip: String,
-    /// use custom path prefix and suffix
-    #[structopt(short = "c", long = "--custom")]
-    use_custom: bool,
     /// Optional: prefix for path
-    #[structopt(long = "--prefix", required_if("use_custom", true))]
-    path_prefix: Option(String),
+    #[structopt(long = "--prefix")]
+    path_prefix: Option<String>,
     /// Optional: suffix for path
-    #[structopt(long = "--suffix", required_if("use_custom", true))]
-    path_suffix: Option(String),
+    #[structopt(default_value = "/", long = "--suffix")]
+    path_suffix: String,
     /// Optional: octree id
-    #[structopt(long = "--uuid", required_if("use_custom", true))] 
-    octree_id: Option(String),
+    #[structopt(long = "--uuid")]
+    octree_id: Option<String>,
     /// Cache items
     #[structopt(default_value = "1", long = "--cache_items")]
-    cache_max: usizeß,
-    
+    cache_max: usize,
 }
 
-pub fn state_from( args: CommandLineArguments) -> Result<AppState>{
-     let mut octree_directory = args.octree_path;
+pub fn state_from(args: CommandLineArguments) -> Result<(AppState, String), PointsViewerError> {
+    //resolve suffix: trailing backslash
+    let mut suffix = args.path_suffix;
+    if !suffix.ends_with("/") {
+        suffix.push('/');
+    }
 
-     //resolve suffix: trailing backslash
-     let suffix = match args.path_suffix{
-         Some(path) => {if !path.ends_with('/'){ path.append("/");} path},
-         None => "/"
-     };
-
-     //resolve prefix
-     let prefix = match args.path_prefix {
-         Some(path) => {if !path.ends_with('/'){ path.append("/");} path},
-         None => octree_directory.parent()
-     };
-    //resolve current octree id
-     let uuid = match args.octree_id{
-         Some(uuid) => uuid,
-         None => {let octree_id = octree_directory.strip_prefix(prefix)?;
-                  let tmp_suffix = suffix;
-                  if octree_id.ends_with(suffix){
-                      octree_id = octree_id.parent();
-
-                  }} //pop the last
-     };
-     
-     //
-     if args.use_custom && octree_directory.is_empty() {
-        // if available create from input string
-        octree_directory = Path::new(prefix).join(uuid).join(suffix);
-     }
-    // instantiate app_state
-    let app_state =  AppState::new(args.cache_max, prefix, suffix);
-    //if possible create first octree 
-    let mut octree_bytesize = 0;
-    
-    let octree: Arc<octree::Octree> = {
-        let octree = match octree::octree_from_directory(octree_directory) {
-            Ok(octree) => octree,
-            Err(err) => panic!("Could not load octree: {}", err),
-        };
-        Arc::from(octree)
+    let mut uuid: String = "".to_string();
+    let app_state = match args.octree_path {
+        Some(path) => {
+            let octree_directory = PathBuf::from(path);
+            let mut prefix = octree_directory.parent().unwrap();
+            if octree_directory.ends_with(&suffix) {
+                prefix = prefix.parent().unwrap();
+            }
+            uuid = octree_directory
+                .strip_prefix(&prefix)?
+                .to_str()
+                .unwrap()
+                .to_string();
+            AppState::new(args.cache_max, prefix.to_str().unwrap(), suffix)
+        }
+        None => {
+            let prefix = args
+                .path_prefix
+                .ok_or_else(|| {
+                    PointsViewerError::NotFound(
+                        "Input argoment Syntax is incorrect: check prefix".to_string(),
+                    )
+                })
+                .unwrap();
+            uuid = args
+                .octree_id
+                .ok_or_else(|| {
+                    PointsViewerError::NotFound(
+                        "Input argoment Syntax is incorrect: check uuid".to_string(),
+                    )
+                })
+                .unwrap();
+            //path = PathBuf::from(Path::new(&prefix).join(&uuid).join(suffix));
+            AppState::new(args.cache_max, prefix, suffix)
+        }
     };
-    //put octree arc in cache
-    app_state.cache.put(uuid, octree );
+
+    Ok((app_state, uuid))
 }
 
 fn main() {
     let args = CommandLineArguments::from_args();
 
     let ip_port = format!("{}:{}", args.ip, args.port);
-    
 
     // initialize app state
-    let mut app_state = state_from(args).unwrap();
+    let (app_state, uuid) = state_from(args).unwrap();
     // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
     // write access to the Octree, instead of using an RwLock we should use the actor system.
+    //put octree arc in cache
+    let _ = app_state.insert_octree(uuid.clone());
 
     let sys = actix::System::new("octree-server");
 
-    let _ = utils::start_octree_server(octree, &ip_port);
+    let _ = start_octree_server(app_state, &ip_port, uuid);
 
     println!("Starting http server: {}", &ip_port);
     let _ = sys.run();

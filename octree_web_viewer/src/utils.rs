@@ -38,7 +38,7 @@ pub struct OctreeKeyParams {
 }
 
 impl OctreeKeyParams {
-    pub fn get_octree_address(&self, octree_key: String) -> Result<String, PointsViewerError> {
+    pub fn get_octree_address(&self, octree_key: &String) -> Result<String, PointsViewerError> {
         Ok(format!("{}/{}/{}", self.prefix, octree_key, self.suffix))
     }
 }
@@ -65,7 +65,7 @@ impl AppState {
 
     pub fn load_octree(
         &self,
-        uuid: impl AsRef<String>,
+        uuid: impl AsRef<str>,
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
         //exists
         let octree_id = uuid.as_ref();
@@ -77,16 +77,21 @@ impl AppState {
                 return Ok(Arc::clone(&tree));
             }
         }
-        return self.insert_octree(octree_id.to_string()); //todo ownwership
+
+        let octree_key: String = octree_id.to_string();
+        return self.insert_octree(octree_key); //todo ownwership
     }
 
-    pub fn insert_octree(&self, uuid: String) -> Result<Arc<octree::Octree>, PointsViewerError> {
-        let uuid_key = uuid.clone();
-        let addr = &self.key_params.get_octree_address(uuid)?;
+    pub fn insert_octree(
+        &self,
+        uuid: impl Into<String>,
+    ) -> Result<Arc<octree::Octree>, PointsViewerError> {
+        let octree_key = uuid.into();
+        let addr = &self.key_params.get_octree_address(&octree_key)?;
         let octree: Arc<octree::Octree> = Arc::from(octree::octree_from_directory(&addr)?);
         {
             let mut wmap = self.octree_map.write().unwrap(); //todo try?
-            wmap.insert(uuid_key, Arc::clone(&octree));
+            wmap.insert(octree_key, Arc::clone(&octree));
         }
         Ok(octree)
     }
@@ -96,9 +101,9 @@ impl AppState {
 pub fn start_octree_server(
     app_state: AppState,
     ip_port: &str,
-    uuid: impl AsRef<String>,
+    uuid: String,
 ) -> Result<(), PointsViewerError> {
-    let octree = app_state.load_octree(uuid).unwrap();
+    let octree = app_state.load_octree(uuid.to_string()).unwrap();
     server::new(move || {
         let octree_cloned_visible_nodes = Arc::clone(&octree); //test
         let octree_cloned_nodes_data = Arc::clone(&octree);
