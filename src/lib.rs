@@ -17,7 +17,10 @@
 #![allow(renamed_and_removed_lints)]
 #![recursion_limit = "1024"]
 
+pub mod codec;
 pub mod color;
+// TODO(feuerste): Remove this, once https://github.com/rust-lang-nursery/error-chain/pull/255 is merged.
+#[allow(deprecated)]
 pub mod errors;
 pub mod generation;
 pub mod math;

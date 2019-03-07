@@ -105,8 +105,8 @@ pub fn main() {
         let arg = value_t!(args, "tile_background_color", TileBackgroundColorArgument)
             .expect("tile_background_color is invalid");
         match arg {
-            white => WHITE.to_u8(),
-            transparent => TRANSPARENT.to_u8(),
+            TileBackgroundColorArgument::white => WHITE.to_u8(),
+            TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
         }
     };
 

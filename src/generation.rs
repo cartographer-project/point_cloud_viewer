@@ -14,7 +14,7 @@
 
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::{self, OnDiskOctreeDataProvider};
+use crate::octree::{self, to_meta_proto, to_node_proto, OnDiskOctreeDataProvider};
 use crate::ply::PlyIterator;
 use crate::proto;
 use crate::pts::PtsIterator;
@@ -139,6 +139,7 @@ fn split_node<'a, P>(
                 octree_data_provider,
                 octree_meta,
                 &child_id,
+                octree_data_provider.number_of_points(&child_id).unwrap(),
             )
             .unwrap();
             split_node(
@@ -166,15 +167,17 @@ fn subsample_children_into(
     let mut parent_writer = octree::NodeWriter::new(octree_data_provider, octree_meta, node_id);
     for i in 0..8 {
         let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(i));
-        let node_iterator = match octree::NodeIterator::from_data_provider(
-            octree_data_provider,
-            octree_meta,
-            &child_id,
-        ) {
-            Ok(node_iterator) => node_iterator,
+        let num_points = match octree_data_provider.number_of_points(&child_id) {
+            Ok(num_points) => num_points,
             Err(Error(ErrorKind::NodeNotFound, _)) => continue,
             Err(err) => return Err(err),
         };
+        let node_iterator = octree::NodeIterator::from_data_provider(
+            octree_data_provider,
+            octree_meta,
+            &child_id,
+            num_points,
+        )?;
 
         // We read all points into memory, because the new node writer will rewrite this child's
         // file(s).
@@ -277,7 +280,11 @@ pub fn build_octree_from_file(
 ) {
     // TODO(ksavinash9): This function should return a Result.
     let input = {
-        match filename.as_ref().extension().and_then(|s| s.to_str()) {
+        match filename
+            .as_ref()
+            .extension()
+            .and_then(std::ffi::OsStr::to_str)
+        {
             Some("ply") => InputFile::Ply(filename.as_ref().to_path_buf()),
             Some("pts") => InputFile::Pts(filename.as_ref().to_path_buf()),
             other => panic!("Unknown input file format: {:?}", other),
@@ -320,31 +327,6 @@ pub fn build_octree(
 
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory.as_ref());
-
-    let mut meta = {
-        let mut meta = proto::Meta::new();
-        meta.mut_bounding_box()
-            .mut_min()
-            .set_x(bounding_box.min().x);
-        meta.mut_bounding_box()
-            .mut_min()
-            .set_y(bounding_box.min().y);
-        meta.mut_bounding_box()
-            .mut_min()
-            .set_z(bounding_box.min().z);
-        meta.mut_bounding_box()
-            .mut_max()
-            .set_x(bounding_box.max().x);
-        meta.mut_bounding_box()
-            .mut_max()
-            .set_y(bounding_box.max().y);
-        meta.mut_bounding_box()
-            .mut_max()
-            .set_z(bounding_box.max().z);
-        meta.set_resolution(resolution);
-        meta.set_version(octree::CURRENT_VERSION);
-        meta
-    };
 
     println!("Creating octree structure.");
 
@@ -429,19 +411,63 @@ pub fn build_octree(
     }
 
     // Add all non-zero node meta data to meta.pb
-    for (id, num_points) in finished_nodes {
-        let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
-        let position_encoding =
-            octree::PositionEncoding::new(&bounding_cube, octree_meta.resolution);
-
-        let mut proto = proto::Node::new();
-        *proto.mut_id() = id.to_proto();
-        proto.set_num_points(num_points);
-        proto.set_position_encoding(position_encoding.to_proto());
-        meta.mut_nodes().push(proto);
-    }
+    let nodes: Vec<proto::Node> = finished_nodes
+        .iter()
+        .map(|(id, num_points)| {
+            let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
+            let position_encoding =
+                octree::PositionEncoding::new(&bounding_cube, octree_meta.resolution);
+            to_node_proto(&id, *num_points, &position_encoding)
+        })
+        .collect();
+    let meta = to_meta_proto(&octree_meta, nodes);
 
     let mut buf_writer =
         BufWriter::new(File::create(&output_directory.as_ref().join("meta.pb")).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::color::Color;
+    use cgmath::Vector3;
+    use tempdir::TempDir;
+
+    struct Points {
+        points: Vec<Point>,
+    }
+
+    impl InternalIterator for Points {
+        fn for_each<F: FnMut(&Point)>(self, mut func: F) {
+            for p in &self.points {
+                func(p);
+            }
+        }
+        fn size_hint(&self) -> Option<usize> {
+            Some(self.points.len())
+        }
+    }
+    #[test]
+    fn test_generation() {
+        let default_point = Point {
+            position: Vector3::new(0.0, 0.0, 0.0),
+            color: Color {
+                red: 255,
+                green: 0,
+                blue: 0,
+                alpha: 255,
+            },
+            intensity: None,
+        };
+        let mut points = vec![default_point; 100_001];
+        points[100_000].position = Vector3::new(2.0, 0.0, 0.0);
+        let mut bounding_box = Aabb3::zero();
+        for point in &points {
+            bounding_box = bounding_box.grow(Point3::from_vec(point.position));
+        }
+        let pool = scoped_pool::Pool::new(10);
+        let tmp_dir = TempDir::new("octree").unwrap();
+        build_octree(&pool, tmp_dir, 1.0, bounding_box, Points { points });
+    }
 }

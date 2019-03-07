@@ -19,18 +19,26 @@ use crate::{InternalIterator, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use fnv::FnvHashMap;
-use protobuf;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
-use std::fs::{self, File};
-use std::io::{BufReader, Cursor, Read};
-use std::path::{Path, PathBuf};
+use std::io::{BufReader, Read};
 
 mod node;
-
 pub use self::node::{
-    ChildIndex, Node, NodeId, NodeIterator, NodeLayer, NodeMeta, NodeWriter, PositionEncoding,
+    to_node_proto, ChildIndex, Node, NodeId, NodeLayer, NodeMeta, PositionEncoding,
 };
+
+mod node_iterator;
+pub use self::node_iterator::NodeIterator;
+
+mod node_writer;
+pub use self::node_writer::NodeWriter;
+
+mod on_disk;
+pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
+
+mod factory;
+pub use self::factory::OctreeFactory;
 
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
 // (u64). We are able to convert the proto on read, so the tools can still read version 9.
@@ -42,6 +50,34 @@ pub struct OctreeMeta {
     pub bounding_box: Aabb3<f32>,
 }
 
+pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::Node>) -> proto::Meta {
+    let mut meta = proto::Meta::new();
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_x(octree_meta.bounding_box.min().x);
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_y(octree_meta.bounding_box.min().y);
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_z(octree_meta.bounding_box.min().z);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_x(octree_meta.bounding_box.max().x);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_y(octree_meta.bounding_box.max().y);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_z(octree_meta.bounding_box.max().z);
+    meta.set_resolution(octree_meta.resolution);
+    meta.set_version(CURRENT_VERSION);
+    meta.set_nodes(::protobuf::RepeatedField::<proto::Node>::from_vec(nodes));
+    meta
+}
+
+// TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
+// that is impossible.
 fn project(m: &Matrix4<f32>, p: &Point3<f32>) -> Point3<f32> {
     let q = m * Point3::to_homogeneous(*p);
     Point3::from_homogeneous(q / q.w)
@@ -86,7 +122,6 @@ pub trait OctreeDataProvider: Send + Sync {
         node_id: &NodeId,
         node_layers: Vec<NodeLayer>,
     ) -> Result<HashMap<NodeLayer, Box<dyn Read>>>;
-    fn number_of_points(&self, node_id: &NodeId) -> Result<i64>;
 }
 
 pub struct Octree {
@@ -96,8 +131,7 @@ pub struct Octree {
 }
 
 pub struct PointsInBoxIterator<'a> {
-    octree_data_provider: &'a OctreeDataProvider,
-    octree_meta: &'a OctreeMeta,
+    octree: &'a Octree,
     aabb: &'a Aabb3<f32>,
     intersecting_nodes: Vec<NodeId>,
 }
@@ -111,9 +145,10 @@ impl<'a> InternalIterator for PointsInBoxIterator<'a> {
         for node_id in &self.intersecting_nodes {
             // TODO(sirver): This crashes on error. We should bubble up an error.
             let iterator = NodeIterator::from_data_provider(
-                self.octree_data_provider,
-                self.octree_meta,
+                &*self.octree.data_provider,
+                &self.octree.meta,
                 node_id,
+                self.octree.nodes[node_id].num_points,
             )
             .expect("Could not read node points");
             iterator.for_each(|p| {
@@ -127,8 +162,7 @@ impl<'a> InternalIterator for PointsInBoxIterator<'a> {
 }
 
 pub struct PointsInFrustumIterator<'a> {
-    octree_data_provider: &'a OctreeDataProvider,
-    octree_meta: &'a OctreeMeta,
+    octree: &'a Octree,
     frustum_matrix: &'a Matrix4<f32>,
     intersecting_nodes: Vec<NodeId>,
 }
@@ -141,9 +175,10 @@ impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
     fn for_each<F: FnMut(&Point)>(self, mut f: F) {
         for node_id in &self.intersecting_nodes {
             let iterator = NodeIterator::from_data_provider(
-                self.octree_data_provider,
-                self.octree_meta,
+                &*self.octree.data_provider,
+                &self.octree.meta,
                 node_id,
+                self.octree.nodes[node_id].num_points,
             )
             .expect("Could not read node points");
             iterator.for_each(|p| {
@@ -157,8 +192,7 @@ impl<'a> InternalIterator for PointsInFrustumIterator<'a> {
 }
 
 pub struct AllPointsIterator<'a> {
-    octree_data_provider: &'a OctreeDataProvider,
-    octree_meta: &'a OctreeMeta,
+    octree: &'a Octree,
     octree_nodes: &'a FnvHashMap<NodeId, NodeMeta>,
 }
 
@@ -172,9 +206,10 @@ impl<'a> InternalIterator for AllPointsIterator<'a> {
         while !open_list.is_empty() {
             let current = open_list.pop().unwrap();
             let iterator = NodeIterator::from_data_provider(
-                self.octree_data_provider,
-                self.octree_meta,
+                &*self.octree.data_provider,
+                &self.octree.meta,
                 &current,
+                self.octree.nodes[&current].num_points,
             )
             .expect("Could not read node points");
             iterator.for_each(|p| f(p));
@@ -193,20 +228,6 @@ fn contains(projection_matrix: &Matrix4<f32>, point: &Point3<f32>) -> bool {
     let v = Vector4::new(point.x, point.y, point.z, 1.);
     let clip_v = projection_matrix * v;
     clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z && clip_v.z < clip_v.w
-}
-
-pub fn read_meta_proto<P: AsRef<Path>>(directory: P) -> Result<proto::Meta> {
-    // We used to use JSON earlier.
-    if directory.as_ref().join("meta.json").exists() {
-        return Err(ErrorKind::InvalidVersion(3).into());
-    }
-
-    let mut data = Vec::new();
-    File::open(&directory.as_ref().join("meta.pb"))?.read_to_end(&mut data)?;
-    Ok(
-        protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
-            .chain_err(|| "Could not parse meta.pb")?,
-    )
 }
 
 #[derive(Debug)]
@@ -262,6 +283,17 @@ impl Octree {
             nodes,
             data_provider,
         })
+    }
+
+    pub fn to_meta_proto(&self) -> proto::Meta {
+        let nodes: Vec<proto::Node> = self
+            .nodes
+            .iter()
+            .map(|(id, node_meta)| {
+                to_node_proto(&id, node_meta.num_points, &node_meta.position_encoding)
+            })
+            .collect();
+        to_meta_proto(&self.meta, nodes)
     }
 
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
@@ -360,8 +392,7 @@ impl Octree {
             }
         }
         PointsInBoxIterator {
-            octree_data_provider: &*self.data_provider,
-            octree_meta: &self.meta,
+            octree: &self,
             aabb,
             intersecting_nodes,
         }
@@ -373,8 +404,7 @@ impl Octree {
     ) -> PointsInFrustumIterator<'a> {
         let intersecting_nodes = self.get_visible_nodes(&frustum_matrix);
         PointsInFrustumIterator {
-            octree_data_provider: &*self.data_provider,
-            octree_meta: &self.meta,
+            octree: &self,
             frustum_matrix,
             intersecting_nodes,
         }
@@ -382,8 +412,7 @@ impl Octree {
 
     pub fn all_points(&self) -> AllPointsIterator {
         AllPointsIterator {
-            octree_data_provider: &*self.data_provider,
-            octree_meta: &self.meta,
+            octree: &self,
             octree_nodes: &self.nodes,
         }
     }
@@ -442,61 +471,4 @@ fn maybe_push_node(
         relation,
         size_on_screen,
     });
-}
-
-pub struct OnDiskOctreeDataProvider {
-    pub directory: PathBuf,
-}
-
-impl OnDiskOctreeDataProvider {
-    /// Returns the path on disk where the data for this node is saved.
-    pub fn stem(&self, node_id: &NodeId) -> PathBuf {
-        self.directory.join(node_id.to_string())
-    }
-}
-
-impl OctreeDataProvider for OnDiskOctreeDataProvider {
-    fn meta_proto(&self) -> Result<proto::Meta> {
-        read_meta_proto(&self.directory)
-    }
-
-    fn data(
-        &self,
-        node_id: &NodeId,
-        node_layers: Vec<NodeLayer>,
-    ) -> Result<HashMap<NodeLayer, Box<dyn Read>>> {
-        let stem = self.stem(node_id);
-        let mut readers = HashMap::<NodeLayer, Box<dyn Read>>::new();
-        for node_layer in node_layers {
-            let file = match File::open(&stem.with_extension(node_layer.extension())) {
-                Err(ref err) if err.kind() == ::std::io::ErrorKind::NotFound => {
-                    return Err(ErrorKind::NodeNotFound.into());
-                }
-                e => e,
-            }?;
-            readers.insert(node_layer.to_owned(), Box::new(file));
-        }
-        Ok(readers)
-    }
-
-    // Get number of points from the file size of the color data.
-    // Color data is required and always present.
-    fn number_of_points(&self, node_id: &NodeId) -> Result<i64> {
-        let stem = self.stem(node_id);
-        let file_meta_data_opt = fs::metadata(stem.with_extension(NodeLayer::Color.extension()));
-        if file_meta_data_opt.is_err() {
-            return Err(ErrorKind::NodeNotFound.into());
-        }
-
-        let file_size_bytes = file_meta_data_opt.unwrap().len();
-        // color has 3 bytes per point
-        Ok((file_size_bytes / 3) as i64)
-    }
-}
-
-pub fn octree_from_directory(directory: impl Into<PathBuf>) -> Result<Octree> {
-    let data_provider = OnDiskOctreeDataProvider {
-        directory: directory.into(),
-    };
-    Octree::from_data_provider(Box::new(data_provider))
 }

@@ -32,17 +32,21 @@ pub mod service;
 
 pub struct GrpcOctreeDataProvider {
     client: OctreeClient,
+    octree_id: String,
 }
 
 impl GrpcOctreeDataProvider {
     pub fn from_address(addr: &str) -> Result<Self> {
+        let mut addr_parts = addr.trim_matches('/').splitn(2, '/');
+        let addr = addr_parts.next().ok_or_else(|| "Invalid address.")?;
+        let octree_id = addr_parts.next().unwrap_or_default().to_string();
         let env = Arc::new(EnvBuilder::new().build());
         let ch = ChannelBuilder::new(env)
             .max_receive_message_len(::std::i32::MAX)
             .connect(addr);
         let client = OctreeClient::new(ch);
 
-        Ok(GrpcOctreeDataProvider { client })
+        Ok(GrpcOctreeDataProvider { client, octree_id })
     }
 
     pub fn get_points_in_box(
@@ -51,6 +55,7 @@ impl GrpcOctreeDataProvider {
         mut func: impl FnMut(&[Point]) -> bool,
     ) -> Result<()> {
         let mut req = proto::GetPointsInBoxRequest::new();
+        req.set_octree_id(self.octree_id.clone());
         req.mut_bounding_box().mut_min().set_x(bounding_box.min.x);
         req.mut_bounding_box().mut_min().set_y(bounding_box.min.y);
         req.mut_bounding_box().mut_min().set_z(bounding_box.min.z);
@@ -105,9 +110,11 @@ impl GrpcOctreeDataProvider {
 
 impl OctreeDataProvider for GrpcOctreeDataProvider {
     fn meta_proto(&self) -> Result<Meta> {
+        let mut req = proto::GetMetaRequest::new();
+        req.set_octree_id(self.octree_id.clone());
         let reply = self
             .client
-            .get_meta(&proto::GetMetaRequest::new())
+            .get_meta(&req)
             .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
         Ok(reply.meta.unwrap())
     }
@@ -118,6 +125,7 @@ impl OctreeDataProvider for GrpcOctreeDataProvider {
         node_layers: Vec<NodeLayer>,
     ) -> Result<HashMap<NodeLayer, Box<dyn Read>>> {
         let mut req = proto::GetNodeDataRequest::new();
+        req.set_octree_id(self.octree_id.clone());
         req.set_id(node_id.to_string());
         let reply = self
             .client
@@ -136,18 +144,16 @@ impl OctreeDataProvider for GrpcOctreeDataProvider {
         }
         Ok(readers)
     }
-
-    fn number_of_points(&self, node_id: &NodeId) -> Result<i64> {
-        // TODO(mfeuerstein): We would need another proto to just get the number of nodes for one id.
-        for node_proto in self.meta_proto()?.nodes.iter() {
-            if *node_id == NodeId::from_proto(node_proto.id.as_ref().unwrap()) {
-                return Ok(node_proto.num_points);
-            }
-        }
-        Err(ErrorKind::NodeNotFound.into())
-    }
 }
 
-pub fn octree_from_address(addr: &str) -> Result<Octree> {
-    Octree::from_data_provider(Box::new(GrpcOctreeDataProvider::from_address(addr)?))
+pub fn octree_from_grpc_address(addr: &str) -> Result<Box<Octree>> {
+    let prefix = "grpc://";
+    if !addr.starts_with(prefix) {
+        return Err(format!("Invalid grpc address: it has to start with {}.", prefix).into());
+    }
+    let addr_no_prefix: &str = &addr[prefix.len()..];
+    let octree = Octree::from_data_provider(Box::new(GrpcOctreeDataProvider::from_address(
+        addr_no_prefix,
+    )?))?;
+    Ok(Box::new(octree))
 }

@@ -22,6 +22,21 @@ use std::f32;
 use time;
 
 #[derive(Debug)]
+struct RotationAngle {
+    theta: Rad<f32>,
+    phi: Rad<f32>,
+}
+
+impl RotationAngle {
+    pub fn zero() -> Self {
+        RotationAngle {
+            theta: Rad::zero(),
+            phi: Rad::zero(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Camera {
     pub moving_backward: bool,
     pub moving_forward: bool,
@@ -40,8 +55,15 @@ pub struct Camera {
     theta: Rad<f32>,
     phi: Rad<f32>,
     pan: Vector3<f32>,
-    delta_theta: Rad<f32>,
-    delta_phi: Rad<f32>,
+
+    // The speed we currently want to rotate at. This is multiplied with the seconds since the last
+    // frame to get to an absolute rotation.
+    rotation_speed: RotationAngle,
+
+    // An absolute value that we should rotate around. This is used when the user is clicking and
+    // dragging with the mouse, at which point we want to follow the mouse and ignore rotation
+    // speed from the Joystick.
+    delta_rotation: RotationAngle,
 
     moved: bool,
     transform: Decomposed<Vector3<f32>, Quaternion<f32>>,
@@ -74,8 +96,8 @@ impl Camera {
             theta: Rad::zero(),
             phi: Rad::zero(),
             pan: Vector3::zero(),
-            delta_theta: Rad::zero(),
-            delta_phi: Rad::zero(),
+            rotation_speed: RotationAngle::zero(),
+            delta_rotation: RotationAngle::zero(),
             transform: Decomposed {
                 scale: 1.,
                 rot: Quaternion::one(),
@@ -160,16 +182,16 @@ impl Camera {
 
         const TURNING_SPEED: Rad<f32> = Rad(0.15);
         if self.turning_left {
-            self.delta_theta += TURNING_SPEED;
+            self.rotation_speed.theta += TURNING_SPEED;
         }
         if self.turning_right {
-            self.delta_theta -= TURNING_SPEED;
+            self.rotation_speed.theta -= TURNING_SPEED;
         }
         if self.turning_up {
-            self.delta_phi += TURNING_SPEED;
+            self.rotation_speed.phi += TURNING_SPEED;
         }
         if self.turning_down {
-            self.delta_phi -= TURNING_SPEED;
+            self.rotation_speed.phi -= TURNING_SPEED;
         }
 
         // Apply changes
@@ -182,18 +204,29 @@ impl Camera {
             self.transform.disp += translation;
         }
 
-        if !self.delta_theta.is_zero() || !self.delta_phi.is_zero() {
+        if !self.rotation_speed.theta.is_zero()
+            || !self.rotation_speed.phi.is_zero()
+            || !self.delta_rotation.theta.is_zero()
+            || !self.delta_rotation.phi.is_zero()
+        {
             moved = true;
-            self.theta += self.delta_theta * elapsed_seconds;
-            self.phi += self.delta_phi * elapsed_seconds;
+            if !self.delta_rotation.theta.is_zero() || !self.delta_rotation.phi.is_zero() {
+                self.theta += self.delta_rotation.theta;
+                self.phi += self.delta_rotation.phi;
+            } else {
+                self.theta += self.rotation_speed.theta * elapsed_seconds;
+                self.phi += self.rotation_speed.phi * elapsed_seconds;
+            }
             let rotation_z = Quaternion::from_angle_z(self.theta);
             let rotation_x = Quaternion::from_angle_x(self.phi);
             self.transform.rot = rotation_z * rotation_x;
         }
 
         self.pan = Vector3::zero();
-        self.delta_theta = Rad::zero();
-        self.delta_phi = Rad::zero();
+        self.rotation_speed.theta = Rad::zero();
+        self.rotation_speed.phi = Rad::zero();
+        self.delta_rotation.theta = Rad::zero();
+        self.delta_rotation.phi = Rad::zero();
         moved
     }
 
@@ -203,8 +236,8 @@ impl Camera {
     }
 
     pub fn mouse_drag_rotate(&mut self, delta_x: i32, delta_y: i32) {
-        self.delta_theta -= Rad(2. * f32::consts::PI * delta_x as f32 / self.width as f32);
-        self.delta_phi -= Rad(2. * f32::consts::PI * delta_y as f32 / self.height as f32);
+        self.delta_rotation.theta -= Rad(2. * f32::consts::PI * delta_x as f32 / self.width as f32);
+        self.delta_rotation.phi -= Rad(2. * f32::consts::PI * delta_y as f32 / self.height as f32);
     }
 
     pub fn mouse_wheel(&mut self, delta: i32) {
@@ -220,7 +253,7 @@ impl Camera {
     }
 
     pub fn rotate(&mut self, up: f32, around: f32) {
-        self.delta_phi += Rad(up);
-        self.delta_theta += Rad(around);
+        self.rotation_speed.phi += Rad(up);
+        self.rotation_speed.theta += Rad(around);
     }
 }
