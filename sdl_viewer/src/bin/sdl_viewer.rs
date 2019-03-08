@@ -25,11 +25,11 @@ impl Extension for NullExtension {
         app
     }
 
-    fn new(matches: &clap::ArgMatches, opengl: Rc<opengl::Gl>) -> Self {
+    fn new(_: &clap::ArgMatches, _: Rc<opengl::Gl>) -> Self {
         Self
     }
 
-    fn camera_changed(&mut self, transform: &Matrix4<f32>) {}
+    fn camera_changed(&mut self, _: &Matrix4<f32>) {}
 
     fn draw(&mut self) {}
 }
