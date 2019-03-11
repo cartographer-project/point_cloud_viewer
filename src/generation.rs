@@ -14,7 +14,7 @@
 
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::{self, OnDiskOctreeDataProvider};
+use crate::octree::{self, to_meta_proto, to_node_proto, OnDiskOctreeDataProvider};
 use crate::ply::PlyIterator;
 use crate::proto;
 use crate::pts::PtsIterator;
@@ -332,31 +332,6 @@ pub fn build_octree(
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory.as_ref());
 
-    let mut meta = {
-        let mut meta = proto::Meta::new();
-        meta.mut_bounding_box()
-            .mut_min()
-            .set_x(bounding_box.min().x);
-        meta.mut_bounding_box()
-            .mut_min()
-            .set_y(bounding_box.min().y);
-        meta.mut_bounding_box()
-            .mut_min()
-            .set_z(bounding_box.min().z);
-        meta.mut_bounding_box()
-            .mut_max()
-            .set_x(bounding_box.max().x);
-        meta.mut_bounding_box()
-            .mut_max()
-            .set_y(bounding_box.max().y);
-        meta.mut_bounding_box()
-            .mut_max()
-            .set_z(bounding_box.max().z);
-        meta.set_resolution(resolution);
-        meta.set_version(octree::CURRENT_VERSION);
-        meta
-    };
-
     println!("Creating octree structure.");
 
     let (leaf_nodes_sender, leaf_nodes_receiver) = mpsc::channel();
@@ -440,18 +415,16 @@ pub fn build_octree(
     }
 
     // Add all non-zero node meta data to meta.pb
-    for (id, num_points) in finished_nodes {
-        let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
-        let position_encoding =
-            octree::PositionEncoding::new(&bounding_cube, octree_meta.resolution);
-
-        let mut proto = proto::Node::new();
-        proto.mut_id().set_level(id.level() as i32);
-        proto.mut_id().set_index(id.index() as i64);
-        proto.set_num_points(num_points);
-        proto.set_position_encoding(position_encoding.to_proto());
-        meta.mut_nodes().push(proto);
-    }
+    let nodes: Vec<proto::Node> = finished_nodes
+        .iter()
+        .map(|(id, num_points)| {
+            let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
+            let position_encoding =
+                octree::PositionEncoding::new(&bounding_cube, octree_meta.resolution);
+            to_node_proto(&id, *num_points, &position_encoding)
+        })
+        .collect();
+    let meta = to_meta_proto(&octree_meta, nodes);
 
     let mut buf_writer =
         BufWriter::new(File::create(&output_directory.as_ref().join("meta.pb")).unwrap());

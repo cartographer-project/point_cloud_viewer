@@ -32,6 +32,7 @@ service Octree {
 }
 
 message GetMetaRequest {
+  string octree_id = 1;
 }
 
 message GetMetaReply {
@@ -40,6 +41,7 @@ message GetMetaReply {
 
 message GetNodeDataRequest {
   string id = 1;
+  string octree_id = 2;
 }
 
 message GetNodeDataReply {
@@ -50,6 +52,7 @@ message GetNodeDataReply {
 
 message GetPointsInBoxRequest {
   point_viewer.proto.AxisAlignedCuboid bounding_box = 1;
+  string octree_id = 2;
 }
 
 message GetPointsInFrustumRequest {
@@ -70,9 +73,12 @@ message GetPointsInFrustumRequest {
 
   // Distance from the viewer to the far clipping plane.
   double z_far = 6;
+
+  string octree_id = 7;
 }
 
 message GetAllPointsRequest {
+  string octree_id = 1;
 }
 
 message PointsReply {

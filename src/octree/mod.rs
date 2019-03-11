@@ -24,7 +24,9 @@ use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
 
 mod node;
-pub use self::node::{ChildIndex, Node, NodeId, NodeLayer, NodeMeta, PositionEncoding};
+pub use self::node::{
+    to_node_proto, ChildIndex, Node, NodeId, NodeLayer, NodeMeta, PositionEncoding,
+};
 
 mod node_iterator;
 pub use self::node_iterator::NodeIterator;
@@ -33,7 +35,7 @@ mod node_writer;
 pub use self::node_writer::NodeWriter;
 
 mod on_disk;
-pub use self::on_disk::{octree_from_directory, read_meta_proto, OnDiskOctreeDataProvider};
+pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 
 mod factory;
 pub use self::factory::OctreeFactory;
@@ -44,6 +46,32 @@ pub const CURRENT_VERSION: i32 = 9;
 pub struct OctreeMeta {
     pub resolution: f64,
     pub bounding_box: Aabb3<f32>,
+}
+
+pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::Node>) -> proto::Meta {
+    let mut meta = proto::Meta::new();
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_x(octree_meta.bounding_box.min().x);
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_y(octree_meta.bounding_box.min().y);
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_z(octree_meta.bounding_box.min().z);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_x(octree_meta.bounding_box.max().x);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_y(octree_meta.bounding_box.max().y);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_z(octree_meta.bounding_box.max().z);
+    meta.set_resolution(octree_meta.resolution);
+    meta.set_version(CURRENT_VERSION);
+    meta.set_nodes(::protobuf::RepeatedField::<proto::Node>::from_vec(nodes));
+    meta
 }
 
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
@@ -251,6 +279,17 @@ impl Octree {
             nodes,
             data_provider,
         })
+    }
+
+    pub fn to_meta_proto(&self) -> proto::Meta {
+        let nodes: Vec<proto::Node> = self
+            .nodes
+            .iter()
+            .map(|(id, node_meta)| {
+                to_node_proto(&id, node_meta.num_points, &node_meta.position_encoding)
+            })
+            .collect();
+        to_meta_proto(&self.meta, nodes)
     }
 
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
