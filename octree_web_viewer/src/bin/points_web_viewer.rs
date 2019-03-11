@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use octree_web_viewer::backend_error::PointsViewerError;
-use octree_web_viewer::utils::{start_octree_server, AppState};
+use octree_web_viewer::state::AppState;
+use octree_web_viewer::utils::start_octree_server;
 //use point_viewer::octree;
 use std::path::PathBuf;
 //use std::sync::Arc;
@@ -107,6 +108,7 @@ fn main() {
 
     let sys = actix::System::new("octree-server");
 
+    //let _ = start_octree_server(app_state, &ip_port, uuid);
     let _ = start_octree_server(app_state, &ip_port, uuid);
 
     println!("Starting http server: {}", &ip_port);
