@@ -66,14 +66,11 @@ impl ChildIndex {
 /// A unique identifier to a node. Currently this is implemented as 'r' being the root and r[0-7]
 /// being the children, r[0-7][0-7] being the grand children and so on. The actual representation
 /// might change though.
+// Top 8 bits of the value are level, the rest is the index.
+// The root has level = 0, its children 1 and so on. Multiple nodes can have the same index,
+// but none can have the same index and level.
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
-pub struct NodeId {
-    // The root is level = 0, its children 1 and so on.
-    level: u8,
-    // The index of this node. Multiple nodes can have the same index, but none can have the same
-    // index and level.
-    index: usize,
-}
+pub struct NodeId(u128);
 
 impl FromStr for NodeId {
     type Err = ParseIntError;
@@ -82,46 +79,66 @@ impl FromStr for NodeId {
     fn from_str(name: &str) -> std::result::Result<Self, Self::Err> {
         let level = (name.len() - 1) as u8;
         let index = if level > 0 {
-            usize::from_str_radix(&name[1..], 8)?
+            u128::from_str_radix(&name[1..], 8)?
         } else {
             0
         };
-        Ok(NodeId { level, index })
+        Ok(NodeId::from_level_index(level, index))
     }
 }
 
 impl fmt::Display for NodeId {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
-        if self.level == 0 {
+        if self.level() == 0 {
             "r".fmt(formatter)
         } else {
             write!(
                 formatter,
                 "r{index:0width$o}",
-                index = self.index,
-                width = self.level as usize
+                index = self.index(),
+                width = self.level() as usize
             )
         }
     }
 }
 
 impl NodeId {
-    pub fn from_level_index(level: u8, index: usize) -> Self {
-        NodeId { level, index }
+    pub fn from_proto(proto: &proto::NodeId) -> Self {
+        let deprecated_level = proto.deprecated_level as u8;
+        let deprecated_index = proto.deprecated_index;
+        let high = proto.high;
+        let low = proto.low;
+        if deprecated_level != 0 || deprecated_index != 0 {
+            NodeId::from_level_index(deprecated_level, deprecated_index as u128)
+        } else {
+            NodeId((u128::from(high) << 64) | u128::from(low))
+        }
+    }
+
+    pub fn to_proto(&self) -> proto::NodeId {
+        let mut proto = proto::NodeId::new();
+        proto.set_high((self.0 >> 64) as u64);
+        proto.set_low(self.0 as u64);
+        proto
+    }
+
+    pub fn from_level_index(level: u8, index: u128) -> Self {
+        let value = (u128::from(level) << 120) | index;
+        NodeId(value)
     }
 
     /// Returns the root node of the octree.
     fn root() -> Self {
-        NodeId { index: 0, level: 0 }
+        NodeId(0)
     }
 
     /// Returns the NodeId for the corresponding 'child_index'.
     #[inline]
     pub fn get_child_id(&self, child_index: ChildIndex) -> Self {
-        NodeId {
-            level: self.level + 1,
-            index: (self.index << 3) + child_index.0 as usize,
-        }
+        NodeId::from_level_index(
+            self.level() + 1,
+            (self.index() << 3) + u128::from(child_index.0),
+        )
     }
 
     /// The child index of this node in its parent.
@@ -129,7 +146,7 @@ impl NodeId {
         if self.level() == 0 {
             return None;
         }
-        Some(ChildIndex(self.index as u8 & 7))
+        Some(ChildIndex(self.index() as u8 & 7))
     }
 
     /// Returns the parents id or None if this is the root.
@@ -137,30 +154,30 @@ impl NodeId {
         if self.level() == 0 {
             return None;
         }
-        Some(NodeId {
-            level: self.level - 1,
-            index: (self.index >> 3),
-        })
+        Some(NodeId::from_level_index(
+            self.level() - 1,
+            self.index() >> 3,
+        ))
     }
 
     /// Returns the level of this node in the octree, with 0 being the root.
-    pub fn level(&self) -> usize {
-        self.level as usize
+    pub fn level(&self) -> u8 {
+        (self.0 >> 120) as u8
     }
 
     /// Returns the index of this node at the current level.
-    pub fn index(&self) -> usize {
-        self.index as usize
+    pub fn index(&self) -> u128 {
+        (self.0 & 0x00ff_ffff_ffff_ffff_ffff_ffff_ffff_ffff)
     }
 
     /// Computes the bounding cube from a NodeID.
     pub fn find_bounding_cube(&self, root_bounding_cube: &Cube) -> Cube {
         let mut edge_length = root_bounding_cube.edge_length();
         let mut min = root_bounding_cube.min();
-        for level in (0..self.level).rev() {
+        for level in (0..self.level()).rev() {
             edge_length /= 2.;
             // Reverse order: process from root to leaf nodes.
-            let child_index = (self.index >> (3 * level)) & 7;
+            let child_index = (self.0 >> (3 * level)) & 7;
             let z = child_index & 1;
             let y = (child_index >> 1) & 1;
             let x = (child_index >> 2) & 1;
@@ -239,7 +256,7 @@ impl Node {
     }
 
     /// Returns the level of this node in the octree, with 0 being the root.
-    pub fn level(&self) -> usize {
+    pub fn level(&self) -> u8 {
         self.id.level()
     }
 }
@@ -263,8 +280,7 @@ pub fn to_node_proto(
     position_encoding: &PositionEncoding,
 ) -> proto::Node {
     let mut proto = proto::Node::new();
-    proto.mut_id().set_level(node_id.level() as i32);
-    proto.mut_id().set_index(node_id.index() as i64);
+    *proto.mut_id() = node_id.to_proto();
     proto.set_num_points(num_points);
     proto.set_position_encoding(position_encoding.to_proto());
     proto
