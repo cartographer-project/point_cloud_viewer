@@ -260,6 +260,10 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
     }
 
     stream.for_each(|p: &Point| {
+        if num_points == 0 {
+            let p3 = Point3::from_vec(p.position);
+            bounding_box = Aabb3::new(p3, p3);
+        }
         bounding_box = bounding_box.grow(Point3::from_vec(p.position));
         num_points += 1;
         if num_points % UPDATE_COUNT == 0 {
