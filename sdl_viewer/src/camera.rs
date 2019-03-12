@@ -37,6 +37,12 @@ impl RotationAngle {
 }
 
 #[derive(Debug)]
+struct CtMode {
+    pub enabled: bool,
+    near_plane: f32,
+    far_plane: f32,
+}
+#[derive(Debug)]
 pub struct Camera {
     pub moving_backward: bool,
     pub moving_forward: bool,
@@ -50,9 +56,7 @@ pub struct Camera {
     pub turning_up: bool,
     pub width: i32,
     pub height: i32,
-    pub ct_mode: bool,
-    pub near_plane_ct: f32,
-    pub far_plane_ct: f32,
+    ct_mode: CtMode,
 
     movement_speed: f32,
     theta: Rad<f32>,
@@ -114,24 +118,27 @@ impl Camera {
             projection_matrix: One::one(),
             width: 0,
             height: 0,
-            near_plane_ct: 2.,
-            far_plane_ct: 5.,
-            ct_mode: false,
+            ct_mode: CtMode {
+                enabled: false,
+                near_plane: 2.,
+                far_plane: 5.,
+            },
         };
         camera.set_size(gl, width, height);
         camera
     }
 
     pub fn move_ct(&mut self, delta: f32, gl: &opengl::Gl) {
-        if self.near_plane_ct + delta > 0. {
-            self.near_plane_ct += delta;
-            self.far_plane_ct += delta;
+        if self.ct_mode.near_plane + delta > 0. {
+            self.ct_mode.near_plane += delta;
+            self.ct_mode.far_plane += delta;
             self.update_viewport(gl);
         }
     }
 
     pub fn move_far_plane_ct(&mut self, delta: f32, gl: &opengl::Gl) {
-        self.far_plane_ct = (self.near_plane_ct + 0.5).max(self.far_plane_ct + delta);
+        self.ct_mode.far_plane =
+            (self.ct_mode.near_plane + 0.5).max(self.ct_mode.far_plane + delta);
         self.update_viewport(gl);
     }
 
@@ -157,19 +164,17 @@ impl Camera {
     }
 
     pub fn update_viewport(&mut self, gl: &opengl::Gl) {
+        let (near, far) = if self.ct_mode.enabled {
+            (self.ct_mode.near_plane, self.ct_mode.far_plane)
+        } else {
+            (NEAR_PLANE, FAR_PLANE)
+        };
+
         self.projection_matrix = Matrix4::from(PerspectiveFov {
             fovy: Rad::from(Deg(45.)),
             aspect: self.width as f32 / self.height as f32,
-            near: if self.ct_mode {
-                self.near_plane_ct
-            } else {
-                NEAR_PLANE
-            },
-            far: if self.ct_mode {
-                self.far_plane_ct
-            } else {
-                FAR_PLANE
-            },
+            near,
+            far,
         });
         unsafe {
             gl.Viewport(0, 0, self.width, self.height);
@@ -178,7 +183,7 @@ impl Camera {
     }
 
     pub fn toggle_ct_mode(&mut self, gl: &opengl::Gl) {
-        self.ct_mode = !self.ct_mode;
+        self.ct_mode.enabled = !self.ct_mode.enabled;
         self.update_viewport(gl);
     }
 
