@@ -40,7 +40,9 @@ pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 mod factory;
 pub use self::factory::OctreeFactory;
 
-pub const CURRENT_VERSION: i32 = 9;
+// Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
+// (u64). We are able to convert the proto on read, so the tools can still read version 9.
+pub const CURRENT_VERSION: i32 = 10;
 
 #[derive(Clone, Debug)]
 pub struct OctreeMeta {
@@ -239,8 +241,14 @@ impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
     pub fn from_data_provider(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
-        if meta_proto.version != CURRENT_VERSION {
-            return Err(ErrorKind::InvalidVersion(meta_proto.version).into());
+        match meta_proto.version {
+            9 => println!(
+                "Data is an older octree version: {}, current would be {}. \
+                 If feasible, try upgrading this octree using `upgrade_octree`.",
+                meta_proto.version, CURRENT_VERSION
+            ),
+            CURRENT_VERSION => (),
+            _ => return Err(ErrorKind::InvalidVersion(meta_proto.version).into()),
         }
 
         let bounding_box = {
@@ -252,7 +260,6 @@ impl Octree {
                 Point3::new(max.x, max.y, max.z),
             )
         };
-
         let meta = OctreeMeta {
             resolution: meta_proto.resolution,
             bounding_box,
@@ -260,10 +267,7 @@ impl Octree {
 
         let mut nodes = FnvHashMap::default();
         for node_proto in meta_proto.nodes.iter() {
-            let node_id = NodeId::from_level_index(
-                node_proto.id.as_ref().unwrap().level as u8,
-                node_proto.id.as_ref().unwrap().index as usize,
-            );
+            let node_id = NodeId::from_proto(node_proto.id.as_ref().unwrap());
             nodes.insert(
                 node_id,
                 NodeMeta {

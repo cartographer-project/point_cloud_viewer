@@ -14,38 +14,25 @@
 
 use point_viewer::generation::build_octree_from_file;
 use std::path::PathBuf;
+use structopt::StructOpt;
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "build_octree")]
+struct CommandlineArguments {
+    /// PLY/PTS file to parse for the points.
+    #[structopt(parse(from_os_str))]
+    input: PathBuf,
+    /// Output directory to write the octree into.
+    #[structopt(long = "output_directory", parse(from_os_str))]
+    output_directory: PathBuf,
+    /// Minimal precision that this point cloud should have.
+    /// This decides on the number of bits used to encode each node.
+    #[structopt(long = "resolution", default_value = "0.001")]
+    resolution: f64,
+}
 
 fn main() {
-    let matches = clap::App::new("build_octree")
-        .args(&[
-            clap::Arg::with_name("output_directory")
-                .help("Output directory to write the octree into.")
-                .long("output_directory")
-                .required(true)
-                .takes_value(true),
-            clap::Arg::with_name("resolution")
-                .help(
-                    "Minimal precision that this point cloud should have. This decides \
-                     on the number of bits used to encode each node.",
-                )
-                .long("resolution")
-                .default_value("0.001"),
-            clap::Arg::with_name("input")
-                .help("PLY/PTS file to parse for the points.")
-                .index(1)
-                .required(true),
-        ])
-        .get_matches();
-
-    let output_directory = &PathBuf::from(matches.value_of("output_directory").unwrap());
-    let resolution = matches
-        .value_of("resolution")
-        .unwrap()
-        .parse::<f64>()
-        .expect("resolution could not be parsed as float.");
-
-    let filename = PathBuf::from(matches.value_of("input").unwrap());
-
+    let args = CommandlineArguments::from_args();
     let pool = scoped_pool::Pool::new(10);
-    build_octree_from_file(&pool, output_directory, resolution, filename);
+    build_octree_from_file(&pool, args.output_directory, args.resolution, args.input);
 }

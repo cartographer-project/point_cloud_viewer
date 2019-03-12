@@ -221,7 +221,7 @@ impl PointCloudRenderer {
         let now = time::PreciseTime::now();
         if self.last_log.to(now) > time::Duration::seconds(1) {
             let duration = self.last_log.to(now).num_microseconds().unwrap();
-            let fps = (self.num_frames * 1_000_000u32) as f32 / duration as f32;
+            let fps = f64::from(self.num_frames) / duration as f64 * 1_000_000.;
             if moving {
                 if fps < 20. {
                     self.max_nodes_moving = (self.max_nodes_moving as f32 * 0.9) as usize;
@@ -233,7 +233,7 @@ impl PointCloudRenderer {
             self.num_frames = 0;
             self.last_log = now;
             println!(
-                "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes \
+                "FPS: {:.2}, Drew {} points from {} loaded nodes. {} nodes \
                  should be shown, Cache {} MB",
                 fps,
                 num_points_drawn,
@@ -298,21 +298,29 @@ fn load_camera(index: usize, pose_path: &Option<PathBuf>, camera: &mut Camera) {
     camera.set_state(states.states[index]);
 }
 
-pub fn run(octree_factory: OctreeFactory) {
-    let matches = clap::App::new("sdl_viewer")
-        .args(&[
-            clap::Arg::with_name("octree")
-                .help("Input path of the octree.")
-                .index(1)
-                .required(true),
-            clap::Arg::with_name("cache_size_mb")
-                .help(
-                    "Maximum cache size in MB for octree nodes in GPU memory. \
-                     The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.",
-                )
-                .required(false),
-        ])
-        .get_matches();
+pub trait Extension {
+    fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
+    fn new(matches: &clap::ArgMatches, opengl: Rc<opengl::Gl>) -> Self;
+    fn camera_changed(&mut self, transform: &Matrix4<f32>);
+    fn draw(&mut self);
+}
+
+pub fn run<T: Extension>(octree_factory: OctreeFactory) {
+    let mut app = clap::App::new("sdl_viewer").args(&[
+        clap::Arg::with_name("octree")
+            .help("Input path of the octree.")
+            .index(1)
+            .required(true),
+        clap::Arg::with_name("cache_size_mb")
+            .help(
+                "Maximum cache size in MB for octree nodes in GPU memory. \
+                 The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.",
+            )
+            .required(false),
+    ]);
+    app = T::pre_init(app);
+
+    let matches = app.get_matches();
 
     let octree_argument = matches.value_of("octree").unwrap();
 
@@ -387,6 +395,8 @@ pub fn run(octree_factory: OctreeFactory) {
         let ptr = video_subsystem.gl_get_proc_address(s);
         ptr as *const std::ffi::c_void
     }));
+
+    let mut extension = T::new(&matches, Rc::clone(&gl));
 
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -518,10 +528,14 @@ pub fn run(octree_factory: OctreeFactory) {
         last_frame_time = current_time;
         if camera.update(elapsed) {
             renderer.camera_changed(&camera.get_world_to_gl());
+            extension.camera_changed(&camera.get_world_to_gl());
         }
 
         match renderer.draw() {
-            DrawResult::HasDrawn => window.gl_swap_window(),
+            DrawResult::HasDrawn => {
+                extension.draw();
+                window.gl_swap_window()
+            }
             DrawResult::NoChange => (),
         }
     }
