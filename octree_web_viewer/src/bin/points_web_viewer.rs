@@ -15,9 +15,8 @@
 use octree_web_viewer::backend_error::PointsViewerError;
 use octree_web_viewer::state::AppState;
 use octree_web_viewer::utils::start_octree_server;
-//use point_viewer::octree;
 use std::path::PathBuf;
-//use std::sync::Arc;
+use std::sync::Arc;
 use structopt::StructOpt;
 
 /// HTTP web viewer for 3d points stored in OnDiskOctrees
@@ -47,14 +46,13 @@ pub struct CommandLineArguments {
     cache_max: usize,
 }
 
-pub fn state_from(args: CommandLineArguments) -> Result<(AppState, String), PointsViewerError> {
+pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
     //resolve suffix: trailing backslash
     let mut suffix = args.path_suffix;
     if !suffix.ends_with("/") {
         suffix.push('/');
     }
 
-    let mut _uuid: String = "".to_string();
     let app_state = match args.octree_path {
         Some(path) => {
             let octree_directory = PathBuf::from(path);
@@ -62,12 +60,12 @@ pub fn state_from(args: CommandLineArguments) -> Result<(AppState, String), Poin
             if octree_directory.ends_with(&suffix) {
                 prefix = prefix.parent().unwrap();
             }
-            _uuid = octree_directory
+            let uuid = octree_directory
                 .strip_prefix(&prefix)?
                 .to_str()
                 .unwrap()
                 .to_string();
-            AppState::new(args.cache_max, prefix.to_str().unwrap(), suffix)
+            AppState::new(args.cache_max, prefix.to_str().unwrap(), suffix, uuid)
         }
         None => {
             let prefix = args
@@ -78,7 +76,7 @@ pub fn state_from(args: CommandLineArguments) -> Result<(AppState, String), Poin
                     )
                 })
                 .unwrap();
-            _uuid = args
+            let uuid = args
                 .octree_id
                 .ok_or_else(|| {
                     PointsViewerError::NotFound(
@@ -87,11 +85,11 @@ pub fn state_from(args: CommandLineArguments) -> Result<(AppState, String), Poin
                 })
                 .unwrap();
             //path = PathBuf::from(Path::new(&prefix).join(&uuid).join(suffix));
-            AppState::new(args.cache_max, prefix, suffix)
+            AppState::new(args.cache_max, prefix, suffix, uuid)
         }
     };
 
-    Ok((app_state, _uuid))
+    Ok(app_state)
 }
 
 fn main() {
@@ -100,16 +98,16 @@ fn main() {
     let ip_port = format!("{}:{}", args.ip, args.port);
 
     // initialize app state
-    let (app_state, uuid) = state_from(args).unwrap();
+    let app_state: Arc<AppState> = Arc::new(state_from(args).unwrap());
     // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
     // write access to the Octree, instead of using an RwLock we should use the actor system.
     //put octree arc in cache
-    let _ = app_state.insert_octree(uuid.clone());
+    let _ = app_state.insert_octree("init_uuid");
 
     let sys = actix::System::new("octree-server");
 
     //let _ = start_octree_server(app_state, &ip_port, uuid);
-    let _ = start_octree_server(app_state, &ip_port, uuid);
+    let _ = start_octree_server(app_state, &ip_port);
 
     println!("Starting http server: {}", &ip_port);
     let _ = sys.run();

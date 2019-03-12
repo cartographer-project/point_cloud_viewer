@@ -1,8 +1,7 @@
 use crate::backend_error::PointsViewerError;
 use crate::state::AppState;
-use actix_web::{
-    dev::Handler, http::ContentEncoding, AsyncResponder, FromRequest, FutureResponse, HttpRequest,
-    HttpResponse, Json, Path,
+use actix_web::{ http::ContentEncoding, AsyncResponder, FromRequest, FutureResponse, HttpRequest,
+    HttpResponse, Json, Path
 };
 use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
@@ -13,7 +12,7 @@ use std::sync::Arc;
 use time;
 
 /// Method that returns visible nodes
-pub fn get_visible_nodes(req: &HttpRequest<AppState>) -> HttpResponse {
+pub fn get_visible_nodes(req: &HttpRequest<Arc<AppState>>) -> HttpResponse {
     let octree: Arc<octree::Octree> = parse_request(req);
     let matrix = {
         // Entries are column major.
@@ -71,7 +70,7 @@ fn pad(input: &mut Vec<u8>) {
     }
 }
 
-fn parse_request(req: &HttpRequest<AppState>) -> Arc<Octree> {
+fn parse_request(req: &HttpRequest<Arc<AppState>>) -> Arc<Octree> {
     let uuid: String = Path::<String>::extract(req)
         .map_err(|_error| {
             crate::backend_error::PointsViewerError::InternalServerError(format!(
@@ -80,8 +79,8 @@ fn parse_request(req: &HttpRequest<AppState>) -> Arc<Octree> {
         })
         .unwrap()
         .into_inner();
-    let mut state = req.state();
-    (*state)
+    let state = req.state();
+    state
         .load_octree(&uuid)
         .map_err(|_error| {
             crate::backend_error::PointsViewerError::NotFound(format!(
@@ -94,7 +93,7 @@ fn parse_request(req: &HttpRequest<AppState>) -> Arc<Octree> {
 }
 /// Asynchronous Handler to get Node Data
 /// returns an alias for Box<Future<Item=HttpResponse, Error=Error>>;
-pub fn get_nodes_data(req: &HttpRequest<AppState>) -> FutureResponse<HttpResponse> {
+pub fn get_nodes_data(req: &HttpRequest<Arc<AppState>>) -> FutureResponse<HttpResponse> {
     let mut start = 0;
     let octree: Arc<octree::Octree> = parse_request(req);
     let message_body_future = Json::<Vec<String>>::extract(req).from_err();

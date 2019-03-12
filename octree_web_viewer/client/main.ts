@@ -32,7 +32,7 @@ class App {
 
   public run() {
     let renderArea = document.getElementById('renderArea');
-    this.uuid = 'uuid'
+    this.uuid = 'init_uuid';
     this.renderer = new THREE.WebGLRenderer();
     this.renderer.setSize(renderArea.clientWidth, renderArea.clientHeight);
     renderArea.appendChild(this.renderer.domElement);
