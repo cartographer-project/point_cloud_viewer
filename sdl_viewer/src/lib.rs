@@ -221,7 +221,7 @@ impl PointCloudRenderer {
         let now = time::PreciseTime::now();
         if self.last_log.to(now) > time::Duration::seconds(1) {
             let duration = self.last_log.to(now).num_microseconds().unwrap();
-            let fps = (self.num_frames * 1_000_000u32) as f32 / duration as f32;
+            let fps = f64::from(self.num_frames) / duration as f64 * 1_000_000.;
             if moving {
                 if fps < 20. {
                     self.max_nodes_moving = (self.max_nodes_moving as f32 * 0.9) as usize;
@@ -233,7 +233,7 @@ impl PointCloudRenderer {
             self.num_frames = 0;
             self.last_log = now;
             println!(
-                "FPS: {:#?}, Drew {} points from {} loaded nodes. {} nodes \
+                "FPS: {:.2}, Drew {} points from {} loaded nodes. {} nodes \
                  should be shown, Cache {} MB",
                 fps,
                 num_points_drawn,
