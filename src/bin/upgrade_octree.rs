@@ -18,6 +18,15 @@ use protobuf::Message;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
+use structopt::StructOpt;
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "upgrade_octree")]
+struct CommandlineArguments {
+    /// Directory of octree to upgrade.
+    #[structopt(parse(from_os_str))]
+    directory: PathBuf,
+}
 
 fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 9 => 10.");
@@ -34,16 +43,9 @@ fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
 }
 
 fn main() {
-    let matches = clap::App::new("upgrade_octree")
-        .args(&[clap::Arg::with_name("directory")
-            .help("Directory of octree to upgrade.")
-            .required(true)
-            .takes_value(true)])
-        .get_matches();
-
-    let directory = PathBuf::from(matches.value_of("directory").unwrap());
+    let args = CommandlineArguments::from_args();
     let data_provider = OnDiskOctreeDataProvider {
-        directory: directory.clone(),
+        directory: args.directory.clone(),
     };
 
     loop {
@@ -51,7 +53,7 @@ fn main() {
             .meta_proto()
             .expect("Could not read meta proto.");
         match meta.version {
-            9 => upgrade_version9(&directory, meta),
+            9 => upgrade_version9(&args.directory, meta),
             other if other == octree::CURRENT_VERSION => {
                 println!("Octree at current version {}", octree::CURRENT_VERSION);
                 break;
