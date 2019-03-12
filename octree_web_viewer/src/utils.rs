@@ -35,9 +35,6 @@ pub fn start_octree_server(
     
     
     server::new(move || {
-        //let octree_cloned_visible_nodes = Arc::clone(&octree); //test
-        //let octree_cloned_nodes_data = Arc::clone(&octree);
-        //actix_web::App::new()
         actix_web::App::with_state(Arc::clone(&app_state))
             .resource("/", |r| r.method(Method::GET).f(index))
             .resource("/app_bundle.js", |r| r.method(Method::GET).f(app_bundle))
@@ -45,10 +42,10 @@ pub fn start_octree_server(
                 r.method(Method::GET).f(app_bundle_source_map)
             })
             .resource("/visible_nodes/{uuid}/", |r| {
-                r.h(get_visible_nodes) //todo
+                r.h(get_visible_nodes) 
             })
             .resource("/nodes_data/{uuid}/", |r| {
-                r.h(get_nodes_data) //todo
+                r.h(get_nodes_data) 
             })
     })
     .bind(&ip_port)

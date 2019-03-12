@@ -83,7 +83,7 @@ class NodeLoader {
     scene: THREE.Scene,
     material: THREE.ShaderMaterial,
     nodes: NodeData[],
-    uuid: String
+    uuid: string
   ): Promise<void> {
     let query: string[] = [];
 

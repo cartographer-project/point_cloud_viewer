@@ -65,7 +65,9 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
                 .to_str()
                 .unwrap()
                 .to_string();
-            AppState::new(args.cache_max, prefix.to_str().unwrap(), suffix, uuid)
+            let prefix = prefix.to_str().unwrap();
+            println!("<{}> <{}> <{}>", prefix, uuid, suffix );
+            AppState::new(args.cache_max, prefix, suffix, uuid)
         }
         None => {
             let prefix = args
@@ -85,10 +87,10 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
                 })
                 .unwrap();
             //path = PathBuf::from(Path::new(&prefix).join(&uuid).join(suffix));
+            println!("<{}> <{}> <{}>", prefix, uuid, suffix );
             AppState::new(args.cache_max, prefix, suffix, uuid)
         }
     };
-
     Ok(app_state)
 }
 
@@ -102,7 +104,6 @@ fn main() {
     // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
     // write access to the Octree, instead of using an RwLock we should use the actor system.
     //put octree arc in cache
-    let _ = app_state.insert_octree("init_uuid");
 
     let sys = actix::System::new("octree-server");
 

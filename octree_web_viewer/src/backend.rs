@@ -93,9 +93,8 @@ fn parse_request(req: &HttpRequest<Arc<AppState>>) -> Arc<Octree> {
 }
 /// Asynchronous Handler to get Node Data
 /// returns an alias for Box<Future<Item=HttpResponse, Error=Error>>;
-pub fn get_nodes_data(req: &HttpRequest<Arc<AppState>>) -> FutureResponse<HttpResponse> {
+pub fn get_nodes_data(req: &'static HttpRequest<Arc<AppState>>) -> FutureResponse<HttpResponse> {
     let mut start = 0;
-    let octree: Arc<octree::Octree> = parse_request(req);
     let message_body_future = Json::<Vec<String>>::extract(req).from_err();
     future::ok(())
         .and_then(move |_| {
@@ -125,6 +124,8 @@ pub fn get_nodes_data(req: &HttpRequest<Arc<AppState>>) -> FutureResponse<HttpRe
 
             let mut num_nodes_fetched = 0;
             let mut num_points = 0;
+
+            let octree: Arc<octree::Octree> = parse_request(req);
             for node_id in nodes_to_load {
                 let mut node_data = octree
                     .get_node_data(&node_id)

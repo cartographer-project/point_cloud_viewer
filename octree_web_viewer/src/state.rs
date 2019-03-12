@@ -28,6 +28,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(map_size: usize, prefix: impl Into<String>, suffix: impl Into<String>, uuid: impl Into<String>) -> Self {
+        
         AppState {
             octree_map: Arc::new(RwLock::new(HashMap::with_capacity(map_size))),
             key_params: OctreeKeyParams {
@@ -46,7 +47,8 @@ impl AppState {
         let octree_id = uuid.as_ref();
         //taking care of initial octree
         if octree_id.len() == 9 && octree_id.starts_with("init_uuid") {
-            return self.load_octree(&self.init_uuid);
+            let uuid = &self.init_uuid.clone();
+            return self.load_octree(&uuid);
         }
 
         {
@@ -62,7 +64,7 @@ impl AppState {
         return self.insert_octree(octree_key); //todo ownwership
     }
 
-    pub fn insert_octree(
+    fn insert_octree(
         &self,
         uuid: impl Into<String>,
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
@@ -73,6 +75,6 @@ impl AppState {
             let mut wmap = self.octree_map.write().unwrap(); //todo try?
             wmap.insert(octree_key, Arc::clone(&octree));
         }
-        Ok(octree)
+        Ok(Arc::clone(&octree))
     }
 }
