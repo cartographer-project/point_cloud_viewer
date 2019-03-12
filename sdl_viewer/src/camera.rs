@@ -37,6 +37,12 @@ impl RotationAngle {
 }
 
 #[derive(Debug)]
+struct CtMode {
+    pub enabled: bool,
+    near_plane: f32,
+    far_plane: f32,
+}
+#[derive(Debug)]
 pub struct Camera {
     pub moving_backward: bool,
     pub moving_forward: bool,
@@ -50,6 +56,7 @@ pub struct Camera {
     pub turning_up: bool,
     pub width: i32,
     pub height: i32,
+    ct_mode: CtMode,
 
     movement_speed: f32,
     theta: Rad<f32>,
@@ -77,6 +84,9 @@ pub struct State {
     phi: Rad<f32>,
     theta: Rad<f32>,
 }
+
+const FAR_PLANE: f32 = 10000.;
+const NEAR_PLANE: f32 = 0.1;
 
 impl Camera {
     pub fn new(gl: &opengl::Gl, width: i32, height: i32) -> Self {
@@ -108,9 +118,28 @@ impl Camera {
             projection_matrix: One::one(),
             width: 0,
             height: 0,
+            ct_mode: CtMode {
+                enabled: false,
+                near_plane: 2.,
+                far_plane: 5.,
+            },
         };
         camera.set_size(gl, width, height);
         camera
+    }
+
+    pub fn move_ct(&mut self, delta: f32, gl: &opengl::Gl) {
+        if self.ct_mode.near_plane + delta > 0. {
+            self.ct_mode.near_plane += delta;
+            self.ct_mode.far_plane += delta;
+            self.update_viewport(gl);
+        }
+    }
+
+    pub fn move_far_plane_ct(&mut self, delta: f32, gl: &opengl::Gl) {
+        self.ct_mode.far_plane =
+            (self.ct_mode.near_plane + 0.5).max(self.ct_mode.far_plane + delta);
+        self.update_viewport(gl);
     }
 
     pub fn state(&self) -> State {
@@ -131,16 +160,31 @@ impl Camera {
     pub fn set_size(&mut self, gl: &opengl::Gl, width: i32, height: i32) {
         self.width = width;
         self.height = height;
+        self.update_viewport(gl);
+    }
+
+    pub fn update_viewport(&mut self, gl: &opengl::Gl) {
+        let (near, far) = if self.ct_mode.enabled {
+            (self.ct_mode.near_plane, self.ct_mode.far_plane)
+        } else {
+            (NEAR_PLANE, FAR_PLANE)
+        };
+
         self.projection_matrix = Matrix4::from(PerspectiveFov {
             fovy: Rad::from(Deg(45.)),
-            aspect: width as f32 / height as f32,
-            near: 0.1,
-            far: 10000.0,
+            aspect: self.width as f32 / self.height as f32,
+            near,
+            far,
         });
         unsafe {
-            gl.Viewport(0, 0, width, height);
+            gl.Viewport(0, 0, self.width, self.height);
         }
         self.moved = true;
+    }
+
+    pub fn toggle_ct_mode(&mut self, gl: &opengl::Gl) {
+        self.ct_mode.enabled = !self.ct_mode.enabled;
+        self.update_viewport(gl);
     }
 
     pub fn get_world_to_gl(&self) -> Matrix4<f32> {
