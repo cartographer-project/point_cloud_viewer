@@ -28,10 +28,11 @@ class App {
   private lastFrustumUpdateTime: number;
   private lastMoveTime: number;
   private needsRender: boolean;
-  private uuid: String;
+  private uuid: string;
 
   public run() {
     let renderArea = document.getElementById('renderArea');
+    this.uuid = 'uuid'
     this.renderer = new THREE.WebGLRenderer();
     this.renderer.setSize(renderArea.clientWidth, renderArea.clientHeight);
     renderArea.appendChild(this.renderer.domElement);
@@ -91,7 +92,7 @@ class App {
         this.needsRender = true;
       });
     gui
-      .add(this.uuid, 'point_cloud_id')
+      .add(this.viewer, 'uuid')
       .name('Point Cloud ID')
       .onChange(() => {
         this.needsRender = true;

@@ -253,15 +253,16 @@ export class OctreeViewer {
   // material.size. If DAT supports callbacks, we can encapsulate this nicer.
   public material: THREE.ShaderMaterial;
   public maxLevelToDisplay: number;
+  public uuid: string;
 
   private loadedData: { [key: string]: NodeData } = {};
   private nodeLoader: NodeLoader;
   private batches: NodeData[][] = [];
   private currentlyLoading: number;
   private useTransparency: boolean;
-  private uuid: String;
 
-  constructor(private scene: THREE.Scene, uuid: String, private onNewNodeData: () => void) {
+
+  constructor(private scene: THREE.Scene, uuid: string, private onNewNodeData: () => void) {
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         size: { value: 2 },
@@ -292,7 +293,7 @@ export class OctreeViewer {
     this.useTransparency = newUseTransparency;
   }
 
-  public frustumChanged(matrix: THREE.Matrix4, width: number, height: number, uuid: String) {
+  public frustumChanged(matrix: THREE.Matrix4, width: number, height: number, uuid: string) {
     //set uuid
     this.uuid = uuid;
     // ThreeJS is column major.
