@@ -260,6 +260,10 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
     }
 
     stream.for_each(|p: &Point| {
+        if num_points == 0 {
+            let p3 = Point3::from_vec(p.position);
+            bounding_box = Aabb3::new(p3, p3);
+        }
         bounding_box = bounding_box.grow(Point3::from_vec(p.position));
         num_points += 1;
         if num_points % UPDATE_COUNT == 0 {
@@ -344,7 +348,7 @@ pub fn build_octree(
     });
 
     let mut nodes_to_subsample = Vec::new();
-    let mut deepest_level = 0usize;
+    let mut deepest_level = 0u8;
     for id in leaf_nodes_receiver {
         deepest_level = cmp::max(deepest_level, id.level());
         nodes_to_subsample.push(id);
