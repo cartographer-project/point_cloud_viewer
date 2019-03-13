@@ -32,7 +32,6 @@ class App {
 
   public run() {
     let renderArea = document.getElementById('renderArea');
-    this.uuid = 'init_uuid';
     this.renderer = new THREE.WebGLRenderer();
     this.renderer.setSize(renderArea.clientWidth, renderArea.clientHeight);
     renderArea.appendChild(this.renderer.domElement);
@@ -61,7 +60,7 @@ class App {
     this.lastFrustumUpdateTime = 0;
     this.lastMoveTime = 0;
     this.needsRender = true;
-    this.viewer = new OctreeViewer(this.scene, this.uuid, () => {
+    this.viewer = new OctreeViewer(this.scene, () => {
       this.needsRender = true;
     });
     const gui = new GUI();
@@ -94,7 +93,7 @@ class App {
     gui
       .add(this.viewer, 'uuid')
       .name('Point Cloud ID')
-      .onChange(() => {
+      .onFinishChange(() => {
         this.needsRender = true;
       });
 
@@ -137,7 +136,7 @@ class App {
         matrix,
         this.renderer.context.canvas.width,
         this.renderer.context.canvas.height,
-        this.uuid
+        this.viewer.uuid
       );
     }
 

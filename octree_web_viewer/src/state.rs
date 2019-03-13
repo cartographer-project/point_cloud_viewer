@@ -71,6 +71,7 @@ impl AppState {
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
         let octree_key = uuid.into();
         let addr = &self.key_params.get_octree_address(&octree_key)?;
+        println!("Current tree address to insert:{}", &addr);
         let octree: Arc<octree::Octree> = Arc::from(octree::octree_from_directory(&addr)?);
         { //write access to state
             let mut wmap = self.octree_map.write().unwrap(); //todo try?

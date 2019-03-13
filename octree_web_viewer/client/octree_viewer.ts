@@ -262,7 +262,7 @@ export class OctreeViewer {
   private useTransparency: boolean;
 
 
-  constructor(private scene: THREE.Scene, uuid: string, private onNewNodeData: () => void) {
+  constructor(private scene: THREE.Scene, private onNewNodeData: () => void) {
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         size: { value: 2 },
@@ -277,7 +277,7 @@ export class OctreeViewer {
 
     this.nodeLoader = new NodeLoader();
     this.currentlyLoading = 0;
-    this.uuid = uuid;
+    this.uuid = 'init_uuid';
   }
 
   public alphaChanged() {
