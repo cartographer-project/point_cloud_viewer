@@ -255,8 +255,22 @@ impl Octree {
 
         let bounding_box = {
             let bounding_box = meta_proto.bounding_box.unwrap();
-            let min = bounding_box.min.unwrap();
-            let max = bounding_box.max.unwrap();
+            let min = bounding_box.min.clone().unwrap_or_else(|| {
+                let deprecated_min = bounding_box.deprecated_min.clone().unwrap();
+                let mut v = proto::Vector3d::new();
+                v.set_x(f64::from(deprecated_min.x));
+                v.set_y(f64::from(deprecated_min.y));
+                v.set_z(f64::from(deprecated_min.z));
+                v
+            });
+            let max = bounding_box.max.clone().unwrap_or_else(|| {
+                let deprecated_max = bounding_box.deprecated_max.clone().unwrap();
+                let mut v = proto::Vector3d::new();
+                v.set_x(f64::from(deprecated_max.x));
+                v.set_y(f64::from(deprecated_max.y));
+                v.set_z(f64::from(deprecated_max.z));
+                v
+            });
             Aabb3::new(
                 Point3::new(min.x, min.y, min.z),
                 Point3::new(max.x, max.y, max.z),
