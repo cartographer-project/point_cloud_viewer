@@ -28,7 +28,7 @@ class App {
   private lastFrustumUpdateTime: number;
   private lastMoveTime: number;
   private needsRender: boolean;
-  private uuid: string;
+  private forceClear: boolean;
 
   public run() {
     let renderArea = document.getElementById('renderArea');
@@ -60,6 +60,7 @@ class App {
     this.lastFrustumUpdateTime = 0;
     this.lastMoveTime = 0;
     this.needsRender = true;
+    this.forceClear = false;
     this.viewer = new OctreeViewer(this.scene, () => {
       this.needsRender = true;
     });
@@ -94,6 +95,8 @@ class App {
       .add(this.viewer, 'uuid')
       .name('Point Cloud ID')
       .onFinishChange(() => {
+        this.forceClear = true;
+        this.viewer.load_new_tree();
         this.needsRender = true;
       });
 
@@ -122,9 +125,9 @@ class App {
       this.viewer.setMoving(false);
       this.needsRender = true;
     }
-    if (
-      this.lastFrustumUpdateTime <= this.lastMoveTime &&
-      time - this.lastFrustumUpdateTime > 250
+    if (this.forceClear ||
+      (this.lastFrustumUpdateTime <= this.lastMoveTime &&
+        time - this.lastFrustumUpdateTime > 250)
     ) {
       this.camera.updateMatrixWorld(false);
       this.lastFrustumUpdateTime = time;
@@ -143,7 +146,8 @@ class App {
     if (this.needsRender) {
       this.needsRender = false;
       // TODO(hrapp): delete invisible nodes and free memory again.
-      this.renderer.render(this.scene, this.camera);
+      this.renderer.render(this.scene, this.camera, undefined, this.forceClear);
+      this.forceClear = false;
     }
   }
 }

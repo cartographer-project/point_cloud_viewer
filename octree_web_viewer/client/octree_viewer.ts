@@ -280,6 +280,11 @@ export class OctreeViewer {
     this.uuid = 'init_uuid';
   }
 
+  public load_new_tree() {
+    this.nodeLoader = new NodeLoader();
+    this.currentlyLoading = 0;
+  }
+
   public alphaChanged() {
     let newUseTransparency = this.material.uniforms['alpha'].value < 1;
     if (newUseTransparency != this.useTransparency) {
@@ -294,8 +299,6 @@ export class OctreeViewer {
   }
 
   public frustumChanged(matrix: THREE.Matrix4, width: number, height: number, uuid: string) {
-    //set uuid
-    this.uuid = uuid;
     // ThreeJS is column major.
     const request = new Request(
       `/visible_nodes/${uuid}/?width=${width}&height=${height}&matrix=${matrixToString(

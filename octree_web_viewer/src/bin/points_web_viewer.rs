@@ -42,7 +42,7 @@ pub struct CommandLineArguments {
     #[structopt(long = "--uuid")]
     octree_id: Option<String>,
     /// Cache items
-    #[structopt(default_value = "1", long = "--cache_items")]
+    #[structopt(default_value = "3", long = "--cache_items")]
     cache_max: usize,
 }
 
