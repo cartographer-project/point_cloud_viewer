@@ -29,7 +29,9 @@ failure = "0.1.5"
 futures = "0.1.25"
 json = "0.11.3"
 lru = "0.1.11"
-structopt = "0.2.14"
+serde = "1.0.89"
+serde_derive = "1.0.89"
+structopt = "0.2.15"
 time = "0.1.42"
 
 [dependencies.point_viewer]

@@ -1,7 +1,7 @@
 use crate::backend_error::PointsViewerError;
 use crate::state::AppState;
 use actix_web::{ http::ContentEncoding, AsyncResponder, FromRequest, FutureResponse, HttpRequest,
-    HttpResponse, Json, Path
+    HttpResponse, Json, Path, State
 };
 use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
@@ -13,7 +13,25 @@ use time;
 
 /// Method that returns visible nodes
 pub fn get_visible_nodes(req: &HttpRequest<Arc<AppState>>) -> HttpResponse {
-    let octree: Arc<octree::Octree> = parse_request(req);
+    //let octree: Arc<octree::Octree> = parse_request(req);
+    let uuid: String = Path::<String>::extract(req)
+         .map_err(|error| {
+           crate::backend_error::PointsViewerError::InternalServerError(format!(
+                "Could not read uuid string: {}.", error.to_string()
+            ));
+        }).unwrap()
+        .into_inner();
+    let state = req.state();
+    let octree: Arc<octree::Octree> = (*state)
+        .load_octree(&uuid)
+        .map_err(|error| {
+            crate::backend_error::PointsViewerError::NotFound(format!(
+                "Could not load tree with uuid <{}>: {}.",
+                &uuid, error.to_string()
+            ))
+        }).unwrap()
+        .clone();
+    
     let matrix = {
         // Entries are column major.
         let e: Vec<f32> = req
@@ -70,16 +88,9 @@ fn pad(input: &mut Vec<u8>) {
     }
 }
 
-fn parse_request(req: &HttpRequest<Arc<AppState>>) -> Arc<Octree> {
-    let uuid: String = Path::<String>::extract(req)
-        .map_err(|_error| {
-            crate::backend_error::PointsViewerError::InternalServerError(format!(
-                "Could not read uuid string.",
-            ))
-        })
-        .unwrap()
-        .into_inner();
-    let state = req.state();
+
+
+fn get_octree_from_state(uuid: String, state: State<Arc<AppState>>) -> Arc<Octree> {
     state
         .load_octree(&uuid)
         .map_err(|_error| {
@@ -87,28 +98,18 @@ fn parse_request(req: &HttpRequest<Arc<AppState>>) -> Arc<Octree> {
                 "Could not load tree with uuid {}.",
                 uuid
             ))
-        })
-        .unwrap()
-        .clone()
+        }).unwrap()
 }
+
 /// Asynchronous Handler to get Node Data
 /// returns an alias for Box<Future<Item=HttpResponse, Error=Error>>;
-pub fn get_nodes_data(req: &'static HttpRequest<Arc<AppState>>) -> FutureResponse<HttpResponse> {
+pub fn get_nodes_data((uuid, state, nodes): (Path<String>, State<Arc<AppState>>, Json<Vec<String>>)) -> FutureResponse<HttpResponse> {
     let mut start = 0;
-    let message_body_future = Json::<Vec<String>>::extract(req).from_err();
+    //let message_body_future = Json::<Vec<String>>::extract(req).from_err();
     future::ok(())
         .and_then(move |_| {
             start = time::precise_time_ns();
-            //let uuid_key: String = Path::into_inner(uuid_result);
-            //self.octree = req.state().load_octree(uuid).from_err();
-            //let mut octree = Arc::clone(&self.octree); //has to be moved into future
-
-            //todo uuid and octree
-
-            message_body_future
-        })
-        .and_then(move |extract_result| {
-            let data: Vec<String> = Json::into_inner(extract_result);
+            let data: Vec<String> = Json::into_inner(nodes);
             let nodes_to_load = data
                 .into_iter()
                 .map(|e| octree::NodeId::from_str(e.as_str()).unwrap());
@@ -124,8 +125,7 @@ pub fn get_nodes_data(req: &'static HttpRequest<Arc<AppState>>) -> FutureRespons
 
             let mut num_nodes_fetched = 0;
             let mut num_points = 0;
-
-            let octree: Arc<octree::Octree> = parse_request(req);
+            let octree: Arc<octree::Octree> = get_octree_from_state(uuid.into_inner(), state);
             for node_id in nodes_to_load {
                 let mut node_data = octree
                     .get_node_data(&node_id)
@@ -134,9 +134,8 @@ pub fn get_nodes_data(req: &'static HttpRequest<Arc<AppState>>) -> FutureRespons
                             "Could not get node {}.",
                             node_id
                         ))
-                    })
-                    .unwrap();
-
+                    }).unwrap();
+                    
                 // Write the bounding box information.
                 let min = node_data.meta.bounding_cube.min();
                 reply_blob.write_f32::<LittleEndian>(min.x).unwrap();

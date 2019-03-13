@@ -92,7 +92,7 @@ class NodeLoader {
     }
     const headers = new Headers();
     headers.append('Content-Type', 'application/json; charset=UTF-8');
-    const request = new Request('/nodes_data/${uuid}/', {
+    const request = new Request(`/nodes_data/${uuid}/`, {
       method: 'POST',
       body: '[' + query.join(',') + ']',
       headers: headers,

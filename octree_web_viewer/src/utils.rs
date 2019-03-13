@@ -42,10 +42,10 @@ pub fn start_octree_server(
                 r.method(Method::GET).f(app_bundle_source_map)
             })
             .resource("/visible_nodes/{uuid}/", |r| {
-                r.h(get_visible_nodes) 
+                r.f(get_visible_nodes) 
             })
             .resource("/nodes_data/{uuid}/", |r| {
-                r.h(get_nodes_data) 
+                r.with_async(get_nodes_data) 
             })
     })
     .bind(&ip_port)

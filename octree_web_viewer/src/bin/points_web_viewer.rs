@@ -48,10 +48,10 @@ pub struct CommandLineArguments {
 
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
     //resolve suffix: trailing backslash
-    let mut suffix = args.path_suffix;
-    if !suffix.ends_with("/") {
-        suffix.push('/');
-    }
+    let suffix = args.path_suffix;
+    // if !suffix.ends_with("/") {
+    //     suffix.push('/');
+    // }
 
     let app_state = match args.octree_path {
         Some(path) => {
