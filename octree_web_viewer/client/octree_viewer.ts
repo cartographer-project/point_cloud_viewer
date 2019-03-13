@@ -106,13 +106,13 @@ class NodeLoader {
         let currentEntry = 0;
         let numBytesRead = 0;
         while (nodes[currentEntry] !== undefined) {
-          let min_x = view.getFloat32(numBytesRead, true /* littleEndian */);
+          let min_x = view.getFloat64(numBytesRead, true /* littleEndian */);
           numBytesRead += 4;
-          let min_y = view.getFloat32(numBytesRead, true /* littleEndian */);
+          let min_y = view.getFloat64(numBytesRead, true /* littleEndian */);
           numBytesRead += 4;
-          let min_z = view.getFloat32(numBytesRead, true /* littleEndian */);
+          let min_z = view.getFloat64(numBytesRead, true /* littleEndian */);
           numBytesRead += 4;
-          let edgeLength = view.getFloat32(
+          let edgeLength = view.getFloat64(
             numBytesRead,
             true /* littleEndian */
           );

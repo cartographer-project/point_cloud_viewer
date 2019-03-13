@@ -166,13 +166,17 @@ impl BoxDrawer {
     // Then we use 'world_to_gl' to transform it into clip space.
     pub fn draw_outlines(
         &self,
-        cuboid: &Aabb3<f32>,
+        cuboid: &Aabb3<f64>,
         world_to_gl: &Matrix4<f32>,
         color: &color::Color<f32>,
     ) {
         let dim = cuboid.dim() / 2.0;
-        let scale_matrix = Matrix4::from_nonuniform_scale(dim.x, dim.y, dim.z);
-        let translation_matrix = Matrix4::from_translation(cuboid.center().to_vec());
+        let scale_matrix = Matrix4::from_nonuniform_scale(dim.x, dim.y, dim.z)
+            .cast::<f32>()
+            .unwrap();
+        let translation_matrix = Matrix4::from_translation(cuboid.center().to_vec())
+            .cast::<f32>()
+            .unwrap();
         let transformation_matrix = world_to_gl * translation_matrix * scale_matrix;
 
         self.draw_outlines_from_transformation(&transformation_matrix, color);

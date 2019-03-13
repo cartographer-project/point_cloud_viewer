@@ -19,29 +19,29 @@ use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct Rect {
-    min: Point2<f32>,
-    edge_length: f32,
+    min: Point2<f64>,
+    edge_length: f64,
 }
 
 impl Rect {
-    pub fn new(min: Point2<f32>, edge_length: f32) -> Self {
+    pub fn new(min: Point2<f64>, edge_length: f64) -> Self {
         Rect { min, edge_length }
     }
 
-    pub fn edge_length(&self) -> f32 {
+    pub fn edge_length(&self) -> f64 {
         self.edge_length
     }
 
-    pub fn min(&self) -> Point2<f32> {
+    pub fn min(&self) -> Point2<f64> {
         self.min
     }
 
-    pub fn max(&self) -> Point2<f32> {
+    pub fn max(&self) -> Point2<f64> {
         Point2::new(self.min.x + self.edge_length, self.min.y + self.edge_length)
     }
 
     /// The center of the box.
-    pub fn center(&self) -> Vector2<f32> {
+    pub fn center(&self) -> Vector2<f64> {
         let min = self.min();
         let max = self.max();
         Vector2::new((min.x + max.x) / 2., (min.y + max.y) / 2.)

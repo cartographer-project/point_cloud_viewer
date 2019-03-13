@@ -1,0 +1,520 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'point_viewer_grpc'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=point_viewer_grpc"
+        ],
+        "filter": {
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'octree_server'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=octree_server",
+          "--package=point_viewer_grpc"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'octree_server'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=octree_server",
+          "--package=point_viewer_grpc"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'octree_benchmark'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=octree_benchmark",
+          "--package=point_viewer_grpc"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'octree_benchmark'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=octree_benchmark",
+          "--package=point_viewer_grpc"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'query_frustum'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=query_frustum",
+          "--package=point_viewer_grpc"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'query_frustum'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=query_frustum",
+          "--package=point_viewer_grpc"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'point_viewer'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=point_viewer"
+        ],
+        "filter": {
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'build_octree'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=build_octree",
+          "--package=point_viewer"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'build_octree'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=build_octree",
+          "--package=point_viewer"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'upgrade_octree'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=upgrade_octree",
+          "--package=point_viewer"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'upgrade_octree'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=upgrade_octree",
+          "--package=point_viewer"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'point_viewer_proto_rust'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=point_viewer_proto_rust"
+        ],
+        "filter": {
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'point_viewer_grpc_proto_rust'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=point_viewer_grpc_proto_rust"
+        ],
+        "filter": {
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'quadtree'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=quadtree"
+        ],
+        "filter": {
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'sdl_viewer'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=sdl_viewer"
+        ],
+        "filter": {
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'sdl_viewer'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=sdl_viewer",
+          "--package=sdl_viewer"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'sdl_viewer'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=sdl_viewer",
+          "--package=sdl_viewer"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'octree_web_viewer'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=octree_web_viewer"
+        ],
+        "filter": {
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'points_web_viewer'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=points_web_viewer",
+          "--package=octree_web_viewer"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'points_web_viewer'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=points_web_viewer",
+          "--package=octree_web_viewer"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'xray'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=xray"
+        ],
+        "filter": {
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'build_xray_tile'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=build_xray_tile",
+          "--package=xray"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'build_xray_tile'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=build_xray_tile",
+          "--package=xray"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'build_xray_quadtree'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=build_xray_quadtree",
+          "--package=xray"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'build_xray_quadtree'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=build_xray_quadtree",
+          "--package=xray"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'web_viewer'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=web_viewer",
+          "--package=xray"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'web_viewer'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=web_viewer",
+          "--package=xray"
+        ],
+        "filter": {
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'xray_proto_rust'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=xray_proto_rust"
+        ],
+        "filter": {
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

@@ -35,7 +35,7 @@ pub trait InternalIterator {
 
 #[derive(Debug, Clone)]
 pub struct Point {
-    pub position: cgmath::Vector3<f32>,
+    pub position: cgmath::Vector3<f64>,
     // TODO(sirver): Make color optional, we might not always have it.
     pub color: color::Color<u8>,
 

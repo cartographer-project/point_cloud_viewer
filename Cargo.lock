@@ -2865,6 +2865,7 @@ dependencies = [
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.20.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "iron 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
  "point_viewer 0.1.0",
  "protobuf 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "quadtree 0.1.0",

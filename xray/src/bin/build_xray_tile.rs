@@ -90,10 +90,10 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
 fn run(
     octree_directory: &Path,
     output_filename: &Path,
-    resolution: f32,
+    resolution: f64,
     coloring_strategy_kind: &ColoringStrategyKind,
     tile_background_color: Color<u8>,
-    bbox2: &Aabb2<f32>,
+    bbox2: &Aabb2<f64>,
 ) -> Result<(), Box<Error>> {
     let octree = &octree_from_directory(octree_directory)?;
     let bbox3 = octree.bounding_box();
@@ -127,7 +127,7 @@ fn run(
 
 pub fn main() {
     let matches = parse_arguments();
-    let resolution = value_t!(matches, "resolution", f32).expect("resolution could not be parsed.");
+    let resolution = value_t!(matches, "resolution", f64).expect("resolution could not be parsed.");
     let coloring_strategy_kind = {
         use crate::ColoringStrategyArgument::*;
         let arg = value_t!(matches, "coloring_strategy", ColoringStrategyArgument)
@@ -158,10 +158,10 @@ pub fn main() {
     };
     let octree_directory = Path::new(matches.value_of("octree_directory").unwrap());
     let output_filename = Path::new(matches.value_of("output_filename").unwrap());
-    let min_x = value_t!(matches, "min_x", f32).expect("min_x could not be parsed.");
-    let min_y = value_t!(matches, "min_y", f32).expect("min_y could not be parsed.");
-    let max_x = value_t!(matches, "max_x", f32).expect("max_x could not be parsed.");
-    let max_y = value_t!(matches, "max_y", f32).expect("max_y could not be parsed.");
+    let min_x = value_t!(matches, "min_x", f64).expect("min_x could not be parsed.");
+    let min_y = value_t!(matches, "min_y", f64).expect("min_y could not be parsed.");
+    let max_x = value_t!(matches, "max_x", f64).expect("max_x could not be parsed.");
+    let max_y = value_t!(matches, "max_y", f64).expect("max_y could not be parsed.");
 
     let bbox2 = Aabb2::new(Point2::new(min_x, min_y), Point2::new(max_x, max_y));
     run(

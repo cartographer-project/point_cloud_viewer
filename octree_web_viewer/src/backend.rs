@@ -128,11 +128,11 @@ impl<S: 'static> Handler<S> for NodesData {
 
                     // Write the bounding box information.
                     let min = node_data.meta.bounding_cube.min();
-                    reply_blob.write_f32::<LittleEndian>(min.x).unwrap();
-                    reply_blob.write_f32::<LittleEndian>(min.y).unwrap();
-                    reply_blob.write_f32::<LittleEndian>(min.z).unwrap();
+                    reply_blob.write_f64::<LittleEndian>(min.x).unwrap();
+                    reply_blob.write_f64::<LittleEndian>(min.y).unwrap();
+                    reply_blob.write_f64::<LittleEndian>(min.z).unwrap();
                     reply_blob
-                        .write_f32::<LittleEndian>(node_data.meta.bounding_cube.edge_length())
+                        .write_f64::<LittleEndian>(node_data.meta.bounding_cube.edge_length())
                         .unwrap();
 
                     // Number of points.

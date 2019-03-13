@@ -2,17 +2,10 @@
 # yarn lockfile v1
 
 
-"@types/three@0.92.17":
-  version "0.92.17"
-  resolved "https://registry.yarnpkg.com/@types/three/-/three-0.92.17.tgz#4dcedeb2ed5dcbced098d8953ac55b1b71c8a788"
-  integrity sha512-xTeOfK7Ym4OoENU4PCWZrYzgXirRA8JtDsulgr3CP6yMfP+12KbwzcCNArR5Zg1Wu5c/4Q1040zSTB23B6GFVQ==
-  dependencies:
-    "@types/webvr-api" "*"
-
-"@types/webvr-api@*":
-  version "0.0.34"
-  resolved "https://registry.yarnpkg.com/@types/webvr-api/-/webvr-api-0.0.34.tgz#8fa49028de925c7b8bce3d559d3374ce2c89ee28"
-  integrity sha512-gVAPKK+L1blPJCFnUDmkIdRfIU8xbwl05MDXPRjnjoeDXUUzR6frPuyx9RQz+OCodmxlBcJOkjVTMTZi1BcuZw==
+"@types/three@~0.93.22":
+  version "0.93.26"
+  resolved "https://registry.yarnpkg.com/@types/three/-/three-0.93.26.tgz#59abbb2b7d8e05108418907f3123ba1e578c65ab"
+  integrity sha512-8cHgeGtHvKar/KzWm6EHcgoh84wZdoYi8FNH5oZL6ClpdJ4UIGnf1HM7gmIjrCn6F+QqwZw+LNizRrEuyeUwGg==
 
 acorn@^5.2.1:
   version "5.5.3"
@@ -349,15 +342,15 @@ rollup@^0.55.3:
   resolved "https://registry.yarnpkg.com/rollup/-/rollup-0.55.5.tgz#2f88c300f7cf24b5ec2dca8a6aba73b04e087e93"
   integrity sha512-2hke9NOy332kxvnmMQOgl7DHm94zihNyYJNd8ZLWo4U0EjFvjUkeWa0+ge+70bTg+mY0xJ7NUsf5kIhDtrGrtA==
 
-three@0.95.0:
-  version "0.95.0"
-  resolved "https://registry.yarnpkg.com/three/-/three-0.95.0.tgz#b60ea076ba17df9faba9e855b86ab3f541289abf"
-  integrity sha512-vy6jMYs7CDwn47CejYHNi+++OdQue7xGIBhbLfekQ/G6MDxKRm0QB0/xWScz46/JvQAvF6pJAS5Q907l0i5iQA==
+three@~0.101.1:
+  version "0.101.1"
+  resolved "https://registry.yarnpkg.com/three/-/three-0.101.1.tgz#e7681ef52f4e572cb84f307f16f540c457030ec6"
+  integrity sha512-8ufimUVmRLtH+BTpEIbDjdGEKQOVWLMLgGynaKin1KbYTE136ZNOepJ8EgByi0tN43dQ7B1YrKLCJgXGy4bLmw==
 
-typescript@=2.7.2:
-  version "2.7.2"
-  resolved "http://registry.npmjs.org/typescript/-/typescript-2.7.2.tgz#2d615a1ef4aee4f574425cdff7026edf81919836"
-  integrity sha512-p5TCYZDAO0m4G344hD+wx/LATebLWZNkkh2asWUFqSsD2OrDNhbAHuSjobrmsUmdzjJjEeZVU9g1h3O6vpstnw==
+typescript@~3.3.3:
+  version "3.3.3333"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.3.3333.tgz#171b2c5af66c59e9431199117a3bcadc66fdcfd6"
+  integrity sha512-JjSKsAfuHBE/fB2oZ8NxtRTk5iGcg6hkYXMnZ3Wc+b2RSqejEqTaem11mHASMnFilHrax3sLK0GDzcJrekZYLw==
 
 vlq@^0.2.2:
   version "0.2.3"

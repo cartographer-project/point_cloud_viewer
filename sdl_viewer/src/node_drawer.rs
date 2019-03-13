@@ -42,6 +42,29 @@ fn reshuffle(new_order: &[usize], old_data: &[u8], bytes_per_vertex: usize) -> V
     new_data
 }
 
+fn recode(data: Vec<u8>, encoding: &octree::PositionEncoding) -> (Vec<u8>, bool, u32) {
+    match encoding {
+        octree::PositionEncoding::Uint8 => (data, true, opengl::UNSIGNED_BYTE),
+        octree::PositionEncoding::Uint16 => (data, true, opengl::UNSIGNED_SHORT),
+        octree::PositionEncoding::Float32 => (data, false, opengl::FLOAT),
+        octree::PositionEncoding::Float64 => {
+            let raw = unsafe {
+                #[allow(clippy::cast_ptr_alignment)]
+                std::slice::from_raw_parts(data.as_ptr() as *const f64, data.len() / 8)
+            };
+            let mut new_data: Vec<f32> = raw.iter().map(|i| *i as f32).collect();
+            let ptr = new_data.as_mut_ptr() as *mut u8;
+            let length = new_data.len() * 4;
+            std::mem::forget(new_data);
+            (
+                unsafe { Vec::from_raw_parts(ptr, length, length) },
+                false,
+                opengl::FLOAT,
+            )
+        }
+    }
+}
+
 pub struct NodeDrawer {
     pub program: GlProgram,
 
@@ -110,13 +133,22 @@ impl NodeDrawer {
 
             self.program.gl.Uniform1f(
                 self.u_edge_length,
-                node_view.meta.bounding_cube.edge_length(),
+                node_view.meta.bounding_cube.edge_length() as f32,
             );
             self.program.gl.Uniform1f(self.u_size, point_size);
             self.program.gl.Uniform1f(self.u_gamma, gamma);
-            self.program
-                .gl
-                .Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
+
+            self.program.gl.Uniform3fv(
+                self.u_min,
+                1,
+                node_view
+                    .meta
+                    .bounding_cube
+                    .min()
+                    .cast::<f32>()
+                    .unwrap()
+                    .as_ptr(),
+            );
 
             self.program
                 .gl
@@ -161,8 +193,10 @@ impl NodeView {
                 octree::PositionEncoding::Uint8 => 3,
                 octree::PositionEncoding::Uint16 => 6,
                 octree::PositionEncoding::Float32 => 12,
+                octree::PositionEncoding::Float64 => 24,
             },
         );
+        let (position, normalize, data_type) = recode(position, &node_data.meta.position_encoding);
         let color = reshuffle(&indices, &node_data.color, 3);
 
         let buffer_position = GlBuffer::new_array_buffer(Rc::clone(&program.gl));
@@ -170,11 +204,6 @@ impl NodeView {
 
         unsafe {
             buffer_position.bind();
-            let (normalize, data_type) = match node_data.meta.position_encoding {
-                octree::PositionEncoding::Uint8 => (true, opengl::UNSIGNED_BYTE),
-                octree::PositionEncoding::Uint16 => (true, opengl::UNSIGNED_SHORT),
-                octree::PositionEncoding::Float32 => (false, opengl::FLOAT),
-            };
             program.gl.BufferData(
                 opengl::ARRAY_BUFFER,
                 position.len() as GLsizeiptr,

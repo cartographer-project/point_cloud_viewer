@@ -13,12 +13,13 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::{clamp, Cube};
+use crate::math::Cube;
 use crate::proto;
 use crate::{InternalIterator, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use fnv::FnvHashMap;
+use num::clamp;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
@@ -42,12 +43,13 @@ pub use self::factory::OctreeFactory;
 
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
 // (u64). We are able to convert the proto on read, so the tools can still read version 9.
-pub const CURRENT_VERSION: i32 = 10;
+// Version 10 -> 11: TODO(mfeuerstein)
+pub const CURRENT_VERSION: i32 = 11;
 
 #[derive(Clone, Debug)]
 pub struct OctreeMeta {
     pub resolution: f64,
-    pub bounding_box: Aabb3<f32>,
+    pub bounding_box: Aabb3<f64>,
 }
 
 pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::Node>) -> proto::Meta {
@@ -78,12 +80,12 @@ pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::Node>) -> proto
 
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
 // that is impossible.
-fn project(m: &Matrix4<f32>, p: &Point3<f32>) -> Point3<f32> {
-    let q = m * Point3::to_homogeneous(*p);
+fn project(m: &Matrix4<f32>, p: &Point3<f64>) -> Point3<f64> {
+    let q = m.cast::<f64>().unwrap() * Point3::to_homogeneous(*p);
     Point3::from_homogeneous(q / q.w)
 }
 
-fn clip_point_to_hemicube(p: &Point3<f32>) -> Point3<f32> {
+fn clip_point_to_hemicube(p: &Point3<f64>) -> Point3<f64> {
     Point3::new(clamp(p.x, -1., 1.), clamp(p.y, -1., 1.), clamp(p.z, 0., 1.))
 }
 
@@ -94,7 +96,7 @@ fn clip_point_to_hemicube(p: &Point3<f32>) -> Point3<f32> {
 // proportional to the size on the screen, but this parameter would need to be passed through to
 // all API calls. I decided on relying on a 'good enough' metric instead which did not require the
 // parameter.
-fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f32 {
+fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f64 {
     // z is unused here.
     let min = bounding_cube.min();
     let max = bounding_cube.max();
@@ -132,7 +134,7 @@ pub struct Octree {
 
 pub struct PointsInBoxIterator<'a> {
     octree: &'a Octree,
-    aabb: &'a Aabb3<f32>,
+    aabb: &'a Aabb3<f64>,
     intersecting_nodes: Vec<NodeId>,
 }
 
@@ -224,9 +226,9 @@ impl<'a> InternalIterator for AllPointsIterator<'a> {
 }
 
 // TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
-fn contains(projection_matrix: &Matrix4<f32>, point: &Point3<f32>) -> bool {
+fn contains(projection_matrix: &Matrix4<f32>, point: &Point3<f64>) -> bool {
     let v = Vector4::new(point.x, point.y, point.z, 1.);
-    let clip_v = projection_matrix * v;
+    let clip_v = projection_matrix.cast::<f64>().unwrap() * v;
     clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z && clip_v.z < clip_v.w
 }
 
@@ -242,7 +244,7 @@ impl Octree {
     pub fn from_data_provider(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
         match meta_proto.version {
-            9 => println!(
+            9 | 10 => println!(
                 "Data is an older octree version: {}, current would be {}. \
                  If feasible, try upgrading this octree using `upgrade_octree`.",
                 meta_proto.version, CURRENT_VERSION
@@ -297,7 +299,7 @@ impl Octree {
     }
 
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
-        let frustum = Frustum::from_matrix4(*projection_matrix).unwrap();
+        let frustum = Frustum::from_matrix4(projection_matrix.cast::<f64>().unwrap()).unwrap();
         let mut open = BinaryHeap::new();
         maybe_push_node(
             &mut open,
@@ -373,7 +375,7 @@ impl Octree {
     }
 
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
-    pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f32>) -> PointsInBoxIterator<'a> {
+    pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f64>) -> PointsInBoxIterator<'a> {
         let mut intersecting_nodes = Vec::new();
         let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
             &self.meta.bounding_box,
@@ -402,7 +404,7 @@ impl Octree {
         &'a self,
         frustum_matrix: &'a Matrix4<f32>,
     ) -> PointsInFrustumIterator<'a> {
-        let intersecting_nodes = self.get_visible_nodes(&frustum_matrix);
+        let intersecting_nodes = self.get_visible_nodes(frustum_matrix);
         PointsInFrustumIterator {
             octree: &self,
             frustum_matrix,
@@ -417,7 +419,7 @@ impl Octree {
         }
     }
 
-    pub fn bounding_box(&self) -> &Aabb3<f32> {
+    pub fn bounding_box(&self) -> &Aabb3<f64> {
         &self.meta.bounding_box
     }
 }
@@ -425,7 +427,7 @@ impl Octree {
 struct OpenNode {
     node: Node,
     relation: Relation,
-    size_on_screen: f32,
+    size_on_screen: f64,
 }
 
 impl Ord for OpenNode {

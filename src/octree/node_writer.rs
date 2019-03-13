@@ -70,6 +70,17 @@ impl NodeWriter {
                     .write_f32::<LittleEndian>(encode(p.position.z, min.z, edge_length))
                     .unwrap();
             }
+            PositionEncoding::Float64 => {
+                self.xyz_writer
+                    .write_f64::<LittleEndian>(encode(p.position.x, min.x, edge_length))
+                    .unwrap();
+                self.xyz_writer
+                    .write_f64::<LittleEndian>(encode(p.position.y, min.y, edge_length))
+                    .unwrap();
+                self.xyz_writer
+                    .write_f64::<LittleEndian>(encode(p.position.z, min.z, edge_length))
+                    .unwrap();
+            }
             PositionEncoding::Uint8 => {
                 self.xyz_writer
                     .write_u8(fixpoint_encode(p.position.x, min.x, edge_length))

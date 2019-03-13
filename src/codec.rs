@@ -1,27 +1,33 @@
-use crate::math::clamp;
+use num::clamp;
 
-pub fn fixpoint_encode<T>(value: f32, min: f32, edge_length: f32) -> T
+pub fn fixpoint_encode<T>(value: f64, min: f64, edge_length: f64) -> T
 where
     T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
 {
     let value =
-        clamp((value - min) / edge_length, 0., 1.) * num::cast::<T, f32>(T::max_value()).unwrap();
+        clamp((value - min) / edge_length, 0., 1.) * num::cast::<T, f64>(T::max_value()).unwrap();
     num::cast(value).unwrap()
 }
 
-pub fn encode(value: f32, min: f32, edge_length: f32) -> f32 {
-    clamp((value - min) / edge_length, 0., 1.)
+pub fn encode<T>(value: f64, min: f64, edge_length: f64) -> T
+where
+    T: num_traits::NumCast,
+{
+    num::cast(clamp((value - min) / edge_length, 0., 1.)).unwrap()
 }
 
-pub fn fixpoint_decode<T>(value: T, min: f32, edge_length: f32) -> f32
+pub fn fixpoint_decode<T>(value: T, min: f64, edge_length: f64) -> f64
 where
     T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
 {
-    let max: f32 = num::cast(T::max_value()).unwrap();
-    let v: f32 = num::cast(value).unwrap();
+    let max: f64 = num::cast(T::max_value()).unwrap();
+    let v: f64 = num::cast(value).unwrap();
     v / max * edge_length + min
 }
 
-pub fn decode(value: f32, min: f32, edge_length: f32) -> f32 {
-    value * edge_length + min
+pub fn decode<T>(value: T, min: f64, edge_length: f64) -> f64
+where
+    T: num_traits::NumCast,
+{
+    num::cast::<T, f64>(value).unwrap() * edge_length + min
 }

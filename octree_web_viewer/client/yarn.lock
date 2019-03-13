@@ -2,22 +2,15 @@
 # yarn lockfile v1
 
 
-"@types/dat-gui@0.6.1":
-  version "0.6.1"
-  resolved "https://registry.yarnpkg.com/@types/dat-gui/-/dat-gui-0.6.1.tgz#72dab6cfdc81d5a151dffca30c2692f2bae260df"
-  integrity sha1-ctq2z9yB1aFR3/yjDCaS8rriYN8=
+"@types/dat.gui@0.7.2":
+  version "0.7.2"
+  resolved "https://registry.yarnpkg.com/@types/dat.gui/-/dat.gui-0.7.2.tgz#f6964d39504e97533774954e3dcf7a9f669196e8"
+  integrity sha512-ULAH7opLNk6jRq1/3pqYCeyVRS2hvbenzGNkWLS/ITjf+kaAZR09KBKvTG7y22sW/XQbalBSNTlTHU+cSMJJqg==
 
-"@types/three@0.92.17":
-  version "0.92.17"
-  resolved "https://registry.yarnpkg.com/@types/three/-/three-0.92.17.tgz#4dcedeb2ed5dcbced098d8953ac55b1b71c8a788"
-  integrity sha512-xTeOfK7Ym4OoENU4PCWZrYzgXirRA8JtDsulgr3CP6yMfP+12KbwzcCNArR5Zg1Wu5c/4Q1040zSTB23B6GFVQ==
-  dependencies:
-    "@types/webvr-api" "*"
-
-"@types/webvr-api@*":
-  version "0.0.34"
-  resolved "https://registry.yarnpkg.com/@types/webvr-api/-/webvr-api-0.0.34.tgz#8fa49028de925c7b8bce3d559d3374ce2c89ee28"
-  integrity sha512-gVAPKK+L1blPJCFnUDmkIdRfIU8xbwl05MDXPRjnjoeDXUUzR6frPuyx9RQz+OCodmxlBcJOkjVTMTZi1BcuZw==
+"@types/three@0.93.22":
+  version "0.93.22"
+  resolved "https://registry.yarnpkg.com/@types/three/-/three-0.93.22.tgz#3601929f36d4b3a5b7d3dd9851fec53feda8228c"
+  integrity sha512-z3gtO8D7icKFDd+T5M6mALazvxV2ScIeiWZNQE/sAxSCYCuZvTeBrIvCo7i4HKG1fPm2aRPMp0OYF4f0MHddsA==
 
 acorn@^5.2.1:
   version "5.7.3"
@@ -55,10 +48,10 @@ builtin-modules@^2.0.0:
   resolved "https://registry.yarnpkg.com/builtin-modules/-/builtin-modules-2.0.0.tgz#60b7ef5ae6546bd7deefa74b08b62a43a232648e"
   integrity sha512-3U5kUA5VPsRUA3nofm/BXX7GVHKfxz0hOBAPxXrIvHzlDRkQVqEn6yi8QJegxl4LzOHLdvb7XF5dVawa/VVYBg==
 
-dat-gui@0.5.0:
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/dat-gui/-/dat-gui-0.5.0.tgz#1212da836109747d0ac220bad7b07c17daa03583"
-  integrity sha1-EhLag2EJdH0KwiC617B8F9qgNYM=
+dat.gui@0.7.5:
+  version "0.7.5"
+  resolved "https://registry.yarnpkg.com/dat.gui/-/dat.gui-0.7.5.tgz#ab155825b0db88729c025697ef60c97fb87bef85"
+  integrity sha512-o6RnHVUHigLqH4DwsZCbFLAQw8NMWS3GP9EL4M4oOWj7E4qGIyVopyOWzyAwCwtuaiB27hq9F0qkHSNfjsp+ZQ==
 
 estree-walker@^0.5.0, estree-walker@^0.5.2:
   version "0.5.2"
@@ -356,15 +349,15 @@ rollup@^0.55.3:
   resolved "https://registry.yarnpkg.com/rollup/-/rollup-0.55.5.tgz#2f88c300f7cf24b5ec2dca8a6aba73b04e087e93"
   integrity sha512-2hke9NOy332kxvnmMQOgl7DHm94zihNyYJNd8ZLWo4U0EjFvjUkeWa0+ge+70bTg+mY0xJ7NUsf5kIhDtrGrtA==
 
-three@0.95.0:
-  version "0.95.0"
-  resolved "https://registry.yarnpkg.com/three/-/three-0.95.0.tgz#b60ea076ba17df9faba9e855b86ab3f541289abf"
-  integrity sha512-vy6jMYs7CDwn47CejYHNi+++OdQue7xGIBhbLfekQ/G6MDxKRm0QB0/xWScz46/JvQAvF6pJAS5Q907l0i5iQA==
+three@~0.101.1:
+  version "0.101.1"
+  resolved "https://registry.yarnpkg.com/three/-/three-0.101.1.tgz#e7681ef52f4e572cb84f307f16f540c457030ec6"
+  integrity sha512-8ufimUVmRLtH+BTpEIbDjdGEKQOVWLMLgGynaKin1KbYTE136ZNOepJ8EgByi0tN43dQ7B1YrKLCJgXGy4bLmw==
 
-typescript@=2.7.2:
-  version "2.7.2"
-  resolved "http://registry.npmjs.org/typescript/-/typescript-2.7.2.tgz#2d615a1ef4aee4f574425cdff7026edf81919836"
-  integrity sha512-p5TCYZDAO0m4G344hD+wx/LATebLWZNkkh2asWUFqSsD2OrDNhbAHuSjobrmsUmdzjJjEeZVU9g1h3O6vpstnw==
+typescript@3.3.3:
+  version "3.3.3"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.3.3.tgz#f1657fc7daa27e1a8930758ace9ae8da31403221"
+  integrity sha512-Y21Xqe54TBVp+VDSNbuDYdGw0BpoR/Q6wo/+35M8PAU0vipahnyduJWirxxdxjsAkS7hue53x2zp8gz7F05u0A==
 
 vlq@^0.2.2:
   version "0.2.3"

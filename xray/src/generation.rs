@@ -7,7 +7,7 @@ use clap::{_clap_count_exprs, arg_enum};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
-use point_viewer::math::clamp;
+use num::clamp;
 use point_viewer::{color::Color, octree, InternalIterator, Point};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
@@ -23,7 +23,7 @@ use std::sync::mpsc;
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
 // becomes.
-const NUM_Z_BUCKETS: f32 = 1024.;
+const NUM_Z_BUCKETS: f64 = 1024.;
 
 // Implementation of matlab's jet colormap from here:
 // https://stackoverflow.com/questions/7706339/grayscale-to-red-green-blue-matlab-jet-color-scale
@@ -131,7 +131,7 @@ pub trait ColoringStrategy: Send {
 
 struct XRayColoringStrategy {
     z_buckets: FnvHashMap<(u32, u32), FnvHashSet<u32>>,
-    max_saturation: f32,
+    max_saturation: f64,
 }
 
 impl XRayColoringStrategy {
@@ -162,7 +162,7 @@ impl ColoringStrategy for XRayColoringStrategy {
         if !self.z_buckets.contains_key(&(x, y)) {
             return background_color;
         }
-        let saturation = (self.z_buckets[&(x, y)].len() as f32).ln() / self.max_saturation;
+        let saturation = (self.z_buckets[&(x, y)].len() as f64).ln() / self.max_saturation;
         let value = ((1. - saturation) * 255.) as u8;
         Color {
             red: value,
@@ -373,7 +373,7 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
 
 pub fn xray_from_points(
     octree: &octree::Octree,
-    bbox: &Aabb3<f32>,
+    bbox: &Aabb3<f64>,
     png_file: &Path,
     image_width: u32,
     image_height: u32,
@@ -387,9 +387,9 @@ pub fn xray_from_points(
         // This means that the y-axis aligns too, but the origin of the image space must be at the
         // bottom left. Since images have their origin at the top left, we need actually have to
         // invert y and go from the bottom of the image.
-        let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * image_width as f32) as u32;
-        let y =
-            ((1. - ((p.position.y - bbox.min().y) / bbox.dim().y)) * image_height as f32) as u32;
+        let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * f64::from(image_width)) as u32;
+        let y = ((1. - ((p.position.y - bbox.min().y) / bbox.dim().y)) * f64::from(image_height))
+            as u32;
         let z = (((p.position.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
         coloring_strategy.process_discretized_point(p, x, y, z);
     });
@@ -415,7 +415,7 @@ pub fn xray_from_points(
     true
 }
 
-fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb3<f32>, tile_size_m: f32) -> (Rect, u8) {
+fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb3<f64>, tile_size_m: f64) -> (Rect, u8) {
     let mut levels = 0;
     let mut cur_size = tile_size_m;
     while cur_size < bbox.dim().x || cur_size < bbox.dim().y {
@@ -438,7 +438,7 @@ pub fn build_xray_quadtree(
     pool: &Pool,
     octree: &octree::Octree,
     output_directory: &Path,
-    resolution: f32,
+    resolution: f64,
     tile_size_px: u32,
     coloring_strategy_kind: &ColoringStrategyKind,
     tile_background_color: Color<u8>,
@@ -448,7 +448,7 @@ pub fn build_xray_quadtree(
 
     let bounding_box = octree.bounding_box();
     let (bounding_rect, deepest_level) =
-        find_quadtree_bounding_rect_and_levels(&bounding_box, tile_size_px as f32 * resolution);
+        find_quadtree_bounding_rect_and_levels(bounding_box, f64::from(tile_size_px) * resolution);
 
     // Create the deepest level of the quadtree.
     let (parents_to_create_tx, mut parents_to_create_rx) = mpsc::channel();
