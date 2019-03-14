@@ -69,12 +69,10 @@ impl AppState {
             let uuid = &self.init_uuid.clone();
             return self.load_octree(&uuid);
         }
-
         {
             // read access to state
             let map = self.octree_map.read().unwrap();
             let octree = map.get(octree_id);
-
             //some found
             if let Some(tree) = octree {
                 return Ok(Arc::clone(&tree));
