@@ -31,9 +31,6 @@ message Vector2d {
 message Rect {
   Vector2d min = 3;
   double edge_length = 4;
-  
-  Vector2f deprecated_min = 1;
-  float deprecated_edge_length = 2;
 }
 
 message NodeId {
