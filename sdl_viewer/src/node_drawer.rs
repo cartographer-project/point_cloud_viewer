@@ -186,7 +186,6 @@ impl NodeView {
                 octree::PositionEncoding::Float32 => (false, opengl::FLOAT),
                 octree::PositionEncoding::Float64 => (false, opengl::DOUBLE),
             };
-
             program.gl.BufferData(
                 opengl::ARRAY_BUFFER,
                 position.len() as GLsizeiptr,
