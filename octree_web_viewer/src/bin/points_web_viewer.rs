@@ -46,12 +46,12 @@ pub struct CommandLineArguments {
     cache_max: usize,
 }
 
+/// init app state with command arguments
+/// backward compatibilty is ensured
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
-    //resolve suffix: trailing backslash
+
     let suffix = args.path_suffix;
-    // if !suffix.ends_with("/") {
-    //     suffix.push('/');
-    // }
+    
 
     let app_state = match args.octree_path {
         Some(path) => {

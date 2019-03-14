@@ -281,7 +281,7 @@ export class OctreeViewer {
   }
 
   public load_new_tree() {
-    this.nodeLoader = new NodeLoader();
+    this.loadedData = {};
     this.currentlyLoading = 0;
   }
 

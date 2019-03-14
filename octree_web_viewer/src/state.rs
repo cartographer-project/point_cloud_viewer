@@ -13,7 +13,17 @@ pub struct OctreeKeyParams {
 
 impl OctreeKeyParams {
     pub fn get_octree_address(&self, octree_key: &String) -> Result<String, PointsViewerError> {
-        Ok(format!("{}/{}{}", self.prefix, octree_key, self.suffix))
+        let mut join_prefix = "";
+        let mut join_suffix = "";
+        
+        if !self.prefix.ends_with("/"){
+            join_prefix = "/";
+        }
+        if !self.suffix.starts_with("/"){
+            join_suffix = "/";
+        }
+            
+        Ok(format!("{}{}{}{}{}", self.prefix, join_prefix, octree_key, join_suffix, self.suffix))
     }
 }
 
@@ -70,13 +80,18 @@ impl AppState {
         uuid: impl Into<String>,
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
         let octree_key = uuid.into();
-        let addr = &self.key_params.get_octree_address(&octree_key)?;
-        println!("Current tree address to insert:{}", &addr);
+        let addr = &self.key_params.get_octree_address(&octree_key)?.clone();
+        println!("Current tree address to insert:{}", addr);
         let octree: Arc<octree::Octree> = Arc::from(octree::octree_from_directory(&addr)?);
         { //write access to state
             let mut wmap = self.octree_map.write().unwrap(); //todo try?
-            wmap.insert(octree_key, Arc::clone(&octree));
+            wmap.insert(octree_key.clone(), Arc::clone(&octree));
+            let inserted_octree =  match wmap.get(&octree_key){
+                Some(octree_ref) => Ok(Arc::clone(&*octree_ref)),
+                None => Err(PointsViewerError::InternalServerError("Octree search not successful".to_string())),
+            };
+            //return inserted_octree;
         }
-        Ok(Arc::clone(&octree))
+        Ok(octree)
     }
 }

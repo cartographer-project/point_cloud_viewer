@@ -12,8 +12,7 @@ use std::sync::Arc;
 use time;
 
 /// Method that returns visible nodes
-pub fn get_visible_nodes(req: &HttpRequest<Arc<AppState>>) -> HttpResponse {
-    //let octree: Arc<octree::Octree> = parse_request(req);
+pub fn get_visible_nodes(req: &HttpRequest<Arc<AppState>>) -> HttpResponse {    //let octree: Arc<octree::Octree> = parse_request(req);
     let uuid: String = Path::<String>::extract(req)
          .map_err(|error| {
            crate::backend_error::PointsViewerError::InternalServerError(format!(
@@ -31,7 +30,6 @@ pub fn get_visible_nodes(req: &HttpRequest<Arc<AppState>>) -> HttpResponse {
             ))
         }).unwrap()
         .clone();
-    
     let matrix = {
         // Entries are column major.
         let e: Vec<f32> = req
@@ -75,6 +73,9 @@ pub fn get_visible_nodes(req: &HttpRequest<Arc<AppState>>) -> HttpResponse {
     HttpResponse::Ok()
         .content_type("application/json")
         .body(reply)
+
+        
+    
 }
 
 // Javascript requires its arrays to be padded to 4 bytes.
@@ -88,9 +89,30 @@ fn pad(input: &mut Vec<u8>) {
     }
 }
 
+fn get_octree_from_req(req: &HttpRequest<Arc<AppState>>) -> Result<Arc<Octree>, PointsViewerError> {
+//let octree: Arc<octree::Octree> = parse_request(req);
+    let uuid: String = Path::<String>::extract(req)
+         .map_err(|error| {
+           crate::backend_error::PointsViewerError::InternalServerError(format!(
+                "Could not read uuid string: {}.", error.to_string()
+            ));
+        }).unwrap()
+        .into_inner();
+    let state = req.state();
+    //get_octree_from_state(uuid, *state)
+    let octree: Arc<octree::Octree> = (*state)
+        .load_octree(&uuid)
+        .map_err(|error| {
+            crate::backend_error::PointsViewerError::NotFound(format!(
+                "Could not load tree with uuid <{}>: {}.",
+                &uuid, error.to_string()
+            ))
+        }).unwrap()
+        .clone();
+    return Ok(octree);
+}
 
-
-fn get_octree_from_state(uuid: String, state: State<Arc<AppState>>) -> Arc<Octree> {
+fn get_octree_from_state(uuid: String, state: State<Arc<AppState>>) -> Result<Arc<Octree>, PointsViewerError> {
     state
         .load_octree(&uuid)
         .map_err(|_error| {
@@ -98,7 +120,7 @@ fn get_octree_from_state(uuid: String, state: State<Arc<AppState>>) -> Arc<Octre
                 "Could not load tree with uuid {}.",
                 uuid
             ))
-        }).unwrap()
+        })
 }
 
 /// Asynchronous Handler to get Node Data
@@ -125,7 +147,7 @@ pub fn get_nodes_data((uuid, state, nodes): (Path<String>, State<Arc<AppState>>,
 
             let mut num_nodes_fetched = 0;
             let mut num_points = 0;
-            let octree: Arc<octree::Octree> = get_octree_from_state(uuid.into_inner(), state);
+            let octree: Arc<octree::Octree> = get_octree_from_state(uuid.into_inner(), state).unwrap();
             for node_id in nodes_to_load {
                 let mut node_data = octree
                     .get_node_data(&node_id)
