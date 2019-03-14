@@ -83,7 +83,7 @@ class NodeLoader {
     scene: THREE.Scene,
     material: THREE.ShaderMaterial,
     nodes: NodeData[],
-    uuid: string
+    octree_id: string
   ): Promise<void> {
     let query: string[] = [];
 
@@ -92,7 +92,7 @@ class NodeLoader {
     }
     const headers = new Headers();
     headers.append('Content-Type', 'application/json; charset=UTF-8');
-    const request = new Request(`/nodes_data/${uuid}/`, {
+    const request = new Request(`/nodes_data/${octree_id}/`, {
       method: 'POST',
       body: '[' + query.join(',') + ']',
       headers: headers,
@@ -253,7 +253,7 @@ export class OctreeViewer {
   // material.size. If DAT supports callbacks, we can encapsulate this nicer.
   public material: THREE.ShaderMaterial;
   public maxLevelToDisplay: number;
-  private uuid: string;
+  private octree_id: string;
 
   private loadedData: { [key: string]: NodeData } = {};
   private nodeLoader: NodeLoader;
@@ -277,11 +277,11 @@ export class OctreeViewer {
 
     this.nodeLoader = new NodeLoader();
     this.currentlyLoading = 0;
-    this.uuid = 'init_uuid';
+    this.octree_id = 'init_id';
   }
 
-  public load_new_tree(uuid: string) {
-    this.uuid = uuid;
+  public load_new_tree(octree_id: string) {
+    this.octree_id = octree_id;
 
   }
 
@@ -301,7 +301,7 @@ export class OctreeViewer {
   public frustumChanged(matrix: THREE.Matrix4, width: number, height: number) {
     // ThreeJS is column major.
     const request = new Request(
-      `/visible_nodes/${this.uuid}/?width=${width}&height=${height}&matrix=${matrixToString(
+      `/visible_nodes/${this.octree_id}/?width=${width}&height=${height}&matrix=${matrixToString(
         matrix
       )}`,
       {
@@ -361,7 +361,7 @@ export class OctreeViewer {
     }
     this.currentlyLoading += 1;
     this.nodeLoader
-      .load(this.scene, this.material, this.batches.shift(), this.uuid)
+      .load(this.scene, this.material, this.batches.shift(), this.octree_id)
       .then(() => {
         this.currentlyLoading -= 1;
         this.onNewNodeData();

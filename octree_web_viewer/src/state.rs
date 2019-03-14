@@ -38,7 +38,7 @@ pub struct AppState {
     /// information for retieving octree path
     pub key_params: OctreeKeyParams,
     /// backward compatibility to input arguments
-    pub init_uuid: String,
+    pub init_octree_id: String,
 }
 
 impl AppState {
@@ -46,7 +46,7 @@ impl AppState {
         map_size: usize,
         prefix: impl Into<String>,
         suffix: impl Into<String>,
-        uuid: impl Into<String>,
+        octree_id: impl Into<String>,
     ) -> Self {
         AppState {
             octree_map: Arc::new(RwLock::new(HashMap::with_capacity(map_size))),
@@ -54,40 +54,39 @@ impl AppState {
                 prefix: prefix.into(),
                 suffix: suffix.into(),
             },
-            init_uuid: uuid.into(),
+            init_octree_id: octree_id.into(),
         }
     }
 
     pub fn load_octree(
         &self,
-        uuid: impl AsRef<str>,
+        octree_id: impl AsRef<str>,
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
         // exists
-        let octree_id = uuid.as_ref();
+        let octree_key = octree_id.as_ref();
         // taking care of initial octree
-        if octree_id.len() == 9 && octree_id.starts_with("init_uuid") {
-            let uuid = &self.init_uuid.clone();
-            return self.load_octree(&uuid);
+        if octree_key.len() == 7 && octree_key.starts_with("init_id") {
+            let octree_key = &self.init_octree_id.clone();
+            return self.load_octree(&octree_key);
         }
         {
             // read access to state
             let map = self.octree_map.read().unwrap();
-            let octree = map.get(octree_id);
+            let octree = map.get(octree_key);
             //some found
             if let Some(tree) = octree {
                 return Ok(Arc::clone(&tree));
             }
         }
         // none found
-        let octree_key: String = octree_id.to_string();
-        self.insert_octree(octree_key)
+        self.insert_octree(octree_key.to_string())
     }
 
     fn insert_octree(
         &self,
-        uuid: impl Into<String>,
+        octree_id: impl Into<String>,
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
-        let octree_key = uuid.into();
+        let octree_key = octree_id.into();
         let addr = &self.key_params.get_octree_address(&octree_key)?.clone();
         println!("Current tree address to insert:{}", addr);
         let octree: Arc<octree::Octree> = Arc::from(octree::octree_from_directory(&addr)?);

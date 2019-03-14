@@ -29,7 +29,7 @@ class App {
   private lastMoveTime: number;
   private needsRender: boolean;
 
-  public uuid: string;  // octree identifier
+  public octree_id: string;  // octree identifier
 
   private reset_scene_viewer() {
     this.scene = new THREE.Scene();
@@ -69,7 +69,7 @@ class App {
     this.lastFrustumUpdateTime = 0;
     this.lastMoveTime = 0;
     this.needsRender = true;
-    this.uuid = "init_uuid";
+    this.octree_id = "init_id";
 
     const gui = new GUI();
     gui
@@ -99,11 +99,11 @@ class App {
         this.needsRender = true;
       });
     gui
-      .add(this, 'uuid')
+      .add(this, 'octree_id')
       .name('Point Cloud ID')
       .onFinishChange(() => {
         this.reset_scene_viewer();
-        this.viewer.load_new_tree(this.uuid);
+        this.viewer.load_new_tree(this.octree_id);
         this.needsRender = true;
       });
 

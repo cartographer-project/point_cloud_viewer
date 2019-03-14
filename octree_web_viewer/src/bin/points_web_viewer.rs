@@ -40,7 +40,7 @@ pub struct CommandLineArguments {
     #[structopt(default_value = "/", long = "--suffix")]
     path_suffix: String,
     /// instead of DIR: specify path folder for octree dir
-    #[structopt(long = "--uuid")]
+    #[structopt(long = "--octree_id")]
     octree_id: Option<String>,
     /// Cache items
     #[structopt(default_value = "3", long = "--cache_items")]
@@ -59,13 +59,13 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
             if octree_directory.ends_with(&suffix) {
                 prefix = prefix.parent().unwrap();
             }
-            let uuid = octree_directory
+            let octree_id = octree_directory
                 .strip_prefix(&prefix)?
                 .to_str()
                 .unwrap()
                 .to_string();
             let prefix = prefix.to_str().unwrap();
-            AppState::new(args.cache_max, prefix, suffix, uuid)
+            AppState::new(args.cache_max, prefix, suffix, octree_id)
         }
         None => {
             let prefix = args
@@ -76,15 +76,15 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
                     )
                 })
                 .unwrap();
-            let uuid = args
+            let octree_id = args
                 .octree_id
                 .ok_or_else(|| {
                     PointsViewerError::NotFound(
-                        "Input argoment Syntax is incorrect: check uuid".to_string(),
+                        "Input argoment Syntax is incorrect: check octree_id".to_string(),
                     )
                 })
                 .unwrap();
-            AppState::new(args.cache_max, prefix, suffix, uuid)
+            AppState::new(args.cache_max, prefix, suffix, octree_id)
         }
     };
     Ok(app_state)
@@ -103,7 +103,7 @@ fn main() {
 
     let sys = actix::System::new("octree-server");
 
-    //let _ = start_octree_server(app_state, &ip_port, uuid);
+    //let _ = start_octree_server(app_state, &ip_port, octree_id);
     let _ = start_octree_server(app_state, &ip_port);
 
     println!("Starting http server: {}", &ip_port);
