@@ -27,9 +27,17 @@ class App {
   private renderer: THREE.WebGLRenderer;
   private lastFrustumUpdateTime: number;
   private lastMoveTime: number;
-  public uuid: string;
   private needsRender: boolean;
-  private forceClear: boolean;
+
+  public uuid: string;  // octree identifier
+
+  private reset_scene_viewer() {
+    this.scene = new THREE.Scene();
+    this.scene.add(this.camera);
+    this.viewer = new OctreeViewer(this.scene, () => {
+      this.needsRender = true;
+    });
+  }
 
   public run() {
     let renderArea = document.getElementById('renderArea');
@@ -50,22 +58,19 @@ class App {
     this.camera.updateMatrix();
     this.camera.updateMatrixWorld(false);
 
-    this.scene = new THREE.Scene();
-    this.scene.add(this.camera);
 
     this.controller = new FirstPersonController(
       this.camera,
       this.renderer.domElement
     );
 
+    this.reset_scene_viewer();
+
     this.lastFrustumUpdateTime = 0;
     this.lastMoveTime = 0;
     this.needsRender = true;
-    this.forceClear = false;
     this.uuid = "init_uuid";
-    this.viewer = new OctreeViewer(this.scene, () => {
-      this.needsRender = true;
-    });
+
     const gui = new GUI();
     gui
       .add(this.viewer.material.uniforms['size'], 'value')
@@ -97,12 +102,7 @@ class App {
       .add(this, 'uuid')
       .name('Point Cloud ID')
       .onFinishChange(() => {
-        this.forceClear = true;
-        this.scene = new THREE.Scene();
-        this.scene.add(this.camera);
-        this.viewer = new OctreeViewer(this.scene, () => {
-          this.needsRender = true;
-        });
+        this.reset_scene_viewer();
         this.viewer.load_new_tree(this.uuid);
         this.needsRender = true;
       });
@@ -132,10 +132,8 @@ class App {
       this.viewer.setMoving(false);
       this.needsRender = true;
     }
-    if (this.forceClear ||
-      (this.lastFrustumUpdateTime <= this.lastMoveTime &&
-        time - this.lastFrustumUpdateTime > 250)
-    ) {
+    if (this.lastFrustumUpdateTime <= this.lastMoveTime &&
+      time - this.lastFrustumUpdateTime > 250) {
       this.camera.updateMatrixWorld(false);
       this.lastFrustumUpdateTime = time;
       const matrix = new THREE.Matrix4().multiplyMatrices(
@@ -152,8 +150,7 @@ class App {
     if (this.needsRender) {
       this.needsRender = false;
       // TODO(hrapp): delete invisible nodes and free memory again.
-      this.renderer.render(this.scene, this.camera, undefined, this.forceClear);
-      this.forceClear = false;
+      this.renderer.render(this.scene, this.camera);
     }
   }
 }
