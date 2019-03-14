@@ -13,14 +13,14 @@ pub struct OctreeKeyParams {
 }
 
 impl OctreeKeyParams {
-    pub fn get_octree_address(&self, octree_key: &String) -> Result<String, PointsViewerError> {
+    pub fn get_octree_address(&self, octree_key: &str) -> Result<String, PointsViewerError> {
         let mut join_prefix = "";
         let mut join_suffix = "";
 
-        if !self.prefix.ends_with("/") {
+        if !self.prefix.ends_with('/') {
             join_prefix = "/";
         }
-        if !self.suffix.starts_with("/") {
+        if !self.suffix.starts_with('/') {
             join_suffix = "/";
         }
 
