@@ -12,15 +12,13 @@ use std::sync::Arc;
 use time;
 
 #[derive(Deserialize)]
-pub struct MatrixString {
-    _width: f64,
-    _height: f64,
+pub struct Info {
     matrix: String,
 }
 
 /// Method that returns visible nodes
 pub fn get_visible_nodes(
-    (uuid, state, matrix_query): (Path<String>, State<Arc<AppState>>, Query<MatrixString>),
+    (uuid, state, matrix_query): (Path<String>, State<Arc<AppState>>, Query<Info>),
 ) -> HttpResponse {
     match get_octree_from_state(uuid.into_inner(), state) {
         Err(err) => HttpResponse::from_error(err.into()),
@@ -28,7 +26,6 @@ pub fn get_visible_nodes(
             let matrix = {
                 // Entries are column major.
                 let e: Vec<f32> = matrix_query
-                    .into_inner()
                     .matrix
                     .split(',')
                     .map(|s| s.parse::<f32>().unwrap())
