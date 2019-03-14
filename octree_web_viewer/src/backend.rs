@@ -1,7 +1,7 @@
 use crate::backend_error::PointsViewerError;
 use crate::state::AppState;
-use actix_web::{ http::ContentEncoding, AsyncResponder, FromRequest, FutureResponse, HttpRequest,
-    HttpResponse, Json, Path, State
+use actix_web::{
+    http::ContentEncoding, AsyncResponder, FutureResponse, HttpResponse, Json, Path, Query, State,
 };
 use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
@@ -11,71 +11,59 @@ use std::str::FromStr;
 use std::sync::Arc;
 use time;
 
+#[derive(Deserialize)]
+pub struct MatrixString {
+    _width: f64,
+    _height: f64,
+    matrix: String,
+}
+
 /// Method that returns visible nodes
-pub fn get_visible_nodes(req: &HttpRequest<Arc<AppState>>) -> HttpResponse {    //let octree: Arc<octree::Octree> = parse_request(req);
-    let uuid: String = Path::<String>::extract(req)
-         .map_err(|error| {
-           crate::backend_error::PointsViewerError::InternalServerError(format!(
-                "Could not read uuid string: {}.", error.to_string()
-            ));
-        }).unwrap()
-        .into_inner();
-    let state = req.state();
-    let octree: Arc<octree::Octree> = (*state)
-        .load_octree(&uuid)
-        .map_err(|error| {
-            crate::backend_error::PointsViewerError::NotFound(format!(
-                "Could not load tree with uuid <{}>: {}.",
-                &uuid, error.to_string()
-            ))
-        }).unwrap()
-        .clone();
-    let matrix = {
-        // Entries are column major.
-        let e: Vec<f32> = req
-            .query()
-            .get("matrix")
-            .ok_or_else(|| {
-                HttpResponse::from_error(
-                    PointsViewerError::BadRequest("Expected 4x4 matrix".to_string()).into(),
-                )
-            })
-            .unwrap()
-            .split(',')
-            .map(|s| s.parse::<f32>().unwrap())
-            .collect();
-        // matrix size check
-        if 16 == e.len() {
-            Matrix4::new(
-                e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10], e[11], e[12],
-                e[13], e[14], e[15],
-            )
-        } else {
-            return HttpResponse::from_error(
-                PointsViewerError::BadRequest(
-                    "Parsing Error: Expected matrix with 16 elements".to_string(),
-                )
-                .into(),
-            );
+pub fn get_visible_nodes(
+    (uuid, state, matrix_query): (Path<String>, State<Arc<AppState>>, Query<MatrixString>),
+) -> HttpResponse {
+    match get_octree_from_state(uuid.into_inner(), state) {
+        Err(err) => HttpResponse::from_error(err.into()),
+        Ok(octree) => {
+            let matrix = {
+                // Entries are column major.
+                let e: Vec<f32> = matrix_query
+                    .into_inner()
+                    .matrix
+                    .split(',')
+                    .map(|s| s.parse::<f32>().unwrap())
+                    .collect();
+                // matrix size check
+                if 16 == e.len() {
+                    Matrix4::new(
+                        e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10], e[11],
+                        e[12], e[13], e[14], e[15],
+                    )
+                } else {
+                    return HttpResponse::from_error(
+                        PointsViewerError::BadRequest(
+                            "Parsing Error: Expected matrix with 16 elements".to_string(),
+                        )
+                        .into(),
+                    );
+                }
+            };
+
+            let visible_nodes = { octree.get_visible_nodes(&matrix) };
+            let mut reply = String::from("[");
+            let visible_nodes_string = visible_nodes
+                .iter()
+                .map(|id| format!("\"{}\"", id))
+                .collect::<Vec<_>>()
+                .join(",");
+            reply.push_str(&visible_nodes_string);
+            reply.push(']');
+
+            HttpResponse::Ok()
+                .content_type("application/json")
+                .body(reply)
         }
-    };
-
-    let visible_nodes = { octree.get_visible_nodes(&matrix) };
-    let mut reply = String::from("[");
-    let visible_nodes_string = visible_nodes
-        .iter()
-        .map(|id| format!("\"{}\"", id))
-        .collect::<Vec<_>>()
-        .join(",");
-    reply.push_str(&visible_nodes_string);
-    reply.push(']');
-
-    HttpResponse::Ok()
-        .content_type("application/json")
-        .body(reply)
-
-        
-    
+    }
 }
 
 // Javascript requires its arrays to be padded to 4 bytes.
@@ -89,45 +77,24 @@ fn pad(input: &mut Vec<u8>) {
     }
 }
 
-fn get_octree_from_req(req: &HttpRequest<Arc<AppState>>) -> Result<Arc<Octree>, PointsViewerError> {
-//let octree: Arc<octree::Octree> = parse_request(req);
-    let uuid: String = Path::<String>::extract(req)
-         .map_err(|error| {
-           crate::backend_error::PointsViewerError::InternalServerError(format!(
-                "Could not read uuid string: {}.", error.to_string()
-            ));
-        }).unwrap()
-        .into_inner();
-    let state = req.state();
-    //get_octree_from_state(uuid, *state)
-    let octree: Arc<octree::Octree> = (*state)
-        .load_octree(&uuid)
-        .map_err(|error| {
-            crate::backend_error::PointsViewerError::NotFound(format!(
-                "Could not load tree with uuid <{}>: {}.",
-                &uuid, error.to_string()
-            ))
-        }).unwrap()
-        .clone();
-    return Ok(octree);
-}
-
-fn get_octree_from_state(uuid: String, state: State<Arc<AppState>>) -> Result<Arc<Octree>, PointsViewerError> {
-    state
-        .load_octree(&uuid)
-        .map_err(|_error| {
-            crate::backend_error::PointsViewerError::NotFound(format!(
-                "Could not load tree with uuid {}.",
-                uuid
-            ))
-        })
+fn get_octree_from_state(
+    uuid: String,
+    state: State<Arc<AppState>>,
+) -> Result<Arc<Octree>, PointsViewerError> {
+    state.load_octree(&uuid).map_err(|_error| {
+        crate::backend_error::PointsViewerError::NotFound(format!(
+            "Could not load tree with uuid {}.",
+            uuid
+        ))
+    })
 }
 
 /// Asynchronous Handler to get Node Data
 /// returns an alias for Box<Future<Item=HttpResponse, Error=Error>>;
-pub fn get_nodes_data((uuid, state, nodes): (Path<String>, State<Arc<AppState>>, Json<Vec<String>>)) -> FutureResponse<HttpResponse> {
+pub fn get_nodes_data(
+    (uuid, state, nodes): (Path<String>, State<Arc<AppState>>, Json<Vec<String>>),
+) -> FutureResponse<HttpResponse> {
     let mut start = 0;
-    //let message_body_future = Json::<Vec<String>>::extract(req).from_err();
     future::ok(())
         .and_then(move |_| {
             start = time::precise_time_ns();
@@ -147,7 +114,8 @@ pub fn get_nodes_data((uuid, state, nodes): (Path<String>, State<Arc<AppState>>,
 
             let mut num_nodes_fetched = 0;
             let mut num_points = 0;
-            let octree: Arc<octree::Octree> = get_octree_from_state(uuid.into_inner(), state).unwrap();
+            let octree: Arc<octree::Octree> =
+                get_octree_from_state(uuid.into_inner(), state).unwrap();
             for node_id in nodes_to_load {
                 let mut node_data = octree
                     .get_node_data(&node_id)
@@ -156,8 +124,9 @@ pub fn get_nodes_data((uuid, state, nodes): (Path<String>, State<Arc<AppState>>,
                             "Could not get node {}.",
                             node_id
                         ))
-                    }).unwrap();
-                    
+                    })
+                    .unwrap();
+
                 // Write the bounding box information.
                 let min = node_data.meta.bounding_cube.min();
                 reply_blob.write_f32::<LittleEndian>(min.x).unwrap();

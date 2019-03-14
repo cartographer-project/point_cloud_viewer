@@ -32,8 +32,6 @@ pub fn start_octree_server(
     app_state: Arc<AppState>,
     ip_port: &str,
 ) -> Result<(), PointsViewerError> {
-    
-    
     server::new(move || {
         actix_web::App::with_state(Arc::clone(&app_state))
             .resource("/", |r| r.method(Method::GET).f(index))
@@ -41,12 +39,8 @@ pub fn start_octree_server(
             .resource("/app_bundle.js.map", |r| {
                 r.method(Method::GET).f(app_bundle_source_map)
             })
-            .resource("/visible_nodes/{uuid}/", |r| {
-                r.f(get_visible_nodes) 
-            })
-            .resource("/nodes_data/{uuid}/", |r| {
-                r.with_async(get_nodes_data) 
-            })
+            .resource("/visible_nodes/{uuid}/", |r| r.with(get_visible_nodes))
+            .resource("/nodes_data/{uuid}/", |r| r.with_async(get_nodes_data))
     })
     .bind(&ip_port)
     .unwrap_or_else(|_| panic!("Can not bind to {}", &ip_port))

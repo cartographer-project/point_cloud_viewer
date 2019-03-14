@@ -49,9 +49,7 @@ pub struct CommandLineArguments {
 /// init app state with command arguments
 /// backward compatibilty is ensured
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
-
     let suffix = args.path_suffix;
-    
 
     let app_state = match args.octree_path {
         Some(path) => {
@@ -66,7 +64,6 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
                 .unwrap()
                 .to_string();
             let prefix = prefix.to_str().unwrap();
-            println!("<{}> <{}> <{}>", prefix, uuid, suffix );
             AppState::new(args.cache_max, prefix, suffix, uuid)
         }
         None => {
@@ -86,8 +83,6 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
                     )
                 })
                 .unwrap();
-            //path = PathBuf::from(Path::new(&prefix).join(&uuid).join(suffix));
-            println!("<{}> <{}> <{}>", prefix, uuid, suffix );
             AppState::new(args.cache_max, prefix, suffix, uuid)
         }
     };

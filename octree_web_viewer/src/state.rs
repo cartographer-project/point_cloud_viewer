@@ -3,6 +3,7 @@ use point_viewer::octree;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+/// path information for the octrees
 #[derive(Clone)]
 pub struct OctreeKeyParams {
     /// Location prefix, including
@@ -15,15 +16,18 @@ impl OctreeKeyParams {
     pub fn get_octree_address(&self, octree_key: &String) -> Result<String, PointsViewerError> {
         let mut join_prefix = "";
         let mut join_suffix = "";
-        
-        if !self.prefix.ends_with("/"){
+
+        if !self.prefix.ends_with("/") {
             join_prefix = "/";
         }
-        if !self.suffix.starts_with("/"){
+        if !self.suffix.starts_with("/") {
             join_suffix = "/";
         }
-            
-        Ok(format!("{}{}{}{}{}", self.prefix, join_prefix, octree_key, join_suffix, self.suffix))
+
+        Ok(format!(
+            "{}{}{}{}{}",
+            self.prefix, join_prefix, octree_key, join_suffix, self.suffix
+        ))
     }
 }
 
@@ -31,14 +35,19 @@ impl OctreeKeyParams {
 pub struct AppState {
     /// LRU Cache for Octrees
     pub octree_map: Arc<RwLock<HashMap<String, Arc<octree::Octree>>>>,
-    //pub octree_factory: octree::OctreeFactory,
+    /// information for retieving octree path
     pub key_params: OctreeKeyParams,
+    /// backward compatibility to input arguments
     pub init_uuid: String,
 }
 
 impl AppState {
-    pub fn new(map_size: usize, prefix: impl Into<String>, suffix: impl Into<String>, uuid: impl Into<String>) -> Self {
-        
+    pub fn new(
+        map_size: usize,
+        prefix: impl Into<String>,
+        suffix: impl Into<String>,
+        uuid: impl Into<String>,
+    ) -> Self {
         AppState {
             octree_map: Arc::new(RwLock::new(HashMap::with_capacity(map_size))),
             key_params: OctreeKeyParams {
@@ -55,13 +64,14 @@ impl AppState {
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
         // exists
         let octree_id = uuid.as_ref();
-        //taking care of initial octree
+        // taking care of initial octree
         if octree_id.len() == 9 && octree_id.starts_with("init_uuid") {
             let uuid = &self.init_uuid.clone();
             return self.load_octree(&uuid);
         }
 
-        { // read access to state
+        {
+            // read access to state
             let map = self.octree_map.read().unwrap();
             let octree = map.get(octree_id);
 
@@ -70,7 +80,7 @@ impl AppState {
                 return Ok(Arc::clone(&tree));
             }
         }
-        //none found
+        // none found
         let octree_key: String = octree_id.to_string();
         self.insert_octree(octree_key)
     }
@@ -83,14 +93,10 @@ impl AppState {
         let addr = &self.key_params.get_octree_address(&octree_key)?.clone();
         println!("Current tree address to insert:{}", addr);
         let octree: Arc<octree::Octree> = Arc::from(octree::octree_from_directory(&addr)?);
-        { //write access to state
-            let mut wmap = self.octree_map.write().unwrap(); //todo try?
+        {
+            // write access to state
+            let mut wmap = self.octree_map.write().unwrap();
             wmap.insert(octree_key.clone(), Arc::clone(&octree));
-            // let inserted_octree =  match wmap.get(&octree_key){
-            //     Some(octree_ref) => Ok(Arc::clone(&*octree_ref)),
-            //     None => Err(PointsViewerError::InternalServerError("Octree search not successful".to_string())),
-            // };
-            //return inserted_octree;
         }
         Ok(octree)
     }
