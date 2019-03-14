@@ -72,7 +72,7 @@ class NodeRenderData {
   constructor(
     public min: THREE.Vector3,
     public edgeLength: number,
-    public position: Float32Array | Uint16Array | Uint8Array,
+    public position: Float64Array | Float32Array | Uint16Array | Uint8Array,
     public normalizePosition: boolean,
     public color: Uint8Array
   ) {}
@@ -130,9 +130,14 @@ class NodeLoader {
             numBytesRead += 4 - numBytesRead % 4;
           }
 
-          let position: Float32Array | Uint16Array | Uint8Array;
+          let position: Float64Array | Float32Array | Uint16Array | Uint8Array;
           let normalizePosition: boolean;
           switch (bytesPerCoordinate) {
+            case 8:
+              position = new Float64Array(data, numBytesRead, numPoints * 3);
+              normalizePosition = false;
+              break;
+
             case 4:
               position = new Float32Array(data, numBytesRead, numPoints * 3);
               normalizePosition = false;
