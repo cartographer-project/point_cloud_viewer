@@ -90,6 +90,4 @@ message PointsReply {
   
   // For every point an intensity value. Might not exist if there are no intensities.
   repeated float intensities = 3;
-  
-  repeated point_viewer.proto.Vector3f deprecated_positions = 1;
 }
