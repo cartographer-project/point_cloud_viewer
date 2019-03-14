@@ -253,7 +253,7 @@ export class OctreeViewer {
   // material.size. If DAT supports callbacks, we can encapsulate this nicer.
   public material: THREE.ShaderMaterial;
   public maxLevelToDisplay: number;
-  public uuid: string;
+  private uuid: string;
 
   private loadedData: { [key: string]: NodeData } = {};
   private nodeLoader: NodeLoader;
@@ -280,9 +280,9 @@ export class OctreeViewer {
     this.uuid = 'init_uuid';
   }
 
-  public load_new_tree() {
-    this.loadedData = {};
-    this.currentlyLoading = 0;
+  public load_new_tree(uuid: string) {
+    this.uuid = uuid;
+
   }
 
   public alphaChanged() {
@@ -298,10 +298,10 @@ export class OctreeViewer {
     this.useTransparency = newUseTransparency;
   }
 
-  public frustumChanged(matrix: THREE.Matrix4, width: number, height: number, uuid: string) {
+  public frustumChanged(matrix: THREE.Matrix4, width: number, height: number) {
     // ThreeJS is column major.
     const request = new Request(
-      `/visible_nodes/${uuid}/?width=${width}&height=${height}&matrix=${matrixToString(
+      `/visible_nodes/${this.uuid}/?width=${width}&height=${height}&matrix=${matrixToString(
         matrix
       )}`,
       {

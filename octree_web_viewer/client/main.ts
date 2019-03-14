@@ -27,6 +27,7 @@ class App {
   private renderer: THREE.WebGLRenderer;
   private lastFrustumUpdateTime: number;
   private lastMoveTime: number;
+  public uuid: string;
   private needsRender: boolean;
   private forceClear: boolean;
 
@@ -61,6 +62,7 @@ class App {
     this.lastMoveTime = 0;
     this.needsRender = true;
     this.forceClear = false;
+    this.uuid = "init_uuid";
     this.viewer = new OctreeViewer(this.scene, () => {
       this.needsRender = true;
     });
@@ -92,11 +94,16 @@ class App {
         this.needsRender = true;
       });
     gui
-      .add(this.viewer, 'uuid')
+      .add(this, 'uuid')
       .name('Point Cloud ID')
       .onFinishChange(() => {
         this.forceClear = true;
-        this.viewer.load_new_tree();
+        this.scene = new THREE.Scene();
+        this.scene.add(this.camera);
+        this.viewer = new OctreeViewer(this.scene, () => {
+          this.needsRender = true;
+        });
+        this.viewer.load_new_tree(this.uuid);
         this.needsRender = true;
       });
 
@@ -139,7 +146,6 @@ class App {
         matrix,
         this.renderer.context.canvas.width,
         this.renderer.context.canvas.height,
-        this.viewer.uuid
       );
     }
 

@@ -86,10 +86,10 @@ impl AppState {
         { //write access to state
             let mut wmap = self.octree_map.write().unwrap(); //todo try?
             wmap.insert(octree_key.clone(), Arc::clone(&octree));
-            let inserted_octree =  match wmap.get(&octree_key){
-                Some(octree_ref) => Ok(Arc::clone(&*octree_ref)),
-                None => Err(PointsViewerError::InternalServerError("Octree search not successful".to_string())),
-            };
+            // let inserted_octree =  match wmap.get(&octree_key){
+            //     Some(octree_ref) => Ok(Arc::clone(&*octree_ref)),
+            //     None => Err(PointsViewerError::InternalServerError("Octree search not successful".to_string())),
+            // };
             //return inserted_octree;
         }
         Ok(octree)
