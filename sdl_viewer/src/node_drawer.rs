@@ -108,6 +108,9 @@ impl NodeDrawer {
             self.program.gl.Enable(opengl::PROGRAM_POINT_SIZE);
             self.program.gl.Enable(opengl::DEPTH_TEST);
 
+            // TODO(feuerste): Casting to f32 introduces imprecisions for large bounding boxes,
+            // possibly misleading the observer, as points may be shifted due to casting and appear
+            // as outliers. Rendering in a local frame may help.
             self.program.gl.Uniform1f(
                 self.u_edge_length,
                 node_view.meta.bounding_cube.edge_length() as f32,
