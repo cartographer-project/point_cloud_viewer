@@ -300,7 +300,8 @@ impl PositionEncoding {
         match min_bits {
             0...8 => PositionEncoding::Uint8,
             9...16 => PositionEncoding::Uint16,
-            17...24 => PositionEncoding::Float32, // 24 because of the float mantissa
+            // Capping at 24 keeps the worst resolution at ~1 mm for an edge length of ~8389 km.
+            17...24 => PositionEncoding::Float32,
             _ => PositionEncoding::Float64,
         }
     }
