@@ -72,7 +72,7 @@ class NodeRenderData {
   constructor(
     public min: THREE.Vector3,
     public edgeLength: number,
-    public position: Float64Array | Float32Array | Uint16Array | Uint8Array,
+    public position: Float32Array | Uint16Array | Uint8Array,
     public normalizePosition: boolean,
     public color: Uint8Array
   ) {}
@@ -107,16 +107,16 @@ class NodeLoader {
         let numBytesRead = 0;
         while (nodes[currentEntry] !== undefined) {
           let min_x = view.getFloat64(numBytesRead, true /* littleEndian */);
-          numBytesRead += 4;
+          numBytesRead += 8;
           let min_y = view.getFloat64(numBytesRead, true /* littleEndian */);
-          numBytesRead += 4;
+          numBytesRead += 8;
           let min_z = view.getFloat64(numBytesRead, true /* littleEndian */);
-          numBytesRead += 4;
+          numBytesRead += 8;
           let edgeLength = view.getFloat64(
             numBytesRead,
             true /* littleEndian */
           );
-          numBytesRead += 4;
+          numBytesRead += 8;
 
           const numPoints = view.getUint32(
             numBytesRead,
@@ -126,15 +126,16 @@ class NodeLoader {
 
           const bytesPerCoordinate = view.getUint8(numBytesRead);
           numBytesRead += 1;
-          if (numBytesRead % 4 != 0) {
-            numBytesRead += 4 - numBytesRead % 4;
+          if (numBytesRead % 8 != 0) {
+            numBytesRead += 8 - numBytesRead % 8;
           }
 
-          let position: Float64Array | Float32Array | Uint16Array | Uint8Array;
+          let position: Float32Array | Uint16Array | Uint8Array;
           let normalizePosition: boolean;
           switch (bytesPerCoordinate) {
             case 8:
-              position = new Float64Array(data, numBytesRead, numPoints * 3);
+              // Float64Array is not supported, so we need to convert it.
+              position = Float32Array.from(new Float64Array(data, numBytesRead, numPoints * 3));
               normalizePosition = false;
               break;
 
@@ -157,14 +158,14 @@ class NodeLoader {
               console.log('Invalid bytesPerCoordinate: ', bytesPerCoordinate);
           }
           numBytesRead += numPoints * bytesPerCoordinate * 3;
-          if (numBytesRead % 4 != 0) {
-            numBytesRead += 4 - numBytesRead % 4;
+          if (numBytesRead % 8 != 0) {
+            numBytesRead += 8 - numBytesRead % 8;
           }
 
           let color = new Uint8Array(data, numBytesRead, numPoints * 3);
           numBytesRead += numPoints * 3;
-          if (numBytesRead % 4 != 0) {
-            numBytesRead += 4 - numBytesRead % 4;
+          if (numBytesRead % 8 != 0) {
+            numBytesRead += 8 - numBytesRead % 8;
           }
 
           let render_data = new NodeRenderData(

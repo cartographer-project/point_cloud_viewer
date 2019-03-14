@@ -290,8 +290,8 @@ pub fn to_node_proto(
 pub enum PositionEncoding {
     Uint8,
     Uint16,
-    Float32, // Worst resolution for a bbox around the earth (12742 km): ~1 m
-    Float64, // Worst resolution for a bbox around the earth (12742 km): ~191 nm
+    Float32, // Worst resolution for a bbox around the earth (12742 km) scaled to [0,1]: ~759 mm
+    Float64, // Worst resolution for a bbox around the earth (12742 km) scaled to [0,1]: ~141 nm
 }
 
 impl PositionEncoding {
