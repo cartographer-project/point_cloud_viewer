@@ -1499,7 +1499,6 @@ version = "0.1.0"
 dependencies = [
  "byteorder 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "cgmath 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "collision 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "error-chain 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1510,6 +1509,7 @@ dependencies = [
  "point_viewer_proto_rust 0.1.0",
  "protobuf 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "scoped-pool 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "structopt 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "walkdir 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

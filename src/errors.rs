@@ -31,6 +31,7 @@ error_chain! {
             description("invalid octree version on disk")
             display(
             "Octree in this directory has a version of {}, the only supported version is {}. \
+            Try running upgrade_octree on this data to get it to the current version. \
             The viewer might eventually be backwards compatible, but for now only \
             the currently created version is supported.", version, octree::CURRENT_VERSION)
         }

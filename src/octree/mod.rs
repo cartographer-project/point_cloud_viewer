@@ -24,7 +24,9 @@ use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
 
 mod node;
-pub use self::node::{ChildIndex, Node, NodeId, NodeLayer, NodeMeta, PositionEncoding};
+pub use self::node::{
+    to_node_proto, ChildIndex, Node, NodeId, NodeLayer, NodeMeta, PositionEncoding,
+};
 
 mod node_iterator;
 pub use self::node_iterator::NodeIterator;
@@ -33,17 +35,45 @@ mod node_writer;
 pub use self::node_writer::NodeWriter;
 
 mod on_disk;
-pub use self::on_disk::{octree_from_directory, read_meta_proto, OnDiskOctreeDataProvider};
+pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 
 mod factory;
 pub use self::factory::OctreeFactory;
 
-pub const CURRENT_VERSION: i32 = 9;
+// Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
+// (u64). We are able to convert the proto on read, so the tools can still read version 9.
+pub const CURRENT_VERSION: i32 = 10;
 
 #[derive(Clone, Debug)]
 pub struct OctreeMeta {
     pub resolution: f64,
     pub bounding_box: Aabb3<f32>,
+}
+
+pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::Node>) -> proto::Meta {
+    let mut meta = proto::Meta::new();
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_x(octree_meta.bounding_box.min().x);
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_y(octree_meta.bounding_box.min().y);
+    meta.mut_bounding_box()
+        .mut_min()
+        .set_z(octree_meta.bounding_box.min().z);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_x(octree_meta.bounding_box.max().x);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_y(octree_meta.bounding_box.max().y);
+    meta.mut_bounding_box()
+        .mut_max()
+        .set_z(octree_meta.bounding_box.max().z);
+    meta.set_resolution(octree_meta.resolution);
+    meta.set_version(CURRENT_VERSION);
+    meta.set_nodes(::protobuf::RepeatedField::<proto::Node>::from_vec(nodes));
+    meta
 }
 
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
@@ -211,8 +241,14 @@ impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
     pub fn from_data_provider(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
-        if meta_proto.version != CURRENT_VERSION {
-            return Err(ErrorKind::InvalidVersion(meta_proto.version).into());
+        match meta_proto.version {
+            9 => println!(
+                "Data is an older octree version: {}, current would be {}. \
+                 If feasible, try upgrading this octree using `upgrade_octree`.",
+                meta_proto.version, CURRENT_VERSION
+            ),
+            CURRENT_VERSION => (),
+            _ => return Err(ErrorKind::InvalidVersion(meta_proto.version).into()),
         }
 
         let bounding_box = {
@@ -224,7 +260,6 @@ impl Octree {
                 Point3::new(max.x, max.y, max.z),
             )
         };
-
         let meta = OctreeMeta {
             resolution: meta_proto.resolution,
             bounding_box,
@@ -232,10 +267,7 @@ impl Octree {
 
         let mut nodes = FnvHashMap::default();
         for node_proto in meta_proto.nodes.iter() {
-            let node_id = NodeId::from_level_index(
-                node_proto.id.as_ref().unwrap().level as u8,
-                node_proto.id.as_ref().unwrap().index as usize,
-            );
+            let node_id = NodeId::from_proto(node_proto.id.as_ref().unwrap());
             nodes.insert(
                 node_id,
                 NodeMeta {
@@ -251,6 +283,17 @@ impl Octree {
             nodes,
             data_provider,
         })
+    }
+
+    pub fn to_meta_proto(&self) -> proto::Meta {
+        let nodes: Vec<proto::Node> = self
+            .nodes
+            .iter()
+            .map(|(id, node_meta)| {
+                to_node_proto(&id, node_meta.num_points, &node_meta.position_encoding)
+            })
+            .collect();
+        to_meta_proto(&self.meta, nodes)
     }
 
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
