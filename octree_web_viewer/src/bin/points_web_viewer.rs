@@ -24,6 +24,7 @@ use structopt::StructOpt;
 #[structopt(name = "points_web_viewer", about = "Visualizing points")]
 pub struct CommandLineArguments {
     /// The octree directory to serve, including a trailing slash.
+    /// this overrides the path_* options
     #[structopt(name = "DIR")]
     octree_path: Option<String>,
     /// Port to listen on.
@@ -32,13 +33,13 @@ pub struct CommandLineArguments {
     /// IP string.
     #[structopt(default_value = "127.0.0.1", long = "--ip")]
     ip: String,
-    /// Optional: prefix for path
+    /// instead of DIR: specify path prefix for octree dir
     #[structopt(long = "--prefix")]
     path_prefix: Option<String>,
-    /// Optional: suffix for path
+    /// Optional: suffix for subfolder of octree dir
     #[structopt(default_value = "/", long = "--suffix")]
     path_suffix: String,
-    /// Optional: octree id
+    /// instead of DIR: specify path folder for octree dir
     #[structopt(long = "--uuid")]
     octree_id: Option<String>,
     /// Cache items

@@ -12,9 +12,9 @@ To build,
 
 
 Then build the server: `cargo build --release`.
-For help and customization arguments, type `../target/release/points_web_viewer --help`.
 
-Serve up the octree using `../target/release/points_web_viewer <octree directory>`, open Chrome to <http://localhost:5433>, navigate with WASD and left-click-drag on the mouse.
+Serve up the octree using `../target/release/points_web_viewer <octree directory>`, open Chrome to <http://localhost:5433>, navigate with WASD and left-click-drag on the mouse. You can also switch serving different octreees which reside at the same subpath by detailing the octree folder string in the GUI. 
+For help and customization arguments, type `../target/release/points_web_viewer --help`. 
 The mouse wheel adjusts movement speed.
 
 The client files (HTML and JavaScript) are embedded in the `points_web_viewer` binary, so it is fully stand alone.
