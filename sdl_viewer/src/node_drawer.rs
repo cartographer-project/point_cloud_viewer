@@ -83,11 +83,11 @@ impl NodeDrawer {
     pub fn update_world_to_gl(&self, matrix: &Matrix4<f32>) {
         unsafe {
             self.program.gl.UseProgram(self.program.id);
-            self.program.gl.UniformMatrix4fv(
+            self.program.gl.UniformMatrix4dv(
                 self.u_world_to_gl,
                 1,
                 false as GLboolean,
-                matrix.as_ptr(),
+                matrix.cast::<f64>().unwrap().as_ptr(),
             );
         }
     }
@@ -111,24 +111,16 @@ impl NodeDrawer {
             // TODO(feuerste): Casting to f32 introduces imprecisions for large bounding boxes,
             // possibly misleading the observer, as points may be shifted due to casting and appear
             // as outliers. Rendering in a local frame may help.
-            self.program.gl.Uniform1f(
+            self.program.gl.Uniform1d(
                 self.u_edge_length,
-                node_view.meta.bounding_cube.edge_length() as f32,
+                node_view.meta.bounding_cube.edge_length(),
             );
             self.program.gl.Uniform1f(self.u_size, point_size);
             self.program.gl.Uniform1f(self.u_gamma, gamma);
 
-            self.program.gl.Uniform3fv(
-                self.u_min,
-                1,
-                node_view
-                    .meta
-                    .bounding_cube
-                    .min()
-                    .cast::<f32>()
-                    .unwrap()
-                    .as_ptr(),
-            );
+            self.program
+                .gl
+                .Uniform3dv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
 
             self.program
                 .gl
@@ -199,14 +191,29 @@ impl NodeView {
             // Specify the layout of the vertex data.
             let pos_attr = program.gl.GetAttribLocation(program.id, c_str!("position"));
             program.gl.EnableVertexAttribArray(pos_attr as GLuint);
-            program.gl.VertexAttribPointer(
-                pos_attr as GLuint,
-                3,
-                data_type,
-                normalize as GLboolean,
-                0,
-                ptr::null(),
-            );
+            match node_data.meta.position_encoding {
+                octree::PositionEncoding::Uint8
+                | octree::PositionEncoding::Uint16
+                | octree::PositionEncoding::Float32 => {
+                    program.gl.VertexAttribPointer(
+                        pos_attr as GLuint,
+                        3,
+                        data_type,
+                        normalize as GLboolean,
+                        0,
+                        ptr::null(),
+                    );
+                }
+                octree::PositionEncoding::Float64 => {
+                    program.gl.VertexAttribLPointer(
+                        pos_attr as GLuint,
+                        3,
+                        data_type,
+                        0,
+                        ptr::null(),
+                    );
+                }
+            }
 
             buffer_color.bind();
             program.gl.BufferData(

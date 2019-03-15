@@ -369,7 +369,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     // TODO(hrapp): This should use OpenGL ES 2.0 to be compatible with WebGL, so this can be made
     // to work with emscripten.
     gl_attr.set_context_profile(GLProfile::Core);
-    gl_attr.set_context_version(3, 2);
+    gl_attr.set_context_version(4, 1);
 
     const WINDOW_WIDTH: i32 = 800;
     const WINDOW_HEIGHT: i32 = 600;
