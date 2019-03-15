@@ -2,7 +2,7 @@ use crate::backend::{get_nodes_data, get_visible_nodes};
 use crate::backend_error::PointsViewerError;
 use crate::state::AppState;
 use actix_web::http::Method;
-use actix_web::{server, HttpRequest, HttpResponse};
+use actix_web::{server, HttpRequest, HttpResponse, State};
 use std::sync::Arc;
 
 const INDEX_HTML: &str = include_str!("../client/index.html");
@@ -27,6 +27,14 @@ pub fn app_bundle_source_map(_req: &HttpRequest<Arc<AppState>>) -> HttpResponse 
         .body(APP_BUNDLE_MAP)
 }
 
+pub fn get_init_tree(state: State<Arc<AppState>>) -> HttpResponse {
+    let init_id = state.return_init_id();
+    match init_id {
+        Ok(id) => HttpResponse::Ok().content_type("text/plain").body(id),
+        Err(err) => HttpResponse::from_error(err.into()),
+    }
+}
+
 /// octree server function
 pub fn start_octree_server(
     app_state: Arc<AppState>,
@@ -39,6 +47,7 @@ pub fn start_octree_server(
             .resource("/app_bundle.js.map", |r| {
                 r.method(Method::GET).f(app_bundle_source_map)
             })
+            .resource("/init_tree", |r| r.with(get_init_tree))
             .resource("/visible_nodes/{octree_id}/", |r| r.with(get_visible_nodes))
             .resource("/nodes_data/{octree_id}/", |r| r.with_async(get_nodes_data))
     })

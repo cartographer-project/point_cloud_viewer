@@ -253,7 +253,7 @@ export class OctreeViewer {
     // material.size. If DAT supports callbacks, we can encapsulate this nicer.
     public material: THREE.ShaderMaterial;
     public maxLevelToDisplay: number;
-    private octree_id: string;
+    public octree_id: string;
 
     private loadedData: { [key: string]: NodeData } = {};
     private nodeLoader: NodeLoader;
@@ -277,12 +277,28 @@ export class OctreeViewer {
 
         this.nodeLoader = new NodeLoader();
         this.currentlyLoading = 0;
-        this.octree_id = 'init_id';
+        this.octree_id = 'invalid_id';
     }
 
-    public load_new_tree(octree_id: string) {
+    public loadNewTree(octree_id: string) {
         this.octree_id = octree_id;
 
+    }
+
+    public requestTreeId(): string {
+        const request = new Request(
+            `/init_tree`,
+            {
+                method: 'GET',
+                credentials: 'same-origin',
+            }
+        );
+
+        window
+            .fetch(request)
+            .then((data) => data.text()) // todo error handling?
+            .then((uuid: any) => { this.octree_id = uuid; });
+        return this.octree_id;
     }
 
     public alphaChanged() {

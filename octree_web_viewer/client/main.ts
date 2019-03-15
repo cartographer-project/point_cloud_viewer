@@ -18,6 +18,7 @@ import * as THREE from 'three';
 import { GUI } from 'dat.gui';
 import { FirstPersonController } from './control';
 import { OctreeViewer } from './octree_viewer';
+import disposeScene from './helper'
 
 class App {
     private camera: THREE.PerspectiveCamera;
@@ -32,8 +33,10 @@ class App {
     public octree_id: string;  // octree identifier
 
     private reset_scene_viewer() {
+        disposeScene(this.scene);
         this.scene = new THREE.Scene();
         this.scene.add(this.camera);
+        // todo (catevita) block requests from the viewer that is going to be replaced
         this.viewer = new OctreeViewer(this.scene, () => {
             this.needsRender = true;
         });
@@ -69,7 +72,7 @@ class App {
         this.lastFrustumUpdateTime = 0;
         this.lastMoveTime = 0;
         this.needsRender = true;
-        this.octree_id = "init_id";
+        this.octree_id = this.viewer.requestTreeId();
 
         const gui = new GUI();
         gui
@@ -103,7 +106,7 @@ class App {
             .name('Point Cloud ID')
             .onFinishChange(() => {
                 this.reset_scene_viewer();
-                this.viewer.load_new_tree(this.octree_id || 'init_id');
+                this.viewer.loadNewTree(this.octree_id || 'invalid_id');
                 this.needsRender = true;
             });
 

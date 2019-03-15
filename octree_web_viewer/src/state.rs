@@ -59,11 +59,7 @@ impl AppState {
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
         // exists
         let octree_key = octree_id.as_ref();
-        // taking care of initial octree
-        if octree_key.len() == 7 && octree_key.starts_with("init_id") {
-            let octree_key = &self.init_octree_id.to_str().unwrap();
-            return self.load_octree(&octree_key);
-        }
+
         {
             // read access to state
             let map = self.octree_map.read().unwrap();
@@ -91,5 +87,9 @@ impl AppState {
             wmap.insert(octree_key.clone(), Arc::clone(&octree));
         }
         Ok(octree)
+    }
+
+    pub fn return_init_id(&self) -> Result<String, PointsViewerError> {
+        Ok(self.init_octree_id.to_str().unwrap().to_string())
     }
 }
