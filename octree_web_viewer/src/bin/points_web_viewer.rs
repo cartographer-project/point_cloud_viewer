@@ -25,25 +25,25 @@ use structopt::StructOpt;
 pub struct CommandLineArguments {
     /// The octree directory to serve, including a trailing slash.
     /// this overrides the path_* options
-    #[structopt(name = "DIR")]
-    octree_path: Option<String>,
+    #[structopt(name = "DIR", parse(from_os_str))]
+    octree_path: Option<PathBuf>,
     /// Port to listen on.
-    #[structopt(default_value = "5433", long = "--port")]
+    #[structopt(default_value = "5433", long = "port")]
     port: u16,
     /// IP string.
-    #[structopt(default_value = "127.0.0.1", long = "--ip")]
+    #[structopt(default_value = "127.0.0.1", long = "ip")]
     ip: String,
     /// instead of DIR: specify path prefix for octree dir
-    #[structopt(long = "--prefix")]
-    path_prefix: Option<String>,
+    #[structopt(long = "prefix", parse(from_os_str), conflicts_with = "octree_path")]
+    path_prefix: Option<PathBuf>,
     /// Optional: suffix for subfolder of octree dir
-    #[structopt(default_value = "/", long = "--suffix")]
-    path_suffix: String,
+    #[structopt(default_value = "", long = "suffix", parse(from_os_str))]
+    path_suffix: PathBuf,
     /// instead of DIR: specify path folder for octree dir
-    #[structopt(long = "--octree_id")]
-    octree_id: Option<String>,
+    #[structopt(long = "octree_id", parse(from_os_str), conflicts_with = "octree_path")]
+    octree_id: Option<PathBuf>,
     /// Cache items
-    #[structopt(default_value = "3", long = "--cache_items")]
+    #[structopt(default_value = "3", long = "cache_items")]
     cache_max: usize,
 }
 
@@ -53,18 +53,12 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
     let suffix = args.path_suffix;
 
     let app_state = match args.octree_path {
-        Some(path) => {
-            let octree_directory = PathBuf::from(path);
+        Some(octree_directory) => {
             let mut prefix = octree_directory.parent().unwrap();
             if octree_directory.ends_with(&suffix) {
                 prefix = prefix.parent().unwrap();
             }
-            let octree_id = octree_directory
-                .strip_prefix(&prefix)?
-                .to_str()
-                .unwrap()
-                .to_string();
-            let prefix = prefix.to_str().unwrap();
+            let octree_id = octree_directory.strip_prefix(&prefix)?;
             AppState::new(args.cache_max, prefix, suffix, octree_id)
         }
         None => {

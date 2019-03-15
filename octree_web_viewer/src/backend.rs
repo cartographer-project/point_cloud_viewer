@@ -20,7 +20,7 @@ pub struct Info {
 pub fn get_visible_nodes(
     (octree_id, state, matrix_query): (Path<String>, State<Arc<AppState>>, Query<Info>),
 ) -> HttpResponse {
-    match get_octree_from_state(octree_id.into_inner(), state) {
+    match get_octree_from_state(&octree_id.into_inner(), &state) {
         Err(err) => HttpResponse::from_error(err.into()),
         Ok(octree) => {
             let matrix = {
@@ -75,13 +75,13 @@ fn pad(input: &mut Vec<u8>) {
 }
 
 fn get_octree_from_state(
-    octree_id: String,
-    state: State<Arc<AppState>>,
+    octree_id: impl AsRef<str>,
+    state: &State<Arc<AppState>>,
 ) -> Result<Arc<Octree>, PointsViewerError> {
-    state.load_octree(&octree_id).map_err(|_error| {
+    state.load_octree(octree_id.as_ref()).map_err(|_error| {
         crate::backend_error::PointsViewerError::NotFound(format!(
             "Could not load tree with octree_id {}.",
-            octree_id
+            octree_id.as_ref()
         ))
     })
 }
@@ -112,7 +112,7 @@ pub fn get_nodes_data(
             let mut num_nodes_fetched = 0;
             let mut num_points = 0;
             let octree: Arc<octree::Octree> =
-                get_octree_from_state(octree_id.into_inner(), state).unwrap();
+                get_octree_from_state(&octree_id.into_inner(), &state).unwrap();
             for node_id in nodes_to_load {
                 let mut node_data = octree
                     .get_node_data(&node_id)

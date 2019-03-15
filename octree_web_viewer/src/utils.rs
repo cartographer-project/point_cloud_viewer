@@ -10,40 +10,40 @@ const APP_BUNDLE: &str = include_str!("../../target/app_bundle.js");
 const APP_BUNDLE_MAP: &str = include_str!("../../target/app_bundle.js.map");
 
 pub fn index(_req: &HttpRequest<Arc<AppState>>) -> HttpResponse {
-        HttpResponse::Ok()
-                .content_type("text/html")
-                .body(INDEX_HTML)
+    HttpResponse::Ok()
+        .content_type("text/html")
+        .body(INDEX_HTML)
 }
 
 pub fn app_bundle(_req: &HttpRequest<Arc<AppState>>) -> HttpResponse {
-        HttpResponse::Ok()
-                .content_type("text/html")
-                .body(APP_BUNDLE)
+    HttpResponse::Ok()
+        .content_type("text/html")
+        .body(APP_BUNDLE)
 }
 
 pub fn app_bundle_source_map(_req: &HttpRequest<Arc<AppState>>) -> HttpResponse {
-        HttpResponse::Ok()
-                .content_type("text/html")
-                .body(APP_BUNDLE_MAP)
+    HttpResponse::Ok()
+        .content_type("text/html")
+        .body(APP_BUNDLE_MAP)
 }
 
 /// octree server function
 pub fn start_octree_server(
-        app_state: Arc<AppState>,
-        ip_port: &str,
+    app_state: Arc<AppState>,
+    ip_port: &str,
 ) -> Result<(), PointsViewerError> {
-        server::new(move || {
-                actix_web::App::with_state(Arc::clone(&app_state))
-                        .resource("/", |r| r.method(Method::GET).f(index))
-                        .resource("/app_bundle.js", |r| r.method(Method::GET).f(app_bundle))
-                        .resource("/app_bundle.js.map", |r| {
-                                r.method(Method::GET).f(app_bundle_source_map)
-                        })
-                        .resource("/visible_nodes/{octree_id}/", |r| r.with(get_visible_nodes))
-                        .resource("/nodes_data/{octree_id}/", |r| r.with_async(get_nodes_data))
-        })
-        .bind(&ip_port)
-        .unwrap_or_else(|_| panic!("Can not bind to {}", &ip_port))
-        .start();
-        Ok(())
+    server::new(move || {
+        actix_web::App::with_state(Arc::clone(&app_state))
+            .resource("/", |r| r.method(Method::GET).f(index))
+            .resource("/app_bundle.js", |r| r.method(Method::GET).f(app_bundle))
+            .resource("/app_bundle.js.map", |r| {
+                r.method(Method::GET).f(app_bundle_source_map)
+            })
+            .resource("/visible_nodes/{octree_id}/", |r| r.with(get_visible_nodes))
+            .resource("/nodes_data/{octree_id}/", |r| r.with_async(get_nodes_data))
+    })
+    .bind(&ip_port)
+    .unwrap_or_else(|_| panic!("Can not bind to {}", &ip_port))
+    .start();
+    Ok(())
 }

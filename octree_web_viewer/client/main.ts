@@ -20,139 +20,139 @@ import { FirstPersonController } from './control';
 import { OctreeViewer } from './octree_viewer';
 
 class App {
-  private camera: THREE.PerspectiveCamera;
-  private scene: THREE.Scene;
-  private controller: FirstPersonController;
-  private viewer: OctreeViewer;
-  private renderer: THREE.WebGLRenderer;
-  private lastFrustumUpdateTime: number;
-  private lastMoveTime: number;
-  private needsRender: boolean;
+    private camera: THREE.PerspectiveCamera;
+    private scene: THREE.Scene;
+    private controller: FirstPersonController;
+    private viewer: OctreeViewer;
+    private renderer: THREE.WebGLRenderer;
+    private lastFrustumUpdateTime: number;
+    private lastMoveTime: number;
+    private needsRender: boolean;
 
-  public octree_id: string;  // octree identifier
+    public octree_id: string;  // octree identifier
 
-  private reset_scene_viewer() {
-    this.scene = new THREE.Scene();
-    this.scene.add(this.camera);
-    this.viewer = new OctreeViewer(this.scene, () => {
-      this.needsRender = true;
-    });
-  }
+    private reset_scene_viewer() {
+        this.scene = new THREE.Scene();
+        this.scene.add(this.camera);
+        this.viewer = new OctreeViewer(this.scene, () => {
+            this.needsRender = true;
+        });
+    }
 
-  public run() {
-    let renderArea = document.getElementById('renderArea');
-    this.renderer = new THREE.WebGLRenderer();
-    this.renderer.setSize(renderArea.clientWidth, renderArea.clientHeight);
-    renderArea.appendChild(this.renderer.domElement);
+    public run() {
+        let renderArea = document.getElementById('renderArea');
+        this.renderer = new THREE.WebGLRenderer();
+        this.renderer.setSize(renderArea.clientWidth, renderArea.clientHeight);
+        renderArea.appendChild(this.renderer.domElement);
 
-    const VIEW_ANGLE = 45;
-    const NEAR = 0.1;
-    const FAR = 10000;
-    this.camera = new THREE.PerspectiveCamera(
-      VIEW_ANGLE,
-      renderArea.clientWidth / renderArea.clientHeight,
-      NEAR,
-      FAR
-    );
-    this.camera.position.z = 150;
-    this.camera.updateMatrix();
-    this.camera.updateMatrixWorld(false);
+        const VIEW_ANGLE = 45;
+        const NEAR = 0.1;
+        const FAR = 10000;
+        this.camera = new THREE.PerspectiveCamera(
+            VIEW_ANGLE,
+            renderArea.clientWidth / renderArea.clientHeight,
+            NEAR,
+            FAR
+        );
+        this.camera.position.z = 150;
+        this.camera.updateMatrix();
+        this.camera.updateMatrixWorld(false);
 
 
-    this.controller = new FirstPersonController(
-      this.camera,
-      this.renderer.domElement
-    );
+        this.controller = new FirstPersonController(
+            this.camera,
+            this.renderer.domElement
+        );
 
-    this.reset_scene_viewer();
-
-    this.lastFrustumUpdateTime = 0;
-    this.lastMoveTime = 0;
-    this.needsRender = true;
-    this.octree_id = "init_id";
-
-    const gui = new GUI();
-    gui
-      .add(this.viewer.material.uniforms['size'], 'value')
-      .name('Point size')
-      .onChange(() => {
-        this.needsRender = true;
-      });
-    gui
-      .add(this.viewer.material.uniforms['alpha'], 'value', 0, 1)
-      .name('Transparency')
-      .onChange(() => {
-        this.viewer.alphaChanged();
-        this.needsRender = true;
-      });
-    gui
-      .add(this.viewer.material.uniforms['gamma'], 'value')
-      .name('Gamma')
-      .onChange(() => {
-        this.needsRender = true;
-      });
-    gui
-      .add(this.viewer, 'maxLevelToDisplay', 0, 7)
-      .name('Moving details')
-      .step(1)
-      .onChange(() => {
-        this.needsRender = true;
-      });
-    gui
-      .add(this, 'octree_id')
-      .name('Point Cloud ID')
-      .onFinishChange(() => {
         this.reset_scene_viewer();
-        this.viewer.load_new_tree(this.octree_id);
+
+        this.lastFrustumUpdateTime = 0;
+        this.lastMoveTime = 0;
         this.needsRender = true;
-      });
+        this.octree_id = "init_id";
 
-    window.addEventListener('resize', () => this.onWindowResize(), false);
-    this.animate();
-  }
+        const gui = new GUI();
+        gui
+            .add(this.viewer.material.uniforms['size'], 'value')
+            .name('Point size')
+            .onChange(() => {
+                this.needsRender = true;
+            });
+        gui
+            .add(this.viewer.material.uniforms['alpha'], 'value', 0, 1)
+            .name('Transparency')
+            .onChange(() => {
+                this.viewer.alphaChanged();
+                this.needsRender = true;
+            });
+        gui
+            .add(this.viewer.material.uniforms['gamma'], 'value')
+            .name('Gamma')
+            .onChange(() => {
+                this.needsRender = true;
+            });
+        gui
+            .add(this.viewer, 'maxLevelToDisplay', 0, 7)
+            .name('Moving details')
+            .step(1)
+            .onChange(() => {
+                this.needsRender = true;
+            });
+        gui
+            .add(this, 'octree_id')
+            .name('Point Cloud ID')
+            .onFinishChange(() => {
+                this.reset_scene_viewer();
+                this.viewer.load_new_tree(this.octree_id || 'init_id');
+                this.needsRender = true;
+            });
 
-  private onWindowResize() {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    // Force a reload of the visible nodes.
-    this.lastFrustumUpdateTime = 0;
-  }
-
-  public animate() {
-    requestAnimationFrame(() => this.animate());
-
-    const time = performance.now();
-    if (this.controller.update()) {
-      this.lastMoveTime = time;
-      this.viewer.setMoving(true);
-      this.needsRender = true;
+        window.addEventListener('resize', () => this.onWindowResize(), false);
+        this.animate();
     }
-    if (time - this.lastMoveTime > 250) {
-      this.viewer.setMoving(false);
-      this.needsRender = true;
-    }
-    if (this.lastFrustumUpdateTime <= this.lastMoveTime &&
-      time - this.lastFrustumUpdateTime > 250) {
-      this.camera.updateMatrixWorld(false);
-      this.lastFrustumUpdateTime = time;
-      const matrix = new THREE.Matrix4().multiplyMatrices(
-        this.camera.projectionMatrix,
-        this.camera.matrixWorldInverse
-      );
-      this.viewer.frustumChanged(
-        matrix,
-        this.renderer.context.canvas.width,
-        this.renderer.context.canvas.height,
-      );
+
+    private onWindowResize() {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        // Force a reload of the visible nodes.
+        this.lastFrustumUpdateTime = 0;
     }
 
-    if (this.needsRender) {
-      this.needsRender = false;
-      // TODO(hrapp): delete invisible nodes and free memory again.
-      this.renderer.render(this.scene, this.camera);
+    public animate() {
+        requestAnimationFrame(() => this.animate());
+
+        const time = performance.now();
+        if (this.controller.update()) {
+            this.lastMoveTime = time;
+            this.viewer.setMoving(true);
+            this.needsRender = true;
+        }
+        if (time - this.lastMoveTime > 250) {
+            this.viewer.setMoving(false);
+            this.needsRender = true;
+        }
+        if (this.lastFrustumUpdateTime <= this.lastMoveTime &&
+            time - this.lastFrustumUpdateTime > 250) {
+            this.camera.updateMatrixWorld(false);
+            this.lastFrustumUpdateTime = time;
+            const matrix = new THREE.Matrix4().multiplyMatrices(
+                this.camera.projectionMatrix,
+                this.camera.matrixWorldInverse
+            );
+            this.viewer.frustumChanged(
+                matrix,
+                this.renderer.context.canvas.width,
+                this.renderer.context.canvas.height,
+            );
+        }
+
+        if (this.needsRender) {
+            this.needsRender = false;
+            // TODO(hrapp): delete invisible nodes and free memory again.
+            this.renderer.render(this.scene, this.camera);
+        }
     }
-  }
 }
 
 let app = new App();
