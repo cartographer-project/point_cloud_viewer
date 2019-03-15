@@ -32,8 +32,10 @@ class App {
 
     public octree_id: string;  // octree identifier
 
-    private reset_scene_viewer() {
-        disposeScene(this.scene);
+    private reset_scene_viewer(doDispose?: boolean) {
+        if (doDispose) {
+            disposeScene(this.scene);
+        }
         this.scene = new THREE.Scene();
         this.scene.add(this.camera);
         // todo (catevita) block requests from the viewer that is going to be replaced
@@ -68,11 +70,11 @@ class App {
         );
 
         this.reset_scene_viewer();
+        this.octree_id = this.viewer.requestTreeId();
 
         this.lastFrustumUpdateTime = 0;
         this.lastMoveTime = 0;
         this.needsRender = true;
-        this.octree_id = this.viewer.requestTreeId();
 
         const gui = new GUI();
         gui
@@ -105,8 +107,8 @@ class App {
             .add(this, 'octree_id')
             .name('Point Cloud ID')
             .onFinishChange(() => {
-                this.reset_scene_viewer();
-                this.viewer.loadNewTree(this.octree_id || 'invalid_id');
+                this.reset_scene_viewer(true);
+                this.viewer.loadNewTree(this.octree_id);
                 this.needsRender = true;
             });
 

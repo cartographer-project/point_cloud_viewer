@@ -33,7 +33,7 @@ pub struct AppState {
     /// information for retieving octree path
     pub key_params: OctreeKeyParams,
     /// backward compatibility to input arguments
-    pub init_octree_id: PathBuf,
+    pub init_octree_id: String,
 }
 
 impl AppState {
@@ -41,7 +41,7 @@ impl AppState {
         map_size: usize,
         prefix: impl Into<PathBuf>,
         suffix: impl Into<PathBuf>,
-        octree_id: impl Into<PathBuf>,
+        octree_id: impl Into<String>,
     ) -> Self {
         AppState {
             octree_map: Arc::new(RwLock::new(HashMap::with_capacity(map_size))),
@@ -90,6 +90,6 @@ impl AppState {
     }
 
     pub fn return_init_id(&self) -> Result<String, PointsViewerError> {
-        Ok(self.init_octree_id.to_str().unwrap().to_string())
+        Ok(self.init_octree_id.clone())
     }
 }

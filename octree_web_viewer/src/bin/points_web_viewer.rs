@@ -37,11 +37,11 @@ pub struct CommandLineArguments {
     #[structopt(long = "prefix", parse(from_os_str), conflicts_with = "octree_path")]
     path_prefix: Option<PathBuf>,
     /// Optional: suffix for subfolder of octree dir
-    #[structopt(default_value = "", long = "suffix", parse(from_os_str))]
-    path_suffix: PathBuf,
+    #[structopt(long = "suffix", parse(from_os_str))]
+    path_suffix: Option<PathBuf>,
     /// instead of DIR: specify path folder for octree dir
-    #[structopt(long = "octree_id", parse(from_os_str), conflicts_with = "octree_path")]
-    octree_id: Option<PathBuf>,
+    #[structopt(long = "octree_id", conflicts_with = "octree_path")]
+    octree_id: Option<String>,
     /// Cache items
     #[structopt(default_value = "20", long = "cache_items")]
     cache_max: usize,
@@ -50,16 +50,23 @@ pub struct CommandLineArguments {
 /// init app state with command arguments
 /// backward compatibilty is ensured
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
-    let suffix = args.path_suffix;
+    let mut has_suffix = false;
+    let suffix = match args.path_suffix {
+        Some(suffix) => {
+            has_suffix = true;
+            suffix
+        }
+        None => PathBuf::from(""),
+    };
 
     let app_state = match args.octree_path {
         Some(octree_directory) => {
             let mut prefix = octree_directory.parent().unwrap();
-            if octree_directory.ends_with(&suffix) {
+            if has_suffix && octree_directory.ends_with(&suffix) {
                 prefix = prefix.parent().unwrap();
             }
             let octree_id = octree_directory.strip_prefix(&prefix)?;
-            AppState::new(args.cache_max, prefix, suffix, octree_id)
+            AppState::new(args.cache_max, prefix, suffix, octree_id.to_str().unwrap())
         }
         None => {
             let prefix = args
