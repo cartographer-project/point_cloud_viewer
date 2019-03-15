@@ -53,9 +53,9 @@ impl InternalIterator for PtsIterator {
             }
             let p = Point {
                 position: Vector3::new(
-                    parts[0].parse::<f32>().unwrap(),
-                    parts[1].parse::<f32>().unwrap(),
-                    parts[2].parse::<f32>().unwrap(),
+                    parts[0].parse::<f64>().unwrap(),
+                    parts[1].parse::<f64>().unwrap(),
+                    parts[2].parse::<f64>().unwrap(),
                 ),
                 color: color::Color {
                     red: parts[4].parse::<u8>().unwrap(),

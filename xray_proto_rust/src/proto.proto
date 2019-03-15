@@ -23,9 +23,14 @@ message Vector2f {
   float y = 2;
 }
 
+message Vector2d {
+  double x = 1;
+  double y = 2;
+}
+
 message Rect {
-  Vector2f min = 1;
-  float edge_length = 2;
+  Vector2d min = 3;
+  double edge_length = 4;
 }
 
 message NodeId {

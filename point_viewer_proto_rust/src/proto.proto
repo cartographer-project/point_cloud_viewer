@@ -24,6 +24,12 @@ message Vector3f {
   float z = 3;
 }
 
+message Vector3d {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
+
 message Quaternionf {
   float x = 1;
   float y = 2;
@@ -45,8 +51,13 @@ message AxisAlignedCube {
 }
 
 message AxisAlignedCuboid {
-  Vector3f min = 1;
-  Vector3f max = 2;
+  Vector3d min = 3;
+  Vector3d max = 4;
+
+  // These were used in VERSION <= 10. Once we no longer need to keep these
+  // working, we should remove these entries.
+  Vector3f deprecated_min = 1;
+  Vector3f deprecated_max = 2;
 }
 
 message NodeId {
@@ -65,6 +76,7 @@ message Node {
     Uint8 = 1;
     Uint16 = 2;
     Float32 = 3;
+    Float64 = 4;
   }
 
   PositionEncoding position_encoding = 2;

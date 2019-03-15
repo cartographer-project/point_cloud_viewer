@@ -281,7 +281,7 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
             "x" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    |p: &mut Point, val: f32| p.position.x = val,
+                    |p: &mut Point, val: f64| p.position.x = val,
                     &mut num_bytes_per_point
                 ));
                 seen_x = true;
@@ -289,7 +289,7 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
             "y" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    |p: &mut Point, val: f32| p.position.y = val,
+                    |p: &mut Point, val: f64| p.position.y = val,
                     &mut num_bytes_per_point
                 ));
                 seen_y = true;
@@ -297,7 +297,7 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
             "z" => {
                 readers.push(read_casted_property!(
                     prop.data_type,
-                    |p: &mut Point, val: f32| p.position.z = val,
+                    |p: &mut Point, val: f64| p.position.z = val,
                     &mut num_bytes_per_point
                 ));
                 seen_z = true;

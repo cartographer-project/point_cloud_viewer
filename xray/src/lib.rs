@@ -8,7 +8,7 @@ use serde_derive::Serialize;
 use std::io::{self, Cursor};
 use std::path::Path;
 
-pub const CURRENT_VERSION: i32 = 2;
+pub const CURRENT_VERSION: i32 = 3;
 
 #[derive(Debug, Clone)]
 pub struct Meta {
@@ -26,9 +26,9 @@ pub struct NodeMeta {
 
 #[derive(Clone, Serialize, Debug)]
 pub struct BoundingRect {
-    pub min_x: f32,
-    pub min_y: f32,
-    pub edge_length: f32,
+    pub min_x: f64,
+    pub min_y: f64,
+    pub edge_length: f64,
 }
 
 // TODO(sirver): This should all return errors.
@@ -92,7 +92,9 @@ impl Meta {
                 e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10], e[11], e[12],
                 e[13], e[14], e[15],
             )
-        };
+        }
+        .cast::<f64>()
+        .unwrap();
         let frustum =
             Frustum::from_matrix4(matrix).ok_or("Unable to create frustum from matrix")?;
         let mut result = Vec::new();

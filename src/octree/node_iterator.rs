@@ -97,6 +97,23 @@ impl InternalIterator for NodeIterator {
                         edge_length,
                     );
                 }
+                PositionEncoding::Float64 => {
+                    point.position.x = decode(
+                        self.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                        min.x,
+                        edge_length,
+                    );
+                    point.position.y = decode(
+                        self.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                        min.y,
+                        edge_length,
+                    );
+                    point.position.z = decode(
+                        self.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                        min.z,
+                        edge_length,
+                    );
+                }
                 PositionEncoding::Uint8 => {
                     point.position.x =
                         fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.x, edge_length);

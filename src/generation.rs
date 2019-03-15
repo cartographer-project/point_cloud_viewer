@@ -106,7 +106,7 @@ fn should_split_node(
         return false;
     }
     let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
-    if f64::from(bounding_cube.edge_length()) <= octree_meta.resolution {
+    if bounding_cube.edge_length() <= octree_meta.resolution {
         // TODO(hrapp): If the data has billion of points in this small spot, performance will
         // greatly suffer if we display it. Drop points?
         println!(
@@ -251,7 +251,7 @@ fn make_stream(input: &InputFile) -> (InputFileIterator, Option<ProgressBar<Stdo
 }
 
 /// Returns the bounding box containing all points
-fn find_bounding_box(input: &InputFile) -> Aabb3<f32> {
+fn find_bounding_box(input: &InputFile) -> Aabb3<f64> {
     let mut num_points = 0i64;
     let mut bounding_box = Aabb3::zero();
     let (stream, mut progress_bar) = make_stream(input);
@@ -303,7 +303,7 @@ pub fn build_octree(
     pool: &Pool,
     output_directory: impl AsRef<Path>,
     resolution: f64,
-    bounding_box: Aabb3<f32>,
+    bounding_box: Aabb3<f64>,
     input: impl InternalIterator,
 ) {
     // We open a lot of files during our work. Sometimes users see errors with 'cannot open more
