@@ -43,7 +43,7 @@ pub struct CommandLineArguments {
     #[structopt(long = "octree_id", parse(from_os_str), conflicts_with = "octree_path")]
     octree_id: Option<PathBuf>,
     /// Cache items
-    #[structopt(default_value = "3", long = "cache_items")]
+    #[structopt(default_value = "20", long = "cache_items")]
     cache_max: usize,
 }
 

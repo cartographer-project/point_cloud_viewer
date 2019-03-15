@@ -82,7 +82,7 @@ impl AppState {
         octree_id: impl Into<String>,
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
         let octree_key = octree_id.into();
-        let addr = &self.key_params.get_octree_address(&octree_key)?.clone();
+        let addr = &self.key_params.get_octree_address(&octree_key)?;
         println!("Current tree address to insert:{}", addr.to_str().unwrap());
         let octree: Arc<octree::Octree> = Arc::from(octree::octree_from_directory(&addr)?);
         {
