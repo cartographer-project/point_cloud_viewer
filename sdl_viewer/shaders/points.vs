@@ -1,9 +1,7 @@
 #version 410 core
 
-#define POS_TYPE vec3
-
 // inputs
-layout(location = 0) in POS_TYPE position;
+layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 color;
 
 uniform dmat4 world_to_gl;

@@ -89,7 +89,7 @@ impl NodeDrawer {
         let program_f64 = create_program(
             &VERTEX_SHADER
                 .to_string()
-                .replace("#define POS_TYPE vec3", "#define POS_TYPE dvec3"),
+                .replace("vec3 position", "dvec3 position"),
         );
         NodeDrawer {
             program_f32,
