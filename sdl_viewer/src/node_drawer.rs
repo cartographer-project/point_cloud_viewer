@@ -97,8 +97,8 @@ impl NodeDrawer {
         }
     }
 
-    pub fn program(&self, meta: &octree::NodeMeta) -> &NodeProgram {
-        if meta.position_encoding == octree::PositionEncoding::Float64 {
+    pub fn program(&self, position_encoding: &octree::PositionEncoding) -> &NodeProgram {
+        if let octree::PositionEncoding::Float64 = position_encoding {
             &self.program_f64
         } else {
             &self.program_f32
@@ -130,7 +130,7 @@ impl NodeDrawer {
         let num_points = node_view
             .meta
             .num_points_for_level_of_detail(level_of_detail);
-        let node_program = self.program(&node_view.meta);
+        let node_program = self.program(&node_view.meta.position_encoding);
         let program = &node_program.program;
         unsafe {
             program.gl.UseProgram(program.id);
@@ -171,7 +171,7 @@ pub struct NodeView {
 
 impl NodeView {
     fn new(node_drawer: &NodeDrawer, node_data: octree::NodeData) -> Self {
-        let node_program = node_drawer.program(&node_data.meta);
+        let node_program = node_drawer.program(&node_data.meta.position_encoding);
         let program = &node_program.program;
         unsafe {
             program.gl.UseProgram(program.id);
