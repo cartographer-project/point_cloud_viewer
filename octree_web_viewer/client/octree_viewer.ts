@@ -83,7 +83,7 @@ class NodeLoader {
         scene: THREE.Scene,
         material: THREE.ShaderMaterial,
         nodes: NodeData[],
-        octree_id: string
+        octreeId: string
     ): Promise<void> {
         let query: string[] = [];
 
@@ -92,7 +92,7 @@ class NodeLoader {
         }
         const headers = new Headers();
         headers.append('Content-Type', 'application/json; charset=UTF-8');
-        const request = new Request(`/nodes_data/${octree_id}/`, {
+        const request = new Request(`/nodes_data/${octreeId}/`, {
             method: 'POST',
             body: '[' + query.join(',') + ']',
             headers: headers,
@@ -253,7 +253,7 @@ export class OctreeViewer {
     // material.size. If DAT supports callbacks, we can encapsulate this nicer.
     public material: THREE.ShaderMaterial;
     public maxLevelToDisplay: number;
-    public octree_id: string;
+    private octreeId: string;
 
     private loadedData: { [key: string]: NodeData } = {};
     private nodeLoader: NodeLoader;
@@ -262,7 +262,7 @@ export class OctreeViewer {
     private useTransparency: boolean;
 
 
-    constructor(private scene: THREE.Scene, private onNewNodeData: () => void, octree_id?: string) {
+    constructor(private scene: THREE.Scene, private onNewNodeData: () => void, requestID?: boolean, octreeId?: string) {
         this.material = new THREE.ShaderMaterial({
             uniforms: {
                 size: { value: 2 },
@@ -277,19 +277,14 @@ export class OctreeViewer {
 
         this.nodeLoader = new NodeLoader();
         this.currentlyLoading = 0;
-        if (undefined === octree_id) {
-            this.octree_id = this.requestTreeId()
+        if (requestID) {
+            this.requestTreeId()
         } else {
-            this.octree_id = octree_id;
+            this.octreeId = octreeId;
         }
     }
 
-    public setOctreeID(octree_id: string) {
-        this.octree_id = octree_id;
-
-    }
-
-    public requestTreeId(): string {
+    private requestTreeId() {
         const request = new Request(
             `/init_tree`,
             {
@@ -298,14 +293,17 @@ export class OctreeViewer {
             }
         );
 
+
         window
             .fetch(request)
-            //.then((response) => response.text()) // todo error handling?
             .then((response) => response.text()) // todo error handling?
-            .then((body) => { console.log(body); this.octree_id = body; })
-        return this.octree_id;
+            .then((body) => { console.log("Initial octree id: " + body); this.octreeId = body; })
     }
 
+    public getOctreeId(): string {
+        let ostring = this.octreeId;
+        return ostring;
+    }
     public alphaChanged() {
         let newUseTransparency = this.material.uniforms['alpha'].value < 1;
         if (newUseTransparency != this.useTransparency) {
@@ -322,7 +320,7 @@ export class OctreeViewer {
     public frustumChanged(matrix: THREE.Matrix4, width: number, height: number) {
         // ThreeJS is column major.
         const request = new Request(
-            `/visible_nodes/${this.octree_id}/?width=${width}&height=${height}&matrix=${matrixToString(
+            `/visible_nodes/${this.octreeId}/?width=${width}&height=${height}&matrix=${matrixToString(
                 matrix
             )}`,
             {
@@ -382,7 +380,7 @@ export class OctreeViewer {
         }
         this.currentlyLoading += 1;
         this.nodeLoader
-            .load(this.scene, this.material, this.batches.shift(), this.octree_id)
+            .load(this.scene, this.material, this.batches.shift(), this.octreeId)
             .then(() => {
                 this.currentlyLoading -= 1;
                 this.onNewNodeData();
