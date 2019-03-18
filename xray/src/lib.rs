@@ -62,7 +62,7 @@ impl Meta {
         let bounding_rect = proto.get_bounding_rect();
         let (min, edge_length) = bounding_rect.min.clone().into_option().map_or_else(
             || {
-                let deprecated_min = bounding_rect.deprecated_min.clone().unwrap();
+                let deprecated_min = bounding_rect.get_deprecated_min();
                 (
                     Point2::new(f64::from(deprecated_min.x), f64::from(deprecated_min.y)),
                     f64::from(bounding_rect.get_deprecated_edge_length()),
