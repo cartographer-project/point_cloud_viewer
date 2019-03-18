@@ -7,22 +7,19 @@ use std::sync::{Arc, RwLock};
 /// path information for the octrees
 #[derive(Clone)]
 pub struct OctreeKeyParams {
-    /// Location prefix, including
+    /// Location prefix
     prefix: PathBuf,
-    /// Tree ID
+    /// Location suffix
     suffix: PathBuf,
 }
 
 impl OctreeKeyParams {
-    pub fn get_octree_address(
-        &self,
-        octree_key: impl AsRef<Path>,
-    ) -> Result<PathBuf, PointsViewerError> {
+    pub fn get_octree_address(&self, octree_key: impl AsRef<Path>) -> PathBuf {
         let mut addr = PathBuf::new();
         addr.push(self.prefix.clone());
         addr.push(octree_key.as_ref());
         addr.push(self.suffix.clone());
-        Ok(addr)
+        addr
     }
 }
 
@@ -78,7 +75,7 @@ impl AppState {
         octree_id: impl Into<String>,
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
         let octree_key = octree_id.into();
-        let addr = &self.key_params.get_octree_address(&octree_key)?;
+        let addr = &self.key_params.get_octree_address(&octree_key);
         println!("Current tree address to insert:{}", addr.to_str().unwrap());
         let octree: Arc<octree::Octree> = Arc::from(octree::octree_from_directory(&addr)?);
         {
