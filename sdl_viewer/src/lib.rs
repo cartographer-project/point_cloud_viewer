@@ -165,9 +165,7 @@ impl PointCloudRenderer {
 
         let now = time::PreciseTime::now();
         let moving = self.last_moving.to(now) < time::Duration::milliseconds(150);
-        self.needs_drawing |= self
-            .node_views
-            .consume_arrived_nodes(&self.node_drawer.program);
+        self.needs_drawing |= self.node_views.consume_arrived_nodes(&self.node_drawer);
         while let Ok(visible_nodes) = self.get_visible_nodes_result_rx.try_recv() {
             self.visible_nodes.clear();
             self.visible_nodes.extend(visible_nodes);

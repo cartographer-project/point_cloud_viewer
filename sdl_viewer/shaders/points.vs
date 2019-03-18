@@ -1,7 +1,9 @@
 #version 410 core
 
+#define POS_TYPE vec3
+
 // inputs
-layout(location = 0) in dvec3 position;
+layout(location = 0) in POS_TYPE position;
 layout(location = 1) in vec3 color;
 
 uniform dmat4 world_to_gl;
@@ -17,5 +19,6 @@ void main() {
   vec3 corrected_color = pow(color / 255., vec3(1.0 / gamma));
   v_color = vec4(corrected_color, 1.);
   gl_PointSize = size;
-  gl_Position = vec4(world_to_gl * dvec4(position * edge_length + min, 1.0lf));
+  gl_Position =
+      vec4(world_to_gl * dvec4(dvec3(position) * edge_length + min, 1.0lf));
 }

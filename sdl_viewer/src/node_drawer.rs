@@ -42,8 +42,8 @@ fn reshuffle(new_order: &[usize], old_data: &[u8], bytes_per_vertex: usize) -> V
     new_data
 }
 
-pub struct NodeDrawer {
-    pub program: GlProgram,
+pub struct NodeProgram {
+    program: GlProgram,
 
     // Uniforms locations.
     u_world_to_gl: GLint,
@@ -53,43 +53,70 @@ pub struct NodeDrawer {
     u_min: GLint,
 }
 
+pub struct NodeDrawer {
+    program_float: NodeProgram,
+    program_double: NodeProgram,
+}
+
 impl NodeDrawer {
     pub fn new(gl: &Rc<opengl::Gl>) -> Self {
-        let program = GlProgram::new(Rc::clone(gl), VERTEX_SHADER, FRAGMENT_SHADER);
-        let u_world_to_gl;
-        let u_edge_length;
-        let u_size;
-        let u_gamma;
-        let u_min;
-        unsafe {
-            gl.UseProgram(program.id);
+        let create_program = |vertex_shader: &str| {
+            let program = GlProgram::new(Rc::clone(gl), vertex_shader, FRAGMENT_SHADER);
+            let u_world_to_gl;
+            let u_edge_length;
+            let u_size;
+            let u_gamma;
+            let u_min;
+            unsafe {
+                gl.UseProgram(program.id);
 
-            u_world_to_gl = gl.GetUniformLocation(program.id, c_str!("world_to_gl"));
-            u_edge_length = gl.GetUniformLocation(program.id, c_str!("edge_length"));
-            u_size = gl.GetUniformLocation(program.id, c_str!("size"));
-            u_gamma = gl.GetUniformLocation(program.id, c_str!("gamma"));
-            u_min = gl.GetUniformLocation(program.id, c_str!("min"));
-        }
+                u_world_to_gl = gl.GetUniformLocation(program.id, c_str!("world_to_gl"));
+                u_edge_length = gl.GetUniformLocation(program.id, c_str!("edge_length"));
+                u_size = gl.GetUniformLocation(program.id, c_str!("size"));
+                u_gamma = gl.GetUniformLocation(program.id, c_str!("gamma"));
+                u_min = gl.GetUniformLocation(program.id, c_str!("min"));
+            }
+            NodeProgram {
+                program,
+                u_world_to_gl,
+                u_edge_length,
+                u_size,
+                u_gamma,
+                u_min,
+            }
+        };
+        let program_float = create_program(VERTEX_SHADER);
+        let program_double = create_program(
+            &VERTEX_SHADER
+                .to_string()
+                .replace("#define POS_TYPE vec3", "#define POS_TYPE dvec3"),
+        );
         NodeDrawer {
-            program,
-            u_world_to_gl,
-            u_edge_length,
-            u_size,
-            u_gamma,
-            u_min,
+            program_float,
+            program_double,
         }
     }
 
-    pub fn update_world_to_gl(&self, matrix: &Matrix4<f32>) {
-        unsafe {
-            self.program.gl.UseProgram(self.program.id);
-            self.program.gl.UniformMatrix4dv(
-                self.u_world_to_gl,
+    pub fn program(&self, meta: &octree::NodeMeta) -> &NodeProgram {
+        if meta.position_encoding == octree::PositionEncoding::Float64 {
+            &self.program_double
+        } else {
+            &self.program_float
+        }
+    }
+
+    pub fn update_world_to_gl(&mut self, matrix: &Matrix4<f32>) {
+        let update_matrix = |node_program: &mut NodeProgram| unsafe {
+            node_program.program.gl.UseProgram(node_program.program.id);
+            node_program.program.gl.UniformMatrix4dv(
+                node_program.u_world_to_gl,
                 1,
                 false as GLboolean,
                 matrix.cast::<f64>().unwrap().as_ptr(),
             );
-        }
+        };
+        update_matrix(&mut self.program_float);
+        update_matrix(&mut self.program_double);
     }
 
     pub fn draw(
@@ -103,30 +130,29 @@ impl NodeDrawer {
         let num_points = node_view
             .meta
             .num_points_for_level_of_detail(level_of_detail);
+        let node_program = self.program(&node_view.meta);
+        let program = &node_program.program;
         unsafe {
-            self.program.gl.UseProgram(self.program.id);
-            self.program.gl.Enable(opengl::PROGRAM_POINT_SIZE);
-            self.program.gl.Enable(opengl::DEPTH_TEST);
+            program.gl.UseProgram(program.id);
+            program.gl.Enable(opengl::PROGRAM_POINT_SIZE);
+            program.gl.Enable(opengl::DEPTH_TEST);
 
-            // TODO(feuerste): Casting to f32 introduces imprecisions for large bounding boxes,
-            // possibly misleading the observer, as points may be shifted due to casting and appear
-            // as outliers. Rendering in a local frame may help.
-            self.program.gl.Uniform1d(
-                self.u_edge_length,
+            program.gl.Uniform1d(
+                node_program.u_edge_length,
                 node_view.meta.bounding_cube.edge_length(),
             );
-            self.program.gl.Uniform1f(self.u_size, point_size);
-            self.program.gl.Uniform1f(self.u_gamma, gamma);
+            program.gl.Uniform1f(node_program.u_size, point_size);
+            program.gl.Uniform1f(node_program.u_gamma, gamma);
 
-            self.program
-                .gl
-                .Uniform3dv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
+            program.gl.Uniform3dv(
+                node_program.u_min,
+                1,
+                node_view.meta.bounding_cube.min().as_ptr(),
+            );
 
-            self.program
-                .gl
-                .DrawArrays(opengl::POINTS, 0, num_points as i32);
+            program.gl.DrawArrays(opengl::POINTS, 0, num_points as i32);
 
-            self.program.gl.Disable(opengl::PROGRAM_POINT_SIZE);
+            program.gl.Disable(opengl::PROGRAM_POINT_SIZE);
         }
         num_points
     }
@@ -144,7 +170,9 @@ pub struct NodeView {
 }
 
 impl NodeView {
-    fn new(program: &GlProgram, node_data: octree::NodeData) -> Self {
+    fn new(node_drawer: &NodeDrawer, node_data: octree::NodeData) -> Self {
+        let node_program = node_drawer.program(&node_data.meta);
+        let program = &node_program.program;
         unsafe {
             program.gl.UseProgram(program.id);
         }
@@ -275,13 +303,13 @@ impl NodeViewContainer {
         }
     }
 
-    pub fn consume_arrived_nodes(&mut self, program: &GlProgram) -> bool {
+    pub fn consume_arrived_nodes(&mut self, node_drawer: &NodeDrawer) -> bool {
         let mut consumed_any = false;
         while let Ok((node_id, node_data)) = self.node_data_receiver.try_recv() {
             // Put loaded node into hash map.
             self.requested.remove(&node_id);
             self.node_views
-                .insert(node_id, NodeView::new(program, node_data));
+                .insert(node_id, NodeView::new(node_drawer, node_data));
             consumed_any = true;
         }
         consumed_any
