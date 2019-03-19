@@ -204,10 +204,10 @@ impl NodeView {
         unsafe {
             buffer_position.bind();
             let (normalize, data_type) = match node_data.meta.position_encoding {
-                octree::PositionEncoding::Uint8 => (true, opengl::UNSIGNED_BYTE),
-                octree::PositionEncoding::Uint16 => (true, opengl::UNSIGNED_SHORT),
-                octree::PositionEncoding::Float32 => (false, opengl::FLOAT),
-                octree::PositionEncoding::Float64 => (false, opengl::DOUBLE),
+                octree::PositionEncoding::Uint8 => (opengl::TRUE, opengl::UNSIGNED_BYTE),
+                octree::PositionEncoding::Uint16 => (opengl::TRUE, opengl::UNSIGNED_SHORT),
+                octree::PositionEncoding::Float32 => (opengl::FALSE, opengl::FLOAT),
+                octree::PositionEncoding::Float64 => (opengl::FALSE, opengl::DOUBLE),
             };
             program.gl.BufferData(
                 opengl::ARRAY_BUFFER,
@@ -217,30 +217,16 @@ impl NodeView {
             );
 
             // Specify the layout of the vertex data.
-            let pos_attr = program.gl.GetAttribLocation(program.id, c_str!("position"));
-            program.gl.EnableVertexAttribArray(pos_attr as GLuint);
-            match node_data.meta.position_encoding {
-                octree::PositionEncoding::Uint8
-                | octree::PositionEncoding::Uint16
-                | octree::PositionEncoding::Float32 => {
-                    program.gl.VertexAttribPointer(
-                        pos_attr as GLuint,
-                        3,
-                        data_type,
-                        normalize as GLboolean,
-                        0,
-                        ptr::null(),
-                    );
-                }
-                octree::PositionEncoding::Float64 => {
-                    program.gl.VertexAttribLPointer(
-                        pos_attr as GLuint,
-                        3,
-                        data_type,
-                        0,
-                        ptr::null(),
-                    );
-                }
+            let pos_attr = program.gl.GetAttribLocation(program.id, c_str!("position")) as GLuint;
+            program.gl.EnableVertexAttribArray(pos_attr);
+            if node_data.meta.position_encoding == octree::PositionEncoding::Float64 {
+                program
+                    .gl
+                    .VertexAttribLPointer(pos_attr, 3, data_type, 0, ptr::null());
+            } else {
+                program
+                    .gl
+                    .VertexAttribPointer(pos_attr, 3, data_type, normalize, 0, ptr::null());
             }
 
             buffer_color.bind();
