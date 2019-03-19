@@ -54,8 +54,8 @@ pub struct NodeProgram {
 }
 
 pub struct NodeDrawer {
-    program_float: NodeProgram,
-    program_double: NodeProgram,
+    program_f32: NodeProgram,
+    program_f64: NodeProgram,
 }
 
 impl NodeDrawer {
@@ -85,23 +85,23 @@ impl NodeDrawer {
                 u_min,
             }
         };
-        let program_float = create_program(VERTEX_SHADER);
-        let program_double = create_program(
+        let program_f32 = create_program(VERTEX_SHADER);
+        let program_f64 = create_program(
             &VERTEX_SHADER
                 .to_string()
-                .replace("#define POS_TYPE vec3", "#define POS_TYPE dvec3"),
+                .replace("vec3 position", "dvec3 position"),
         );
         NodeDrawer {
-            program_float,
-            program_double,
+            program_f32,
+            program_f64,
         }
     }
 
-    pub fn program(&self, meta: &octree::NodeMeta) -> &NodeProgram {
-        if meta.position_encoding == octree::PositionEncoding::Float64 {
-            &self.program_double
+    pub fn program(&self, position_encoding: &octree::PositionEncoding) -> &NodeProgram {
+        if let octree::PositionEncoding::Float64 = position_encoding {
+            &self.program_f64
         } else {
-            &self.program_float
+            &self.program_f32
         }
     }
 
@@ -115,8 +115,8 @@ impl NodeDrawer {
                 matrix.cast::<f64>().unwrap().as_ptr(),
             );
         };
-        update_matrix(&mut self.program_float);
-        update_matrix(&mut self.program_double);
+        update_matrix(&mut self.program_f32);
+        update_matrix(&mut self.program_f64);
     }
 
     pub fn draw(
@@ -130,7 +130,7 @@ impl NodeDrawer {
         let num_points = node_view
             .meta
             .num_points_for_level_of_detail(level_of_detail);
-        let node_program = self.program(&node_view.meta);
+        let node_program = self.program(&node_view.meta.position_encoding);
         let program = &node_program.program;
         unsafe {
             program.gl.UseProgram(program.id);
@@ -171,7 +171,7 @@ pub struct NodeView {
 
 impl NodeView {
     fn new(node_drawer: &NodeDrawer, node_data: octree::NodeData) -> Self {
-        let node_program = node_drawer.program(&node_data.meta);
+        let node_program = node_drawer.program(&node_data.meta.position_encoding);
         let program = &node_program.program;
         unsafe {
             program.gl.UseProgram(program.id);
