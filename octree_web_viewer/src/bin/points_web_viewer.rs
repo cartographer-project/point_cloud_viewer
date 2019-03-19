@@ -17,11 +17,21 @@ use octree_web_viewer::state::AppState;
 use octree_web_viewer::utils::start_octree_server;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use structopt::clap::ArgGroup;
 use structopt::StructOpt;
 
+fn group_inputs() -> ArgGroup<'static> {
+    ArgGroup::with_name("path_stubs")
+        .conflicts_with("octree_path")
+        .requires_all(&["prefix", "suffix", "octree_id"])
+}
 /// HTTP web viewer for 3d points stored in OnDiskOctrees
 #[derive(StructOpt, Debug)]
-#[structopt(name = "points_web_viewer", about = "Visualizing points")]
+#[structopt(
+    name = "points_web_viewer",
+    about = "Visualizing points",
+    raw(group = "group_inputs()")
+)]
 pub struct CommandLineArguments {
     /// The octree directory to serve, including a trailing slash.
     /// this overrides the path_* options
@@ -34,13 +44,13 @@ pub struct CommandLineArguments {
     #[structopt(default_value = "127.0.0.1", long = "ip")]
     ip: String,
     /// instead of DIR: specify path prefix for octree dir
-    #[structopt(long = "prefix", parse(from_os_str), conflicts_with = "octree_path")]
+    #[structopt(long = "prefix", parse(from_os_str), group = "path_stubs")]
     path_prefix: Option<PathBuf>,
     /// Optional: suffix for subfolder of octree dir
     #[structopt(long = "suffix", parse(from_os_str))]
     path_suffix: Option<PathBuf>,
     /// instead of DIR: specify path folder for octree dir
-    #[structopt(long = "octree_id", conflicts_with = "octree_path")]
+    #[structopt(long = "octree_id", group = "path_stubs")]
     octree_id: Option<String>,
     /// Cache items
     #[structopt(default_value = "20", long = "cache_items")]

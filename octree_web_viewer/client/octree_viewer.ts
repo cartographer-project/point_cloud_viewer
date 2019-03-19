@@ -262,7 +262,7 @@ export class OctreeViewer {
     private useTransparency: boolean;
 
 
-    constructor(private scene: THREE.Scene, private onNewNodeData: () => void, requestID?: boolean, octreeId?: string) {
+    constructor(private scene: THREE.Scene, private onNewNodeData: () => void, octreeId?: string) {
         this.material = new THREE.ShaderMaterial({
             uniforms: {
                 size: { value: 2 },
@@ -277,33 +277,9 @@ export class OctreeViewer {
 
         this.nodeLoader = new NodeLoader();
         this.currentlyLoading = 0;
-        if (requestID) {
-            this.requestTreeId()
-        } else {
-            this.octreeId = octreeId;
-        }
+        this.octreeId = octreeId;
     }
 
-    private requestTreeId() {
-        const request = new Request(
-            `/init_tree`,
-            {
-                method: 'GET',
-                credentials: 'same-origin',
-            }
-        );
-
-
-        window
-            .fetch(request)
-            .then((response) => response.text()) // todo error handling?
-            .then((body) => { console.log("Initial octree id: " + body); this.octreeId = body; })
-    }
-
-    public getOctreeId(): string {
-        let ostring = this.octreeId;
-        return ostring;
-    }
     public alphaChanged() {
         let newUseTransparency = this.material.uniforms['alpha'].value < 1;
         if (newUseTransparency != this.useTransparency) {

@@ -19,6 +19,7 @@ import { GUI } from 'dat.gui';
 import { FirstPersonController } from './control';
 import { OctreeViewer } from './octree_viewer';
 import disposeScene from './helper'
+import { Float32Attribute } from 'three';
 
 class App {
     private camera: THREE.PerspectiveCamera;
@@ -29,29 +30,106 @@ class App {
     private lastFrustumUpdateTime: number;
     private lastMoveTime: number;
     private needsRender: boolean;
-
+    private pointCloudIdControl: dat.GUIController;
+    private gui: dat.GUI;
+    private guiRenderControls: dat.GUI;
     public octreeId: string;  // octree identifier
 
-    private resetSceneViewer(requestId?: boolean, octreeId?: string, doDispose?: boolean) {
-        if (doDispose) {
-            disposeScene(this.scene);
-        }
+    private resetSceneViewer(octreeId?: string) {
+        this.resetRenderer();
         this.scene = new THREE.Scene();
         this.scene.add(this.camera);
         // todo (catevita) block requests from the viewer that is going to be replaced
         this.viewer = new OctreeViewer(this.scene, () => {
             this.needsRender = true;
-        }, requestId, octreeId);
+        }, octreeId);
 
+        this.appendOctreeGuiControls();
         this.lastFrustumUpdateTime = 0;
+        this.animate();
+    }
+
+    private clearGui() {
+        this.gui.removeFolder(this.guiRenderControls);
+    }
+    private appendOctreeGuiControls() {
+        if (this.guiRenderControls) {
+            this.clearGui();
+        }
+
+        this.guiRenderControls = this.gui.addFolder('Render controls');
+        this.guiRenderControls
+            .add(this.viewer.material.uniforms['size'], 'value')
+            .name('Point size')
+            .onChange(() => {
+                this.needsRender = true;
+            });
+        this.guiRenderControls
+            .add(this.viewer.material.uniforms['alpha'], 'value', 0, 1)
+            .name('Transparency')
+            .onChange(() => {
+                this.viewer.alphaChanged();
+                this.needsRender = true;
+            });
+        this.guiRenderControls
+            .add(this.viewer.material.uniforms['gamma'], 'value')
+            .name('Gamma')
+            .onChange(() => {
+                this.needsRender = true;
+            });
+        this.guiRenderControls
+            .add(this.viewer, 'maxLevelToDisplay', 0, 7)
+            .name('Moving details')
+            .step(1)
+            .onChange(() => {
+                this.needsRender = true;
+            });
+    }
+
+    private resetRenderer() {
+
+        let renderArea = document.getElementById('renderArea');
+        if (this.renderer) {
+            renderArea.removeChild(this.renderer.domElement);
+            this.renderer.dispose();
+        }
+        this.renderer = new THREE.WebGLRenderer();
+        this.renderer.setSize(renderArea.clientWidth, renderArea.clientHeight);
+        renderArea.appendChild(this.renderer.domElement);
+        this.controller = new FirstPersonController(
+            this.camera,
+            this.renderer.domElement
+        );
+    }
+    private requestTreeId() {
+        const request = new Request(
+            `/init_tree`,
+            {
+                method: 'GET',
+                credentials: 'same-origin',
+            }
+        );
+
+
+        window
+            .fetch(request)
+            .then((response) => response.text()) // todo error handling?
+            .then((body) => {
+                console.log("Initial octree id: " + body);
+                this.octreeId = body;
+                this.pointCloudIdControl.updateDisplay();
+                this.updateOctree();
+            });
+
+    }
+
+    private updateOctree = () => {
+        this.resetSceneViewer(this.octreeId);
+        this.needsRender = true;
     }
 
     public run() {
         let renderArea = document.getElementById('renderArea');
-        this.renderer = new THREE.WebGLRenderer();
-        this.renderer.setSize(renderArea.clientWidth, renderArea.clientHeight);
-        renderArea.appendChild(this.renderer.domElement);
-
         const VIEW_ANGLE = 45;
         const NEAR = 0.1;
         const FAR = 10000;
@@ -65,54 +143,21 @@ class App {
         this.camera.updateMatrix();
         this.camera.updateMatrixWorld(false);
 
-
-        this.controller = new FirstPersonController(
-            this.camera,
-            this.renderer.domElement
-        );
-
-        this.resetSceneViewer(true);
-        this.octreeId = this.viewer.getOctreeId() || "insert octree ID";
         this.lastMoveTime = 0;
         this.needsRender = true;
+        this.octreeId = "loading..";
+        this.gui = new GUI();
+        this.pointCloudIdControl =
+            this.gui
+                .add(this, 'octreeId')
+                .name('Point Cloud ID')
+                .onFinishChange(this.updateOctree);
 
-        const gui = new GUI();
-        gui
-            .add(this.viewer.material.uniforms['size'], 'value')
-            .name('Point size')
-            .onChange(() => {
-                this.needsRender = true;
-            });
-        gui
-            .add(this.viewer.material.uniforms['alpha'], 'value', 0, 1)
-            .name('Transparency')
-            .onChange(() => {
-                this.viewer.alphaChanged();
-                this.needsRender = true;
-            });
-        gui
-            .add(this.viewer.material.uniforms['gamma'], 'value')
-            .name('Gamma')
-            .onChange(() => {
-                this.needsRender = true;
-            });
-        gui
-            .add(this.viewer, 'maxLevelToDisplay', 0, 7)
-            .name('Moving details')
-            .step(1)
-            .onChange(() => {
-                this.needsRender = true;
-            });
-        gui
-            .add(this, 'octreeId')
-            .name('Point Cloud ID')
-            .onFinishChange(() => {
-                this.resetSceneViewer(false, this.octreeId, true);
-                this.needsRender = true;
-            });
+        this.requestTreeId();
+
 
         window.addEventListener('resize', () => this.onWindowResize(), false);
-        this.animate();
+        //this.animate();
     }
 
     private onWindowResize() {
