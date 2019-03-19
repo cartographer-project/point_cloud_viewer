@@ -46,7 +46,7 @@ struct OctreeService {
 #[derive(Debug)]
 enum OctreeQuery {
     Frustum(Matrix4<f32>),
-    Box(Aabb3<f32>),
+    Box(Aabb3<f64>),
     FullPointcloud,
 }
 
@@ -208,7 +208,7 @@ impl OctreeService {
             let mut reply = proto::PointsReply::new();
             let bytes_per_point = {
                 let initial_proto_size = reply.compute_size();
-                let mut v = point_viewer::proto::Vector3f::new();
+                let mut v = point_viewer::proto::Vector3d::new();
                 v.set_x(1.);
                 v.set_y(1.);
                 v.set_z(1.);
@@ -238,7 +238,7 @@ impl OctreeService {
                 // Extra scope to make sure that 'func' does not outlive 'reply'.
                 let func = |p: &Point| {
                     {
-                        let mut v = point_viewer::proto::Vector3f::new();
+                        let mut v = point_viewer::proto::Vector3d::new();
                         v.set_x(p.position.x);
                         v.set_y(p.position.y);
                         v.set_z(p.position.z);

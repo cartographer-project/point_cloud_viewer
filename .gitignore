@@ -1,3 +1,4 @@
+.vscode
 /node_modules
 /octree_web_viewer/client/build
 /octree_web_viewer/client/node_modules

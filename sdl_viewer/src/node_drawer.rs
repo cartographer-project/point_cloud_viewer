@@ -108,15 +108,27 @@ impl NodeDrawer {
             self.program.gl.Enable(opengl::PROGRAM_POINT_SIZE);
             self.program.gl.Enable(opengl::DEPTH_TEST);
 
+            // TODO(feuerste): Casting to f32 introduces imprecisions for large bounding boxes,
+            // possibly misleading the observer, as points may be shifted due to casting and appear
+            // as outliers. Rendering in a local frame may help.
             self.program.gl.Uniform1f(
                 self.u_edge_length,
-                node_view.meta.bounding_cube.edge_length(),
+                node_view.meta.bounding_cube.edge_length() as f32,
             );
             self.program.gl.Uniform1f(self.u_size, point_size);
             self.program.gl.Uniform1f(self.u_gamma, gamma);
-            self.program
-                .gl
-                .Uniform3fv(self.u_min, 1, node_view.meta.bounding_cube.min().as_ptr());
+
+            self.program.gl.Uniform3fv(
+                self.u_min,
+                1,
+                node_view
+                    .meta
+                    .bounding_cube
+                    .min()
+                    .cast::<f32>()
+                    .unwrap()
+                    .as_ptr(),
+            );
 
             self.program
                 .gl
@@ -161,6 +173,7 @@ impl NodeView {
                 octree::PositionEncoding::Uint8 => 3,
                 octree::PositionEncoding::Uint16 => 6,
                 octree::PositionEncoding::Float32 => 12,
+                octree::PositionEncoding::Float64 => 24,
             },
         );
         let color = reshuffle(&indices, &node_data.color, 3);
@@ -174,6 +187,7 @@ impl NodeView {
                 octree::PositionEncoding::Uint8 => (true, opengl::UNSIGNED_BYTE),
                 octree::PositionEncoding::Uint16 => (true, opengl::UNSIGNED_SHORT),
                 octree::PositionEncoding::Float32 => (false, opengl::FLOAT),
+                octree::PositionEncoding::Float64 => (false, opengl::DOUBLE),
             };
             program.gl.BufferData(
                 opengl::ARRAY_BUFFER,

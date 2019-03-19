@@ -17,12 +17,12 @@ use collision::{Aabb, Aabb3};
 
 #[derive(Debug, Clone)]
 pub struct Cube {
-    min: Point3<f32>,
-    edge_length: f32,
+    min: Point3<f64>,
+    edge_length: f64,
 }
 
 impl Cube {
-    pub fn bounding(aabb: &Aabb3<f32>) -> Self {
+    pub fn bounding(aabb: &Aabb3<f64>) -> Self {
         let edge_length = (aabb.max().x - aabb.min().x)
             .max(aabb.max().y - aabb.min().y)
             .max(aabb.max().z - aabb.min().z);
@@ -32,23 +32,23 @@ impl Cube {
         }
     }
 
-    pub fn to_aabb3(&self) -> Aabb3<f32> {
+    pub fn to_aabb3(&self) -> Aabb3<f64> {
         Aabb3::new(self.min(), self.max())
     }
 
-    pub fn new(min: Point3<f32>, edge_length: f32) -> Self {
+    pub fn new(min: Point3<f64>, edge_length: f64) -> Self {
         Cube { min, edge_length }
     }
 
-    pub fn edge_length(&self) -> f32 {
+    pub fn edge_length(&self) -> f64 {
         self.edge_length
     }
 
-    pub fn min(&self) -> Point3<f32> {
+    pub fn min(&self) -> Point3<f64> {
         self.min
     }
 
-    pub fn max(&self) -> Point3<f32> {
+    pub fn max(&self) -> Point3<f64> {
         Point3::new(
             self.min.x + self.edge_length,
             self.min.y + self.edge_length,
@@ -57,7 +57,7 @@ impl Cube {
     }
 
     /// The center of the box.
-    pub fn center(&self) -> Vector3<f32> {
+    pub fn center(&self) -> Vector3<f64> {
         let min = self.min();
         let max = self.max();
         Vector3::new(
@@ -65,13 +65,5 @@ impl Cube {
             (min.y + max.y) / 2.,
             (min.z + max.z) / 2.,
         )
-    }
-}
-
-pub fn clamp(value: f32, low: f32, high: f32) -> f32 {
-    if value < high {
-        value.max(low)
-    } else {
-        value.min(high)
     }
 }

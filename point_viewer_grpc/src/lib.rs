@@ -51,7 +51,7 @@ impl GrpcOctreeDataProvider {
 
     pub fn get_points_in_box(
         &self,
-        bounding_box: &Aabb3<f32>,
+        bounding_box: &Aabb3<f64>,
         mut func: impl FnMut(&[Point]) -> bool,
     ) -> Result<()> {
         let mut req = proto::GetPointsInBoxRequest::new();

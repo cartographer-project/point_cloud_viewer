@@ -73,7 +73,7 @@ pub fn main() {
     let resolution = args
         .value_of("resolution")
         .unwrap()
-        .parse::<f32>()
+        .parse::<f64>()
         .expect("resolution could not be parsed.");
     let tile_size = args
         .value_of("tile_size")

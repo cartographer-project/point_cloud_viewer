@@ -63,13 +63,13 @@ pub fn get_visible_nodes(
     }
 }
 
-// Javascript requires its arrays to be padded to 4 bytes.
+// Javascript requires its arrays to be padded to 8 bytes.
 fn pad(input: &mut Vec<u8>) {
-    let pad = input.len() % 4;
+    let pad = input.len() % 8;
     if pad == 0 {
         return;
     }
-    for _ in 0..(4 - pad) {
+    for _ in 0..(8 - pad) {
         input.push(0);
     }
 }
@@ -126,11 +126,11 @@ pub fn get_nodes_data(
 
                 // Write the bounding box information.
                 let min = node_data.meta.bounding_cube.min();
-                reply_blob.write_f32::<LittleEndian>(min.x).unwrap();
-                reply_blob.write_f32::<LittleEndian>(min.y).unwrap();
-                reply_blob.write_f32::<LittleEndian>(min.z).unwrap();
+                reply_blob.write_f64::<LittleEndian>(min.x).unwrap();
+                reply_blob.write_f64::<LittleEndian>(min.y).unwrap();
+                reply_blob.write_f64::<LittleEndian>(min.z).unwrap();
                 reply_blob
-                    .write_f32::<LittleEndian>(node_data.meta.bounding_cube.edge_length())
+                    .write_f64::<LittleEndian>(node_data.meta.bounding_cube.edge_length())
                     .unwrap();
 
                 // Number of points.

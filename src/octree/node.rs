@@ -48,7 +48,7 @@ impl ChildIndex {
     }
 
     /// Returns the ChildId of the child containing 'v'.
-    pub fn from_bounding_cube(bounding_cube: &Cube, v: &Vector3<f32>) -> ChildIndex {
+    pub fn from_bounding_cube(bounding_cube: &Cube, v: &Vector3<f64>) -> ChildIndex {
         // This is a bit flawed: it is not guaranteed that 'child_bounding_box.contains(&v)' is true
         // using this calculated index due to floating point precision.
         let center = bounding_cube.center();
@@ -181,9 +181,9 @@ impl NodeId {
             let z = child_index & 1;
             let y = (child_index >> 1) & 1;
             let x = (child_index >> 2) & 1;
-            min.x += x as f32 * edge_length;
-            min.y += y as f32 * edge_length;
-            min.z += z as f32 * edge_length;
+            min.x += x as f64 * edge_length;
+            min.y += y as f64 * edge_length;
+            min.z += z as f64 * edge_length;
         }
         Cube::new(min, edge_length)
     }
@@ -291,15 +291,18 @@ pub enum PositionEncoding {
     Uint8,
     Uint16,
     Float32,
+    Float64,
 }
 
 impl PositionEncoding {
     pub fn new(bounding_cube: &Cube, resolution: f64) -> PositionEncoding {
-        let min_bits = (f64::from(bounding_cube.edge_length()) / resolution).log2() as u32 + 1;
+        let min_bits = (bounding_cube.edge_length() / resolution).log2() as u32 + 1;
         match min_bits {
             0...8 => PositionEncoding::Uint8,
             9...16 => PositionEncoding::Uint16,
-            _ => PositionEncoding::Float32,
+            // Capping at 24 keeps the worst resolution at ~1 mm for an edge length of ~8389 km.
+            17...24 => PositionEncoding::Float32,
+            _ => PositionEncoding::Float64,
         }
     }
 
@@ -313,6 +316,7 @@ impl PositionEncoding {
             proto::Node_PositionEncoding::Uint8 => Ok(PositionEncoding::Uint8),
             proto::Node_PositionEncoding::Uint16 => Ok(PositionEncoding::Uint16),
             proto::Node_PositionEncoding::Float32 => Ok(PositionEncoding::Float32),
+            proto::Node_PositionEncoding::Float64 => Ok(PositionEncoding::Float64),
         }
     }
 
@@ -321,6 +325,7 @@ impl PositionEncoding {
             PositionEncoding::Uint8 => proto::Node_PositionEncoding::Uint8,
             PositionEncoding::Uint16 => proto::Node_PositionEncoding::Uint16,
             PositionEncoding::Float32 => proto::Node_PositionEncoding::Float32,
+            PositionEncoding::Float64 => proto::Node_PositionEncoding::Float64,
         }
     }
 
@@ -329,6 +334,7 @@ impl PositionEncoding {
             PositionEncoding::Uint8 => 1,
             PositionEncoding::Uint16 => 2,
             PositionEncoding::Float32 => 4,
+            PositionEncoding::Float64 => 8,
         }
     }
 }
