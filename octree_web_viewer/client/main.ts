@@ -18,8 +18,6 @@ import * as THREE from 'three';
 import { GUI } from 'dat.gui';
 import { FirstPersonController } from './control';
 import { OctreeViewer } from './octree_viewer';
-import disposeScene from './helper'
-import { Float32Attribute } from 'three';
 
 class App {
     private camera: THREE.PerspectiveCamera;
@@ -35,28 +33,31 @@ class App {
     private guiRenderControls: dat.GUI;
     public octreeId: string;  // octree identifier
 
-    private resetSceneViewer(octreeId?: string) {
-        this.resetRenderer();
-        this.scene = new THREE.Scene();
-        this.scene.add(this.camera);
-        // todo (catevita) block requests from the viewer that is going to be replaced
+    private async fetchDefaultOctreeId() {
+        const request = new Request(
+            `/init_tree`,
+            {
+                method: 'GET',
+                credentials: 'same-origin',
+            }
+        );
+
+        await window
+            .fetch(request)
+            .then((response) => response.text()) // todo error handling?
+            .then((body) => {
+                this.octreeId = body;
+                this.pointCloudIdControl.updateDisplay();
+            });
+    }
+
+    private initOctreeViewer(octreeId: string) {
         this.viewer = new OctreeViewer(this.scene, () => {
             this.needsRender = true;
         }, octreeId);
-
-        this.appendOctreeGuiControls();
-        this.lastFrustumUpdateTime = 0;
-        this.animate();
     }
 
-    private clearGui() {
-        this.gui.removeFolder(this.guiRenderControls);
-    }
-    private appendOctreeGuiControls() {
-        if (this.guiRenderControls) {
-            this.clearGui();
-        }
-
+    private addControls() {
         this.guiRenderControls = this.gui.addFolder('Render controls');
         this.guiRenderControls
             .add(this.viewer.material.uniforms['size'], 'value')
@@ -86,49 +87,7 @@ class App {
             });
     }
 
-    private resetRenderer() {
-
-        let renderArea = document.getElementById('renderArea');
-        if (this.renderer) {
-            renderArea.removeChild(this.renderer.domElement);
-            this.renderer.dispose();
-        }
-        this.renderer = new THREE.WebGLRenderer();
-        this.renderer.setSize(renderArea.clientWidth, renderArea.clientHeight);
-        renderArea.appendChild(this.renderer.domElement);
-        this.controller = new FirstPersonController(
-            this.camera,
-            this.renderer.domElement
-        );
-    }
-    private requestTreeId() {
-        const request = new Request(
-            `/init_tree`,
-            {
-                method: 'GET',
-                credentials: 'same-origin',
-            }
-        );
-
-
-        window
-            .fetch(request)
-            .then((response) => response.text()) // todo error handling?
-            .then((body) => {
-                console.log("Initial octree id: " + body);
-                this.octreeId = body;
-                this.pointCloudIdControl.updateDisplay();
-                this.updateOctree();
-            });
-
-    }
-
-    private updateOctree = () => {
-        this.resetSceneViewer(this.octreeId);
-        this.needsRender = true;
-    }
-
-    public run() {
+    private initCamera() {
         let renderArea = document.getElementById('renderArea');
         const VIEW_ANGLE = 45;
         const NEAR = 0.1;
@@ -142,22 +101,75 @@ class App {
         this.camera.position.z = 150;
         this.camera.updateMatrix();
         this.camera.updateMatrixWorld(false);
+    }
 
-        this.lastMoveTime = 0;
+    private initScene() {
+        this.scene = new THREE.Scene();
+        this.scene.add(this.camera);
+    }
+
+    private initRenderer() {
+        let renderArea = document.getElementById('renderArea');
+        this.renderer = new THREE.WebGLRenderer();
+        this.renderer.setSize(renderArea.clientWidth, renderArea.clientHeight);
+        renderArea.appendChild(this.renderer.domElement);
+        this.controller = new FirstPersonController(
+            this.camera,
+            this.renderer.domElement
+        );
         this.needsRender = true;
-        this.octreeId = "loading..";
+        this.lastFrustumUpdateTime = 0;
+        this.lastMoveTime = 0;
+    }
+
+    private cleanup() {
+        // todo block requests from the viewer that is going to be replaced
+        this.removeControls();
+        let renderArea = document.getElementById('renderArea');
+        if (this.renderer) {
+            renderArea.removeChild(this.renderer.domElement);
+            this.renderer.dispose();
+        }
+    }
+
+    private removeControls() {
+        if (this.guiRenderControls) {
+            this.gui.removeFolder(this.guiRenderControls);
+        }
+    }
+
+    private resetOctree = () => {
+        this.cleanup();
+        this.initCamera();
+        this.initScene();
+        this.initRenderer();
+        this.initOctreeViewer(this.octreeId);
+        this.addControls();
+    }
+
+    private run = () => {
+        this.resetOctree();
+        this.animate();
+    }
+
+    public init() {
+        this.octreeId = "loading...";
         this.gui = new GUI();
         this.pointCloudIdControl =
             this.gui
                 .add(this, 'octreeId')
                 .name('Point Cloud ID')
-                .onFinishChange(this.updateOctree);
+                .onFinishChange(this.run);
 
-        this.requestTreeId();
-
-
+        this.fetchDefaultOctreeId()
+            .then(this.run)
+            .catch(
+                (error) => {
+                    this.octreeId = "";
+                    this.guiRenderControls.updateDisplay();
+                    window.alert(error);
+                });
         window.addEventListener('resize', () => this.onWindowResize(), false);
-        //this.animate();
     }
 
     private onWindowResize() {
@@ -205,4 +217,4 @@ class App {
 }
 
 let app = new App();
-app.run();
+app.init();

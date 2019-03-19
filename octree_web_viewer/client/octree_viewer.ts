@@ -262,7 +262,7 @@ export class OctreeViewer {
     private useTransparency: boolean;
 
 
-    constructor(private scene: THREE.Scene, private onNewNodeData: () => void, octreeId?: string) {
+    constructor(private scene: THREE.Scene, private onNewNodeData: () => void, octreeId: string) {
         this.material = new THREE.ShaderMaterial({
             uniforms: {
                 size: { value: 2 },
