@@ -15,7 +15,7 @@
 use octree_web_viewer::backend_error::PointsViewerError;
 use octree_web_viewer::state::AppState;
 use octree_web_viewer::utils::start_octree_server;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use structopt::StructOpt;
 
@@ -50,30 +50,41 @@ pub struct CommandLineArguments {
 /// init app state with command arguments
 /// backward compatibilty is ensured
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
-    let mut has_suffix = false;
-    let suffix = match args.path_suffix {
-        Some(suffix) => {
-            has_suffix = true;
-            suffix
-        }
-        None => PathBuf::from(""),
-    };
+    let suffix = args.path_suffix.unwrap_or_else(|| PathBuf::from(""));
 
     let app_state = match args.octree_path {
         Some(octree_directory) => {
-            let mut prefix = octree_directory.parent().unwrap();
-            if has_suffix && octree_directory.ends_with(&suffix) {
-                prefix = prefix.parent().unwrap();
+            let prefix_opt = octree_directory.parent();
+            if suffix.to_string_lossy().is_empty() {
+                if let Some(prefix) = prefix_opt {
+                    let octree_id = octree_directory.strip_prefix(&prefix)?;
+                    AppState::new(args.cache_max, prefix, suffix, octree_id.to_str().unwrap())
+                } else {
+                    AppState::new(args.cache_max, PathBuf::new(), suffix, "/")
+                }
+            } else {
+                let mut components = octree_directory.components();
+                let mut prefix: PathBuf = PathBuf::new();
+                let mut tmp_octree_id = components.next();
+                while !suffix.as_path().eq(components.as_path()) {
+                    prefix.push(tmp_octree_id.unwrap());
+                    tmp_octree_id = components.next();
+                }
+
+                AppState::new(
+                    args.cache_max,
+                    prefix,
+                    suffix,
+                    (tmp_octree_id.unwrap().as_ref() as &Path).to_string_lossy(),
+                )
             }
-            let octree_id = octree_directory.strip_prefix(&prefix)?;
-            AppState::new(args.cache_max, prefix, suffix, octree_id.to_str().unwrap())
         }
         None => {
             let prefix = args
                 .path_prefix
                 .ok_or_else(|| {
                     PointsViewerError::NotFound(
-                        "Input argoment Syntax is incorrect: check prefix".to_string(),
+                        "Input argument Syntax is incorrect: check prefix".to_string(),
                     )
                 })
                 .unwrap();
@@ -81,7 +92,7 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
                 .octree_id
                 .ok_or_else(|| {
                     PointsViewerError::NotFound(
-                        "Input argoment Syntax is incorrect: check octree_id".to_string(),
+                        "Input argument Syntax is incorrect: check octree_id".to_string(),
                     )
                 })
                 .unwrap();
