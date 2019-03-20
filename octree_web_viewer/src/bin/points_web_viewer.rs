@@ -15,16 +15,13 @@
 use octree_web_viewer::backend_error::PointsViewerError;
 use octree_web_viewer::state::AppState;
 use octree_web_viewer::utils::start_octree_server;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use structopt::StructOpt;
 
 /// HTTP web viewer for 3d points stored in OnDiskOctrees
 #[derive(StructOpt, Debug)]
-#[structopt(
-    name = "points_web_viewer",
-    about = "Visualizing points"
-)]
+#[structopt(name = "points_web_viewer", about = "Visualizing points")]
 pub struct CommandLineArguments {
     /// The octree directory to serve, including a trailing slash.
     #[structopt(name = "DIR", parse(from_os_str))]
@@ -42,23 +39,27 @@ pub struct CommandLineArguments {
 /// init app state with command arguments
 /// backward compatibilty is ensured
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
-    
     // initial implementation: suffix from args not yet supported
-    let suffix =  PathBuf::from("");
+    let suffix = PathBuf::from("");
     let prefix_opt = args.octree_path.parent();
-            
+
     if let Some(prefix) = prefix_opt {
         let octree_id = args.octree_path.strip_prefix(&prefix)?;
-            return  Ok(AppState::new(args.cache_max, prefix, suffix, octree_id.to_str().unwrap()));
-    } else {
-    // octree directory is root
         return Ok(AppState::new(
-                args.cache_max,
-                PathBuf::new(),
-                suffix,
-                args.octree_path.to_string_lossy()
-            ));
-    } 
+            args.cache_max,
+            prefix,
+            suffix,
+            octree_id.to_str().unwrap(),
+        ));
+    } else {
+        // octree directory is root
+        return Ok(AppState::new(
+            args.cache_max,
+            PathBuf::new(),
+            suffix,
+            args.octree_path.to_string_lossy(),
+        ));
+    }
 }
 
 fn main() {
