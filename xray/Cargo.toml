@@ -18,6 +18,7 @@ scoped-pool = "^0.1"
 serde = "1.0.9"
 serde_json = "1.0.9"
 serde_derive = "1.0.9"
+structopt = "0.2"
 urlencoded = "^0.3.0"
 streaming-stats = "0.2.2"
 

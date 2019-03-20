@@ -8,6 +8,8 @@ use serde_derive::Serialize;
 use std::io::{self, Cursor};
 use std::path::Path;
 
+// Version 2 -> 3: Change in Rect proto from Vector2f to Vector2d min and float to double edge_length.
+// We are able to convert the proto on read, so the tools can still read version 2.
 pub const CURRENT_VERSION: i32 = 3;
 
 #[derive(Debug, Clone)]
@@ -44,26 +46,37 @@ impl Meta {
 
     // Reads the meta from the provided encoded protobuf.
     pub fn from_proto(proto: &proto::Meta) -> Self {
-        if proto.version != CURRENT_VERSION {
-            panic!(
+        match proto.version {
+            2 => println!(
+                "Data is an older xray quadtree version: {}, current would be {}. \
+                 If feasible, try upgrading this xray quadtree using `upgrade_xray_quadtree`.",
+                proto.version, CURRENT_VERSION
+            ),
+            CURRENT_VERSION => (),
+            _ => panic!(
                 "Invalid version. We only support {}, but found {}.",
                 CURRENT_VERSION, proto.version
-            );
+            ),
         }
 
+        let bounding_rect = proto.get_bounding_rect();
+        let (min, edge_length) = bounding_rect.min.clone().into_option().map_or_else(
+            || {
+                let deprecated_min = bounding_rect.get_deprecated_min();
+                (
+                    Point2::new(f64::from(deprecated_min.x), f64::from(deprecated_min.y)),
+                    f64::from(bounding_rect.get_deprecated_edge_length()),
+                )
+            },
+            |v| (Point2::new(v.x, v.y), bounding_rect.get_edge_length()),
+        );
         Meta {
             nodes: proto
                 .nodes
                 .iter()
                 .map(|n| NodeId::new(n.level as u8, n.index))
                 .collect(),
-            bounding_rect: Rect::new(
-                Point2::new(
-                    proto.get_bounding_rect().get_min().x,
-                    proto.get_bounding_rect().get_min().y,
-                ),
-                proto.get_bounding_rect().get_edge_length(),
-            ),
+            bounding_rect: Rect::new(min, edge_length),
             tile_size: proto.tile_size,
             deepest_level: proto.deepest_level as u8,
         }
