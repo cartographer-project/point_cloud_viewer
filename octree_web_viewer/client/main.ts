@@ -28,12 +28,12 @@ class App {
     private lastFrustumUpdateTime: number;
     private lastMoveTime: number;
     private needsRender: boolean;
-    private pointCloudIdControl: dat.GUIController;
+    private octreeIdControl: dat.GUIController;
     private gui: dat.GUI;
     private guiRenderControls: dat.GUI;
     public octreeId: string;  // octree identifier
 
-    private async fetchDefaultOctreeId() {
+    private fetchDefaultOctreeId(): Promise<string> {
         const request = new Request(
             `/init_tree`,
             {
@@ -42,13 +42,13 @@ class App {
             }
         );
 
-        await window
+        let result = window
             .fetch(request)
             .then((response) => response.text()) // todo error handling?
             .then((body) => {
-                this.octreeId = body;
-                this.pointCloudIdControl.updateDisplay();
+                return body;
             });
+        return result;
     }
 
     private initOctreeViewer(octreeId: string) {
@@ -123,7 +123,7 @@ class App {
     }
 
     private cleanup() {
-        // todo block requests from the viewer that is going to be replaced
+        // TODO block requests from the viewer that is going to be replaced
         this.removeControls();
         let renderArea = document.getElementById('renderArea');
         if (this.renderer) {
@@ -138,13 +138,17 @@ class App {
         }
     }
 
-    private resetOctree = () => {
+    private resetOctree() {
         this.cleanup();
         this.initCamera();
         this.initScene();
         this.initRenderer();
         this.initOctreeViewer(this.octreeId);
         this.addControls();
+    }
+
+    private setOctreeId = (newOctreeId: string) => {
+        this.octreeIdControl.setValue(newOctreeId);
     }
 
     private run = () => {
@@ -155,20 +159,18 @@ class App {
     public init() {
         this.octreeId = "loading...";
         this.gui = new GUI();
-        this.pointCloudIdControl =
+
+        this.octreeIdControl =
             this.gui
                 .add(this, 'octreeId')
                 .name('Point Cloud ID')
                 .onFinishChange(this.run);
 
+        //TODO error handling
         this.fetchDefaultOctreeId()
-            .then(this.run)
-            .catch(
-                (error) => {
-                    this.octreeId = "";
-                    this.guiRenderControls.updateDisplay();
-                    window.alert(error);
-                });
+            .then(this.setOctreeId)
+            .then(this.run);
+
         window.addEventListener('resize', () => this.onWindowResize(), false);
     }
 
