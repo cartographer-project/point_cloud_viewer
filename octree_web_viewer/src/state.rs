@@ -31,6 +31,8 @@ pub struct AppState {
     pub key_params: OctreeKeyParams,
     /// backward compatibility to input arguments
     pub init_octree_id: String,
+    /// octree factory to create octrees
+    octree_factory: octree::OctreeFactory,
 }
 
 impl AppState {
@@ -47,6 +49,7 @@ impl AppState {
                 suffix: suffix.into(),
             },
             init_octree_id: octree_id.into(),
+            octree_factory: octree::OctreeFactory::new(),
         }
     }
 
@@ -76,8 +79,10 @@ impl AppState {
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
         let octree_key = octree_id.into();
         let addr = &self.key_params.get_octree_address(&octree_key);
-        println!("Current tree address to insert:{}", addr.to_str().unwrap());
-        let octree: Arc<octree::Octree> = Arc::from(octree::octree_from_directory(&addr)?);
+        let octree: Arc<octree::Octree> = Arc::from(
+            self.octree_factory
+                .generate_octree(addr.to_string_lossy())?,
+        );
         {
             // write access to state
             let mut wmap = self.octree_map.write().unwrap();
