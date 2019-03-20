@@ -42,7 +42,7 @@ class App {
             }
         );
 
-        let result = window
+        const result = window
             .fetch(request)
             .then((response) => response.text()) // todo error handling?
             .then((body) => {
@@ -88,7 +88,7 @@ class App {
     }
 
     private initCamera() {
-        let renderArea = document.getElementById('renderArea');
+        const renderArea = document.getElementById('renderArea');
         const VIEW_ANGLE = 45;
         const NEAR = 0.1;
         const FAR = 10000;
@@ -109,7 +109,7 @@ class App {
     }
 
     private initRenderer() {
-        let renderArea = document.getElementById('renderArea');
+        const renderArea = document.getElementById('renderArea');
         this.renderer = new THREE.WebGLRenderer();
         this.renderer.setSize(renderArea.clientWidth, renderArea.clientHeight);
         renderArea.appendChild(this.renderer.domElement);
@@ -125,7 +125,7 @@ class App {
     private cleanup() {
         // TODO block requests from the viewer that is going to be replaced
         this.removeControls();
-        let renderArea = document.getElementById('renderArea');
+        const renderArea = document.getElementById('renderArea');
         if (this.renderer) {
             renderArea.removeChild(this.renderer.domElement);
             this.renderer.dispose();
