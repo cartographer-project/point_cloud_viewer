@@ -165,9 +165,7 @@ impl PointCloudRenderer {
 
         let now = time::PreciseTime::now();
         let moving = self.last_moving.to(now) < time::Duration::milliseconds(150);
-        self.needs_drawing |= self
-            .node_views
-            .consume_arrived_nodes(&self.node_drawer.program);
+        self.needs_drawing |= self.node_views.consume_arrived_nodes(&self.node_drawer);
         while let Ok(visible_nodes) = self.get_visible_nodes_result_rx.try_recv() {
             self.visible_nodes.clear();
             self.visible_nodes.extend(visible_nodes);
@@ -369,7 +367,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     // TODO(hrapp): This should use OpenGL ES 2.0 to be compatible with WebGL, so this can be made
     // to work with emscripten.
     gl_attr.set_context_profile(GLProfile::Core);
-    gl_attr.set_context_version(3, 2);
+    gl_attr.set_context_version(4, 1);
 
     const WINDOW_WIDTH: i32 = 800;
     const WINDOW_HEIGHT: i32 = 600;
