@@ -18,13 +18,19 @@ use octree_web_viewer::utils::start_octree_server;
 use point_viewer::octree::OctreeFactory;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use structopt::clap::ArgGroup;
 use structopt::StructOpt;
 
 /// HTTP web viewer for 3d points stored in OnDiskOctrees
+///
+/// Octrees that share a common path and (optional) identical subfolder structure can be served
+/// just by giving a full directory path, <common_octree_path>/<octree_identifier>/<optional_subfolder_suffix> as <DIR>.
+/// The option "--suffix_depth" allows to specify where the actual octree files reside in relation to the octree identifier.
 #[derive(StructOpt, Debug)]
 #[structopt(name = "points_web_viewer", about = "Visualizing points")]
 pub struct CommandLineArguments {
     /// The octree directory to serve, including a trailing slash.
+    /// this overrides <--prefix> and <--octree_id> options
     #[structopt(name = "DIR", parse(from_os_str))]
     octree_path: PathBuf,
     /// Port to listen on.
@@ -33,6 +39,10 @@ pub struct CommandLineArguments {
     /// IP string.
     #[structopt(default_value = "127.0.0.1", long = "ip")]
     ip: String,
+    /// optional: specify suffix depth (how many subfolders after uuid)
+    #[structopt(default_value = "0", long = "suffix_depth")]
+    suffix_depth: u8,
+    /// maximum number of octrees stored in the map
     #[structopt(default_value = "20", long = "cache_items")]
     cache_max: usize,
 }
@@ -40,17 +50,31 @@ pub struct CommandLineArguments {
 /// init app state with command arguments
 /// backward compatibilty is ensured
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
-    // initial implementation: suffix from args not yet supported
-    let suffix = PathBuf::new();
-    let prefix = args.octree_path.parent().unwrap_or_else(|| Path::new(""));
-    let octree_factory = OctreeFactory::new();
-    let octree_id = args.octree_path.strip_prefix(&prefix)?;
+    let octee_factory = OctreeFactory::new();
+    let mut suffix = Path::new("");
+    let mut suffix_depth = args.suffix_depth;
+    let mut octree_path: PathBuf;
+    // parse path if suffix is specified
+    if suffix_depth > 0 {
+        let mut octree_directory = args.octree_path.parent().unwrap_or_else(|| Path::new(""));
+        while suffix_depth > 1 {
+            octree_directory = octree_directory.parent().unwrap_or_else(|| Path::new(""));
+            suffix_depth = suffix_depth - 1;
+        }
+        suffix = args.octree_path.strip_prefix(&octree_directory)?;
+        octree_path = PathBuf::from(octree_directory);
+    } else {
+        octree_path = args.octree_path;
+    }
+
+    let prefix = octree_path.parent().unwrap_or_else(|| Path::new(""));
+    let octree_id = octree_path.strip_prefix(&prefix)?;
     Ok(AppState::new(
         args.cache_max,
         prefix,
         suffix,
         octree_id.to_str().unwrap(),
-        octree_factory,
+        octee_factory,
     ))
 }
 
