@@ -23,9 +23,16 @@ use structopt::StructOpt;
 fn group_inputs() -> ArgGroup<'static> {
     ArgGroup::with_name("path_stubs")
         .conflicts_with("octree_path")
-        .requires_all(&["prefix", "octree_id"])
+        .requires_all(&["path_prefix", "octree_id"])
 }
 /// HTTP web viewer for 3d points stored in OnDiskOctrees
+///
+/// Octrees that share a common path can be served under the following possibilities.
+/// #1 Octrees without subfolder structure can be passed just by giving a full directory path, <octreeroot>/<octreeid>, as <DIR>.
+/// The tree identifier to the (last) folder can be changed from the client by GUI input.
+/// #2 if Octrees reside under a root directory, with a common subfolder stucture <root>/OctreeID/<identicalSubPath>,
+/// the program has to be launched specifying --root <root> and --subpath <octreeId>/<identicalSubPath>
+/// the changes of the client will affect the <octreeId> only.
 #[derive(StructOpt, Debug)]
 #[structopt(
     name = "points_web_viewer",
@@ -43,15 +50,13 @@ pub struct CommandLineArguments {
     /// IP string.
     #[structopt(default_value = "127.0.0.1", long = "ip")]
     ip: String,
-    /// instead of DIR: specify path prefix for octree dir
-    #[structopt(long = "prefix", parse(from_os_str), group = "path_stubs")]
+    /// instead of DIR: specify path prefix (root) for octree dir
+    #[structopt(long = "root", parse(from_os_str), group = "path_stubs")]
     path_prefix: Option<PathBuf>,
-    /// Optional: suffix for subfolder of octree dir
-    #[structopt(long = "suffix", parse(from_os_str))]
-    path_suffix: Option<PathBuf>,
-    /// instead of DIR: specify path folder for octree dir
-    #[structopt(long = "octree_id", group = "path_stubs")]
-    octree_id: Option<String>,
+    /// instead of DIR: specify path from root to the folder for octree dir
+    #[structopt(long = "subpath", parse(from_os_str), group = "path_stubs")]
+    octree_id: Option<PathBuf>,
+    /// has suffix: the top most ID can be switched to navigate across different octrees
     /// Cache items
     #[structopt(default_value = "20", long = "cache_items")]
     cache_max: usize,
@@ -60,8 +65,9 @@ pub struct CommandLineArguments {
 /// init app state with command arguments
 /// backward compatibilty is ensured
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
-    let suffix = args.path_suffix.unwrap_or_else(|| PathBuf::from(""));
+    let mut suffix = PathBuf::from("");
 
+    // if <DIR> define, obtain structure from <DIR> only
     let app_state = match args.octree_path {
         Some(octree_directory) => {
             let prefix_opt = octree_directory.parent();
@@ -95,24 +101,37 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
                 )
             }
         }
+        //<DIR> is undefined: root and subpath requireds
         None => {
             let prefix = args
                 .path_prefix
                 .ok_or_else(|| {
                     PointsViewerError::NotFound(
-                        "Input argument Syntax is incorrect: check prefix".to_string(),
+                        "Input argument Syntax is incorrect: check octree root path".to_string(),
                     )
                 })
                 .unwrap();
-            let octree_id = args
+            let mut octree_id = args
                 .octree_id
                 .ok_or_else(|| {
                     PointsViewerError::NotFound(
                         "Input argument Syntax is incorrect: check octree_id".to_string(),
                     )
                 })
-                .unwrap();
-            AppState::new(args.cache_max, prefix, suffix, octree_id)
+                .unwrap()
+                .parent();
+            match octree_id {
+                Some(id) => {
+                    // todo (cvitadello) rela
+                    suffix = args.octree_id.strip_prefix(octree_id);
+                    AppState::new(
+                        args.cache_max,
+                        prefix,
+                        suffix.unwrap_or(|| PathBuf::from("")),
+                        octree_id,
+                    )
+                }
+            }
         }
     };
     Ok(app_state)
