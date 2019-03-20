@@ -71,7 +71,7 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
                     AppState::new(args.cache_max, prefix, suffix, octree_id.to_str().unwrap())
                 } else {
                     // octree directory is root
-                    AppState::new(args.cache_max, PathBuf::new(), suffix, octree_directory)
+                    AppState::new(args.cache_max, PathBuf::new(), suffix, octree_directory.to_string_lossy())
                 }
             } else {
                 let mut components = octree_directory.components();
