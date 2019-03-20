@@ -112,7 +112,7 @@ pub fn get_nodes_data(
             let mut num_nodes_fetched = 0;
             let mut num_points = 0;
             let octree: Arc<octree::Octree> =
-                get_octree_from_state(&octree_id.into_inner(), &state).unwrap();
+                get_octree_from_state(&octree_id, &state).unwrap();
             for node_id in nodes_to_load {
                 let mut node_data = octree
                     .get_node_data(&node_id)

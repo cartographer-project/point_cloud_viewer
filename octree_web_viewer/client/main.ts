@@ -123,7 +123,7 @@ class App {
     }
 
     private cleanup() {
-        // TODO block requests from the viewer that is going to be replaced
+        // TODO (negin-z) block requests from the viewer that is going to be replaced
         this.removeControls();
         const renderArea = document.getElementById('renderArea');
         if (this.renderer) {
@@ -166,7 +166,7 @@ class App {
                 .name('Point Cloud ID')
                 .onFinishChange(this.run);
 
-        //TODO error handling
+        //TODO (negin-z) error handling
         this.fetchDefaultOctreeId()
             .then(this.setOctreeId)
             .then(this.run);

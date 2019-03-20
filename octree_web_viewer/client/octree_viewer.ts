@@ -258,7 +258,6 @@ export class OctreeViewer {
     // material.size. If DAT supports callbacks, we can encapsulate this nicer.
     public material: THREE.ShaderMaterial;
     public maxLevelToDisplay: number;
-    private octreeId: string;
 
     private loadedData: { [key: string]: NodeData } = {};
     private nodeLoader: NodeLoader;
@@ -267,7 +266,7 @@ export class OctreeViewer {
     private useTransparency: boolean;
 
 
-    constructor(private scene: THREE.Scene, private onNewNodeData: () => void, octreeId: string) {
+    constructor(private scene: THREE.Scene, private onNewNodeData: () => void, private octreeId: string) {
         this.material = new THREE.ShaderMaterial({
             uniforms: {
                 size: { value: 2 },
@@ -282,7 +281,6 @@ export class OctreeViewer {
 
         this.nodeLoader = new NodeLoader();
         this.currentlyLoading = 0;
-        this.octreeId = octreeId;
     }
 
     public alphaChanged() {

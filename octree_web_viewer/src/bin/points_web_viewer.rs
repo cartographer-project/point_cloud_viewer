@@ -34,7 +34,7 @@ fn group_inputs() -> ArgGroup<'static> {
 )]
 pub struct CommandLineArguments {
     /// The octree directory to serve, including a trailing slash.
-    /// this overrides the path_* options
+    /// this overrides <--prefix> and <--octree_id> options
     #[structopt(name = "DIR", parse(from_os_str))]
     octree_path: Option<PathBuf>,
     /// Port to listen on.
@@ -70,7 +70,8 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
                     let octree_id = octree_directory.strip_prefix(&prefix)?;
                     AppState::new(args.cache_max, prefix, suffix, octree_id.to_str().unwrap())
                 } else {
-                    AppState::new(args.cache_max, PathBuf::new(), suffix, "/")
+                    // octree directory is root
+                    AppState::new(args.cache_max, PathBuf::new(), suffix, octree_directory)
                 }
             } else {
                 let mut components = octree_directory.components();
@@ -121,11 +122,9 @@ fn main() {
     let app_state: Arc<AppState> = Arc::new(state_from(args).unwrap());
     // The actix-web framework handles requests asynchronously using actors. If we need multi-threaded
     // write access to the Octree, instead of using an RwLock we should use the actor system.
-    //put octree arc in cache
+    // put octree arc in cache
 
     let sys = actix::System::new("octree-server");
-
-    //let _ = start_octree_server(app_state, &ip_port, octree_id);
     let _ = start_octree_server(app_state, &ip_port);
 
     println!("Starting http server: {}", &ip_port);

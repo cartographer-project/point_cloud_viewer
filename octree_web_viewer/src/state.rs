@@ -25,7 +25,7 @@ impl OctreeKeyParams {
 
 #[derive(Clone)]
 pub struct AppState {
-    /// LRU Cache for Octrees
+    /// Hash Map for Octrees
     pub octree_map: Arc<RwLock<HashMap<String, Arc<octree::Octree>>>>,
     /// information for retieving octree path
     pub key_params: OctreeKeyParams,
