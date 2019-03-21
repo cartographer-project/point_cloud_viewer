@@ -41,7 +41,7 @@ impl AppState {
         prefix: impl Into<PathBuf>,
         suffix: impl Into<PathBuf>,
         octree_id: impl Into<String>,
-        octree_factory: octree::OctreeFactory,
+        input_octree_factory: octree::OctreeFactory,
     ) -> Self {
         AppState {
             octree_map: Arc::new(RwLock::new(HashMap::with_capacity(map_size))),
@@ -50,7 +50,7 @@ impl AppState {
                 suffix: suffix.into(),
             },
             init_octree_id: octree_id.into(),
-            octree_factory: octree_factory,
+            octree_factory: input_octree_factory,
         }
     }
 
