@@ -27,6 +27,7 @@ use std::str;
 struct Header {
     format: Format,
     elements: Vec<Element>,
+    offset: Vector3<f64>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -120,6 +121,7 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
 
     let mut format = None;
     let mut current_element = None;
+    let mut offset = Vector3::new(0., 0., 0.);
     let mut elements = Vec::new();
     loop {
         line.clear();
@@ -172,7 +174,14 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
                 current_element.as_mut().unwrap().properties.push(property);
             }
             "end_header" => break,
-            "comment" => (),
+            "comment" if entries.len() == 5 => {
+                if entries[1] == "offset:" {
+                    let x = entries[2].parse::<f64>().chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[2])))?;
+                    let y = entries[3].parse::<f64>().chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[3])))?;
+                    let z = entries[4].parse::<f64>().chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[4])))?;
+                    offset = Vector3::new(x, y, z)
+                }
+            },
             _ => return Err(InvalidInput(format!("Invalid line: {}", line)).into()),
         }
     }
@@ -189,6 +198,7 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
         Header {
             elements,
             format: format.unwrap(),
+            offset,
         },
         header_len,
     ))
@@ -253,7 +263,7 @@ macro_rules! create_skip_fn {
 
 /// Opens a PLY file and checks that it is the correct format we support. Seeks in the file to the
 /// beginning of the binary data which must be (x, y, z, r, g, b) tuples.
-fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
+fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>, Vector3<f64>)> {
     let mut file = File::open(ply_file).chain_err(|| "Could not open input file.")?;
     let mut reader = BufReader::new(file);
     let (header, header_len) = parse_header(&mut reader)?;
@@ -355,6 +365,7 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>)> {
         BufReader::with_capacity(num_bytes_per_point * 1024, file),
         header["vertex"].count,
         readers,
+        header.offset,
     ))
 }
 
@@ -363,15 +374,17 @@ pub struct PlyIterator {
     reader: BufReader<File>,
     readers: Vec<ReadingFn>,
     pub num_total_points: i64,
+    offset: Vector3<f64>,
 }
 
 impl PlyIterator {
     pub fn from_file<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
-        let (reader, num_total_points, readers) = open(ply_file.as_ref())?;
+        let (reader, num_total_points, readers, offset) = open(ply_file.as_ref())?;
         Ok(PlyIterator {
             reader,
             readers,
             num_total_points,
+            offset,
         })
     }
 }
@@ -401,7 +414,7 @@ impl InternalIterator for PlyIterator {
                     r(&mut nread, &buf[cnread..], &mut point);
                 }
             }
-
+            point.position += self.offset;
             func(&point);
             self.reader.consume(nread);
         }
