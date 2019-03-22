@@ -16,7 +16,7 @@ use octree_web_viewer::backend_error::PointsViewerError;
 use octree_web_viewer::state::AppState;
 use octree_web_viewer::utils::start_octree_server;
 use point_viewer::octree::OctreeFactory;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use structopt::StructOpt;
 
@@ -41,28 +41,17 @@ pub struct CommandLineArguments {
 /// backward compatibilty is ensured
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
     // initial implementation: suffix from args not yet supported
-    let suffix = PathBuf::from("");
-    let prefix_opt = args.octree_path.parent();
+    let suffix = PathBuf::new();
+    let prefix = args.octree_path.parent().unwrap_or(Path::new(""));
     let octree_factory = OctreeFactory::new();
-    if let Some(prefix) = prefix_opt {
-        let octree_id = args.octree_path.strip_prefix(&prefix)?;
-        return Ok(AppState::new(
-            args.cache_max,
-            prefix,
-            suffix,
-            octree_id.to_str().unwrap(),
-            octree_factory,
-        ));
-    } else {
-        // octree directory is root
-        return Ok(AppState::new(
-            args.cache_max,
-            PathBuf::new(),
-            suffix,
-            args.octree_path.to_string_lossy(),
-            octree_factory,
-        ));
-    }
+    let octree_id = args.octree_path.strip_prefix(&prefix)?;
+    Ok(AppState::new(
+        args.cache_max,
+        prefix,
+        suffix,
+        octree_id.to_str().unwrap(),
+        octree_factory,
+    ))
 }
 
 fn main() {
