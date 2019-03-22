@@ -50,7 +50,7 @@ impl AppState {
                 suffix: suffix.into(),
             },
             init_octree_id: octree_id.into(),
-            octree_factory: octree_factory,
+            octree_factory: input_octree_factory,
         }
     }
 
