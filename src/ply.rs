@@ -174,14 +174,18 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
                 current_element.as_mut().unwrap().properties.push(property);
             }
             "end_header" => break,
-            "comment" if entries.len() == 5 => {
-                if entries[1] == "offset:" {
-                    let x = entries[2].parse::<f64>().chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[2])))?;
-                    let y = entries[3].parse::<f64>().chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[3])))?;
-                    let z = entries[4].parse::<f64>().chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[4])))?;
-                    offset = Vector3::new(x, y, z)
-                }
-            },
+            "comment" if entries.len() == 5 && entries[1] == "offset:" => {
+                let x = entries[2]
+                    .parse::<f64>()
+                    .chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[2])))?;
+                let y = entries[3]
+                    .parse::<f64>()
+                    .chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[3])))?;
+                let z = entries[4]
+                    .parse::<f64>()
+                    .chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[4])))?;
+                offset = Vector3::new(x, y, z)
+            }
             _ => return Err(InvalidInput(format!("Invalid line: {}", line)).into()),
         }
     }
@@ -263,7 +267,7 @@ macro_rules! create_skip_fn {
 
 /// Opens a PLY file and checks that it is the correct format we support. Seeks in the file to the
 /// beginning of the binary data which must be (x, y, z, r, g, b) tuples.
-fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>, Vector3<f64>)> {
+fn open(ply_file: &Path) -> Result<PlyIterator> {
     let mut file = File::open(ply_file).chain_err(|| "Could not open input file.")?;
     let mut reader = BufReader::new(file);
     let (header, header_len) = parse_header(&mut reader)?;
@@ -361,12 +365,12 @@ fn open(ply_file: &Path) -> Result<(BufReader<File>, i64, Vec<ReadingFn>, Vector
 
     // We align the buffer of this 'BufReader' to points, so that we can index this buffer and know
     // that it will always contain full points to parse.
-    Ok((
-        BufReader::with_capacity(num_bytes_per_point * 1024, file),
-        header["vertex"].count,
+    Ok(PlyIterator {
+        reader: BufReader::with_capacity(num_bytes_per_point * 1024, file),
         readers,
-        header.offset,
-    ))
+        num_total_points: header["vertex"].count,
+        offset: header.offset,
+    })
 }
 
 /// Abstraction to read binary points from ply files into points.
@@ -379,13 +383,7 @@ pub struct PlyIterator {
 
 impl PlyIterator {
     pub fn from_file<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
-        let (reader, num_total_points, readers, offset) = open(ply_file.as_ref())?;
-        Ok(PlyIterator {
-            reader,
-            readers,
-            num_total_points,
-            offset,
-        })
+        open(ply_file.as_ref())
     }
 }
 
