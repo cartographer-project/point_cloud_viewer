@@ -30,7 +30,9 @@ struct CommandlineArguments {
     #[structopt(long = "resolution", default_value = "0.001")]
     resolution: f64,
     // Flag to skip bbox calculation and use a fixed bbox.
-    // The fixed bbox is extends 6400000 length units in each direction.
+    // The fixed bbox is zero-centered and extends 6_400_000 length units in
+    // each direction, so that the octree can cover the whole earth when
+    // using ECEF coordinates.
     #[structopt(
         long = "bbox_type",
         raw(possible_values = "&RootBbox::variants()", case_insensitive = "true"),
