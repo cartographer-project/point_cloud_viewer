@@ -292,8 +292,10 @@ impl OctreeService {
     }
 
     fn get_service_data(&self, octree_id: &str) -> Result<Arc<OctreeServiceData>> {
-        match self.data_cache.read().unwrap().get(octree_id) {
+        let read_cache = self.data_cache.read().unwrap();
+        match read_cache.get(octree_id) {
             None => {
+                drop(read_cache);
                 let octree = self
                     .factory
                     .generate_octree(self.location.join(&octree_id).to_string_lossy())?;
