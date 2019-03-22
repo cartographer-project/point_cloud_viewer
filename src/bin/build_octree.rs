@@ -30,7 +30,7 @@ struct CommandlineArguments {
     #[structopt(long = "resolution", default_value = "0.001")]
     resolution: f64,
     // Flag to skip bbox calculation and use a fixed bbox.
-    // The fixed bbox is extends 1048576 length units in each direction.
+    // The fixed bbox is extends 6400000 length units in each direction.
     #[structopt(long = "bbox_type", raw(possible_values = "&RootBbox::variants()", case_insensitive = "true"), default_value = "FromData")]
     bbox_type: RootBbox,
 }
