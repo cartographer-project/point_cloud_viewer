@@ -28,11 +28,9 @@ pub fn app_bundle_source_map(_req: &HttpRequest<Arc<AppState>>) -> HttpResponse 
 }
 
 pub fn get_init_tree(state: State<Arc<AppState>>) -> HttpResponse {
-    let init_id = state.return_init_id();
-    match init_id {
-        Ok(id) => HttpResponse::Ok().content_type("text/plain").body(id),
-        Err(err) => HttpResponse::from_error(err.into()),
-    }
+    HttpResponse::Ok()
+        .content_type("text/plain")
+        .body(state.get_init_id())
 }
 
 /// octree server function

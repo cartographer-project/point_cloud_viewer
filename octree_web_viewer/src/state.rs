@@ -26,11 +26,11 @@ impl OctreeKeyParams {
 #[derive(Clone)]
 pub struct AppState {
     /// Hash Map for Octrees
-    pub octree_map: Arc<RwLock<HashMap<String, Arc<octree::Octree>>>>,
+    octree_map: Arc<RwLock<HashMap<String, Arc<octree::Octree>>>>,
     /// information for retieving octree path
-    pub key_params: OctreeKeyParams,
+    key_params: OctreeKeyParams,
     /// backward compatibility to input arguments
-    pub init_octree_id: String,
+    init_octree_id: String,
 }
 
 impl AppState {
@@ -86,7 +86,7 @@ impl AppState {
         Ok(octree)
     }
 
-    pub fn return_init_id(&self) -> Result<String, PointsViewerError> {
-        Ok(self.init_octree_id.clone())
+    pub fn get_init_id(&self) -> String {
+        self.init_octree_id.clone()
     }
 }
