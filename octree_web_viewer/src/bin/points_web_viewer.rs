@@ -41,7 +41,7 @@ pub struct CommandLineArguments {
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
     // initial implementation: suffix from args not yet supported
     let suffix = PathBuf::new();
-    let prefix = args.octree_path.parent().unwrap_or(Path::new(""));
+    let prefix = args.octree_path.parent().unwrap_or_else(|| Path::new(""));
     let octree_id = args.octree_path.strip_prefix(&prefix)?;
     Ok(AppState::new(
         args.cache_max,
