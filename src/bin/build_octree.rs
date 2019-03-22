@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use point_viewer::generation::build_octree_from_file;
+use point_viewer::generation::{build_octree_from_file, RootBbox};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -29,10 +29,26 @@ struct CommandlineArguments {
     /// This decides on the number of bits used to encode each node.
     #[structopt(long = "resolution", default_value = "0.001")]
     resolution: f64,
+    // Flag to skip bbox calculation and use a fixed bbox.
+    // The fixed bbox is zero-centered and extends 6_400_000 length units in
+    // each direction, so that the octree can cover the whole earth when
+    // using ECEF coordinates.
+    #[structopt(
+        long = "bbox_type",
+        raw(possible_values = "&RootBbox::variants()", case_insensitive = "true"),
+        default_value = "FromData"
+    )]
+    bbox_type: RootBbox,
 }
 
 fn main() {
     let args = CommandlineArguments::from_args();
     let pool = scoped_pool::Pool::new(10);
-    build_octree_from_file(&pool, args.output_directory, args.resolution, args.input);
+    build_octree_from_file(
+        &pool,
+        args.output_directory,
+        args.resolution,
+        args.input,
+        args.bbox_type,
+    );
 }
