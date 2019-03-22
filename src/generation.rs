@@ -305,7 +305,10 @@ pub fn build_octree_from_file(
         }
     };
     let bounding_box = match bbox_type {
-        RootBbox::EarthECEF => { let p = Point3::new(6400000.0, 6400000.0, 6400000.0); Aabb3::new(-1.0 * p, p) },
+        RootBbox::EarthECEF => {
+            let p = Point3::new(6_400_000.0, 6_400_000.0, 6_400_000.0);
+            Aabb3::new(-1.0 * p, p)
+        }
         RootBbox::FromData => find_bounding_box(&input),
     };
     let (stream, _) = make_stream(&input);

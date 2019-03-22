@@ -31,12 +31,22 @@ struct CommandlineArguments {
     resolution: f64,
     // Flag to skip bbox calculation and use a fixed bbox.
     // The fixed bbox is extends 6400000 length units in each direction.
-    #[structopt(long = "bbox_type", raw(possible_values = "&RootBbox::variants()", case_insensitive = "true"), default_value = "FromData")]
+    #[structopt(
+        long = "bbox_type",
+        raw(possible_values = "&RootBbox::variants()", case_insensitive = "true"),
+        default_value = "FromData"
+    )]
     bbox_type: RootBbox,
 }
 
 fn main() {
     let args = CommandlineArguments::from_args();
     let pool = scoped_pool::Pool::new(10);
-    build_octree_from_file(&pool, args.output_directory, args.resolution, args.input, args.bbox_type);
+    build_octree_from_file(
+        &pool,
+        args.output_directory,
+        args.resolution,
+        args.input,
+        args.bbox_type,
+    );
 }
