@@ -128,7 +128,7 @@ class App {
     }
 
     private cleanup() {
-        // TODO (negin-z) block requests from the viewer that is going to be replaced
+        // TODO(negin-z) block requests from the viewer that is going to be replaced
         this.removeControls();
         if (this.renderer) {
             this.renderArea.removeChild(this.renderer.domElement);
@@ -171,7 +171,7 @@ class App {
                 .name('Point Cloud ID')
                 .onFinishChange(this.run);
 
-        //TODO (negin-z) error handling
+        // TODO(negin-z) error handling
         this.fetchDefaultOctreeId()
             .then(this.setOctreeId)
             .then(this.run);
@@ -180,7 +180,7 @@ class App {
     }
 
     private onWindowResize() {
-        // todo (cvitadello) why is the window size used here?
+        // TODO(cvitadello) why is the window size used here?
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
