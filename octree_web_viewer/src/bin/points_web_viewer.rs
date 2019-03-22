@@ -18,7 +18,6 @@ use octree_web_viewer::utils::start_octree_server;
 use point_viewer::octree::OctreeFactory;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use structopt::clap::ArgGroup;
 use structopt::StructOpt;
 
 /// HTTP web viewer for 3d points stored in OnDiskOctrees
@@ -50,7 +49,7 @@ pub struct CommandLineArguments {
 /// init app state with command arguments
 /// backward compatibilty is ensured
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
-    let octee_factory = OctreeFactory::new();
+    let octree_factory = OctreeFactory::new();
     let mut suffix = Path::new("");
     let mut suffix_depth = args.suffix_depth;
     let mut octree_path: PathBuf;
@@ -74,7 +73,7 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
         prefix,
         suffix,
         octree_id.to_str().unwrap(),
-        octee_factory,
+        octree_factory,
     ))
 }
 
