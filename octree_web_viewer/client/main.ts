@@ -32,7 +32,6 @@ class App {
     private gui: dat.GUI;
     private guiRenderControls: dat.GUI;
     public octreeId: string;  // octree identifier
-    private renderArea: HTMLElement;
 
     private fetchDefaultOctreeId(): Promise<string> {
         const request = new Request(
@@ -45,8 +44,10 @@ class App {
 
         const result = window
             .fetch(request)
-            .then((response) => { return response.text(); }) // todo error handling?
-
+            .then((response) => response.text()) // todo error handling?
+            .then((body) => {
+                return body;
+            });
         return result;
     }
 
@@ -86,19 +87,14 @@ class App {
             });
     }
 
-    private getViewPortSize(): [number, number] {
-        let width = this.renderArea.clientWidth;
-        let height = this.renderArea.clientHeight;
-        return [width, height];
-    }
     private initCamera() {
+        const renderArea = document.getElementById('renderArea');
         const VIEW_ANGLE = 45;
         const NEAR = 0.1;
         const FAR = 10000;
-        let [width, height] = this.getViewPortSize();
         this.camera = new THREE.PerspectiveCamera(
             VIEW_ANGLE,
-            width / height,
+            renderArea.clientWidth / renderArea.clientHeight,
             NEAR,
             FAR
         );
@@ -113,11 +109,10 @@ class App {
     }
 
     private initRenderer() {
+        const renderArea = document.getElementById('renderArea');
         this.renderer = new THREE.WebGLRenderer();
-
-        let [width, height] = this.getViewPortSize();
-        this.renderer.setSize(width, height);
-        this.renderArea.appendChild(this.renderer.domElement);
+        this.renderer.setSize(renderArea.clientWidth, renderArea.clientHeight);
+        renderArea.appendChild(this.renderer.domElement);
         this.controller = new FirstPersonController(
             this.camera,
             this.renderer.domElement
@@ -128,10 +123,11 @@ class App {
     }
 
     private cleanup() {
-        // TODO(negin-z) block requests from the viewer that is going to be replaced
+        // TODO (negin-z) block requests from the viewer that is going to be replaced
         this.removeControls();
+        const renderArea = document.getElementById('renderArea');
         if (this.renderer) {
-            this.renderArea.removeChild(this.renderer.domElement);
+            renderArea.removeChild(this.renderer.domElement);
             this.renderer.dispose();
         }
     }
@@ -161,7 +157,6 @@ class App {
     }
 
     public init() {
-        this.renderArea = document.getElementById('renderArea');
         this.octreeId = "loading...";
         this.gui = new GUI();
 
@@ -171,7 +166,7 @@ class App {
                 .name('Point Cloud ID')
                 .onFinishChange(this.run);
 
-        // TODO(negin-z) error handling
+        //TODO (negin-z) error handling
         this.fetchDefaultOctreeId()
             .then(this.setOctreeId)
             .then(this.run);
@@ -180,7 +175,6 @@ class App {
     }
 
     private onWindowResize() {
-        // TODO(cvitadello) why is the window size used here?
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
