@@ -265,114 +265,6 @@ macro_rules! create_skip_fn {
     }};
 }
 
-/// Opens a PLY file and checks that it is the correct format we support. Seeks in the file to the
-/// beginning of the binary data which must be (x, y, z, r, g, b) tuples.
-fn open(ply_file: &Path) -> Result<PlyIterator> {
-    let mut file = File::open(ply_file).chain_err(|| "Could not open input file.")?;
-    let mut reader = BufReader::new(file);
-    let (header, header_len) = parse_header(&mut reader)?;
-    file = reader.into_inner();
-    file.seek(SeekFrom::Start(header_len as u64))?;
-
-    if !header.has_element("vertex") {
-        panic!("Header does not have element 'vertex'");
-    }
-
-    if header.format != Format::BinaryLittleEndianV1 {
-        panic!("Unsupported PLY format: {:?}", header.format);
-    }
-
-    let vertex = &header["vertex"];
-    let mut seen_x = false;
-    let mut seen_y = false;
-    let mut seen_z = false;
-
-    let mut readers: Vec<ReadingFn> = Vec::new();
-    let mut num_bytes_per_point = 0;
-
-    for prop in &vertex.properties {
-        match &prop.name as &str {
-            "x" => {
-                readers.push(read_casted_property!(
-                    prop.data_type,
-                    |p: &mut Point, val: f64| p.position.x = val,
-                    &mut num_bytes_per_point
-                ));
-                seen_x = true;
-            }
-            "y" => {
-                readers.push(read_casted_property!(
-                    prop.data_type,
-                    |p: &mut Point, val: f64| p.position.y = val,
-                    &mut num_bytes_per_point
-                ));
-                seen_y = true;
-            }
-            "z" => {
-                readers.push(read_casted_property!(
-                    prop.data_type,
-                    |p: &mut Point, val: f64| p.position.z = val,
-                    &mut num_bytes_per_point
-                ));
-                seen_z = true;
-            }
-            "r" | "red" => {
-                readers.push(read_casted_property!(
-                    prop.data_type,
-                    |p: &mut Point, val: u8| p.color.red = val,
-                    &mut num_bytes_per_point
-                ));
-            }
-            "g" | "green" => {
-                readers.push(read_casted_property!(
-                    prop.data_type,
-                    |p: &mut Point, val: u8| p.color.green = val,
-                    &mut num_bytes_per_point
-                ));
-            }
-            "b" | "blue" => {
-                readers.push(read_casted_property!(
-                    prop.data_type,
-                    |p: &mut Point, val: u8| p.color.blue = val,
-                    &mut num_bytes_per_point
-                ));
-            }
-            "intensity" => {
-                readers.push(read_casted_property!(
-                    prop.data_type,
-                    |p: &mut Point, val| p.intensity = Some(val),
-                    &mut num_bytes_per_point
-                ));
-            }
-            other => {
-                println!("Will ignore property '{}' on 'vertex'.", other);
-                use self::DataType::*;
-                match prop.data_type {
-                    Uint8 | Int8 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 1)),
-                    Uint16 | Int16 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 2)),
-                    Uint32 | Int32 | Float32 => {
-                        readers.push(create_skip_fn!(&mut num_bytes_per_point, 4))
-                    }
-                    Float64 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 8)),
-                }
-            }
-        }
-    }
-
-    if !seen_x || !seen_y || !seen_z {
-        panic!("PLY must contain properties 'x', 'y', 'z' for 'vertex'.");
-    }
-
-    // We align the buffer of this 'BufReader' to points, so that we can index this buffer and know
-    // that it will always contain full points to parse.
-    Ok(PlyIterator {
-        reader: BufReader::with_capacity(num_bytes_per_point * 1024, file),
-        readers,
-        num_total_points: header["vertex"].count,
-        offset: header.offset,
-    })
-}
-
 /// Abstraction to read binary points from ply files into points.
 pub struct PlyIterator {
     reader: BufReader<File>,
@@ -383,7 +275,111 @@ pub struct PlyIterator {
 
 impl PlyIterator {
     pub fn from_file<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
-        open(ply_file.as_ref())
+        let mut file = File::open(ply_file).chain_err(|| "Could not open input file.")?;
+        let mut reader = BufReader::new(file);
+        let (header, header_len) = parse_header(&mut reader)?;
+        file = reader.into_inner();
+        file.seek(SeekFrom::Start(header_len as u64))?;
+
+        if !header.has_element("vertex") {
+            panic!("Header does not have element 'vertex'");
+        }
+
+        if header.format != Format::BinaryLittleEndianV1 {
+            panic!("Unsupported PLY format: {:?}", header.format);
+        }
+
+        let vertex = &header["vertex"];
+        let mut seen_x = false;
+        let mut seen_y = false;
+        let mut seen_z = false;
+
+        let mut readers: Vec<ReadingFn> = Vec::new();
+        let mut num_bytes_per_point = 0;
+
+        for prop in &vertex.properties {
+            match &prop.name as &str {
+                "x" => {
+                    readers.push(read_casted_property!(
+                        prop.data_type,
+                        |p: &mut Point, val: f64| p.position.x = val,
+                        &mut num_bytes_per_point
+                    ));
+                    seen_x = true;
+                }
+                "y" => {
+                    readers.push(read_casted_property!(
+                        prop.data_type,
+                        |p: &mut Point, val: f64| p.position.y = val,
+                        &mut num_bytes_per_point
+                    ));
+                    seen_y = true;
+                }
+                "z" => {
+                    readers.push(read_casted_property!(
+                        prop.data_type,
+                        |p: &mut Point, val: f64| p.position.z = val,
+                        &mut num_bytes_per_point
+                    ));
+                    seen_z = true;
+                }
+                "r" | "red" => {
+                    readers.push(read_casted_property!(
+                        prop.data_type,
+                        |p: &mut Point, val: u8| p.color.red = val,
+                        &mut num_bytes_per_point
+                    ));
+                }
+                "g" | "green" => {
+                    readers.push(read_casted_property!(
+                        prop.data_type,
+                        |p: &mut Point, val: u8| p.color.green = val,
+                        &mut num_bytes_per_point
+                    ));
+                }
+                "b" | "blue" => {
+                    readers.push(read_casted_property!(
+                        prop.data_type,
+                        |p: &mut Point, val: u8| p.color.blue = val,
+                        &mut num_bytes_per_point
+                    ));
+                }
+                "intensity" => {
+                    readers.push(read_casted_property!(
+                        prop.data_type,
+                        |p: &mut Point, val| p.intensity = Some(val),
+                        &mut num_bytes_per_point
+                    ));
+                }
+                other => {
+                    println!("Will ignore property '{}' on 'vertex'.", other);
+                    use self::DataType::*;
+                    match prop.data_type {
+                        Uint8 | Int8 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 1)),
+                        Uint16 | Int16 => {
+                            readers.push(create_skip_fn!(&mut num_bytes_per_point, 2))
+                        }
+                        Uint32 | Int32 | Float32 => {
+                            readers.push(create_skip_fn!(&mut num_bytes_per_point, 4))
+                        }
+                        Float64 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 8)),
+                    }
+                }
+            }
+        }
+
+        if !seen_x || !seen_y || !seen_z {
+            panic!("PLY must contain properties 'x', 'y', 'z' for 'vertex'.");
+        }
+
+        // We align the buffer of this 'BufReader' to points, so that we can index this buffer and know
+        // that it will always contain full points to parse.
+        Ok(PlyIterator {
+            reader: BufReader::with_capacity(num_bytes_per_point * 1024, file),
+            readers,
+            num_total_points: header["vertex"].count,
+            offset: header.offset,
+        })
     }
 }
 
