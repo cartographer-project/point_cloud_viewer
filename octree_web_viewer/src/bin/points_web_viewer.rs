@@ -49,23 +49,15 @@ pub struct CommandLineArguments {
 /// backward compatibilty is ensured
 pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerError> {
     let octree_factory = OctreeFactory::new();
-    let mut suffix = Path::new("");
-    let mut suffix_depth = args.suffix_depth;
+    let mut octree_prefix_id = args.octree_path.as_path();
     // get octree path without suffix
-    let octree_path = if suffix_depth > 0 {
-        let mut octree_directory = args.octree_path.parent().unwrap_or_else(|| Path::new(""));
-        while suffix_depth > 1 {
-            octree_directory = octree_directory.parent().unwrap_or_else(|| Path::new(""));
-            suffix_depth -= 1;
-        }
-        suffix = args.octree_path.strip_prefix(&octree_directory)?;
-        PathBuf::from(octree_directory)
-    } else {
-        args.octree_path
-    };
+    for _ in 0..args.suffix_depth {
+        octree_prefix_id = args.octree_path.parent().unwrap_or_else(|| Path::new(""));
+    }
 
-    let prefix = octree_path.parent().unwrap_or_else(|| Path::new(""));
-    let octree_id = octree_path.strip_prefix(&prefix)?;
+    let suffix = args.octree_path.strip_prefix(&octree_prefix_id)?;
+    let prefix = octree_prefix_id.parent().unwrap_or_else(|| Path::new(""));
+    let octree_id = octree_prefix_id.strip_prefix(&prefix)?;
     Ok(AppState::new(
         args.cache_max,
         prefix,
