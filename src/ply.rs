@@ -174,17 +174,19 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
                 current_element.as_mut().unwrap().properties.push(property);
             }
             "end_header" => break,
-            "comment" if entries.len() == 5 && entries[1] == "offset:" => {
-                let x = entries[2]
-                    .parse::<f64>()
-                    .chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[2])))?;
-                let y = entries[3]
-                    .parse::<f64>()
-                    .chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[3])))?;
-                let z = entries[4]
-                    .parse::<f64>()
-                    .chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[4])))?;
-                offset = Vector3::new(x, y, z)
+            "comment" => {
+                if entries.len() == 5 && entries[1] == "offset:" {
+                    let x = entries[2]
+                        .parse::<f64>()
+                        .chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[2])))?;
+                    let y = entries[3]
+                        .parse::<f64>()
+                        .chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[3])))?;
+                    let z = entries[4]
+                        .parse::<f64>()
+                        .chain_err(|| InvalidInput(format!("Invalid offset: {}", entries[4])))?;
+                    offset = Vector3::new(x, y, z)
+                }
             }
             _ => return Err(InvalidInput(format!("Invalid line: {}", line)).into()),
         }
