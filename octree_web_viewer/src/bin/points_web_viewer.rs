@@ -29,7 +29,6 @@ use structopt::StructOpt;
 #[structopt(name = "points_web_viewer", about = "Visualizing points")]
 pub struct CommandLineArguments {
     /// The octree directory to serve, including a trailing slash.
-    /// this overrides <--prefix> and <--octree_id> options
     #[structopt(name = "DIR", parse(from_os_str))]
     octree_path: PathBuf,
     /// Port to listen on.
