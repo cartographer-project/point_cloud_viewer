@@ -52,19 +52,18 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
     let octree_factory = OctreeFactory::new();
     let mut suffix = Path::new("");
     let mut suffix_depth = args.suffix_depth;
-    let mut octree_path: PathBuf;
-    // parse path if suffix is specified
-    if suffix_depth > 0 {
+    // get octree path without suffix
+    let octree_path = if suffix_depth > 0 {
         let mut octree_directory = args.octree_path.parent().unwrap_or_else(|| Path::new(""));
         while suffix_depth > 1 {
             octree_directory = octree_directory.parent().unwrap_or_else(|| Path::new(""));
             suffix_depth -= 1;
         }
         suffix = args.octree_path.strip_prefix(&octree_directory)?;
-        octree_path = PathBuf::from(octree_directory);
+        PathBuf::from(octree_directory)
     } else {
-        octree_path = args.octree_path;
-    }
+        args.octree_path
+    };
 
     let prefix = octree_path.parent().unwrap_or_else(|| Path::new(""));
     let octree_id = octree_path.strip_prefix(&prefix)?;
