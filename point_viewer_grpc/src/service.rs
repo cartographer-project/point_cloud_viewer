@@ -292,23 +292,19 @@ impl OctreeService {
     }
 
     fn get_service_data(&self, octree_id: &str) -> Result<Arc<OctreeServiceData>> {
-        let read_cache = self.data_cache.read().unwrap();
-        match read_cache.get(octree_id) {
-            None => {
-                drop(read_cache);
-                let octree = self
-                    .factory
-                    .generate_octree(self.location.join(&octree_id).to_string_lossy())?;
-                let meta = octree.to_meta_proto();
-                let service_data = Arc::new(OctreeServiceData { octree, meta });
-                self.data_cache
-                    .write()
-                    .unwrap()
-                    .insert(octree_id.to_string(), Arc::clone(&service_data));
-                Ok(service_data)
-            }
-            Some(service_data) => Ok(Arc::clone(service_data)),
-        }
+        if let Some(service_data) = self.data_cache.read().unwrap().get(octree_id) {
+            return Ok(Arc::clone(service_data));
+        };
+        let octree = self
+            .factory
+            .generate_octree(self.location.join(&octree_id).to_string_lossy())?;
+        let meta = octree.to_meta_proto();
+        let service_data = Arc::new(OctreeServiceData { octree, meta });
+        self.data_cache
+            .write()
+            .unwrap()
+            .insert(octree_id.to_string(), Arc::clone(&service_data));
+        Ok(service_data)
     }
 }
 
