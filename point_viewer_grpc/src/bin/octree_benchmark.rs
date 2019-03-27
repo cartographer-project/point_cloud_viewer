@@ -80,6 +80,7 @@ fn server_benchmark(octree_directory: &Path, num_points: u64) {
             std::process::exit(0)
         }
     });
+    println!("num_points = {}", num_points);
 }
 
 fn full_benchmark(octree_directory: &Path, num_points: u64, port: u16) {
@@ -107,6 +108,8 @@ fn full_benchmark(octree_directory: &Path, num_points: u64, port: u16) {
             }
         }
     }
+
+    println!("num_points_full = {}", num_points);
 
     let _ = server.shutdown().wait();
 }

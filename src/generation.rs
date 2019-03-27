@@ -471,7 +471,8 @@ mod tests {
     #[test]
     fn test_generation() {
         let default_point = Point {
-            position: Vector3::new(0.0, 0.0, 0.0),
+            position: Vector3::new(-2699182.0, -4294938.0, 3853373.0), //ECEF parking lot porter dr
+            //position: Vector3::new(0.0, 0.0, 0.0),
             color: Color {
                 red: 255,
                 green: 0,
@@ -481,13 +482,21 @@ mod tests {
             intensity: None,
         };
         let mut points = vec![default_point; 100_001];
-        points[100_000].position = Vector3::new(2.0, 0.0, 0.0);
-        let mut bounding_box = Aabb3::zero();
-        for point in &points {
-            bounding_box = bounding_box.grow(Point3::from_vec(point.position));
-        }
+        points[100_000].position = Vector3::new(-2_702_846.0, -4_291_151.0, 3855012.0); // ECEF STANFORD
+
+        let p = Point3::new(6_400_000.0, 6_400_000.0, 6_400_000.0);
+        let bounding_box = Aabb3::new(-1.0 * p, p);
+
         let pool = scoped_pool::Pool::new(10);
         let tmp_dir = TempDir::new("octree").unwrap();
         build_octree(&pool, tmp_dir, 1.0, bounding_box, Points { points });
+
+        //PAO bounding cube
+        let bounding_cube =
+            octree::NodeId::from_level_index(6, u128::from_str_radix("152071", 8).unwrap())
+                .find_bounding_cube(&Cube::bounding(&bounding_box));
+        assert_eq!(-2_800_000., bounding_cube.min().x);
+        assert_eq!(-4_400_000., bounding_cube.min().y);
+        assert_eq!(3_800_000., bounding_cube.min().z);
     }
 }
