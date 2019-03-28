@@ -18,6 +18,18 @@ pub struct NodeWriter {
     num_written: i64,
 }
 
+impl Drop for NodeWriter {
+    fn drop(&mut self) {
+        // If we did not write anything into this node, it should not exist.
+        if self.num_written == 0 {
+            self.remove_all_files();
+        }
+
+        // TODO(hrapp): Add some sanity checks that we do not have nodes with ridiculously low
+        // amount of points laying around?
+    }
+}
+
 impl NodeWriter {
     pub fn new(
         octree_data_provider: &OnDiskOctreeDataProvider,
@@ -118,5 +130,12 @@ impl NodeWriter {
 
     pub fn num_written(&self) -> i64 {
         self.num_written
+    }
+
+    fn remove_all_files(&self) {
+        // We are ignoring deletion errors here in case the file is already gone.
+        let _ = fs::remove_file(&self.stem.with_extension(NodeLayer::Position.extension()));
+        let _ = fs::remove_file(&self.stem.with_extension(NodeLayer::Color.extension()));
+        let _ = fs::remove_file(&self.stem.with_extension(NodeLayer::Intensity.extension()));
     }
 }
