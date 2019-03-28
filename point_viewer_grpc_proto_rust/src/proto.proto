@@ -75,9 +75,6 @@ message GetPointsInFrustumRequest {
   double z_far = 6;
 
   string octree_id = 7;
-
-  point_viewer.proto.Vector3f deprecated_translation = 1;
-  point_viewer.proto.Quaternionf deprecated_rotation = 2;
 }
 
 message GetAllPointsRequest {
