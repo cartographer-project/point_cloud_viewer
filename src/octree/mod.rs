@@ -479,7 +479,7 @@ fn maybe_push_node(
     node: Node,
     projection_matrix: &Matrix4<f32>,
 ) {
-    if !nodes.contains_key(&node.id) {
+    if nodes.get(&node.id).map_or(0, |meta| meta.num_points) == 0 {
         return;
     }
     let size_on_screen = relative_size_on_screen(&node.bounding_cube, projection_matrix);

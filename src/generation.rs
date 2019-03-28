@@ -394,9 +394,7 @@ pub fn build_octree(
         pool.scoped(|scope| {
             scope.execute(|| {
                 for (id, num_points) in finished_nodes_receiver {
-                    if num_points > 0 {
-                        finished_nodes.insert(id, num_points);
-                    }
+                    finished_nodes.insert(id, num_points);
                 }
             });
 
