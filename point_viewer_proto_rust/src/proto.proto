@@ -37,6 +37,13 @@ message Quaternionf {
   float w = 4;
 }
 
+message Quaterniond {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+  double w = 4;
+}
+
 // Based on OpenGL standards, the value of fields will be between 0 and 1
 message Color {
   float red = 1;

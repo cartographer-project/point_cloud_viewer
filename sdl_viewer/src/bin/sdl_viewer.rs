@@ -29,7 +29,7 @@ impl Extension for NullExtension {
         Self
     }
 
-    fn camera_changed(&mut self, _: &Matrix4<f32>) {}
+    fn camera_changed(&mut self, _: &Matrix4<f64>) {}
 
     fn draw(&mut self) {}
 }
