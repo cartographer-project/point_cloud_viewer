@@ -30,11 +30,11 @@ message Vector3d {
   double z = 3;
 }
 
-message Quaternionf {
-  float x = 1;
-  float y = 2;
-  float z = 3;
-  float w = 4;
+message Quaterniond {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+  double w = 4;
 }
 
 // Based on OpenGL standards, the value of fields will be between 0 and 1

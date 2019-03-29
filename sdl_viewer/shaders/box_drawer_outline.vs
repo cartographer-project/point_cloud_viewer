@@ -1,7 +1,7 @@
 #version 410 core
 
-layout(location = 0) in vec3 position;
+layout(location = 0) in dvec3 position;
 
-uniform mat4 transform;
+uniform dmat4 transform;
 
-void main() { gl_Position = transform * vec4(position, 1.0f); }
+void main() { gl_Position = vec4(transform * dvec4(position, 1.0lf)); }

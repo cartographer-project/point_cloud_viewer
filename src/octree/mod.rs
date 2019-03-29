@@ -81,8 +81,8 @@ pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::Node>) -> proto
 
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
 // that is impossible.
-fn project(m: &Matrix4<f32>, p: &Point3<f64>) -> Point3<f64> {
-    let q = m.cast::<f64>().unwrap() * Point3::to_homogeneous(*p);
+fn project(m: &Matrix4<f64>, p: &Point3<f64>) -> Point3<f64> {
+    let q = m * Point3::to_homogeneous(*p);
     Point3::from_homogeneous(q / q.w)
 }
 
@@ -97,7 +97,7 @@ fn clip_point_to_hemicube(p: &Point3<f64>) -> Point3<f64> {
 // proportional to the size on the screen, but this parameter would need to be passed through to
 // all API calls. I decided on relying on a 'good enough' metric instead which did not require the
 // parameter.
-fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f32>) -> f64 {
+fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f64>) -> f64 {
     // z is unused here.
     let min = bounding_cube.min();
     let max = bounding_cube.max();
@@ -166,7 +166,7 @@ impl<'a> InternalIterator for PointsInBoxIterator<'a> {
 
 pub struct PointsInFrustumIterator<'a> {
     octree: &'a Octree,
-    frustum_matrix: &'a Matrix4<f32>,
+    frustum_matrix: &'a Matrix4<f64>,
     intersecting_nodes: Vec<NodeId>,
 }
 
@@ -227,9 +227,9 @@ impl<'a> InternalIterator for AllPointsIterator<'a> {
 }
 
 // TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
-fn contains(projection_matrix: &Matrix4<f32>, point: &Point3<f64>) -> bool {
+fn contains(projection_matrix: &Matrix4<f64>, point: &Point3<f64>) -> bool {
     let v = Vector4::new(point.x, point.y, point.z, 1.);
-    let clip_v = projection_matrix.cast::<f64>().unwrap() * v;
+    let clip_v = projection_matrix * v;
     clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z && clip_v.z < clip_v.w
 }
 
@@ -313,8 +313,8 @@ impl Octree {
         to_meta_proto(&self.meta, nodes)
     }
 
-    pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f32>) -> Vec<NodeId> {
-        let frustum = Frustum::from_matrix4(projection_matrix.cast::<f64>().unwrap()).unwrap();
+    pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
+        let frustum = Frustum::from_matrix4(*projection_matrix).unwrap();
         let mut open = BinaryHeap::new();
         maybe_push_node(
             &mut open,
@@ -417,7 +417,7 @@ impl Octree {
 
     pub fn points_in_frustum<'a>(
         &'a self,
-        frustum_matrix: &'a Matrix4<f32>,
+        frustum_matrix: &'a Matrix4<f64>,
     ) -> PointsInFrustumIterator<'a> {
         let intersecting_nodes = self.get_visible_nodes(frustum_matrix);
         PointsInFrustumIterator {
@@ -477,7 +477,7 @@ fn maybe_push_node(
     nodes: &FnvHashMap<NodeId, NodeMeta>,
     relation: Relation,
     node: Node,
-    projection_matrix: &Matrix4<f32>,
+    projection_matrix: &Matrix4<f64>,
 ) {
     if nodes.get(&node.id).map_or(0, |meta| meta.num_points) == 0 {
         return;

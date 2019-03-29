@@ -18,13 +18,13 @@ use cgmath::{
     Rotation3, Transform, Vector3, Zero,
 };
 use serde_derive::{Deserialize, Serialize};
-use std::f32;
+use std::f64;
 use time;
 
 #[derive(Debug)]
 struct RotationAngle {
-    theta: Rad<f32>,
-    phi: Rad<f32>,
+    theta: Rad<f64>,
+    phi: Rad<f64>,
 }
 
 impl RotationAngle {
@@ -58,10 +58,10 @@ pub struct Camera {
     pub height: i32,
     ct_mode: CtMode,
 
-    movement_speed: f32,
-    theta: Rad<f32>,
-    phi: Rad<f32>,
-    pan: Vector3<f32>,
+    movement_speed: f64,
+    theta: Rad<f64>,
+    phi: Rad<f64>,
+    pan: Vector3<f64>,
 
     // The speed we currently want to rotate at. This is multiplied with the seconds since the last
     // frame to get to an absolute rotation.
@@ -73,16 +73,16 @@ pub struct Camera {
     delta_rotation: RotationAngle,
 
     moved: bool,
-    transform: Decomposed<Vector3<f32>, Quaternion<f32>>,
+    transform: Decomposed<Vector3<f64>, Quaternion<f64>>,
 
     projection_matrix: Matrix4<f32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct State {
-    transform: Decomposed<Vector3<f32>, Quaternion<f32>>,
-    phi: Rad<f32>,
-    theta: Rad<f32>,
+    transform: Decomposed<Vector3<f64>, Quaternion<f64>>,
+    phi: Rad<f64>,
+    theta: Rad<f64>,
 }
 
 const FAR_PLANE: f32 = 10000.;
@@ -187,9 +187,9 @@ impl Camera {
         self.update_viewport(gl);
     }
 
-    pub fn get_world_to_gl(&self) -> Matrix4<f32> {
-        let world_to_camera: Matrix4<f32> = self.transform.inverse_transform().unwrap().into();
-        self.projection_matrix * world_to_camera
+    pub fn get_world_to_gl(&self) -> Matrix4<f64> {
+        let world_to_camera: Matrix4<f64> = self.transform.inverse_transform().unwrap().into();
+        self.projection_matrix.cast::<f64>().unwrap() * world_to_camera
     }
 
     /// Update the camera position for the current frame. Returns true if the camera moved in this
@@ -222,9 +222,9 @@ impl Camera {
             self.pan += pan.normalize();
         }
 
-        let elapsed_seconds = elapsed.num_milliseconds() as f32 / 1000.;
+        let elapsed_seconds = elapsed.num_milliseconds() as f64 / 1000.;
 
-        const TURNING_SPEED: Rad<f32> = Rad(0.15);
+        const TURNING_SPEED: Rad<f64> = Rad(0.15);
         if self.turning_left {
             self.rotation_speed.theta += TURNING_SPEED;
         }
@@ -275,28 +275,30 @@ impl Camera {
     }
 
     pub fn mouse_drag_pan(&mut self, delta_x: i32, delta_y: i32) {
-        self.pan.x -= 100. * delta_x as f32 / self.width as f32;
-        self.pan.y += 100. * delta_y as f32 / self.height as f32;
+        self.pan.x -= 100. * f64::from(delta_x) / f64::from(self.width);
+        self.pan.y += 100. * f64::from(delta_y) / f64::from(self.height);
     }
 
     pub fn mouse_drag_rotate(&mut self, delta_x: i32, delta_y: i32) {
-        self.delta_rotation.theta -= Rad(2. * f32::consts::PI * delta_x as f32 / self.width as f32);
-        self.delta_rotation.phi -= Rad(2. * f32::consts::PI * delta_y as f32 / self.height as f32);
+        self.delta_rotation.theta -=
+            Rad(2. * f64::consts::PI * f64::from(delta_x) / f64::from(self.width));
+        self.delta_rotation.phi -=
+            Rad(2. * f64::consts::PI * f64::from(delta_y) / f64::from(self.height));
     }
 
     pub fn mouse_wheel(&mut self, delta: i32) {
-        let sign = delta.signum() as f32;
+        let sign = f64::from(delta.signum());
         self.movement_speed += sign * 0.1 * self.movement_speed;
         self.movement_speed = self.movement_speed.max(0.01);
     }
 
-    pub fn pan(&mut self, x: f32, y: f32, z: f32) {
+    pub fn pan(&mut self, x: f64, y: f64, z: f64) {
         self.pan.x += x;
         self.pan.y += y;
         self.pan.z += z;
     }
 
-    pub fn rotate(&mut self, up: f32, around: f32) {
+    pub fn rotate(&mut self, up: f64, around: f64) {
         self.rotation_speed.phi += Rad(up);
         self.rotation_speed.theta += Rad(around);
     }

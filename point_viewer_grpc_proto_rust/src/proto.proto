@@ -57,10 +57,10 @@ message GetPointsInBoxRequest {
 
 message GetPointsInFrustumRequest {
   // Vector defining the translation.
-  point_viewer.proto.Vector3f translation = 1;
+  point_viewer.proto.Vector3d translation = 8;
 
   // Unit quaternion specifying the rotation.
-  point_viewer.proto.Quaternionf rotation = 2;
+  point_viewer.proto.Quaterniond rotation = 9;
 
   // Field of view angle in radians.
   double fovy_rad = 3;

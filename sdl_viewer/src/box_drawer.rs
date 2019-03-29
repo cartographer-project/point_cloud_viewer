@@ -61,7 +61,7 @@ impl BoxDrawer {
         // vertex buffer: define 8 vertices of the box
         let _buffer_position = GlBuffer::new_array_buffer(Rc::clone(gl));
         _buffer_position.bind();
-        let vertices: [[f32; 3]; 8] = [
+        let vertices: [[f64; 3]; 8] = [
             [-1.0, -1.0, 1.0],  // vertices of front quad
             [1.0, -1.0, 1.0],   //
             [1.0, 1.0, 1.0],    //
@@ -74,8 +74,8 @@ impl BoxDrawer {
         unsafe {
             gl.BufferData(
                 opengl::ARRAY_BUFFER,
-                (vertices.len() * 3 * mem::size_of::<f32>()) as GLsizeiptr,
-                &vertices[0] as *const [f32; 3] as *const c_void,
+                (vertices.len() * 3 * mem::size_of::<f64>()) as GLsizeiptr,
+                &vertices[0] as *const [f64; 3] as *const c_void,
                 opengl::STATIC_DRAW,
             );
         }
@@ -109,12 +109,11 @@ impl BoxDrawer {
         unsafe {
             let pos_attr = gl.GetAttribLocation(outline_program.id, c_str!("position"));
             gl.EnableVertexAttribArray(pos_attr as GLuint);
-            gl.VertexAttribPointer(
+            gl.VertexAttribLPointer(
                 pos_attr as GLuint,
                 3,
-                opengl::FLOAT,
-                opengl::FALSE,
-                3 * mem::size_of::<f32>() as i32,
+                opengl::DOUBLE,
+                3 * mem::size_of::<f64>() as i32,
                 ptr::null(),
             );
         }
@@ -131,14 +130,14 @@ impl BoxDrawer {
     // Draws the outline of the box where each vertex is transformed with 'transform'.
     fn draw_outlines_from_transformation(
         &self,
-        transform: &Matrix4<f32>,
+        transform: &Matrix4<f64>,
         color: &color::Color<f32>,
     ) {
         self.vertex_array.bind();
 
         unsafe {
             self.outline_program.gl.UseProgram(self.outline_program.id);
-            self.outline_program.gl.UniformMatrix4fv(
+            self.outline_program.gl.UniformMatrix4dv(
                 self.u_transform,
                 1,
                 false as GLboolean,
@@ -167,16 +166,12 @@ impl BoxDrawer {
     pub fn draw_outlines(
         &self,
         cuboid: &Aabb3<f64>,
-        world_to_gl: &Matrix4<f32>,
+        world_to_gl: &Matrix4<f64>,
         color: &color::Color<f32>,
     ) {
         let dim = cuboid.dim() / 2.0;
-        let scale_matrix = Matrix4::from_nonuniform_scale(dim.x, dim.y, dim.z)
-            .cast::<f32>()
-            .unwrap();
-        let translation_matrix = Matrix4::from_translation(cuboid.center().to_vec())
-            .cast::<f32>()
-            .unwrap();
+        let scale_matrix = Matrix4::from_nonuniform_scale(dim.x, dim.y, dim.z);
+        let translation_matrix = Matrix4::from_translation(cuboid.center().to_vec());
         let transformation_matrix = world_to_gl * translation_matrix * scale_matrix;
 
         self.draw_outlines_from_transformation(&transformation_matrix, color);

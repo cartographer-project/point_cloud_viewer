@@ -105,14 +105,14 @@ impl NodeDrawer {
         }
     }
 
-    pub fn update_world_to_gl(&mut self, matrix: &Matrix4<f32>) {
+    pub fn update_world_to_gl(&mut self, matrix: &Matrix4<f64>) {
         let update_matrix = |node_program: &mut NodeProgram| unsafe {
             node_program.program.gl.UseProgram(node_program.program.id);
             node_program.program.gl.UniformMatrix4dv(
                 node_program.u_world_to_gl,
                 1,
                 false as GLboolean,
-                matrix.cast::<f64>().unwrap().as_ptr(),
+                matrix.as_ptr(),
             );
         };
         update_matrix(&mut self.program_f32);
