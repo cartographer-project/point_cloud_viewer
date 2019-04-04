@@ -134,8 +134,9 @@ impl Camera {
         self.transform.disp = Vector3::new(
             (bounding_box.max.x + bounding_box.min.x) / 2.0,
             (bounding_box.max.y + bounding_box.min.y) / 2.0,
-            bounding_box.max.z + 150.0,
+            (bounding_box.max.z + bounding_box.min.z) / 2.0,
         );
+        println!("camera: x {}, y {}, z {}", &self.transform.disp.x, &self.transform.disp.y, &self.transform.disp.z);
     }
 
     pub fn move_ct(&mut self, delta: f32, gl: &opengl::Gl) {

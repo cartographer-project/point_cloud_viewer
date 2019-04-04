@@ -411,7 +411,10 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
             let node_id = NodeId::from_str(string).unwrap();
             node_id.find_bounding_cube(&Cube::bounding(&octree.bounding_box()))
         }
-        None => octree.bounding_box_approx(),
+        None => {let node_id = NodeId::from_str("r15207161").unwrap(); //PAO
+            node_id.find_bounding_cube(&Cube::bounding(&octree.bounding_box()))
+            //octree.bounding_box_approx(),
+        }
     };
     camera.set_displacement(&bounding_cube.to_aabb3());
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
