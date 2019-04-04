@@ -444,12 +444,12 @@ impl Octree {
             &self.meta.bounding_box,
         ))];
         let mut current = open_list.pop().unwrap();
-        let mut num_points = self.nodes[&current.id].num_points;
+        let mut num_points = self.nodes.get(&current.id).map_or(0, |meta| meta.num_points);;
 
         while num_points < 100_000 && num_points > 0 {
             for child_index in 0..8 {
                 let child = current.get_child(ChildIndex::from_u8(child_index));
-                num_points += self.nodes[&child.id].num_points;
+                num_points += self.nodes.get(&child.id).map_or(0, |meta| meta.num_points);
                 open_list.push(child);
             }
             if !open_list.is_empty() {
