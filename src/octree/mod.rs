@@ -437,6 +437,29 @@ impl Octree {
     pub fn bounding_box(&self) -> &Aabb3<f64> {
         &self.meta.bounding_box
     }
+
+    /// bounding box of the first 100000 points
+    pub fn bounding_box_approx(&self) -> Cube {
+        let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
+            &self.meta.bounding_box,
+        ))];
+        let mut current = open_list.pop().unwrap();
+        let mut num_points = self.nodes[&current.id].num_points;
+
+        while num_points < 100_000 && num_points > 0 {
+            for child_index in 0..8 {
+                let child = current.get_child(ChildIndex::from_u8(child_index));
+                num_points += self.nodes[&child.id].num_points;
+                open_list.push(child);
+            }
+            if !open_list.is_empty() {
+                current = open_list.pop().unwrap();
+            } else {
+                num_points = -1; // exit the loop if the list is empty
+            }
+        }
+        Cube::bounding(&current.bounding_cube.to_aabb3())
+    }
 }
 
 struct OpenNode {

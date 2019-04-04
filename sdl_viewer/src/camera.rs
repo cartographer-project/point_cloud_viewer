@@ -17,6 +17,7 @@ use cgmath::{
     Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
     Rotation3, Transform, Vector3, Zero,
 };
+use collision::Aabb3;
 use serde_derive::{Deserialize, Serialize};
 use std::f64;
 use time;
@@ -126,6 +127,15 @@ impl Camera {
         };
         camera.set_size(gl, width, height);
         camera
+    }
+
+    /// sets the camera in the middle top of the bounding box
+    pub fn set_displacement(&mut self, bounding_box: &Aabb3<f64>) {
+        self.transform.disp = Vector3::new(
+            (bounding_box.max.x + bounding_box.min.x) / 2.0,
+            (bounding_box.max.y + bounding_box.min.y) / 2.0,
+            bounding_box.max.z + 150.0,
+        );
     }
 
     pub fn move_ct(&mut self, delta: f32, gl: &opengl::Gl) {
