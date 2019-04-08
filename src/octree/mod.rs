@@ -438,15 +438,15 @@ impl Octree {
         &self.meta.bounding_box
     }
 
-    /// bounding box of the first 100000 points
-    pub fn bounding_box_approx(&self) -> Cube {
+    /// get first point out of the octree
+    pub fn get_first_point(&self) -> Vector3d {
         let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
             &self.meta.bounding_box,
         ))];
         let mut current = open_list.pop().unwrap();
         let mut num_points = self.nodes.get(&current.id).map_or(0, |meta| meta.num_points);;
 
-        while num_points < 100_000 && num_points > 0 {
+        while num_points < 1 {
             for child_index in 0..8 {
                 let child = current.get_child(ChildIndex::from_u8(child_index));
                 num_points += self.nodes.get(&child.id).map_or(0, |meta| meta.num_points);
@@ -458,7 +458,8 @@ impl Octree {
                 num_points = -1; // exit the loop if the list is empty
             }
         }
-        Cube::bounding(&current.bounding_cube.to_aabb3())
+        let node_data = octree.get_node_data().unwrap();
+        node_data.meta.position
     }
 }
 

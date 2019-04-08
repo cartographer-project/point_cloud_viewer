@@ -129,13 +129,17 @@ impl Camera {
         camera
     }
 
-    /// sets the camera in the middle top of the bounding box
-    pub fn set_displacement(&mut self, bounding_box: &Aabb3<f64>) {
-        self.transform.disp = Vector3::new(
-            (bounding_box.max.x + bounding_box.min.x) / 2.0,
-            (bounding_box.max.y + bounding_box.min.y) / 2.0,
-            (bounding_box.max.z + bounding_box.min.z) / 2.0,
-        );
+    /// sets the camera 50 m higher than the point, looking to the earth center
+    pub fn set_displacement(&mut self, earth_point: Vector3d) {
+
+        let magnitude = cgmath::magnitude(&earth_point);
+        self.transform.disp = (magnitude + 50.0)/magnitude)*earth_point;
+        
+        //let direction_to_earth = -1*normalize(&earth_point);
+
+        // quaternion from axis angle, say angle = pi when axis normalized
+        // from http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToQuaternion/index.htm
+        self.transform.rot = Quaternion::new(1, 0,0,0 );
         println!("camera: x {}, y {}, z {}", &self.transform.disp.x, &self.transform.disp.y, &self.transform.disp.z);
     }
 

@@ -404,20 +404,20 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
 
     let mut extension = T::new(&matches, Rc::clone(&gl));
 
+    let init_cube = Cube::bounding(&octree.bounding_box());
+    let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
     // set initial camera displacement for ECEF trees
-    let bounding_cube: Cube = match matches.value_of("cam_node") {
-        Some(string) => {
-            let node_id = NodeId::from_str(string).unwrap();
-            node_id.find_bounding_cube(&Cube::bounding(&octree.bounding_box()))
-        }
-        None => {let node_id = NodeId::from_str("r15207161").unwrap(); //PAO
-            node_id.find_bounding_cube(&Cube::bounding(&octree.bounding_box()))
-            //octree.bounding_box_approx(),
-        }
-    };
-    camera.set_displacement(&bounding_cube.to_aabb3());
-    let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
+    // let bounding_cube: Cube = match matches.value_of("cam_node") {
+    //     Some(string) => {
+    //         let node_id = NodeId::from_str(string).unwrap();
+    //         node_id.find_bounding_cube(&Cube::bounding(&octree.bounding_box()))
+    //     }
+    //     None => {Cube::bounding(&octree.bounding_box())
+    //         //octree.bounding_box_approx(),
+    //     }
+    // };
+    // camera.set_displacement(&bounding_cube.to_aabb3());
 
     let mut events = ctx.event_pump().unwrap();
     let mut last_frame_time = time::PreciseTime::now();
