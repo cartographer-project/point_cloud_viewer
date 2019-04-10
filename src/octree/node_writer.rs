@@ -136,5 +136,6 @@ impl NodeWriter {
         // We are ignoring deletion errors here in case the file is already gone.
         let _ = fs::remove_file(&self.stem.with_extension(NodeLayer::Position.extension()));
         let _ = fs::remove_file(&self.stem.with_extension(NodeLayer::Color.extension()));
+        let _ = fs::remove_file(&self.stem.with_extension(NodeLayer::Intensity.extension()));
     }
 }

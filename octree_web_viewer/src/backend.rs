@@ -25,10 +25,10 @@ pub fn get_visible_nodes(
         Ok(octree) => {
             let matrix = {
                 // Entries are column major.
-                let e: Vec<f32> = matrix_query
+                let e: Vec<f64> = matrix_query
                     .matrix
                     .split(',')
-                    .map(|s| s.parse::<f32>().unwrap())
+                    .map(|s| s.parse::<f64>().unwrap())
                     .collect();
                 // matrix size check
                 if 16 == e.len() {

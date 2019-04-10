@@ -60,14 +60,14 @@ struct PointCloudRenderer {
     // TODO(sirver): Logging does not fit into this classes responsibilities.
     last_log: time::PreciseTime,
     visible_nodes: Vec<octree::NodeId>,
-    get_visible_nodes_params_tx: mpsc::Sender<Matrix4<f32>>,
+    get_visible_nodes_params_tx: mpsc::Sender<Matrix4<f64>>,
     get_visible_nodes_result_rx: mpsc::Receiver<Vec<octree::NodeId>>,
     num_frames: u32,
     point_size: f32,
     gamma: f32,
     needs_drawing: bool,
     max_nodes_in_memory: usize,
-    world_to_gl: Matrix4<f32>,
+    world_to_gl: Matrix4<f64>,
     max_nodes_moving: usize,
     show_octree_nodes: bool,
     node_views: NodeViewContainer,
@@ -91,7 +91,7 @@ impl PointCloudRenderer {
         // calculation and sends the visible nodes back to the drawing thread. If multiple requests
         // queue up while it is processing one, it will drop all but the latest one before
         // restarting the next calculation.
-        let (get_visible_nodes_params_tx, rx) = mpsc::channel::<Matrix4<f32>>();
+        let (get_visible_nodes_params_tx, rx) = mpsc::channel::<Matrix4<f64>>();
         let (tx, get_visible_nodes_result_rx) = mpsc::channel();
         let octree_clone = octree.clone();
         thread::spawn(move || {
@@ -132,7 +132,7 @@ impl PointCloudRenderer {
         }
     }
 
-    pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f32>) {
+    pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f64>) {
         self.last_moving = time::PreciseTime::now();
         self.needs_drawing = true;
         self.node_drawer.update_world_to_gl(world_to_gl);
@@ -299,7 +299,7 @@ fn load_camera(index: usize, pose_path: &Option<PathBuf>, camera: &mut Camera) {
 pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
     fn new(matches: &clap::ArgMatches, opengl: Rc<opengl::Gl>) -> Self;
-    fn camera_changed(&mut self, transform: &Matrix4<f32>);
+    fn camera_changed(&mut self, transform: &Matrix4<f64>);
     fn draw(&mut self);
 }
 

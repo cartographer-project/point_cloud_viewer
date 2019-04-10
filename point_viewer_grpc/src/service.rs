@@ -45,7 +45,7 @@ struct OctreeService {
 
 #[derive(Debug)]
 enum OctreeQuery {
-    Frustum(Matrix4<f32>),
+    Frustum(Matrix4<f64>),
     Box(Aabb3<f64>),
     FullPointcloud,
 }
@@ -120,10 +120,10 @@ impl proto_grpc::Octree for OctreeService {
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
         let projection_matrix = Matrix4::from(PerspectiveFov {
-            fovy: Rad(req.fovy_rad as f32),
-            aspect: (req.aspect as f32),
-            near: (req.z_near as f32),
-            far: (req.z_far as f32),
+            fovy: Rad(req.fovy_rad),
+            aspect: req.aspect,
+            near: req.z_near,
+            far: req.z_far,
         });
         let rotation = {
             let q = req.rotation.unwrap();
