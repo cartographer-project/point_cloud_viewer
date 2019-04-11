@@ -16,7 +16,7 @@ use crate::errors::*;
 use crate::math::Cube;
 use crate::proto;
 use crate::{InternalIterator, Point};
-use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
+use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
@@ -439,27 +439,41 @@ impl Octree {
     }
 
     /// get first point out of the octree
-    pub fn get_first_point(&self) -> Vector3d {
+    pub fn get_first_point(&self) -> Vector3<f64> {
         let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
             &self.meta.bounding_box,
         ))];
-        let mut current = open_list.pop().unwrap();
-        let mut num_points = self.nodes.get(&current.id).map_or(0, |meta| meta.num_points);;
+        let mut current_node = open_list.pop().unwrap();
+        let mut num_points = self
+            .nodes
+            .get(&current_node.id)
+            .map_or(0, |meta| meta.num_points);;
 
         while num_points < 1 {
             for child_index in 0..8 {
-                let child = current.get_child(ChildIndex::from_u8(child_index));
+                let child = current_node.get_child(ChildIndex::from_u8(child_index));
                 num_points += self.nodes.get(&child.id).map_or(0, |meta| meta.num_points);
                 open_list.push(child);
             }
             if !open_list.is_empty() {
-                current = open_list.pop().unwrap();
+                current_node = open_list.pop().unwrap();
             } else {
                 num_points = -1; // exit the loop if the list is empty
             }
         }
-        let node_data = octree.get_node_data().unwrap();
-        node_data.meta.position
+
+        let mut iterator = NodeIterator::from_data_provider(
+            &*self.data_provider,
+            &self.meta,
+            &current_node.id,
+            self.nodes[&current_node.id].num_points,
+        )
+        .expect("Could not read node points");
+        //extract first point
+        match iterator.get_point(){
+            Ok(point) => point.position as Vector3<f64>,
+            Err(_err) => Vector3{x:0.0,y:0.0,z:0.0}
+        }
     }
 }
 

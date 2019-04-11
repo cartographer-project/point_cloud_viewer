@@ -43,8 +43,7 @@ use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 
 use cgmath::{Matrix4, SquareMatrix};
 use point_viewer::color::YELLOW;
-use point_viewer::math::Cube;
-use point_viewer::octree::{self, NodeId, Octree, OctreeFactory};
+use point_viewer::octree::{self, Octree, OctreeFactory};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Scancode, LCTRLMOD, LSHIFTMOD, RCTRLMOD, RSHIFTMOD};
 use sdl2::video::GLProfile;
@@ -52,7 +51,6 @@ use std::cmp;
 use std::io;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::str::FromStr;
 use std::sync::{mpsc, Arc};
 use std::thread;
 
@@ -304,6 +302,7 @@ pub trait Extension {
     fn new(matches: &clap::ArgMatches, opengl: Rc<opengl::Gl>) -> Self;
     fn camera_changed(&mut self, transform: &Matrix4<f64>);
     fn draw(&mut self);
+    //fn handle_key(&mut self, key) -> KeyHandled; // TODO (catevita) make keys extendible 
 }
 
 pub fn run<T: Extension>(octree_factory: OctreeFactory) {
@@ -318,9 +317,8 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                  The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.",
             )
             .required(false),
-        clap::Arg::with_name("camera_from_node_cube").short("node_cam")
-            .help("sets the camera position according to the bounding box specified from the string or \
-            by default computes the bounding box inspecting the tree until  retrieving 100000 points")
+        clap::Arg::with_name("ecef_camera_pos").short("ecef_cam")
+            .help("sets the camera position with the ECEF coordinates of 3210 Porter Dr., Palo Alto. When not set (0. 0. 150.) is default")
             .required(false)
 
     ]);
@@ -404,20 +402,10 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
 
     let mut extension = T::new(&matches, Rc::clone(&gl));
 
-    let init_cube = Cube::bounding(&octree.bounding_box());
+    //let init_point = octree.get_first_point();
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
-    // set initial camera displacement for ECEF trees
-    // let bounding_cube: Cube = match matches.value_of("cam_node") {
-    //     Some(string) => {
-    //         let node_id = NodeId::from_str(string).unwrap();
-    //         node_id.find_bounding_cube(&Cube::bounding(&octree.bounding_box()))
-    //     }
-    //     None => {Cube::bounding(&octree.bounding_box())
-    //         //octree.bounding_box_approx(),
-    //     }
-    // };
-    // camera.set_displacement(&bounding_cube.to_aabb3());
+    //camera.set_displacement(init_point);
 
     let mut events = ctx.event_pump().unwrap();
     let mut last_frame_time = time::PreciseTime::now();

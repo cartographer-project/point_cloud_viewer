@@ -68,6 +68,92 @@ impl NodeIterator {
         };
         Ok(NodeIterator::WithData(iter))
     }
+
+    // function to retrieve a single point
+    // this duplicates the code from for_each method
+    // due to time complexity, use this for single node access only
+    pub fn get_point(&mut self) -> Result<Point> {
+        let iter = match self {
+            NodeIterator::WithData(iter) => iter,
+            NodeIterator::Empty => return Err("Iterator is empty".into()),
+        };
+        let mut point = Point {
+            position: Vector3::zero(),
+            color: color::RED.to_u8(), // is overwritten
+            intensity: None,
+        };
+
+        let edge_length = iter.meta.bounding_cube.edge_length();
+        let min = iter.meta.bounding_cube.min();
+        match iter.meta.position_encoding {
+            PositionEncoding::Float32 => {
+                point.position.x = decode(
+                    iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    min.x,
+                    edge_length,
+                );
+                point.position.y = decode(
+                    iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    min.y,
+                    edge_length,
+                );
+                point.position.z = decode(
+                    iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    min.z,
+                    edge_length,
+                );
+            }
+            PositionEncoding::Float64 => {
+                point.position.x = decode(
+                    iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                    min.x,
+                    edge_length,
+                );
+                point.position.y = decode(
+                    iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                    min.y,
+                    edge_length,
+                );
+                point.position.z = decode(
+                    iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                    min.z,
+                    edge_length,
+                );
+            }
+            PositionEncoding::Uint8 => {
+                point.position.x =
+                    fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.x, edge_length);
+                point.position.y =
+                    fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.y, edge_length);
+                point.position.z =
+                    fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.z, edge_length);
+            }
+            PositionEncoding::Uint16 => {
+                point.position.x = fixpoint_decode(
+                    iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                    min.x,
+                    edge_length,
+                );
+                point.position.y = fixpoint_decode(
+                    iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                    min.y,
+                    edge_length,
+                );
+                point.position.z = fixpoint_decode(
+                    iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                    min.z,
+                    edge_length,
+                );
+            }
+        }
+        point.color.red = iter.rgb_reader.read_u8().unwrap();
+        point.color.green = iter.rgb_reader.read_u8().unwrap();
+        point.color.blue = iter.rgb_reader.read_u8().unwrap();
+        if let Some(ir) = iter.intensity_reader.as_mut() {
+            point.intensity = Some(ir.read_f32::<LittleEndian>().unwrap());
+        }
+        Ok(point)
+    }
 }
 
 impl InternalIterator for NodeIterator {

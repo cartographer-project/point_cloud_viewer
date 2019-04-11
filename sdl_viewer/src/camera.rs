@@ -17,7 +17,6 @@ use cgmath::{
     Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
     Rotation3, Transform, Vector3, Zero,
 };
-use collision::Aabb3;
 use serde_derive::{Deserialize, Serialize};
 use std::f64;
 use time;
@@ -130,17 +129,19 @@ impl Camera {
     }
 
     /// sets the camera 50 m higher than the point, looking to the earth center
-    pub fn set_displacement(&mut self, earth_point: Vector3d) {
+    pub fn set_displacement(&mut self, earth_point: Vector3<f64>) {
+        let magnitude = earth_point.magnitude();
+        self.transform.disp = ((magnitude + 150.0) / magnitude) * earth_point;
 
-        let magnitude = cgmath::magnitude(&earth_point);
-        self.transform.disp = (magnitude + 50.0)/magnitude)*earth_point;
-        
         //let direction_to_earth = -1*normalize(&earth_point);
 
         // quaternion from axis angle, say angle = pi when axis normalized
         // from http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToQuaternion/index.htm
-        self.transform.rot = Quaternion::new(1, 0,0,0 );
-        println!("camera: x {}, y {}, z {}", &self.transform.disp.x, &self.transform.disp.y, &self.transform.disp.z);
+        self.transform.rot = Quaternion::new(1.0, 0.0, 0.0, 0.0);
+        println!(
+            "camera: x {}, y {}, z {}",
+            &self.transform.disp.x, &self.transform.disp.y, &self.transform.disp.z
+        );
     }
 
     pub fn move_ct(&mut self, delta: f32, gl: &opengl::Gl) {
