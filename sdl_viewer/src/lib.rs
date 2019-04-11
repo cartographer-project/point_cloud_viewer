@@ -314,10 +314,10 @@ struct XBoxJoystick {
 
 impl Joystick for XBoxJoystick {
     fn act(&self, camera: &mut Camera) {
-        let right = f32::from(self.joystick.axis(0).unwrap()) / 1000.;
-        let forward = f32::from(self.joystick.axis(1).unwrap()) / 1000.;
-        let turning_right = -f32::from(self.joystick.axis(3).unwrap()) / 32000.;
-        let turning_up = -f32::from(self.joystick.axis(4).unwrap()) / 32000.;
+        let right = f64::from(self.joystick.axis(0).unwrap()) / 1000.;
+        let forward = f64::from(self.joystick.axis(1).unwrap()) / 1000.;
+        let turning_right = -f64::from(self.joystick.axis(3).unwrap()) / 32000.;
+        let turning_up = -f64::from(self.joystick.axis(4).unwrap()) / 32000.;
         camera.pan(right, 0., forward);
         camera.rotate(turning_up, turning_right);
     }
@@ -333,13 +333,13 @@ struct SpaceMouseJoystick {
 
 impl Joystick for SpaceMouseJoystick {
     fn act(&self, camera: &mut Camera) {
-        let x = f32::from(self.joystick.axis(0).unwrap()) / 500.;
-        let y = f32::from(-self.joystick.axis(1).unwrap()) / 500.;
-        let z = f32::from(-self.joystick.axis(2).unwrap()) / 500.;
-        let up = f32::from(self.joystick.axis(3).unwrap()) / 500.;
+        let x = f64::from(self.joystick.axis(0).unwrap()) / 500.;
+        let y = f64::from(-self.joystick.axis(1).unwrap()) / 500.;
+        let z = f64::from(-self.joystick.axis(2).unwrap()) / 500.;
+        let up = f64::from(self.joystick.axis(3).unwrap()) / 500.;
         // Combine tilting and turning on the knob.
-        let around = f32::from(self.joystick.axis(4).unwrap()) / 500.
-            - f32::from(self.joystick.axis(5).unwrap()) / 500.;
+        let around = f64::from(self.joystick.axis(4).unwrap()) / 500.
+            - f64::from(self.joystick.axis(5).unwrap()) / 500.;
         camera.pan(x, y, z);
         camera.rotate(up, around);
     }
