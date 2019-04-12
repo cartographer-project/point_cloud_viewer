@@ -28,10 +28,8 @@ pub mod octree;
 pub mod ply;
 pub mod pts;
 
-pub trait InternalIterator {
-    fn for_each<F: FnMut(&Point)>(self, _: F);
-    fn size_hint(&self) -> Option<usize>;
-}
+// Assuming 20 - 40 bytes per point, this translates to 10-20MB per points batch.
+pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
 #[derive(Debug, Clone)]
 pub struct Point {

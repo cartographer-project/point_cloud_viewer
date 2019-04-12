@@ -1,11 +1,11 @@
 use crate::codec::{decode, fixpoint_decode};
-use crate::color;
 use crate::errors::*;
 use crate::math::Cube;
 use crate::octree::{
     NodeId, NodeLayer, NodeMeta, OctreeDataProvider, OctreeMeta, PositionEncoding,
 };
-use crate::{InternalIterator, Point};
+use crate::Point;
+use crate::{color::Color, NUM_POINTS_PER_BATCH};
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
@@ -17,6 +17,7 @@ pub struct NodeIteratorWithData {
     rgb_reader: BufReader<Box<dyn Read>>,
     intensity_reader: Option<BufReader<Box<dyn Read>>>,
     meta: NodeMeta,
+    point_count: usize,
 }
 
 pub enum NodeIterator {
@@ -65,105 +66,124 @@ impl NodeIterator {
                 position_encoding,
                 num_points,
             },
+            point_count: 0,
         };
         Ok(NodeIterator::WithData(iter))
     }
 }
 
-impl InternalIterator for NodeIterator {
-    fn size_hint(&self) -> Option<usize> {
-        match self {
-            NodeIterator::WithData(ref iter) => Some(iter.meta.num_points as usize),
-            NodeIterator::Empty => Some(0),
-        }
+impl Iterator for NodeIterator {
+    type Item = Vec<Point>;
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let num_points = match self {
+            NodeIterator::WithData(ref iter) => iter.meta.num_points as usize,
+            NodeIterator::Empty => 0,
+        };
+        (num_points, Some(num_points))
     }
-    fn for_each<F: FnMut(&Point)>(self, mut f: F) {
+    fn next(&mut self) -> Option<Vec<Point>> {
         let mut iter = match self {
             NodeIterator::WithData(iter) => iter,
-            NodeIterator::Empty => return,
+            NodeIterator::Empty => return None,
         };
 
-        let mut point = Point {
-            position: Vector3::zero(),
-            color: color::RED.to_u8(), // is overwritten
-            intensity: None,
-        };
+        if iter.point_count == iter.meta.num_points as usize {
+            return None;
+        }
+
+        let mut points = Vec::with_capacity(NUM_POINTS_PER_BATCH);
 
         let edge_length = iter.meta.bounding_cube.edge_length();
         let min = iter.meta.bounding_cube.min();
-        for _ in 0..iter.meta.num_points {
+        for _ in iter.point_count
+            ..std::cmp::min(
+                iter.point_count + NUM_POINTS_PER_BATCH,
+                iter.meta.num_points as usize,
+            )
+        {
             // I tried pulling out this match by taking a function pointer to a 'decode_position'
             // function. This replaces a branch per point vs a function call per point and turned
             // out to be marginally slower.
+            let mut position = Vector3::zero();
             match iter.meta.position_encoding {
                 PositionEncoding::Float32 => {
-                    point.position.x = decode(
+                    position.x = decode(
                         iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
                         min.x,
                         edge_length,
                     );
-                    point.position.y = decode(
+                    position.y = decode(
                         iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
                         min.y,
                         edge_length,
                     );
-                    point.position.z = decode(
+                    position.z = decode(
                         iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
                         min.z,
                         edge_length,
                     );
                 }
                 PositionEncoding::Float64 => {
-                    point.position.x = decode(
+                    position.x = decode(
                         iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
                         min.x,
                         edge_length,
                     );
-                    point.position.y = decode(
+                    position.y = decode(
                         iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
                         min.y,
                         edge_length,
                     );
-                    point.position.z = decode(
+                    position.z = decode(
                         iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
                         min.z,
                         edge_length,
                     );
                 }
                 PositionEncoding::Uint8 => {
-                    point.position.x =
+                    position.x =
                         fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.x, edge_length);
-                    point.position.y =
+                    position.y =
                         fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.y, edge_length);
-                    point.position.z =
+                    position.z =
                         fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.z, edge_length);
                 }
                 PositionEncoding::Uint16 => {
-                    point.position.x = fixpoint_decode(
+                    position.x = fixpoint_decode(
                         iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
                         min.x,
                         edge_length,
                     );
-                    point.position.y = fixpoint_decode(
+                    position.y = fixpoint_decode(
                         iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
                         min.y,
                         edge_length,
                     );
-                    point.position.z = fixpoint_decode(
+                    position.z = fixpoint_decode(
                         iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
                         min.z,
                         edge_length,
                     );
                 }
             }
-
-            point.color.red = iter.rgb_reader.read_u8().unwrap();
-            point.color.green = iter.rgb_reader.read_u8().unwrap();
-            point.color.blue = iter.rgb_reader.read_u8().unwrap();
-            if let Some(ir) = iter.intensity_reader.as_mut() {
-                point.intensity = Some(ir.read_f32::<LittleEndian>().unwrap());
-            }
-            f(&point);
+            let color = Color {
+                red: iter.rgb_reader.read_u8().unwrap(),
+                green: iter.rgb_reader.read_u8().unwrap(),
+                blue: iter.rgb_reader.read_u8().unwrap(),
+                alpha: 255,
+            };
+            let intensity = iter
+                .intensity_reader
+                .as_mut()
+                .map(|ir| ir.read_f32::<LittleEndian>().unwrap());
+            points.push(Point {
+                position,
+                color,
+                intensity,
+            });
+            iter.point_count += 1;
         }
+        Some(points)
     }
 }

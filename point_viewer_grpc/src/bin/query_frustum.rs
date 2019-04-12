@@ -19,23 +19,41 @@ use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::color::Color;
 use point_viewer::generation::build_octree;
-use point_viewer::{InternalIterator, Point};
+use point_viewer::{Point, NUM_POINTS_PER_BATCH};
 pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
+use std::iter::FromIterator;
 use std::sync::Arc;
 
 struct Points {
     points: Vec<Point>,
+    point_count: usize,
 }
 
-impl InternalIterator for Points {
-    fn for_each<F: FnMut(&Point)>(self, mut func: F) {
-        for p in &self.points {
-            func(p);
+impl Points {
+    fn new(points: Vec<Point>) -> Self {
+        Points {
+            points,
+            point_count: 0,
         }
     }
-    fn size_hint(&self) -> Option<usize> {
-        Some(self.points.len())
+}
+
+impl Iterator for Points {
+    type Item = Vec<Point>;
+
+    fn next(&mut self) -> Option<Vec<Point>> {
+        if self.point_count == self.points.len() {
+            return None;
+        }
+        let start = self.point_count;
+        let end = std::cmp::min(self.point_count + NUM_POINTS_PER_BATCH, self.points.len());
+        let points = Vec::from_iter(self.points[start..end].iter().cloned());
+        self.point_count = end;
+        Some(points)
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.points.len(), Some(self.points.len()))
     }
 }
 
@@ -94,5 +112,11 @@ fn main() {
         .wait()
         .unwrap();
     let pool = scoped_pool::Pool::new(10);
-    build_octree(&pool, "/tmp/octree", 0.001, bounding_box, Points { points });
+    build_octree(
+        &pool,
+        "/tmp/octree",
+        0.001,
+        bounding_box,
+        Points::new(points),
+    );
 }

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::color;
-use crate::{InternalIterator, Point};
+use crate::color::Color;
+use crate::{Point, NUM_POINTS_PER_BATCH};
 use cgmath::Vector3;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -22,6 +22,7 @@ use std::path::Path;
 #[derive(Debug)]
 pub struct PtsIterator {
     data: BufReader<File>,
+    point_count: usize,
 }
 
 impl PtsIterator {
@@ -29,18 +30,18 @@ impl PtsIterator {
         let file = File::open(filename).unwrap();
         PtsIterator {
             data: BufReader::new(file),
+            point_count: 0,
         }
     }
 }
 
-impl InternalIterator for PtsIterator {
-    fn size_hint(&self) -> Option<usize> {
-        None
-    }
+impl Iterator for PtsIterator {
+    type Item = Vec<Point>;
 
-    fn for_each<F: FnMut(&Point)>(mut self, mut f: F) {
+    fn next(&mut self) -> Option<Vec<Point>> {
+        let mut points = Vec::with_capacity(NUM_POINTS_PER_BATCH);
         let mut line = String::new();
-        loop {
+        for _ in self.point_count..self.point_count + NUM_POINTS_PER_BATCH {
             line.clear();
             self.data.read_line(&mut line).unwrap();
             if line.is_empty() {
@@ -51,21 +52,26 @@ impl InternalIterator for PtsIterator {
             if parts.len() != 7 {
                 continue;
             }
-            let p = Point {
+            points.push(Point {
                 position: Vector3::new(
                     parts[0].parse::<f64>().unwrap(),
                     parts[1].parse::<f64>().unwrap(),
                     parts[2].parse::<f64>().unwrap(),
                 ),
-                color: color::Color {
+                color: Color {
                     red: parts[4].parse::<u8>().unwrap(),
                     green: parts[5].parse::<u8>().unwrap(),
                     blue: parts[6].parse::<u8>().unwrap(),
                     alpha: 255,
                 },
                 intensity: None,
-            };
-            f(&p);
+            });
+            self.point_count += 1;
+        }
+        if points.is_empty() {
+            None
+        } else {
+            Some(points)
         }
     }
 }

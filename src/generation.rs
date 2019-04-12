@@ -18,7 +18,7 @@ use crate::octree::{self, to_meta_proto, to_node_proto, OnDiskOctreeDataProvider
 use crate::ply::PlyIterator;
 use crate::proto;
 use crate::pts::PtsIterator;
-use crate::{InternalIterator, Point};
+use crate::Point;
 use cgmath::{EuclideanSpace, Point3};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
@@ -43,35 +43,37 @@ fn split<P>(
     stream: P,
 ) -> (Vec<octree::NodeId>, Vec<octree::NodeId>)
 where
-    P: InternalIterator,
+    P: Iterator<Item = Vec<Point>>,
 {
     let mut children: Vec<Option<octree::NodeWriter>> =
         vec![None, None, None, None, None, None, None, None];
     match stream.size_hint() {
-        Some(size) => println!(
+        (_, Some(size)) => println!(
             "Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",
             node_id,
             size,
             size as f64 / MAX_POINTS_PER_NODE as f64
         ),
-        None => println!(
+        (_, None) => println!(
             "Splitting {} which has an unknown number of points.",
             node_id
         ),
     };
 
     let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
-    stream.for_each(|p| {
-        let child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &p.position);
-        let array_index = child_index.as_u8() as usize;
-        if children[array_index].is_none() {
-            children[array_index] = Some(octree::NodeWriter::new(
-                octree_data_provider,
-                octree_meta,
-                &node_id.get_child_id(child_index),
-            ));
+    stream.for_each(|pts| {
+        for p in pts {
+            let child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &p.position);
+            let array_index = child_index.as_u8() as usize;
+            if children[array_index].is_none() {
+                children[array_index] = Some(octree::NodeWriter::new(
+                    octree_data_provider,
+                    octree_meta,
+                    &node_id.get_child_id(child_index),
+                ));
+            }
+            children[array_index].as_mut().unwrap().write(&p);
         }
-        children[array_index].as_mut().unwrap().write(p);
     });
 
     // Remove the node file on disk by reopening the node and immediately dropping it again without
@@ -130,7 +132,7 @@ fn split_node<'a, P>(
     stream: P,
     leaf_nodes_sender: &mpsc::Sender<octree::NodeId>,
 ) where
-    P: InternalIterator,
+    P: Iterator<Item = Vec<Point>>,
 {
     let (leaf_nodes, split_nodes) = split(octree_data_provider, octree_meta, node_id, stream);
     for child_id in split_nodes {
@@ -182,8 +184,8 @@ fn subsample_children_into(
 
         // We read all points into memory, because the new node writer will rewrite this child's
         // file(s).
-        let mut points = Vec::with_capacity(node_iterator.size_hint().unwrap());
-        node_iterator.for_each(|p| points.push((*p).clone()));
+        let mut points = Vec::with_capacity(node_iterator.size_hint().1.unwrap());
+        node_iterator.for_each(|mut pts| points.append(&mut pts));
 
         let mut child_writer =
             octree::NodeWriter::new(octree_data_provider, octree_meta, &child_id);
@@ -220,18 +222,20 @@ enum InputFileIterator {
     Pts(PtsIterator),
 }
 
-impl InternalIterator for InputFileIterator {
-    fn size_hint(&self) -> Option<usize> {
+impl Iterator for InputFileIterator {
+    type Item = Vec<Point>;
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
         match *self {
             InputFileIterator::Ply(ref p) => p.size_hint(),
             InputFileIterator::Pts(ref p) => p.size_hint(),
         }
     }
 
-    fn for_each<F: FnMut(&Point)>(self, f: F) {
+    fn next(&mut self) -> Option<Vec<Point>> {
         match self {
-            InputFileIterator::Ply(p) => p.for_each(f),
-            InputFileIterator::Pts(p) => p.for_each(f),
+            InputFileIterator::Ply(p) => p.next(),
+            InputFileIterator::Pts(p) => p.next(),
         }
     }
 }
@@ -245,8 +249,8 @@ fn make_stream(input: &InputFile) -> (InputFileIterator, Option<ProgressBar<Stdo
     };
 
     let progress_bar = match stream.size_hint() {
-        Some(size) => Some(ProgressBar::new(size as u64)),
-        None => None,
+        (_, Some(size)) => Some(ProgressBar::new(size as u64)),
+        (_, None) => None,
     };
     (stream, progress_bar)
 }
@@ -268,15 +272,17 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f64> {
         pb.message("Determining bounding box: ")
     }
 
-    stream.for_each(|p: &Point| {
-        if num_points == 0 {
-            let p3 = Point3::from_vec(p.position);
-            bounding_box = Aabb3::new(p3, p3);
-        }
-        bounding_box = bounding_box.grow(Point3::from_vec(p.position));
-        num_points += 1;
-        if num_points % UPDATE_COUNT == 0 {
-            progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
+    stream.for_each(|pts| {
+        for p in pts {
+            if num_points == 0 {
+                let p3 = Point3::from_vec(p.position);
+                bounding_box = Aabb3::new(p3, p3);
+            }
+            bounding_box = bounding_box.grow(Point3::from_vec(p.position));
+            num_points += 1;
+            if num_points % UPDATE_COUNT == 0 {
+                progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
+            }
         }
     });
     if let Some(mut f) = progress_bar {
@@ -320,7 +326,7 @@ pub fn build_octree(
     output_directory: impl AsRef<Path>,
     resolution: f64,
     bounding_box: Aabb3<f64>,
-    input: impl InternalIterator,
+    input: impl Iterator<Item = Vec<Point>>,
 ) {
     // We open a lot of files during our work. Sometimes users see errors with 'cannot open more
     // files'. We attempt to increase the rlimits for the number of open files per process here,
@@ -449,21 +455,41 @@ pub fn build_octree(
 mod tests {
     use super::*;
     use crate::color::Color;
+    use crate::NUM_POINTS_PER_BATCH;
     use cgmath::Vector3;
+    use std::iter::FromIterator;
     use tempdir::TempDir;
 
     struct Points {
         points: Vec<Point>,
+        point_count: usize,
     }
 
-    impl InternalIterator for Points {
-        fn for_each<F: FnMut(&Point)>(self, mut func: F) {
-            for p in &self.points {
-                func(p);
+    impl Points {
+        fn new(points: Vec<Point>) -> Self {
+            Points {
+                points,
+                point_count: 0,
             }
         }
-        fn size_hint(&self) -> Option<usize> {
-            Some(self.points.len())
+    }
+
+    impl Iterator for Points {
+        type Item = Vec<Point>;
+
+        fn next(&mut self) -> Option<Vec<Point>> {
+            if self.point_count == self.points.len() {
+                return None;
+            }
+            let start = self.point_count;
+            let end = std::cmp::min(self.point_count + NUM_POINTS_PER_BATCH, self.points.len());
+            let points = Vec::from_iter(self.points[start..end].iter().cloned());
+            self.point_count = end;
+            Some(points)
+        }
+
+        fn size_hint(&self) -> (usize, Option<usize>) {
+            (self.points.len(), Some(self.points.len()))
         }
     }
     #[test]
@@ -486,6 +512,6 @@ mod tests {
         }
         let pool = scoped_pool::Pool::new(10);
         let tmp_dir = TempDir::new("octree").unwrap();
-        build_octree(&pool, tmp_dir, 1.0, bounding_box, Points { points });
+        build_octree(&pool, tmp_dir, 1.0, bounding_box, Points::new(points));
     }
 }
