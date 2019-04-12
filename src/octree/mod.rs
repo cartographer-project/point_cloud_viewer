@@ -133,27 +133,25 @@ pub struct Octree {
     nodes: FnvHashMap<NodeId, NodeMeta>,
 }
 
-struct IteratorState {
+struct IteratorState<'a> {
+    filter_func: Box<Fn(&Point) -> bool + 'a>,
     node_ids: VecDeque<NodeId>,
     node_iterator: Option<NodeIterator>,
-    queued_points: Vec<Point>,
+    queued_points: VecDeque<Point>,
 }
 
-impl IteratorState {
-    fn new(node_ids: VecDeque<NodeId>) -> Self {
+impl<'a> IteratorState<'a> {
+    fn new(node_ids: VecDeque<NodeId>, filter_func: Box<Fn(&Point) -> bool + 'a>) -> Self {
         IteratorState {
+            filter_func,
             node_ids,
             node_iterator: None,
-            queued_points: Vec::new(),
+            queued_points: VecDeque::new(),
         }
     }
 }
 
-fn next(
-    octree: &Octree,
-    filter_func: Option<impl Fn(&Point) -> bool>,
-    state: &mut IteratorState,
-) -> Option<Vec<Point>> {
+fn next(octree: &Octree, state: &mut IteratorState) -> Option<Vec<Point>> {
     while state.queued_points.len() < NUM_POINTS_PER_BATCH {
         let node_iterator = match &mut state.node_iterator {
             None => match state.node_ids.pop_front() {
@@ -176,10 +174,7 @@ fn next(
         };
         match node_iterator.next() {
             Some(points) => {
-                let mut filtered_points = match &filter_func {
-                    None => points,
-                    Some(filter_func) => points.into_iter().filter(filter_func).collect(),
-                };
+                let mut filtered_points = points.into_iter().filter(&*state.filter_func).collect();
                 state.queued_points.append(&mut filtered_points);
             }
             None => state.node_iterator = None,
@@ -188,58 +183,51 @@ fn next(
     if state.queued_points.is_empty() {
         None
     } else {
-        let new_queued_points = state.queued_points.split_off(std::cmp::min(
-            state.queued_points.len(),
-            NUM_POINTS_PER_BATCH,
-        ));
-        let points_batch = state.queued_points.clone();
-        state.queued_points = new_queued_points;
-        Some(points_batch)
+        Some(
+            state
+                .queued_points
+                .drain(0..std::cmp::min(state.queued_points.len(), NUM_POINTS_PER_BATCH))
+                .collect(),
+        )
     }
 }
 
 pub struct PointsInBoxIterator<'a> {
     octree: &'a Octree,
-    aabb: &'a Aabb3<f64>,
-    state: IteratorState,
+    state: IteratorState<'a>,
 }
 
 impl<'a> Iterator for PointsInBoxIterator<'a> {
     type Item = Vec<Point>;
 
     fn next(&mut self) -> Option<Vec<Point>> {
-        let aabb = self.aabb;
-        let filter_func = |p: &Point| aabb.contains(&Point3::from_vec(p.position));
-        next(self.octree, Some(filter_func), &mut self.state)
+        next(self.octree, &mut self.state)
     }
 }
 
 pub struct PointsInFrustumIterator<'a> {
     octree: &'a Octree,
-    frustum_matrix: &'a Matrix4<f64>,
-    state: IteratorState,
+    state: IteratorState<'a>,
 }
 
 impl<'a> Iterator for PointsInFrustumIterator<'a> {
     type Item = Vec<Point>;
 
     fn next(&mut self) -> Option<Vec<Point>> {
-        let frustum_matrix = self.frustum_matrix;
-        let filter_func = |p: &Point| contains(frustum_matrix, &Point3::from_vec(p.position));
-        next(self.octree, Some(filter_func), &mut self.state)
+        next(self.octree, &mut self.state)
     }
 }
 
 pub struct AllPointsIterator<'a> {
     octree: &'a Octree,
-    state: IteratorState,
+    state: IteratorState<'a>,
 }
 
 impl<'a> Iterator for AllPointsIterator<'a> {
     type Item = Vec<Point>;
 
     fn next(&mut self) -> Option<Vec<Point>> {
-        next(self.octree, None::<fn(&Point) -> bool>, &mut self.state)
+        next(self.octree, &mut self.state)
     }
 }
 
@@ -425,10 +413,10 @@ impl Octree {
                 }
             }
         }
+        let filter_func = Box::new(move |p: &Point| aabb.contains(&Point3::from_vec(p.position)));
         PointsInBoxIterator {
             octree: &self,
-            aabb,
-            state: IteratorState::new(node_ids),
+            state: IteratorState::new(node_ids, filter_func),
         }
     }
 
@@ -437,10 +425,11 @@ impl Octree {
         frustum_matrix: &'a Matrix4<f64>,
     ) -> PointsInFrustumIterator<'a> {
         let node_ids = self.get_visible_nodes(frustum_matrix);
+        let filter_func =
+            Box::new(move |p: &Point| contains(frustum_matrix, &Point3::from_vec(p.position)));
         PointsInFrustumIterator {
             octree: &self,
-            frustum_matrix,
-            state: IteratorState::new(node_ids.into()),
+            state: IteratorState::new(node_ids.into(), filter_func),
         }
     }
 
@@ -457,9 +446,10 @@ impl Octree {
                 }
             }
         }
+        let filter_func = Box::new(|_p: &Point| true);
         AllPointsIterator {
             octree: &self,
-            state: IteratorState::new(node_ids),
+            state: IteratorState::new(node_ids, filter_func),
         }
     }
 
