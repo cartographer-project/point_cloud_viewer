@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::color::Color;
-use crate::{Point, NUM_POINTS_PER_BATCH};
+use crate::Point;
 use cgmath::Vector3;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -36,12 +36,11 @@ impl PtsIterator {
 }
 
 impl Iterator for PtsIterator {
-    type Item = Vec<Point>;
+    type Item = Point;
 
-    fn next(&mut self) -> Option<Vec<Point>> {
-        let mut points = Vec::with_capacity(NUM_POINTS_PER_BATCH);
+    fn next(&mut self) -> Option<Point> {
         let mut line = String::new();
-        for _ in self.point_count..self.point_count + NUM_POINTS_PER_BATCH {
+        loop {
             line.clear();
             self.data.read_line(&mut line).unwrap();
             if line.is_empty() {
@@ -52,7 +51,8 @@ impl Iterator for PtsIterator {
             if parts.len() != 7 {
                 continue;
             }
-            points.push(Point {
+            self.point_count += 1;
+            return Some(Point {
                 position: Vector3::new(
                     parts[0].parse::<f64>().unwrap(),
                     parts[1].parse::<f64>().unwrap(),
@@ -66,12 +66,7 @@ impl Iterator for PtsIterator {
                 },
                 intensity: None,
             });
-            self.point_count += 1;
         }
-        if points.is_empty() {
-            None
-        } else {
-            Some(points)
-        }
+        None
     }
 }

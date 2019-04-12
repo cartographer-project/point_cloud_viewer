@@ -1,11 +1,11 @@
 use crate::codec::{decode, fixpoint_decode};
+use crate::color;
 use crate::errors::*;
 use crate::math::Cube;
 use crate::octree::{
     NodeId, NodeLayer, NodeMeta, OctreeDataProvider, OctreeMeta, PositionEncoding,
 };
 use crate::Point;
-use crate::{color::Color, NUM_POINTS_PER_BATCH};
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
@@ -73,7 +73,7 @@ impl NodeIterator {
 }
 
 impl Iterator for NodeIterator {
-    type Item = Vec<Point>;
+    type Item = Point;
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         let num_points = match self {
@@ -82,7 +82,7 @@ impl Iterator for NodeIterator {
         };
         (num_points, Some(num_points))
     }
-    fn next(&mut self) -> Option<Vec<Point>> {
+    fn next(&mut self) -> Option<Point> {
         let mut iter = match self {
             NodeIterator::WithData(iter) => iter,
             NodeIterator::Empty => return None,
@@ -92,98 +92,90 @@ impl Iterator for NodeIterator {
             return None;
         }
 
-        let mut points = Vec::with_capacity(NUM_POINTS_PER_BATCH);
+        let mut point = Point {
+            position: Vector3::zero(),
+            color: color::RED.to_u8(), // is overwritten
+            intensity: None,
+        };
 
         let edge_length = iter.meta.bounding_cube.edge_length();
         let min = iter.meta.bounding_cube.min();
-        for _ in iter.point_count
-            ..std::cmp::min(
-                iter.point_count + NUM_POINTS_PER_BATCH,
-                iter.meta.num_points as usize,
-            )
-        {
-            // I tried pulling out this match by taking a function pointer to a 'decode_position'
-            // function. This replaces a branch per point vs a function call per point and turned
-            // out to be marginally slower.
-            let mut position = Vector3::zero();
-            match iter.meta.position_encoding {
-                PositionEncoding::Float32 => {
-                    position.x = decode(
-                        iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                        min.x,
-                        edge_length,
-                    );
-                    position.y = decode(
-                        iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                        min.y,
-                        edge_length,
-                    );
-                    position.z = decode(
-                        iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
-                        min.z,
-                        edge_length,
-                    );
-                }
-                PositionEncoding::Float64 => {
-                    position.x = decode(
-                        iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
-                        min.x,
-                        edge_length,
-                    );
-                    position.y = decode(
-                        iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
-                        min.y,
-                        edge_length,
-                    );
-                    position.z = decode(
-                        iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
-                        min.z,
-                        edge_length,
-                    );
-                }
-                PositionEncoding::Uint8 => {
-                    position.x =
-                        fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.x, edge_length);
-                    position.y =
-                        fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.y, edge_length);
-                    position.z =
-                        fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.z, edge_length);
-                }
-                PositionEncoding::Uint16 => {
-                    position.x = fixpoint_decode(
-                        iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
-                        min.x,
-                        edge_length,
-                    );
-                    position.y = fixpoint_decode(
-                        iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
-                        min.y,
-                        edge_length,
-                    );
-                    position.z = fixpoint_decode(
-                        iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
-                        min.z,
-                        edge_length,
-                    );
-                }
+
+        // I tried pulling out this match by taking a function pointer to a 'decode_position'
+        // function. This replaces a branch per point vs a function call per point and turned
+        // out to be marginally slower.
+        match iter.meta.position_encoding {
+            PositionEncoding::Float32 => {
+                point.position.x = decode(
+                    iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    min.x,
+                    edge_length,
+                );
+                point.position.y = decode(
+                    iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    min.y,
+                    edge_length,
+                );
+                point.position.z = decode(
+                    iter.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    min.z,
+                    edge_length,
+                );
             }
-            let color = Color {
-                red: iter.rgb_reader.read_u8().unwrap(),
-                green: iter.rgb_reader.read_u8().unwrap(),
-                blue: iter.rgb_reader.read_u8().unwrap(),
-                alpha: 255,
-            };
-            let intensity = iter
-                .intensity_reader
-                .as_mut()
-                .map(|ir| ir.read_f32::<LittleEndian>().unwrap());
-            points.push(Point {
-                position,
-                color,
-                intensity,
-            });
-            iter.point_count += 1;
+            PositionEncoding::Float64 => {
+                point.position.x = decode(
+                    iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                    min.x,
+                    edge_length,
+                );
+                point.position.y = decode(
+                    iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                    min.y,
+                    edge_length,
+                );
+                point.position.z = decode(
+                    iter.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                    min.z,
+                    edge_length,
+                );
+            }
+            PositionEncoding::Uint8 => {
+                point.position.x =
+                    fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.x, edge_length);
+                point.position.y =
+                    fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.y, edge_length);
+                point.position.z =
+                    fixpoint_decode(iter.xyz_reader.read_u8().unwrap(), min.z, edge_length);
+            }
+            PositionEncoding::Uint16 => {
+                point.position.x = fixpoint_decode(
+                    iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                    min.x,
+                    edge_length,
+                );
+                point.position.y = fixpoint_decode(
+                    iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                    min.y,
+                    edge_length,
+                );
+                point.position.z = fixpoint_decode(
+                    iter.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                    min.z,
+                    edge_length,
+                );
+            }
         }
-        Some(points)
+
+        point.color.red = iter.rgb_reader.read_u8().unwrap();
+        point.color.green = iter.rgb_reader.read_u8().unwrap();
+        point.color.blue = iter.rgb_reader.read_u8().unwrap();
+
+        point.intensity = iter
+            .intensity_reader
+            .as_mut()
+            .map(|ir| ir.read_f32::<LittleEndian>().unwrap());
+        iter.point_count += 1;
+
+        Some(point.clone())
     }
 }

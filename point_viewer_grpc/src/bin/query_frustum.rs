@@ -19,10 +19,9 @@ use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::color::Color;
 use point_viewer::generation::build_octree;
-use point_viewer::{Point, NUM_POINTS_PER_BATCH};
+use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
-use std::iter::FromIterator;
 use std::sync::Arc;
 
 struct Points {
@@ -40,18 +39,17 @@ impl Points {
 }
 
 impl Iterator for Points {
-    type Item = Vec<Point>;
+    type Item = Point;
 
-    fn next(&mut self) -> Option<Vec<Point>> {
+    fn next(&mut self) -> Option<Point> {
         if self.point_count == self.points.len() {
             return None;
         }
-        let start = self.point_count;
-        let end = std::cmp::min(self.point_count + NUM_POINTS_PER_BATCH, self.points.len());
-        let points = Vec::from_iter(self.points[start..end].iter().cloned());
-        self.point_count = end;
-        Some(points)
+        let point = self.points[self.point_count].clone();
+        self.point_count += 1;
+        Some(point)
     }
+
     fn size_hint(&self) -> (usize, Option<usize>) {
         (self.points.len(), Some(self.points.len()))
     }

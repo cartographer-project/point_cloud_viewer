@@ -236,38 +236,36 @@ impl OctreeService {
 
             {
                 // Extra scope to make sure that 'func' does not outlive 'reply'.
-                let func = |pts: Vec<Point>| {
-                    for p in pts {
-                        {
-                            let mut v = point_viewer::proto::Vector3d::new();
-                            v.set_x(p.position.x);
-                            v.set_y(p.position.y);
-                            v.set_z(p.position.z);
-                            reply.mut_positions().push(v);
-                        }
+                let func = |p: Point| {
+                    {
+                        let mut v = point_viewer::proto::Vector3d::new();
+                        v.set_x(p.position.x);
+                        v.set_y(p.position.y);
+                        v.set_z(p.position.z);
+                        reply.mut_positions().push(v);
+                    }
 
-                        {
-                            let mut v = point_viewer::proto::Color::new();
-                            let clr = p.color.to_f32();
-                            v.set_red(clr.red);
-                            v.set_green(clr.green);
-                            v.set_blue(clr.blue);
-                            v.set_alpha(clr.alpha);
-                            reply.mut_colors().push(v);
-                        }
+                    {
+                        let mut v = point_viewer::proto::Color::new();
+                        let clr = p.color.to_f32();
+                        v.set_red(clr.red);
+                        v.set_green(clr.green);
+                        v.set_blue(clr.blue);
+                        v.set_alpha(clr.alpha);
+                        reply.mut_colors().push(v);
+                    }
 
-                        if let Some(i) = p.intensity {
-                            reply.mut_intensities().push(i);
-                        }
+                    if let Some(i) = p.intensity {
+                        reply.mut_intensities().push(i);
+                    }
 
-                        reply_size += bytes_per_point;
-                        if reply_size > max_message_size - bytes_per_point {
-                            tx.send((reply.clone(), WriteFlags::default())).unwrap();
-                            reply.mut_positions().clear();
-                            reply.mut_colors().clear();
-                            reply.mut_intensities().clear();
-                            reply_size = 0;
-                        }
+                    reply_size += bytes_per_point;
+                    if reply_size > max_message_size - bytes_per_point {
+                        tx.send((reply.clone(), WriteFlags::default())).unwrap();
+                        reply.mut_positions().clear();
+                        reply.mut_colors().clear();
+                        reply.mut_intensities().clear();
+                        reply_size = 0;
                     }
                 };
                 match query {

@@ -71,14 +71,12 @@ fn server_benchmark(octree_directory: &Path, num_points: u64) {
         )
     });
     let mut counter: u64 = 0;
-    let mut num_prints: u64 = 1;
-    octree.all_points().for_each(|pts: Vec<Point>| {
-        counter += pts.len() as u64;
-        if counter >= num_prints * 1_000_000 {
+    octree.all_points().for_each(|_p: Point| {
+        if counter % 1_000_000 == 0 {
             println!("Streamed {}M points", counter / 1_000_000);
-            num_prints += 1;
         }
-        if counter >= num_points {
+        counter += 1;
+        if counter == num_points {
             std::process::exit(0)
         }
     });

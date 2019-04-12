@@ -15,7 +15,7 @@
 use crate::errors::*;
 use crate::math::Cube;
 use crate::proto;
-use crate::{Point, NUM_POINTS_PER_BATCH};
+use crate::Point;
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use fnv::FnvHashMap;
@@ -138,7 +138,6 @@ pub struct PointsIterator<'a> {
     filter_func: Box<Fn(&Point) -> bool + 'a>,
     node_ids: VecDeque<NodeId>,
     node_iterator: Option<NodeIterator>,
-    queued_points: Vec<Point>,
 }
 
 impl<'a> PointsIterator<'a> {
@@ -152,19 +151,18 @@ impl<'a> PointsIterator<'a> {
             filter_func,
             node_ids,
             node_iterator: None,
-            queued_points: Vec::new(),
         }
     }
 }
 
 impl<'a> Iterator for PointsIterator<'a> {
-    type Item = Vec<Point>;
+    type Item = Point;
 
-    fn next(&mut self) -> Option<Vec<Point>> {
-        while self.queued_points.len() < NUM_POINTS_PER_BATCH {
+    fn next(&mut self) -> Option<Point> {
+        loop {
             let node_iterator = match &mut self.node_iterator {
                 None => match self.node_ids.pop_front() {
-                    None => break,
+                    None => return None,
                     Some(node_id) => {
                         self.node_iterator = Some(
                             // TODO(sirver): This crashes on error. We should bubble up an error.
@@ -182,22 +180,13 @@ impl<'a> Iterator for PointsIterator<'a> {
                 Some(node_iterator) => node_iterator,
             };
             match node_iterator.next() {
-                Some(points) => {
-                    let mut filtered_points =
-                        points.into_iter().filter(&*self.filter_func).collect();
-                    self.queued_points.append(&mut filtered_points);
+                Some(point) => {
+                    if (self.filter_func)(&point) {
+                        return Some(point.clone());
+                    }
                 }
                 None => self.node_iterator = None,
             };
-        }
-        if self.queued_points.is_empty() {
-            None
-        } else {
-            Some(
-                self.queued_points
-                    .drain(0..std::cmp::min(self.queued_points.len(), NUM_POINTS_PER_BATCH))
-                    .collect(),
-            )
         }
     }
 }
