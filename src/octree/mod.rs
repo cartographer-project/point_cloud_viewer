@@ -138,7 +138,7 @@ pub struct PointsIterator<'a> {
     filter_func: Box<Fn(&Point) -> bool + 'a>,
     node_ids: VecDeque<NodeId>,
     node_iterator: Option<NodeIterator>,
-    queued_points: VecDeque<Point>,
+    queued_points: Vec<Point>,
 }
 
 impl<'a> PointsIterator<'a> {
@@ -152,7 +152,7 @@ impl<'a> PointsIterator<'a> {
             filter_func,
             node_ids,
             node_iterator: None,
-            queued_points: VecDeque::new(),
+            queued_points: Vec::new(),
         }
     }
 }
