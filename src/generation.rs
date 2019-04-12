@@ -457,6 +457,7 @@ mod tests {
     use crate::color::Color;
     use crate::NUM_POINTS_PER_BATCH;
     use cgmath::Vector3;
+    use num_traits::identities::Zero;
     use std::iter::FromIterator;
     use tempdir::TempDir;
 
@@ -495,7 +496,7 @@ mod tests {
     #[test]
     fn test_generation() {
         let default_point = Point {
-            position: Vector3::new(0.0, 0.0, 0.0),
+            position: Vector3::zero(),
             color: Color {
                 red: 255,
                 green: 0,

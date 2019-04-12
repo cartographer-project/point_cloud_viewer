@@ -17,6 +17,7 @@ use crate::errors::*;
 use crate::{Point, NUM_POINTS_PER_BATCH};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
+use num_traits::identities::Zero;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::ops::Index;
@@ -121,7 +122,7 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
 
     let mut format = None;
     let mut current_element = None;
-    let mut offset = Vector3::new(0., 0., 0.);
+    let mut offset = Vector3::zero();
     let mut elements = Vec::new();
     loop {
         line.clear();
@@ -409,7 +410,7 @@ impl Iterator for PlyIterator {
             )
         {
             let mut point = Point {
-                position: Vector3::new(0., 0., 0.),
+                position: Vector3::zero(),
                 color: color::WHITE.to_u8(),
                 intensity: None,
             };
