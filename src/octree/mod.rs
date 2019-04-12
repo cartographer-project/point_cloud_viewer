@@ -434,7 +434,7 @@ impl Octree {
     }
 
     pub fn all_points(&self) -> AllPointsIterator {
-        let mut node_ids = VecDeque::new();
+        let mut node_ids = VecDeque::with_capacity(self.nodes.len());
         let mut open_list = vec![NodeId::from_level_index(0, 0)];
         while !open_list.is_empty() {
             let current = open_list.pop().unwrap();
