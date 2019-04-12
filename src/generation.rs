@@ -183,7 +183,7 @@ fn subsample_children_into(
         // We read all points into memory, because the new node writer will rewrite this child's
         // file(s).
         let mut points = Vec::with_capacity(node_iterator.size_hint().1.unwrap());
-        node_iterator.for_each(|p| points.push(p.clone()));
+        node_iterator.for_each(|p| points.push(p));
 
         let mut child_writer =
             octree::NodeWriter::new(octree_data_provider, octree_meta, &child_id);

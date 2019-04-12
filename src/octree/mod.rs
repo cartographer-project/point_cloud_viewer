@@ -182,7 +182,7 @@ impl<'a> Iterator for PointsIterator<'a> {
             match node_iterator.next() {
                 Some(point) => {
                     if (self.filter_func)(&point) {
-                        return Some(point.clone());
+                        return Some(point);
                     }
                 }
                 None => self.node_iterator = None,

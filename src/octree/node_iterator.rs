@@ -176,6 +176,6 @@ impl Iterator for NodeIterator {
             .map(|ir| ir.read_f32::<LittleEndian>().unwrap());
         iter.point_count += 1;
 
-        Some(point.clone())
+        Some(point)
     }
 }
