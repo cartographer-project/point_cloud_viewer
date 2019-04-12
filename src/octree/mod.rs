@@ -133,16 +133,22 @@ pub struct Octree {
     nodes: FnvHashMap<NodeId, NodeMeta>,
 }
 
-struct IteratorState<'a> {
+pub struct PointsIterator<'a> {
+    octree: &'a Octree,
     filter_func: Box<Fn(&Point) -> bool + 'a>,
     node_ids: VecDeque<NodeId>,
     node_iterator: Option<NodeIterator>,
     queued_points: VecDeque<Point>,
 }
 
-impl<'a> IteratorState<'a> {
-    fn new(node_ids: VecDeque<NodeId>, filter_func: Box<Fn(&Point) -> bool + 'a>) -> Self {
-        IteratorState {
+impl<'a> PointsIterator<'a> {
+    fn new(
+        octree: &'a Octree,
+        node_ids: VecDeque<NodeId>,
+        filter_func: Box<Fn(&Point) -> bool + 'a>,
+    ) -> Self {
+        PointsIterator {
+            octree,
             filter_func,
             node_ids,
             node_iterator: None,
@@ -151,83 +157,48 @@ impl<'a> IteratorState<'a> {
     }
 }
 
-fn next(octree: &Octree, state: &mut IteratorState) -> Option<Vec<Point>> {
-    while state.queued_points.len() < NUM_POINTS_PER_BATCH {
-        let node_iterator = match &mut state.node_iterator {
-            None => match state.node_ids.pop_front() {
-                None => break,
-                Some(node_id) => {
-                    state.node_iterator = Some(
-                        // TODO(sirver): This crashes on error. We should bubble up an error.
-                        NodeIterator::from_data_provider(
-                            &*octree.data_provider,
-                            &octree.meta,
-                            &node_id,
-                            octree.nodes[&node_id].num_points,
-                        )
-                        .expect("Could not read node points"),
-                    );
-                    state.node_iterator.as_mut().unwrap()
+impl<'a> Iterator for PointsIterator<'a> {
+    type Item = Vec<Point>;
+
+    fn next(&mut self) -> Option<Vec<Point>> {
+        while self.queued_points.len() < NUM_POINTS_PER_BATCH {
+            let node_iterator = match &mut self.node_iterator {
+                None => match self.node_ids.pop_front() {
+                    None => break,
+                    Some(node_id) => {
+                        self.node_iterator = Some(
+                            // TODO(sirver): This crashes on error. We should bubble up an error.
+                            NodeIterator::from_data_provider(
+                                &*self.octree.data_provider,
+                                &self.octree.meta,
+                                &node_id,
+                                self.octree.nodes[&node_id].num_points,
+                            )
+                            .expect("Could not read node points"),
+                        );
+                        self.node_iterator.as_mut().unwrap()
+                    }
+                },
+                Some(node_iterator) => node_iterator,
+            };
+            match node_iterator.next() {
+                Some(points) => {
+                    let mut filtered_points =
+                        points.into_iter().filter(&*self.filter_func).collect();
+                    self.queued_points.append(&mut filtered_points);
                 }
-            },
-            Some(node_iterator) => node_iterator,
-        };
-        match node_iterator.next() {
-            Some(points) => {
-                let mut filtered_points = points.into_iter().filter(&*state.filter_func).collect();
-                state.queued_points.append(&mut filtered_points);
-            }
-            None => state.node_iterator = None,
-        };
-    }
-    if state.queued_points.is_empty() {
-        None
-    } else {
-        Some(
-            state
-                .queued_points
-                .drain(0..std::cmp::min(state.queued_points.len(), NUM_POINTS_PER_BATCH))
-                .collect(),
-        )
-    }
-}
-
-pub struct PointsInBoxIterator<'a> {
-    octree: &'a Octree,
-    state: IteratorState<'a>,
-}
-
-impl<'a> Iterator for PointsInBoxIterator<'a> {
-    type Item = Vec<Point>;
-
-    fn next(&mut self) -> Option<Vec<Point>> {
-        next(self.octree, &mut self.state)
-    }
-}
-
-pub struct PointsInFrustumIterator<'a> {
-    octree: &'a Octree,
-    state: IteratorState<'a>,
-}
-
-impl<'a> Iterator for PointsInFrustumIterator<'a> {
-    type Item = Vec<Point>;
-
-    fn next(&mut self) -> Option<Vec<Point>> {
-        next(self.octree, &mut self.state)
-    }
-}
-
-pub struct AllPointsIterator<'a> {
-    octree: &'a Octree,
-    state: IteratorState<'a>,
-}
-
-impl<'a> Iterator for AllPointsIterator<'a> {
-    type Item = Vec<Point>;
-
-    fn next(&mut self) -> Option<Vec<Point>> {
-        next(self.octree, &mut self.state)
+                None => self.node_iterator = None,
+            };
+        }
+        if self.queued_points.is_empty() {
+            None
+        } else {
+            Some(
+                self.queued_points
+                    .drain(0..std::cmp::min(self.queued_points.len(), NUM_POINTS_PER_BATCH))
+                    .collect(),
+            )
+        }
     }
 }
 
@@ -395,7 +366,7 @@ impl Octree {
     }
 
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
-    pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f64>) -> PointsInBoxIterator<'a> {
+    pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f64>) -> PointsIterator<'a> {
         let mut node_ids = VecDeque::new();
         let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
             &self.meta.bounding_box,
@@ -414,26 +385,17 @@ impl Octree {
             }
         }
         let filter_func = Box::new(move |p: &Point| aabb.contains(&Point3::from_vec(p.position)));
-        PointsInBoxIterator {
-            octree: &self,
-            state: IteratorState::new(node_ids, filter_func),
-        }
+        PointsIterator::new(&self, node_ids, filter_func)
     }
 
-    pub fn points_in_frustum<'a>(
-        &'a self,
-        frustum_matrix: &'a Matrix4<f64>,
-    ) -> PointsInFrustumIterator<'a> {
+    pub fn points_in_frustum<'a>(&'a self, frustum_matrix: &'a Matrix4<f64>) -> PointsIterator<'a> {
         let node_ids = self.get_visible_nodes(frustum_matrix);
         let filter_func =
             Box::new(move |p: &Point| contains(frustum_matrix, &Point3::from_vec(p.position)));
-        PointsInFrustumIterator {
-            octree: &self,
-            state: IteratorState::new(node_ids.into(), filter_func),
-        }
+        PointsIterator::new(&self, node_ids.into(), filter_func)
     }
 
-    pub fn all_points(&self) -> AllPointsIterator {
+    pub fn all_points(&self) -> PointsIterator {
         let mut node_ids = VecDeque::with_capacity(self.nodes.len());
         let mut open_list = vec![NodeId::from_level_index(0, 0)];
         while !open_list.is_empty() {
@@ -447,10 +409,7 @@ impl Octree {
             }
         }
         let filter_func = Box::new(|_p: &Point| true);
-        AllPointsIterator {
-            octree: &self,
-            state: IteratorState::new(node_ids, filter_func),
-        }
+        PointsIterator::new(&self, node_ids, filter_func)
     }
 
     pub fn bounding_box(&self) -> &Aabb3<f64> {
