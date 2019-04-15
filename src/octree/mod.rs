@@ -133,20 +133,31 @@ pub struct Octree {
     nodes: FnvHashMap<NodeId, NodeMeta>,
 }
 
-pub struct PointsIterator<'a> {
+fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator {
+    // TODO(sirver): This crashes on error. We should bubble up an error.
+    NodeIterator::from_data_provider(
+        &*octree.data_provider,
+        &octree.meta,
+        &node_id,
+        octree.nodes[&node_id].num_points,
+    )
+    .expect("Could not read node points")
+}
+
+pub struct FilteredPointsIterator<'a> {
     octree: &'a Octree,
     filter_func: Box<Fn(&Point) -> bool + 'a>,
     node_ids: VecDeque<NodeId>,
     node_iterator: Option<NodeIterator>,
 }
 
-impl<'a> PointsIterator<'a> {
+impl<'a> FilteredPointsIterator<'a> {
     fn new(
         octree: &'a Octree,
         node_ids: VecDeque<NodeId>,
         filter_func: Box<Fn(&Point) -> bool + 'a>,
     ) -> Self {
-        PointsIterator {
+        FilteredPointsIterator {
             octree,
             filter_func,
             node_ids,
@@ -155,38 +166,82 @@ impl<'a> PointsIterator<'a> {
     }
 }
 
-impl<'a> Iterator for PointsIterator<'a> {
+impl<'a> Iterator for FilteredPointsIterator<'a> {
     type Item = Point;
 
     fn next(&mut self) -> Option<Point> {
         loop {
-            let node_iterator = match &mut self.node_iterator {
-                None => match self.node_ids.pop_front() {
-                    None => return None,
-                    Some(node_id) => {
-                        self.node_iterator = Some(
-                            // TODO(sirver): This crashes on error. We should bubble up an error.
-                            NodeIterator::from_data_provider(
-                                &*self.octree.data_provider,
-                                &self.octree.meta,
-                                &node_id,
-                                self.octree.nodes[&node_id].num_points,
-                            )
-                            .expect("Could not read node points"),
-                        );
-                        self.node_iterator.as_mut().unwrap()
-                    }
-                },
-                Some(node_iterator) => node_iterator,
-            };
-            match node_iterator.next() {
-                Some(point) => {
-                    if (self.filter_func)(&point) {
-                        return Some(point);
-                    }
+            match &mut self.node_iterator {
+                Some(node_iterator) => {
+                    match node_iterator.next() {
+                        Some(point) => {
+                            if (self.filter_func)(&point) {
+                                return Some(point);
+                            }
+                        }
+                        None => self.node_iterator = None,
+                    };
                 }
-                None => self.node_iterator = None,
-            };
+                None => match self.node_ids.pop_front() {
+                    Some(node_id) => {
+                        self.node_iterator = Some(get_node_iterator(self.octree, &node_id));
+                    }
+                    None => return None,
+                },
+            }
+        }
+    }
+}
+
+fn add_children(
+    parent_id: &NodeId,
+    octree_nodes: &FnvHashMap<NodeId, NodeMeta>,
+    node_ids: &mut Vec<NodeId>,
+) {
+    for child_index in 0..8 {
+        let child_id = parent_id.get_child_id(ChildIndex::from_u8(child_index));
+        if octree_nodes.contains_key(&child_id) {
+            node_ids.push(child_id);
+        }
+    }
+}
+
+pub struct AllPointsIterator<'a> {
+    octree: &'a Octree,
+    node_iterator: NodeIterator,
+    open_list: Vec<NodeId>,
+}
+
+impl<'a> AllPointsIterator<'a> {
+    fn new(octree: &'a Octree) -> Self {
+        let current = NodeId::from_level_index(0, 0);
+        let mut open_list = Vec::new();
+        add_children(&current, &octree.nodes, &mut open_list);
+        let node_iterator = get_node_iterator(octree, &current);
+        AllPointsIterator {
+            octree,
+            node_iterator,
+            open_list,
+        }
+    }
+}
+
+impl<'a> Iterator for AllPointsIterator<'a> {
+    type Item = Point;
+
+    fn next(&mut self) -> Option<Point> {
+        loop {
+            let point = self.node_iterator.next();
+            if point.is_some() {
+                return point;
+            }
+            match self.open_list.pop() {
+                Some(current) => {
+                    add_children(&current, &self.octree.nodes, &mut self.open_list);
+                    self.node_iterator = get_node_iterator(self.octree, &current);
+                }
+                None => return None,
+            }
         }
     }
 }
@@ -355,7 +410,7 @@ impl Octree {
     }
 
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
-    pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f64>) -> PointsIterator<'a> {
+    pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f64>) -> FilteredPointsIterator<'a> {
         let mut node_ids = VecDeque::new();
         let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
             &self.meta.bounding_box,
@@ -374,31 +429,21 @@ impl Octree {
             }
         }
         let filter_func = Box::new(move |p: &Point| aabb.contains(&Point3::from_vec(p.position)));
-        PointsIterator::new(&self, node_ids, filter_func)
+        FilteredPointsIterator::new(&self, node_ids, filter_func)
     }
 
-    pub fn points_in_frustum<'a>(&'a self, frustum_matrix: &'a Matrix4<f64>) -> PointsIterator<'a> {
+    pub fn points_in_frustum<'a>(
+        &'a self,
+        frustum_matrix: &'a Matrix4<f64>,
+    ) -> FilteredPointsIterator<'a> {
         let node_ids = self.get_visible_nodes(frustum_matrix);
         let filter_func =
             Box::new(move |p: &Point| contains(frustum_matrix, &Point3::from_vec(p.position)));
-        PointsIterator::new(&self, node_ids.into(), filter_func)
+        FilteredPointsIterator::new(&self, node_ids.into(), filter_func)
     }
 
-    pub fn all_points(&self) -> PointsIterator {
-        let mut node_ids = VecDeque::with_capacity(self.nodes.len());
-        let mut open_list = vec![NodeId::from_level_index(0, 0)];
-        while !open_list.is_empty() {
-            let current = open_list.pop().unwrap();
-            node_ids.push_back(current);
-            for child_index in 0..8 {
-                let child = current.get_child_id(ChildIndex::from_u8(child_index));
-                if self.nodes.contains_key(&child) {
-                    open_list.push(child);
-                }
-            }
-        }
-        let filter_func = Box::new(|_p: &Point| true);
-        PointsIterator::new(&self, node_ids, filter_func)
+    pub fn all_points(&self) -> AllPointsIterator {
+        AllPointsIterator::new(&self)
     }
 
     pub fn bounding_box(&self) -> &Aabb3<f64> {
