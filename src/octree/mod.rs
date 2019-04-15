@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::Cube;
+use crate::math::{Cube, OrientedBeam};
 use crate::proto;
 use crate::{InternalIterator, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
@@ -156,6 +156,37 @@ impl<'a> InternalIterator for PointsInBoxIterator<'a> {
             .expect("Could not read node points");
             iterator.for_each(|p| {
                 if !self.aabb.contains(&Point3::from_vec(p.position)) {
+                    return;
+                }
+                f(p);
+            });
+        }
+    }
+}
+
+pub struct PointsInOrientedBeamIterator<'a> {
+    octree: &'a Octree,
+    beam: &'a OrientedBeam,
+    intersecting_nodes: Vec<NodeId>,
+}
+
+impl<'a> InternalIterator for PointsInOrientedBeamIterator<'a> {
+    fn size_hint(&self) -> Option<usize> {
+        None
+    }
+
+    fn for_each<F: FnMut(&Point)>(self, mut f: F) {
+        for node_id in &self.intersecting_nodes {
+            // TODO(sirver): This crashes on error. We should bubble up an error.
+            let iterator = NodeIterator::from_data_provider(
+                &*self.octree.data_provider,
+                &self.octree.meta,
+                node_id,
+                self.octree.nodes[node_id].num_points,
+            )
+            .expect("Could not read node points");
+            iterator.for_each(|p| {
+                if !self.beam.contains(&Point3::from_vec(p.position)) {
                     return;
                 }
                 f(p);
@@ -413,6 +444,10 @@ impl Octree {
             aabb,
             intersecting_nodes,
         }
+    }
+
+    pub fn points_in_oriented_beam(&self, beam: &OrientedBeam) -> PointsInOrientedBeamIterator {
+        unimplemented!()
     }
 
     pub fn points_in_frustum<'a>(

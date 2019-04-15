@@ -65,7 +65,7 @@ message GetPointsInOrientedBeamRequest {
   point_viewer.proto.Vector3d translation = 2;
   double half_extent_x = 3;
   double half_extent_y = 4;
-  string octree_id = 2;
+  string octree_id = 5;
 }
 
 message GetPointsInFrustumRequest {

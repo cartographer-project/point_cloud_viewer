@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::{Point3, Vector3};
+use cgmath::{Point3, Vector3, Quaternion};
 use collision::{Aabb, Aabb3};
 
 #[derive(Debug, Clone)]
@@ -68,12 +68,20 @@ impl Cube {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct OrientedBeam {
-
+    pub rotation: Quaternion<f64>,
+    pub translation: Vector3<f64>,
+    pub half_extent_x: f64,
+    pub half_extent_y: f64,
 }
 
 impl OrientedBeam {
     pub fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
-        false
+        unimplemented!()
+    }
+
+    pub fn contains(&self, p: &Point3<f64>) -> bool {
+        unimplemented!()
     }
 }
