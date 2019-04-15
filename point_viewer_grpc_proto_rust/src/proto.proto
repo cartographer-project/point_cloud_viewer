@@ -25,6 +25,8 @@ service Octree {
   rpc GetNodeData(GetNodeDataRequest) returns (GetNodeDataReply);
   rpc GetPointsInBox(GetPointsInBoxRequest)
       returns (stream PointsReply);
+  rpc GetPointsInOrientedBeam(GetPointsInOrientedBeamRequest)
+      returns (stream PointsReply);
   rpc GetPointsInFrustum(GetPointsInFrustumRequest)
       returns (stream PointsReply);
   rpc GetAllPoints(GetAllPointsRequest)
@@ -52,6 +54,17 @@ message GetNodeDataReply {
 
 message GetPointsInBoxRequest {
   point_viewer.proto.AxisAlignedCuboid bounding_box = 1;
+  string octree_id = 2;
+}
+
+message GetPointsInOrientedBeamRequest {
+  // A beam is a rectangle, specified by its half extents, extruded infinitely
+  // far along its normal. The rotation and translation specify the transform
+  // of a vertical (i.e. extending along the z axis) zero-centered beam.
+  point_viewer.proto.Quaterniond rotation = 1;
+  point_viewer.proto.Vector3d translation = 2;
+  double half_extent_x = 3;
+  double half_extent_y = 4;
   string octree_id = 2;
 }
 

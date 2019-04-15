@@ -67,3 +67,13 @@ impl Cube {
         )
     }
 }
+
+pub struct OrientedBeam {
+
+}
+
+impl OrientedBeam {
+    pub fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
+        false
+    }
+}
