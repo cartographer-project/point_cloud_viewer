@@ -22,7 +22,6 @@ use std::path::Path;
 #[derive(Debug)]
 pub struct PtsIterator {
     data: BufReader<File>,
-    point_count: usize,
 }
 
 impl PtsIterator {
@@ -30,7 +29,6 @@ impl PtsIterator {
         let file = File::open(filename).unwrap();
         PtsIterator {
             data: BufReader::new(file),
-            point_count: 0,
         }
     }
 }
@@ -51,7 +49,6 @@ impl Iterator for PtsIterator {
             if parts.len() != 7 {
                 continue;
             }
-            self.point_count += 1;
             return Some(Point {
                 position: Vector3::new(
                     parts[0].parse::<f64>().unwrap(),
