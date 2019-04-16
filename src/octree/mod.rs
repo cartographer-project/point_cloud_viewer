@@ -148,7 +148,7 @@ pub struct FilteredPointsIterator<'a> {
     octree: &'a Octree,
     filter_func: Box<Fn(&Point) -> bool + 'a>,
     node_ids: VecDeque<NodeId>,
-    node_iterator: Option<NodeIterator>,
+    node_iterator: NodeIterator,
 }
 
 impl<'a> FilteredPointsIterator<'a> {
@@ -161,7 +161,7 @@ impl<'a> FilteredPointsIterator<'a> {
             octree,
             filter_func,
             node_ids,
-            node_iterator: None,
+            node_iterator: NodeIterator::Empty,
         }
     }
 }
@@ -171,37 +171,15 @@ impl<'a> Iterator for FilteredPointsIterator<'a> {
 
     fn next(&mut self) -> Option<Point> {
         loop {
-            match &mut self.node_iterator {
-                Some(node_iterator) => {
-                    match node_iterator.next() {
-                        Some(point) => {
-                            if (self.filter_func)(&point) {
-                                return Some(point);
-                            }
-                        }
-                        None => self.node_iterator = None,
-                    };
+            while let Some(point) = self.node_iterator.next() {
+                if (self.filter_func)(&point) {
+                    return Some(point);
                 }
-                None => match self.node_ids.pop_front() {
-                    Some(node_id) => {
-                        self.node_iterator = Some(get_node_iterator(self.octree, &node_id));
-                    }
-                    None => return None,
-                },
             }
-        }
-    }
-}
-
-fn add_children(
-    parent_id: &NodeId,
-    octree_nodes: &FnvHashMap<NodeId, NodeMeta>,
-    node_ids: &mut Vec<NodeId>,
-) {
-    for child_index in 0..8 {
-        let child_id = parent_id.get_child_id(ChildIndex::from_u8(child_index));
-        if octree_nodes.contains_key(&child_id) {
-            node_ids.push(child_id);
+            self.node_iterator = match self.node_ids.pop_front() {
+                Some(node_id) => get_node_iterator(self.octree, &node_id),
+                None => return None,
+            };
         }
     }
 }
@@ -214,14 +192,10 @@ pub struct AllPointsIterator<'a> {
 
 impl<'a> AllPointsIterator<'a> {
     fn new(octree: &'a Octree) -> Self {
-        let current = NodeId::from_level_index(0, 0);
-        let mut open_list = Vec::new();
-        add_children(&current, &octree.nodes, &mut open_list);
-        let node_iterator = get_node_iterator(octree, &current);
         AllPointsIterator {
             octree,
-            node_iterator,
-            open_list,
+            node_iterator: NodeIterator::Empty,
+            open_list: vec![NodeId::from_level_index(0, 0)],
         }
     }
 }
@@ -231,13 +205,17 @@ impl<'a> Iterator for AllPointsIterator<'a> {
 
     fn next(&mut self) -> Option<Point> {
         loop {
-            let point = self.node_iterator.next();
-            if point.is_some() {
-                return point;
+            if let Some(point) = self.node_iterator.next() {
+                return Some(point);
             }
             match self.open_list.pop() {
                 Some(current) => {
-                    add_children(&current, &self.octree.nodes, &mut self.open_list);
+                    for child_index in 0..8 {
+                        let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
+                        if self.octree.nodes.contains_key(&child_id) {
+                            self.open_list.push(child_id);
+                        }
+                    }
                     self.node_iterator = get_node_iterator(self.octree, &current);
                 }
                 None => return None,
