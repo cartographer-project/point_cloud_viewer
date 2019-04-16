@@ -13,8 +13,9 @@
 // limitations under the License.
 
 use crate::opengl;
+use cgmath::prelude::EuclideanSpace;
 use cgmath::{
-    Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
+    Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Point3, Quaternion, Rad, Rotation,
     Rotation3, Transform, Vector3, Zero,
 };
 use serde_derive::{Deserialize, Serialize};
@@ -129,15 +130,48 @@ impl Camera {
     }
 
     /// sets the camera 50 m higher than the point, looking to the earth center
-    pub fn set_displacement(&mut self, earth_point: Vector3<f64>) {
-        let magnitude = earth_point.magnitude();
-        self.transform.disp = ((magnitude + 150.0) / magnitude) * earth_point;
+    /// it alignes the up side with north
+    ///     Camera north equations
+    /// E [x1 x2 0] east orthonormal to ECEF Z axis
+    /// N [x3 x4 x5]
+    /// U [p1 p2 p3] normalized to 1
+    ///
+    /// p2*x2+p1*x1 = 0 E ortho U
+    /// p3*x5+p2*x4+p1*x3 = 0 N ortho U
+    /// p3*x2-x3 = 0 UxE = N
+    /// p3*x1-x4 = 0 UxE = N
+    ///
+    ///  x1 = - r p2/p1, x2 = r, x3 = r p3, x4 = - r p2 p3/p1, x5 = r*(p2^2- p1^2)/p1
+    /// Combine with orthonormality
+    /// x3^2 + x4^2 + x5^2 = 1 you obtain
+    /// x3 = r p3 = p1 p3 / sqrt (p1^2 + p2^2 - 4p1^2p2^2) take the solution that makes z component of north (x5) >0
+    pub fn set_displacement(&mut self, earth_point: Point3<f64>) {
+        let earth_vector = earth_point.to_vec();
+        let magnitude = earth_vector.magnitude();
+        let earth_normal = earth_vector.normalize();
 
-        //let direction_to_earth = -1*normalize(&earth_point);
+        let p1 = earth_normal.x;
+        let p2 = earth_normal.y;
+        let p3 = earth_normal.z;
 
-        // quaternion from axis angle, say angle = pi when axis normalized
-        // from http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToQuaternion/index.htm
-        self.transform.rot = Quaternion::new(1.0, 0.0, 0.0, 0.0);
+        // compute north vector
+        let p1squared = p1 * p1;
+        let p2squared = p2 * p2;
+        let x5_r = (p2squared - p1squared) / p1; //x5/r
+
+        let up_north = {
+            let r = p2 / ((p1squared + p2squared - 4.0 * p1squared * p2squared).sqrt());
+            let z_component = x5_r * r;
+            if 0.0 < z_component {
+                Vector3::new(r * p3, (r * p3 * p2) / p1, z_component)
+            } else {
+                Vector3::new(-r * p3, (-r * p3 * p2) / p1, -z_component)
+            }
+        };
+
+        let eye = Point3::from_vec(earth_vector.normalize_to(magnitude + 150.0));
+        self.transform = Transform::look_at(eye, earth_point, up_north);
+        self.transform.disp = eye.to_vec();
         println!(
             "camera: x {}, y {}, z {}",
             &self.transform.disp.x, &self.transform.disp.y, &self.transform.disp.z

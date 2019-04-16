@@ -470,9 +470,13 @@ impl Octree {
         )
         .expect("Could not read node points");
         //extract first point
-        match iterator.get_point(){
+        match iterator.get_point() {
             Ok(point) => point.position as Vector3<f64>,
-            Err(_err) => Vector3{x:0.0,y:0.0,z:0.0}
+            Err(_err) => Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
         }
     }
 }

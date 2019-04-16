@@ -41,7 +41,7 @@ use crate::box_drawer::BoxDrawer;
 use crate::camera::Camera;
 use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 
-use cgmath::{Matrix4, SquareMatrix};
+use cgmath::{Matrix4, Point3, SquareMatrix};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree, OctreeFactory};
 use sdl2::event::{Event, WindowEvent};
@@ -302,7 +302,7 @@ pub trait Extension {
     fn new(matches: &clap::ArgMatches, opengl: Rc<opengl::Gl>) -> Self;
     fn camera_changed(&mut self, transform: &Matrix4<f64>);
     fn draw(&mut self);
-    //fn handle_key(&mut self, key) -> KeyHandled; // TODO (catevita) make keys extendible 
+    //fn handle_key(&mut self, key) -> KeyHandled; // TODO (catevita) make keys extendible
 }
 
 pub fn run<T: Extension>(octree_factory: OctreeFactory) {
@@ -405,8 +405,10 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     //let init_point = octree.get_first_point();
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
-    //camera.set_displacement(init_point);
-
+    if matches.is_present("ecef_camera_pos") {
+        println!("Camera hovering over Lyft L5 Office, Palo Alto, CA \n");
+        camera.set_displacement(Point3::new(-2699182.0, -4294938.0, 3853373.0)); //PAO, Porter Drive
+    }
     let mut events = ctx.event_pump().unwrap();
     let mut last_frame_time = time::PreciseTime::now();
     'outer_loop: loop {
