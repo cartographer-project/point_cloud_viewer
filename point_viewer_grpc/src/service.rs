@@ -16,7 +16,6 @@ use crate::proto;
 use crate::proto_grpc;
 use cgmath::{Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector3};
 use collision::Aabb3;
-use point_viewer::math::OrientedBeam;
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};
 use grpcio::{
@@ -24,6 +23,7 @@ use grpcio::{
     UnarySink, WriteFlags,
 };
 use point_viewer::errors::*;
+use point_viewer::math::OrientedBeam;
 use point_viewer::octree::{NodeId, Octree, OctreeFactory};
 use point_viewer::{InternalIterator, Point};
 use protobuf::Message;
@@ -305,7 +305,10 @@ impl OctreeService {
                         .points_in_frustum(&frustum_matrix)
                         .for_each(func),
                     OctreeQuery::FullPointcloud => service_data.octree.all_points().for_each(func),
-                    OctreeQuery::OrientedBeam(beam) => service_data.octree.points_in_oriented_beam(&beam).for_each(func),
+                    OctreeQuery::OrientedBeam(beam) => service_data
+                        .octree
+                        .points_in_oriented_beam(&beam)
+                        .for_each(func),
                 };
             }
             tx.send((reply, WriteFlags::default())).unwrap();
