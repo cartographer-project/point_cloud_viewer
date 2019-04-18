@@ -25,7 +25,7 @@ use grpcio::{
 use point_viewer::errors::*;
 use point_viewer::math::OrientedBeam;
 use point_viewer::octree::{NodeId, Octree, OctreeFactory};
-use point_viewer::{InternalIterator, Point};
+use point_viewer::Point;
 use protobuf::Message;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -263,7 +263,7 @@ impl OctreeService {
 
             {
                 // Extra scope to make sure that 'func' does not outlive 'reply'.
-                let func = |p: &Point| {
+                let func = |p: Point| {
                     {
                         let mut v = point_viewer::proto::Vector3d::new();
                         v.set_x(p.position.x);

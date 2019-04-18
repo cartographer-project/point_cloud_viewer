@@ -28,11 +28,6 @@ pub mod octree;
 pub mod ply;
 pub mod pts;
 
-pub trait InternalIterator {
-    fn for_each<F: FnMut(&Point)>(self, _: F);
-    fn size_hint(&self) -> Option<usize>;
-}
-
 #[derive(Debug, Clone)]
 pub struct Point {
     pub position: cgmath::Vector3<f64>,
