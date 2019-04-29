@@ -194,12 +194,12 @@ impl proto_grpc::Octree for OctreeService {
             Vector3::new(t.x, t.y, t.z)
         };
 
-        let beam = OrientedBeam {
-            rotation,
-            translation,
-            half_extent_x: req.half_extent_x,
-            half_extent_y: req.half_extent_y,
+        let half_extent = {
+            let e = req.half_extent.unwrap();
+            Vector2::new(e.x, e.y)
         };
+
+        let beam = OrientedBeam::new(rotation, translation, half_extent);
         self.stream_points_back_to_sink(OctreeQuery::OrientedBeam(beam), &req.octree_id, &ctx, resp)
     }
 }

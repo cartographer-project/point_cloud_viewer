@@ -166,7 +166,6 @@ impl<'a> FilteredPointsIterator<'a> {
     }
 }
 
-
 impl<'a> Iterator for FilteredPointsIterator<'a> {
     type Item = Point;
 

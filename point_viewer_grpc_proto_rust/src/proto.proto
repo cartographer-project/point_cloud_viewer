@@ -60,12 +60,13 @@ message GetPointsInBoxRequest {
 message GetPointsInOrientedBeamRequest {
   // A beam is a rectangle, specified by its half extents, extruded infinitely
   // far along its normal. The rotation and translation specify the transform
-  // of a vertical (i.e. extending along the z axis) zero-centered beam.
+  // of a vertical (i.e. extending along the z axis) zero-centered beam. That
+  // is, rotation + translation transform from beam-local coordinates into
+  // world coordinates.
   point_viewer.proto.Quaterniond rotation = 1;
   point_viewer.proto.Vector3d translation = 2;
-  double half_extent_x = 3;
-  double half_extent_y = 4;
-  string octree_id = 5;
+  point_viewer.proto.Vector2d half_extent = 3;
+  string octree_id = 4;
 }
 
 message GetPointsInFrustumRequest {
