@@ -202,7 +202,12 @@ impl proto_grpc::Octree for OctreeService {
         };
 
         let beam = OrientedBeam::new(rotation, translation, half_extent);
-        self.stream_points_back_to_sink(OctreeQuery::OrientedBeam(Box::new(beam)), &req.octree_id, &ctx, resp)
+        self.stream_points_back_to_sink(
+            OctreeQuery::OrientedBeam(Box::new(beam)),
+            &req.octree_id,
+            &ctx,
+            resp,
+        )
     }
 }
 
