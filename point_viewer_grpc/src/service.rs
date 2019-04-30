@@ -14,7 +14,9 @@
 
 use crate::proto;
 use crate::proto_grpc;
-use cgmath::{Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector2, Vector3};
+use cgmath::{
+    Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector2, Vector3,
+};
 use collision::Aabb3;
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};

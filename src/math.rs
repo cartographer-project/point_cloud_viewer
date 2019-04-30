@@ -98,7 +98,6 @@ impl OrientedBeam {
     pub fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
         // SAT algorithm
         // https://gamedev.stackexchange.com/questions/44500/how-many-and-which-axes-to-use-for-3d-obb-collision-with-sat
-        let mut separated = false;
         for sep_axis in self.separating_axes.iter() {
             // Project the cube and the beam onto that axis
             let mut cube_min_proj = std::f64::MAX;
@@ -116,9 +115,11 @@ impl OrientedBeam {
                 beam_min_proj = beam_min_proj.min(corner_proj);
                 beam_max_proj = beam_max_proj.max(corner_proj);
             }
-            separated |= beam_min_proj > cube_max_proj || beam_max_proj < cube_min_proj;
+            if beam_min_proj > cube_max_proj || beam_max_proj < cube_min_proj {
+                return false;
+            }
         }
-        !separated
+        true
     }
 
     pub fn contains(&self, p: &Point3<f64>) -> bool {
@@ -132,11 +133,14 @@ impl OrientedBeam {
         translation: &Vector3<f64>,
         half_extent: &Vector2<f64>,
     ) -> [Point3<f64>; 4] {
+        let transform = |x: f64, y: f64| {
+            rotation.rotate_point(Point3::new(x, y, 0.0)) + translation
+        };
         [
-            rotation.rotate_point(Point3::new(half_extent.x, half_extent.y, 0.0)) + translation,
-            rotation.rotate_point(Point3::new(half_extent.x, -half_extent.y, 0.0)) + translation,
-            rotation.rotate_point(Point3::new(-half_extent.x, half_extent.y, 0.0)) + translation,
-            rotation.rotate_point(Point3::new(-half_extent.x, -half_extent.y, 0.0)) + translation,
+            transform(half_extent.x, half_extent.y),
+            transform(half_extent.x, -half_extent.y),
+            transform(-half_extent.x, half_extent.y),
+            transform(-half_extent.x, -half_extent.y),
         ]
     }
 
