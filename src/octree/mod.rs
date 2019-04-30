@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::Cube;
+use crate::math::{Cube, OrientedBeam};
 use crate::proto;
 use crate::Point;
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
@@ -407,6 +407,31 @@ impl Octree {
             }
         }
         let filter_func = Box::new(move |p: &Point| aabb.contains(&Point3::from_vec(p.position)));
+        FilteredPointsIterator::new(&self, node_ids, filter_func)
+    }
+
+    pub fn points_in_oriented_beam<'a>(
+        &'a self,
+        beam: &'a OrientedBeam,
+    ) -> FilteredPointsIterator<'a> {
+        let mut node_ids = VecDeque::new();
+        let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
+            &self.meta.bounding_box,
+        ))];
+        while !open_list.is_empty() {
+            let current = open_list.pop().unwrap();
+            if !beam.intersects(&current.bounding_cube.to_aabb3()) {
+                continue;
+            }
+            node_ids.push_back(current.id);
+            for child_index in 0..8 {
+                let child = current.get_child(ChildIndex::from_u8(child_index));
+                if self.nodes.contains_key(&child.id) {
+                    open_list.push(child);
+                }
+            }
+        }
+        let filter_func = Box::new(move |p: &Point| beam.contains(&Point3::from_vec(p.position)));
         FilteredPointsIterator::new(&self, node_ids, filter_func)
     }
 

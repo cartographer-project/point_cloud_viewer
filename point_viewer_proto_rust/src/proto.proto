@@ -18,6 +18,11 @@ syntax = "proto3";
 
 package point_viewer.proto;
 
+message Vector2d {
+  double x = 1;
+  double y = 2;
+}
+
 message Vector3f {
   float x = 1;
   float y = 2;

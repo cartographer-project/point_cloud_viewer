@@ -14,7 +14,9 @@
 
 use crate::proto;
 use crate::proto_grpc;
-use cgmath::{Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector3};
+use cgmath::{
+    Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector2, Vector3,
+};
 use collision::Aabb3;
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};
@@ -23,6 +25,7 @@ use grpcio::{
     UnarySink, WriteFlags,
 };
 use point_viewer::errors::*;
+use point_viewer::math::OrientedBeam;
 use point_viewer::octree::{NodeId, Octree, OctreeFactory};
 use point_viewer::Point;
 use protobuf::Message;
@@ -48,6 +51,7 @@ enum OctreeQuery {
     Frustum(Matrix4<f64>),
     Box(Aabb3<f64>),
     FullPointcloud,
+    OrientedBeam(Box<OrientedBeam>),
 }
 
 fn send_fail_stream<T>(ctx: &RpcContext, sink: ServerStreamingSink<T>, err_str: String) {
@@ -175,6 +179,36 @@ impl proto_grpc::Octree for OctreeService {
     ) {
         self.stream_points_back_to_sink(OctreeQuery::FullPointcloud, &req.octree_id, &ctx, resp)
     }
+
+    fn get_points_in_oriented_beam(
+        &self,
+        ctx: RpcContext,
+        req: proto::GetPointsInOrientedBeamRequest,
+        resp: ServerStreamingSink<proto::PointsReply>,
+    ) {
+        let rotation = {
+            let q = req.rotation.unwrap();
+            Quaternion::new(q.w, q.x, q.y, q.z)
+        };
+
+        let translation = {
+            let t = req.translation.unwrap();
+            Vector3::new(t.x, t.y, t.z)
+        };
+
+        let half_extent = {
+            let e = req.half_extent.unwrap();
+            Vector2::new(e.x, e.y)
+        };
+
+        let beam = OrientedBeam::new(rotation, translation, half_extent);
+        self.stream_points_back_to_sink(
+            OctreeQuery::OrientedBeam(Box::new(beam)),
+            &req.octree_id,
+            &ctx,
+            resp,
+        )
+    }
 }
 
 impl OctreeService {
@@ -278,6 +312,10 @@ impl OctreeService {
                         .points_in_frustum(&frustum_matrix)
                         .for_each(func),
                     OctreeQuery::FullPointcloud => service_data.octree.all_points().for_each(func),
+                    OctreeQuery::OrientedBeam(beam) => service_data
+                        .octree
+                        .points_in_oriented_beam(&beam)
+                        .for_each(func),
                 };
             }
             tx.send((reply, WriteFlags::default())).unwrap();
