@@ -133,9 +133,8 @@ impl OrientedBeam {
         translation: &Vector3<f64>,
         half_extent: &Vector2<f64>,
     ) -> [Point3<f64>; 4] {
-        let transform = |x: f64, y: f64| {
-            rotation.rotate_point(Point3::new(x, y, 0.0)) + translation
-        };
+        let transform =
+            |x: f64, y: f64| rotation.rotate_point(Point3::new(x, y, 0.0)) + translation;
         [
             transform(half_extent.x, half_extent.y),
             transform(half_extent.x, -half_extent.y),

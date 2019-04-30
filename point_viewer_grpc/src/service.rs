@@ -51,7 +51,7 @@ enum OctreeQuery {
     Frustum(Matrix4<f64>),
     Box(Aabb3<f64>),
     FullPointcloud,
-    OrientedBeam(OrientedBeam),
+    OrientedBeam(Box<OrientedBeam>),
 }
 
 fn send_fail_stream<T>(ctx: &RpcContext, sink: ServerStreamingSink<T>, err_str: String) {
@@ -202,7 +202,7 @@ impl proto_grpc::Octree for OctreeService {
         };
 
         let beam = OrientedBeam::new(rotation, translation, half_extent);
-        self.stream_points_back_to_sink(OctreeQuery::OrientedBeam(beam), &req.octree_id, &ctx, resp)
+        self.stream_points_back_to_sink(OctreeQuery::OrientedBeam(Box::new(beam)), &req.octree_id, &ctx, resp)
     }
 }
 
