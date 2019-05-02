@@ -165,6 +165,7 @@ impl OrientedBeam {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cgmath::Zero;
     // These tests were created in Blender by creating two cubes, naming one
     // "Beam" and scaling it up in its local z direction. The corresponding
     // object in Rust was defined by querying Blender's Python API with
