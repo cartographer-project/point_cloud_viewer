@@ -99,6 +99,10 @@ impl OrientedBeam {
         // SAT algorithm
         // https://gamedev.stackexchange.com/questions/44500/how-many-and-which-axes-to-use-for-3d-obb-collision-with-sat
         for sep_axis in self.separating_axes.iter() {
+            if !sep_axis.x.is_finite() || !sep_axis.y.is_finite() || !sep_axis.z.is_finite() {
+                // This guards against the separating axes being NaN, which may happen when the orientation aligns with the unit axes.
+                continue;
+            }
             // Project the cube and the beam onto that axis
             let mut cube_min_proj = std::f64::MAX;
             let mut cube_max_proj = std::f64::MIN;
@@ -146,7 +150,7 @@ impl OrientedBeam {
     fn precompute_separating_axes(rotation: &Quaternion<f64>) -> [Vector3<f64>; 5] {
         // The separating axis needs to be perpendicular to the beam's main
         // axis, i.e. the possible axes are the cross product of the three unit
-        // vectors with the beam's main axis and the beam's face normals
+        // vectors with the beam's main axis and the beam's face normals.
         let main_axis = rotation.rotate_vector(Vector3::unit_z());
         [
             rotation.rotate_vector(Vector3::unit_x()),
@@ -206,5 +210,8 @@ mod tests {
         assert_eq!(some_beam().intersects(&bbox5), false);
         assert_eq!(some_beam().intersects(&bbox6), false);
         assert_eq!(some_beam().intersects(&bbox7), true);
+        let vertical_beam =
+            OrientedBeam::new(Quaternion::zero(), Vector3::zero(), Vector2::new(1.0, 1.0));
+        assert_eq!(vertical_beam.intersects(&bbox1), true);
     }
 }
