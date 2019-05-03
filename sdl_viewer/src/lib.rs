@@ -38,10 +38,10 @@ pub mod graphic;
 pub mod node_drawer;
 
 use crate::box_drawer::BoxDrawer;
-use crate::camera::Camera;
+use crate::camera::{Camera, CameraPose};
 use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 
-use cgmath::{Matrix4, Point3, SquareMatrix};
+use cgmath::{Matrix4, SquareMatrix, Vector3};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree, OctreeFactory};
 use sdl2::event::{Event, WindowEvent};
@@ -407,7 +407,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
     if matches.is_present("ecef_camera_pos") {
         println!("Camera hovering over Lyft L5 Office, Palo Alto, CA \n");
-        camera.set_displacement(Point3::new(-2698580.9326171875, -4293663.024902344, 3855168.151855468)); //PAO, Porter Drive
+        camera.set_displacement(Vector3::new(-2_699_316.0, -4_294_821.0, 3_853_410.0), CameraPose::Init); //PAO, Porter Drive
     }
     let mut events = ctx.event_pump().unwrap();
     let mut last_frame_time = time::PreciseTime::now();
@@ -434,6 +434,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                             Scancode::I => camera.move_ct(0.5, &gl),
                             Scancode::J => camera.move_far_plane_ct(-0.5, &gl),
                             Scancode::K => camera.move_far_plane_ct(0.5, &gl),
+                            Scancode::G => camera.align_with_gravity(),
                             Scancode::Left => camera.turning_left = true,
                             Scancode::Right => camera.turning_right = true,
                             Scancode::Down => camera.turning_down = true,

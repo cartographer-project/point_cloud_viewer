@@ -13,9 +13,8 @@
 // limitations under the License.
 
 use crate::opengl;
-use cgmath::prelude::EuclideanSpace;
 use cgmath::{
-    Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Point3, Quaternion, Rad, Rotation,
+    Decomposed, Deg, InnerSpace, Matrix3, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
     Rotation3, Transform, Vector3, Zero,
 };
 use serde_derive::{Deserialize, Serialize};
@@ -79,6 +78,11 @@ pub struct Camera {
     projection_matrix: Matrix4<f64>,
 }
 
+pub enum CameraPose{
+    AlignToGravity,
+    Init,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct State {
     transform: Decomposed<Vector3<f64>, Quaternion<f64>>,
@@ -138,14 +142,31 @@ impl Camera {
     /// 
     /// Compute North vector by using cross product,  UxE = N
     /// x3 = r p3 = p1 p3 / sqrt (p1^2 + p2^2 - 4p1^2p2^2) take the solution that makes z component of north (x5) >0
-    pub fn set_displacement(&mut self, earth_point: Point3<f64>) {
+    pub fn set_displacement(&mut self, earth_vector: Vector3<f64>, setting: CameraPose) {
         
-        let earth_vector = earth_point.to_vec();
         let magnitude = earth_vector.magnitude();
-        self.transform.disp = earth_vector.normalize_to(magnitude + 150.0);
-        self.theta = Rad((-earth_point.x).atan2(earth_point.y));
-        self.phi = Rad( (earth_point.x.powi(2) + earth_point.y.powi(2)).sqrt().atan2(-earth_vector.z) );
+        match setting {
+            Init => self.transform.disp = earth_vector.normalize_to(magnitude + 150.0),
+            _ => ,
+        }
+        let earth_normal = earth_vector.normalize();
+        let p1 = earth_normal.x;
+        let p2 = earth_normal.y;
+
+        // compute east-west vector (local latitude)
+        // y_lat_component = p1/(p1squared + p2squared).sqrt();
+        let squared_sum = (p1 * p1 + p2 * p2).sqrt();  
+        let lat_vector = Vector3::new(-p2/squared_sum, p1/squared_sum, 0.0);
+
+        // compute north vector (local longitude direction) as cross product
+        let up_north = Vector3::cross(earth_normal, lat_vector);
+        //self.transform = Transform::look_at(eye, , up_north);
+        let rotation: Matrix3<f64> = Matrix3::from_cols(lat_vector, up_north, earth_normal);
+        self.transform.rot = Quaternion::from(rotation);
         
+        //saving the angles prevents to the quaternion to clear up after an update()
+        //self.theta = lat_vector.angle(Vector3::unit_x());
+        //self.phi = up_north.angle(Vector3::unit_z());
         println!(
             "camera: x {}, y {}, z {}",
             &self.transform.disp.x, &self.transform.disp.y, &self.transform.disp.z
@@ -153,6 +174,11 @@ impl Camera {
 
         self.moved = true;
       
+    }
+
+    pub fn align_with_gravity(&mut self)
+    {
+        self.set_displacement(self.transform.disp, CameraPose::AlignToGravity);
     }
 
     pub fn move_ct(&mut self, delta: f32, gl: &opengl::Gl) {
@@ -172,8 +198,8 @@ impl Camera {
     pub fn state(&self) -> State {
         State {
             transform: self.transform,
-            phi: self.phi,
-            theta: self.theta,
+            phi: Rad(0.0),
+            theta: Rad(0.0), //removing redundant parts? backward compatibility?
         }
     }
 
@@ -274,7 +300,9 @@ impl Camera {
                 .rotate_vector(self.pan * self.movement_speed * elapsed_seconds);
             self.transform.disp += translation;
         }
-
+        
+        let mut theta = Rad(0.0);
+        let mut phi = Rad(0.0);
         if !self.rotation_speed.theta.is_zero()
             || !self.rotation_speed.phi.is_zero()
             || !self.delta_rotation.theta.is_zero()
@@ -282,15 +310,15 @@ impl Camera {
         {
             moved = true;
             if !self.delta_rotation.theta.is_zero() || !self.delta_rotation.phi.is_zero() {
-                self.theta += self.delta_rotation.theta;
-                self.phi += self.delta_rotation.phi;
+                theta += self.delta_rotation.theta;
+                phi += self.delta_rotation.phi;
             } else {
-                self.theta += self.rotation_speed.theta * elapsed_seconds;
-                self.phi += self.rotation_speed.phi * elapsed_seconds;
+                theta += self.rotation_speed.theta * elapsed_seconds;
+                phi += self.rotation_speed.phi * elapsed_seconds;
             }
-            let rotation_z = Quaternion::from_angle_z(self.theta);
-            let rotation_x = Quaternion::from_angle_x(self.phi);
-            self.transform.rot = rotation_z * rotation_x;
+            let rotation_z = Quaternion::from_angle_z(theta);
+            let rotation_x = Quaternion::from_angle_x(phi);
+            self.transform.rot = rotation_z * rotation_x * self.transform.rot;
         }
 
         self.pan = Vector3::zero();
