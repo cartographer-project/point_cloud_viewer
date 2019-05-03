@@ -15,7 +15,7 @@
 use crate::opengl;
 use cgmath::prelude::EuclideanSpace;
 use cgmath::{
-    Decomposed, Deg, InnerSpace, Matrix3, Matrix4, One, PerspectiveFov, Point3, Quaternion, Rad, Rotation,
+    Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Point3, Quaternion, Rad, Rotation,
     Rotation3, Transform, Vector3, Zero,
 };
 use serde_derive::{Deserialize, Serialize};
@@ -76,7 +76,7 @@ pub struct Camera {
     moved: bool,
     transform: Decomposed<Vector3<f64>, Quaternion<f64>>,
 
-    projection_matrix: Matrix4<f32>,
+    projection_matrix: Matrix4<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
@@ -145,22 +145,6 @@ impl Camera {
         self.transform.disp = earth_vector.normalize_to(magnitude + 150.0);
         self.theta = Rad((-earth_point.x).atan2(earth_point.y));
         self.phi = Rad( (earth_point.x.powi(2) + earth_point.y.powi(2)).sqrt().atan2(-earth_vector.z) );
-        // let earth_normal = earth_vector.normalize();
-
-        // let p1 = earth_normal.x;
-        // let p2 = earth_normal.y;
-
-        // // compute east-west vector (local latitude)
-        // // y_lat_component = p1/(p1squared + p2squared).sqrt();
-        // let squared_sum = (p1 * p1 + p2 * p2).sqrt();  
-        // let lat_vector = Vector3::new(-p2/squared_sum, p1/squared_sum, 0.0);
-
-        // // compute north vector (local longitude direction) as cross product
-        // let up_north = Vector3::cross(earth_normal, lat_vector);
-        // self.transform = Transform::look_at(eye, , up_north);
-        // let rotation: Matrix3<f64> = Matrix3::from_cols(lat_vector, up_north, earth_normal);
-        
-        // self.transform.rot = Quaternion::from(rotation);
         
         println!(
             "camera: x {}, y {}, z {}",
@@ -215,9 +199,9 @@ impl Camera {
 
         self.projection_matrix = Matrix4::from(PerspectiveFov {
             fovy: Rad::from(Deg(45.)),
-            aspect: self.width as f32 / self.height as f32,
-            near,
-            far,
+            aspect: self.width as f64 / self.height as f64,
+            near: near as f64,
+            far: far as f64,
         });
         unsafe {
             gl.Viewport(0, 0, self.width, self.height);
@@ -230,7 +214,7 @@ impl Camera {
         self.update_viewport(gl);
     }
 
-    pub fn get_world_to_gl(&self) -> Matrix4<f64> {
+    pub fn get_world_to_gl(&mut self) -> Matrix4<f64> {
         let world_to_camera: Matrix4<f64> = self.transform.inverse_transform().unwrap().into();
         self.projection_matrix.cast::<f64>().unwrap() * world_to_camera
     }
@@ -314,8 +298,6 @@ impl Camera {
         self.rotation_speed.phi = Rad::zero();
         self.delta_rotation.theta = Rad::zero();
         self.delta_rotation.phi = Rad::zero();
-
-        //println!("phi: {:?} , theta: {:?}", self.phi, self.theta );
         moved
     }
 

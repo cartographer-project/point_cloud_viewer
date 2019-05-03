@@ -407,7 +407,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
     if matches.is_present("ecef_camera_pos") {
         println!("Camera hovering over Lyft L5 Office, Palo Alto, CA \n");
-        camera.set_displacement(Point3::new(-2699182.0, -4294938.0, 3853373.0)); //PAO, Porter Drive
+        camera.set_displacement(Point3::new(-2698580.9326171875, -4293663.024902344, 3855168.151855468)); //PAO, Porter Drive
     }
     let mut events = ctx.event_pump().unwrap();
     let mut last_frame_time = time::PreciseTime::now();
