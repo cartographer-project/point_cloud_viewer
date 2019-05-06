@@ -317,7 +317,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                  The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.",
             )
             .required(false),
-        clap::Arg::with_name("ecef_camera_pos").short("ecef_cam")
+        clap::Arg::with_name("ecef_camera_pos").long("ecef")
             .help("sets the camera position with the ECEF coordinates of 3210 Porter Dr., Palo Alto. When not set (0. 0. 150.) is default")
             .required(false)
 
