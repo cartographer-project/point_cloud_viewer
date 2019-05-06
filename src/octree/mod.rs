@@ -360,7 +360,12 @@ impl Octree {
                     unreachable!();
                 }
             };
-            if self.nodes.get(&current.node.id).map_or(0, |meta| meta.num_points) > 0 {
+            if self
+                .nodes
+                .get(&current.node.id)
+                .map_or(0, |meta| meta.num_points)
+                > 0
+            {
                 visible.push(current.node.id);
             }
         }
@@ -439,7 +444,6 @@ impl Octree {
     pub fn bounding_box(&self) -> &Aabb3<f64> {
         &self.meta.bounding_box
     }
-
 }
 
 struct OpenNode {

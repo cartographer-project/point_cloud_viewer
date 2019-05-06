@@ -347,6 +347,8 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
             .generate_octree(octree_argument)
             .expect("Valid path expected"),
     );
+    //extract octree attribute
+    let is_octree_ecef = matches.is_present("ecef_camera_pos");
 
     let mut pose_path = None;
     let pose_path_buf = PathBuf::from(&octree_argument).join("poses.json");
@@ -405,9 +407,12 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     //let init_point = octree.get_first_point();
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
-    if matches.is_present("ecef_camera_pos") {
+    if is_octree_ecef {
         println!("Camera hovering over Lyft L5 Office, Palo Alto, CA \n");
-        camera.set_displacement(Vector3::new(-2_699_316.0, -4_294_821.0, 3_853_410.0), CameraPose::Init); //PAO, Porter Drive
+        camera.set_displacement(
+            Vector3::new(-2_699_316.0, -4_294_821.0, 3_853_410.0),
+            CameraPose::Init,
+        ); //PAO, Porter Drive
     }
     let mut events = ctx.event_pump().unwrap();
     let mut last_frame_time = time::PreciseTime::now();
@@ -434,7 +439,11 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                             Scancode::I => camera.move_ct(0.5, &gl),
                             Scancode::J => camera.move_far_plane_ct(-0.5, &gl),
                             Scancode::K => camera.move_far_plane_ct(0.5, &gl),
-                            Scancode::G => camera.align_with_gravity(),
+                            Scancode::G => {
+                                if is_octree_ecef {
+                                    camera.align_with_gravity()
+                                }
+                            }
                             Scancode::Left => camera.turning_left = true,
                             Scancode::Right => camera.turning_right = true,
                             Scancode::Down => camera.turning_down = true,

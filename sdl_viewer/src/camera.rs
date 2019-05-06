@@ -75,7 +75,7 @@ pub struct Camera {
     projection_matrix: Matrix4<f64>,
 }
 
-pub enum CameraPose{
+pub enum CameraPose {
     AlignToGravity,
     Init,
 }
@@ -133,13 +133,12 @@ impl Camera {
     /// it alignes the up side with north
     /// East/west equations (local latitude vector)
     /// E [x1 x2 0] east orthonormal to ECEF Z axis
-    /// p1*x1+p2*x2 = 0 E ortho U 
+    /// p1*x1+p2*x2 = 0 E ortho U
     /// x1^2 + x2^2 = 1
-    /// 
+    ///
     /// Compute North vector by using cross product,  UxE = N
     /// and take the solution that makes z component of north (x5) >0
     pub fn set_displacement(&mut self, earth_vector: Vector3<f64>, setting: CameraPose) {
-        
         let magnitude = earth_vector.magnitude();
         let hover_height = match setting {
             CameraPose::Init => 150.0,
@@ -153,8 +152,8 @@ impl Camera {
 
         // compute east-west vector (local latitude)
         // y_lat_component = p1/(p1squared + p2squared).sqrt();
-        let squared_sum = (p1 * p1 + p2 * p2).sqrt();  
-        let lat_vector = Vector3::new(-p2/squared_sum, p1/squared_sum, 0.0);
+        let squared_sum = (p1 * p1 + p2 * p2).sqrt();
+        let lat_vector = Vector3::new(-p2 / squared_sum, p1 / squared_sum, 0.0);
 
         // compute north vector (local longitude direction) as cross product
         let up_north = Vector3::cross(earth_normal, lat_vector);
@@ -163,11 +162,9 @@ impl Camera {
         self.transform.rot = Quaternion::from(rotation);
 
         self.moved = true;
-      
     }
 
-    pub fn align_with_gravity(&mut self)
-    {
+    pub fn align_with_gravity(&mut self) {
         self.set_displacement(self.transform.disp, CameraPose::AlignToGravity);
     }
 
@@ -288,7 +285,7 @@ impl Camera {
                 .rotate_vector(self.pan * self.movement_speed * elapsed_seconds);
             self.transform.disp += translation;
         }
-        
+
         let mut theta = Rad(0.0);
         let mut phi = Rad(0.0);
         if !self.rotation_speed.theta.is_zero()

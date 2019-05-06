@@ -68,8 +68,7 @@ impl NodeIterator {
         };
         Ok(NodeIterator::WithData(iter))
     }
-
- }
+}
 
 impl InternalIterator for NodeIterator {
     fn size_hint(&self) -> Option<usize> {
