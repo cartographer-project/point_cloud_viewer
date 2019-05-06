@@ -31,9 +31,7 @@ impl OctreeFactory {
             if !octree_argument.starts_with(prefix) {
                 continue;
             }
-            if let Ok(o) = octree_factory_function(octree_argument) {
-                return Ok(o);
-            }
+           return Ok(octree_factory_function(octree_argument)?);
         }
 
         // If no octree was generated, create it from disk
