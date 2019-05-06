@@ -210,9 +210,9 @@ impl Camera {
 
         self.projection_matrix = Matrix4::from(PerspectiveFov {
             fovy: Rad::from(Deg(45.)),
-            aspect: self.width as f64 / self.height as f64,
-            near: near as f64,
-            far: far as f64,
+            aspect: f64::from(self.width) / f64::from(self.height),
+            near: f64::from(near),
+            far: f64::from(far),
         });
         unsafe {
             gl.Viewport(0, 0, self.width, self.height);
