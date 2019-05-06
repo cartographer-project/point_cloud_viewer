@@ -358,7 +358,9 @@ impl Octree {
                     unreachable!();
                 }
             };
-            visible.push(current.node.id);
+            if self.nodes.get(&current.node.id).map_or(0, |meta| meta.num_points) > 0 {
+                visible.push(current.node.id);
+            }
         }
         visible
     }
