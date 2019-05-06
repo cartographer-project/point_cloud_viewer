@@ -141,14 +141,16 @@ impl Camera {
     /// x1^2 + x2^2 = 1
     /// 
     /// Compute North vector by using cross product,  UxE = N
-    /// x3 = r p3 = p1 p3 / sqrt (p1^2 + p2^2 - 4p1^2p2^2) take the solution that makes z component of north (x5) >0
+    /// and take the solution that makes z component of north (x5) >0
     pub fn set_displacement(&mut self, earth_vector: Vector3<f64>, setting: CameraPose) {
         
         let magnitude = earth_vector.magnitude();
-        match setting {
-            Init => self.transform.disp = earth_vector.normalize_to(magnitude + 150.0),
-            _ => ,
-        }
+        let hover_height = match setting {
+            CameraPose::Init => 150.0,
+            CameraPose::AlignToGravity => 0.0,
+        };
+
+        self.transform.disp = earth_vector.normalize_to(magnitude + hover_height);
         let earth_normal = earth_vector.normalize();
         let p1 = earth_normal.x;
         let p2 = earth_normal.y;
