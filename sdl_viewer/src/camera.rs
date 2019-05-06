@@ -59,10 +59,7 @@ pub struct Camera {
     ct_mode: CtMode,
 
     movement_speed: f64,
-    //theta: Rad<f64>,
-    //phi: Rad<f64>,
     pan: Vector3<f64>,
-
     // The speed we currently want to rotate at. This is multiplied with the seconds since the last
     // frame to get to an absolute rotation.
     rotation_speed: RotationAngle,
