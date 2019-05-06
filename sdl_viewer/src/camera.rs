@@ -59,8 +59,8 @@ pub struct Camera {
     ct_mode: CtMode,
 
     movement_speed: f64,
-    theta: Rad<f64>,
-    phi: Rad<f64>,
+    //theta: Rad<f64>,
+    //phi: Rad<f64>,
     pan: Vector3<f64>,
 
     // The speed we currently want to rotate at. This is multiplied with the seconds since the last
@@ -108,8 +108,7 @@ impl Camera {
             turning_down: false,
             turning_up: false,
             moved: true,
-            theta: Rad::zero(),
-            phi: Rad::zero(),
+
             pan: Vector3::zero(),
             rotation_speed: RotationAngle::zero(),
             delta_rotation: RotationAngle::zero(),
@@ -165,14 +164,6 @@ impl Camera {
         //self.transform = Transform::look_at(eye, , up_north);
         let rotation: Matrix3<f64> = Matrix3::from_cols(lat_vector, up_north, earth_normal);
         self.transform.rot = Quaternion::from(rotation);
-        
-        //saving the angles prevents to the quaternion to clear up after an update()
-        //self.theta = lat_vector.angle(Vector3::unit_x());
-        //self.phi = up_north.angle(Vector3::unit_z());
-        println!(
-            "camera: x {}, y {}, z {}",
-            &self.transform.disp.x, &self.transform.disp.y, &self.transform.disp.z
-        );
 
         self.moved = true;
       
@@ -207,8 +198,6 @@ impl Camera {
 
     pub fn set_state(&mut self, state: State) {
         self.transform = state.transform;
-        self.phi = state.phi;
-        self.theta = state.theta;
         self.moved = true;
     }
 
