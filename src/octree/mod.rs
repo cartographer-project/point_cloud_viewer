@@ -16,7 +16,7 @@ use crate::errors::*;
 use crate::math::Cube;
 use crate::proto;
 use crate::{InternalIterator, Point};
-use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3, Vector4};
+use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
