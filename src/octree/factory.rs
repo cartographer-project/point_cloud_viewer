@@ -31,7 +31,7 @@ impl OctreeFactory {
             if !octree_argument.starts_with(prefix) {
                 continue;
             }
-           return octree_factory_function(octree_argument);
+            return octree_factory_function(octree_argument);
         }
 
         // If no octree was generated, create it from disk
