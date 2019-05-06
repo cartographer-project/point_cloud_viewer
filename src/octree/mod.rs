@@ -358,7 +358,12 @@ impl Octree {
                     unreachable!();
                 }
             };
-            if self.nodes.get(&current.node.id).map_or(0, |meta| meta.num_points) > 0 {
+            if self
+                .nodes
+                .get(&current.node.id)
+                .map_or(0, |meta| meta.num_points)
+                > 0
+            {
                 visible.push(current.node.id);
             }
         }
@@ -496,7 +501,7 @@ fn maybe_push_node(
     node: Node,
     projection_matrix: &Matrix4<f64>,
 ) {
-    if nodes.get(&node.id).map_or(0, |meta| meta.num_points) == 0 {
+    if !nodes.contains_key(&node.id) {
         return;
     }
     let size_on_screen = relative_size_on_screen(&node.bounding_cube, projection_matrix);
