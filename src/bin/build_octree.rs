@@ -22,9 +22,11 @@ struct CommandlineArguments {
     /// PLY/PTS file to parse for the points.
     #[structopt(parse(from_os_str))]
     input: PathBuf,
+
     /// Output directory to write the octree into.
     #[structopt(long = "output_directory", parse(from_os_str))]
     output_directory: PathBuf,
+
     /// Minimal precision that this point cloud should have.
     /// This decides on the number of bits used to encode each node.
     #[structopt(long = "resolution", default_value = "0.001")]
@@ -39,11 +41,15 @@ struct CommandlineArguments {
         default_value = "FromData"
     )]
     bbox_type: RootBbox,
+
+    /// The number of threads used to shard octree building. Set this as high as possible for SSDs.
+    #[structopt(long = "num_threads", default_value = "10")]
+    num_threads: usize,
 }
 
 fn main() {
     let args = CommandlineArguments::from_args();
-    let pool = scoped_pool::Pool::new(10);
+    let pool = scoped_pool::Pool::new(args.num_threads);
     build_octree_from_file(
         &pool,
         args.output_directory,
