@@ -28,6 +28,7 @@ pub mod octree;
 pub mod ply;
 pub mod pts;
 
+use crate::errors::Result;
 use cgmath::{Vector3, Vector4};
 use fnv::FnvHashMap;
 
@@ -41,6 +42,8 @@ pub struct Point {
     // sensor and has therefore no defined range - or even meaning.
     pub intensity: Option<f32>,
 }
+
+/// general field to describe point features such as position, color, intensity..
 pub enum LayerData {
     F32(Vec<f32>),
     F64Vec3(Vec<Vector3<f64>>),
@@ -67,6 +70,7 @@ impl LayerData {
     }
 }
 
+/// general structure that contains points and attached feature layers
 pub struct PointData {
     pub position: Vec<Vector3<f64>>,
     pub layers: FnvHashMap<String, LayerData>,
@@ -137,6 +141,9 @@ where
     }
 }
 
+
+
+/// trait that extends the std iterator to operate on point batche
 pub trait BatchIterator: Iterator{
     type BatchContainer;
 
