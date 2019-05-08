@@ -33,7 +33,7 @@ pub struct CommandLineArguments {
     /// IP string.
     #[structopt(default_value = "127.0.0.1", long = "ip")]
     ip: String,
-    #[structopt(default_value = "20", long = "cache_items")]
+    #[structopt(default_value = "100", long = "cache_items")]
     cache_max: usize,
 }
 
