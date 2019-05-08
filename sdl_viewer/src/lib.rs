@@ -352,7 +352,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
             .generate_octree(octree_argument)
             .expect("Valid path expected"),
     );
-    //extract octree attribute
+    // extract octree attribute
     let is_octree_ecef = matches.is_present("ecef_camera_pos");
 
     let mut pose_path = None;
@@ -463,8 +463,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                     } else if keymod.intersects(LCTRLMOD | RCTRLMOD)
                         && keymod.intersects(LSHIFTMOD | RSHIFTMOD)
                     {
-                        
-                        // CTRL + Shify is pressed
+                        // CTRL + Shift is pressed.
                         match code {
                             Scancode::Num1 => save_camera(0, &pose_path, &camera),
                             Scancode::Num2 => save_camera(1, &pose_path, &camera),
