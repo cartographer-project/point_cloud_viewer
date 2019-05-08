@@ -358,7 +358,9 @@ impl Octree {
                     unreachable!();
                 }
             };
-            visible.push(current.node.id);
+            if !current.empty {
+                visible.push(current.node.id);
+            }
         }
         visible
     }
@@ -458,6 +460,7 @@ struct OpenNode {
     node: Node,
     relation: Relation,
     size_on_screen: f64,
+    empty: bool,
 }
 
 impl Ord for OpenNode {
@@ -494,13 +497,13 @@ fn maybe_push_node(
     node: Node,
     projection_matrix: &Matrix4<f64>,
 ) {
-    if nodes.get(&node.id).map_or(0, |meta| meta.num_points) == 0 {
-        return;
+    if let Some(meta) = nodes.get(&node.id) {
+        let size_on_screen = relative_size_on_screen(&node.bounding_cube, projection_matrix);
+        v.push(OpenNode {
+            node,
+            relation,
+            size_on_screen,
+            empty: meta.num_points == 0,
+        });
     }
-    let size_on_screen = relative_size_on_screen(&node.bounding_cube, projection_matrix);
-    v.push(OpenNode {
-        node,
-        relation,
-        size_on_screen,
-    });
 }
