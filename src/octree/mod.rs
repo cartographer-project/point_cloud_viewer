@@ -41,6 +41,8 @@ pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 mod factory;
 pub use self::factory::OctreeFactory;
 
+mod batch_iterator;
+
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
 // (u64). We are able to convert the proto on read, so the tools can still read version 9.
 // Version 10 -> 11: Change in AxisAlignedCuboid proto from Vector3f min/max to Vector3d min/max.
