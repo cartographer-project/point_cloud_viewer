@@ -304,10 +304,10 @@ impl Camera {
                 theta += self.rotation_speed.theta * elapsed_seconds;
                 phi += self.rotation_speed.phi * elapsed_seconds;
             }
-            //allow for rotation only in local (camera) z and x axis
+            // allow for rotation only in local (camera) z and x axis
             let current_z = self.transform.rot * Vector3::unit_z();
             let rotation_z = Quaternion::from_axis_angle(current_z, theta);
-            let current_x = self.transform.rot *Vector3::unit_x();
+            let current_x = self.transform.rot * Vector3::unit_x();
             let rotation_x = Quaternion::from_axis_angle(current_x, phi);
             self.transform.rot = rotation_z * rotation_x * self.transform.rot;
         }
