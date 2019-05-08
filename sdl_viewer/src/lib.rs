@@ -305,6 +305,11 @@ pub trait Extension {
     //fn handle_key(&mut self, key) -> KeyHandled; // TODO (catevita) make keys extendible
 }
 
+/// running sdl_viewer
+/// nacigate with mouse, cursor or aswd.
+/// For local trees it is possible to save current camera pose will be saved locally when CTRL + SHIFT + Num0..Num9 is pressed,
+/// and reload that position with CTRL + Num0..Num9 
+/// If the tree is ECEF, press G to align the current position with gravity and north 
 pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     let mut app = clap::App::new("sdl_viewer").args(&[
         clap::Arg::with_name("octree")
@@ -458,7 +463,8 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                     } else if keymod.intersects(LCTRLMOD | RCTRLMOD)
                         && keymod.intersects(LSHIFTMOD | RSHIFTMOD)
                     {
-                        // CTRL + SHIFT is pressed.
+                        
+                        // CTRL + Shify is pressed
                         match code {
                             Scancode::Num1 => save_camera(0, &pose_path, &camera),
                             Scancode::Num2 => save_camera(1, &pose_path, &camera),

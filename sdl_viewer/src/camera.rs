@@ -164,6 +164,7 @@ impl Camera {
         self.moved = true;
     }
 
+    /// method to align camera with gravity (or more precisely earth center for ECEF coordinates)
     pub fn align_with_gravity(&mut self) {
         self.set_displacement(self.transform.disp, CameraPose::AlignToGravity);
     }
@@ -182,6 +183,7 @@ impl Camera {
         self.update_viewport(gl);
     }
 
+    /// state to be saved in external files
     pub fn state(&self) -> State {
         State {
             transform: self.transform,
@@ -190,6 +192,7 @@ impl Camera {
         }
     }
 
+    /// setting the current pose from state
     pub fn set_state(&mut self, state: State) {
         self.transform = state.transform;
         self.moved = true;
@@ -301,8 +304,11 @@ impl Camera {
                 theta += self.rotation_speed.theta * elapsed_seconds;
                 phi += self.rotation_speed.phi * elapsed_seconds;
             }
-            let rotation_z = Quaternion::from_angle_z(theta);
-            let rotation_x = Quaternion::from_angle_x(phi);
+            //allow for rotation only in local (camera) z and x axis
+            let current_z = self.transform.rot * Vector3::unit_z();
+            let rotation_z = Quaternion::from_axis_angle(current_z, theta);
+            let current_x = self.transform.rot *Vector3::unit_x();
+            let rotation_x = Quaternion::from_axis_angle(current_x, phi);
             self.transform.rot = rotation_z * rotation_x * self.transform.rot;
         }
 
