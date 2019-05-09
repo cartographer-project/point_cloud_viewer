@@ -140,3 +140,5 @@ impl<'a> BatchIterator<'a>{
     }
 }
 
+#[cfg(test)]
+#[test]
