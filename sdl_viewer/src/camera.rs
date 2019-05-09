@@ -72,8 +72,8 @@ pub struct Camera {
     // speed from the Joystick.
     delta_rotation: RotationAngle,
 
-    moved: bool,
-    transform: Decomposed<Vector3<f64>, Quaternion<f64>>,
+    pub moved: bool,
+    pub transform: Decomposed<Vector3<f64>, Quaternion<f64>>,
 
     projection_matrix: Matrix4<f32>,
 }

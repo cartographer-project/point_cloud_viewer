@@ -22,7 +22,7 @@ macro_rules! c_str {
     };
 }
 
-mod camera;
+pub mod camera;
 mod glhelper;
 #[allow(
     non_upper_case_globals,
@@ -300,6 +300,7 @@ pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
     fn new(matches: &clap::ArgMatches, opengl: Rc<opengl::Gl>) -> Self;
     fn camera_changed(&mut self, transform: &Matrix4<f64>);
+    fn tick(&mut self, camera: &mut Camera, elapsed: &time::Duration);
     fn draw(&mut self);
 }
 
