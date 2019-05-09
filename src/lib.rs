@@ -31,7 +31,6 @@ pub mod pts;
 use cgmath::{Vector3, Vector4};
 use fnv::FnvHashMap;
 
-
 #[derive(Debug, Clone)]
 pub struct Point {
     pub position: cgmath::Vector3<f64>,
@@ -75,7 +74,5 @@ pub struct PointData {
     pub position: Vec<Vector3<f64>>,
     pub layers: FnvHashMap<String, LayerData>,
 }
-
-
 
 pub use point_viewer_proto_rust::proto;
