@@ -21,7 +21,7 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .help("Size of 1px in meters on the finest X-Ray level.")
                 .long("resolution")
                 .default_value("0.01"),
-            clap::Arg::with_name("num_theads")
+            clap::Arg::with_name("num_threads")
                 .help("The number of threads used to shard X-Ray tile building.")
                 .takes_value(true)
                 .long("num_threads")
