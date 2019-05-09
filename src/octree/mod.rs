@@ -42,6 +42,7 @@ mod factory;
 pub use self::factory::OctreeFactory;
 
 mod batch_iterator;
+pub use self::batch_iterator::{BatchIterator, PointLocation, NUM_POINTS_PER_BATCH};
 
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
 // (u64). We are able to convert the proto on read, so the tools can still read version 9.

@@ -1,11 +1,10 @@
-use crate::{LayerData, Point, PointData};
 use crate::errors::*;
 use crate::math::OrientedBeam;
 use crate::octree::{self, Octree};
+use crate::{LayerData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
 use fnv::FnvHashMap;
-
 
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
@@ -20,7 +19,7 @@ pub enum PointLocation {
 }
 
 /// current implementation of the stream of points used in batch
-struct PointStream<'a, F> 
+struct PointStream<'a, F>
 where
     F: FnMut(PointData) -> Result<()>,
 {
@@ -80,65 +79,124 @@ where
         };
         (self.func)(point_data)
     }
-
-    fn push_point_and_callback(&mut self, point: Point) -> Result<()> {
-        self.push_point(point);
-        if self.position.len() == self.position.capacity() {
-            return self.callback();
-        }
-        Ok(())
-    }
 }
 
-
-struct BatchIterator<'a>{
-    octree: &'a Octree,
+pub struct BatchIterator<'a> {
+    _octree: &'a Octree,
     iterator: Box<Iterator<Item = Point> + 'a>,
-    batch_size : usize
+    _batch_size: usize,
 }
 
-
-impl<'a> BatchIterator<'a>{
-    pub fn new(octree: &'a octree::Octree, location: &'a octree::batch_iterator::PointLocation, size: usize) -> Self
-    {
-        BatchIterator{
-            octree : octree,
-            iterator: match location {
-                PointLocation::Any() => Box::new(octree.all_points()),
-                PointLocation::Aabb(aabb) => Box::new(octree.points_in_box(aabb)),
-                PointLocation::Frustum(frustum) => Box::new(octree.points_in_frustum(frustum)),
-                PointLocation::OrientedBeam(beam) => Box::new(octree.points_in_oriented_beam(beam)),
-            },
-        batch_size : size,
+impl<'a> BatchIterator<'a> {
+    pub fn new(
+        octree: &'a octree::Octree,
+        location: &'a octree::batch_iterator::PointLocation,
+        size: usize,
+    ) -> Self {
+        let iter: Box<Iterator<Item = Point>> = match location {
+            PointLocation::Any() => Box::new(octree.all_points()),
+            PointLocation::Aabb(aabb) => Box::new(octree.points_in_box(aabb)),
+            PointLocation::Frustum(frustum) => Box::new(octree.points_in_frustum(frustum)),
+            PointLocation::OrientedBeam(beam) => Box::new(octree.points_in_oriented_beam(beam)),
+        };
+        BatchIterator {
+            _octree: octree,
+            iterator: iter,
+            _batch_size: size,
         }
-        
-        
     }
-
 
     pub fn try_for_each_batch<F>(&mut self, mut func: F) -> Result<()>
     where
-    F: FnMut(PointData) -> Result<()>,
+        F: FnMut(PointData) -> Result<()>,
     {
         let mut point_stream = PointStream::new(NUM_POINTS_PER_BATCH, &mut func);
         'octree_loop: loop {
             let mut n = 0;
-            'batch : while n < NUM_POINTS_PER_BATCH {
-                match self.iterator.next(){
-                  Some(point) =>  {n+=1; point_stream.push_point(point);},
-                  None => { break 'octree_loop;}
+            while n < NUM_POINTS_PER_BATCH {
+                match self.iterator.next() {
+                    Some(point) => {
+                        n += 1;
+                        point_stream.push_point(point);
+                    }
+                    None => {
+                        break 'octree_loop;
+                    }
                 }
             }
             //call at every batch, return if error
-            match point_stream.callback(){
+            match point_stream.callback() {
                 Ok(()) => continue,
                 Err(e) => return Err(e),
             }
-        } 
+        }
         //call on the last batch
         point_stream.callback()
     }
 }
 
 #[cfg(test)]
-#[test]
+mod tests {
+    use super::*;
+    use crate::color::Color;
+    use crate::generation::build_octree;
+    use cgmath::Point3;
+    use tempdir::TempDir;
+    #[test]
+    fn test_batch_iterator() {
+        let default_point = Point {
+            position: Vector3::new(-2_699_182.0, -4_294_938.0, 3_853_373.0), //ECEF parking lot porter dr
+            //position: Vector3::new(0.0, 0.0, 0.0),
+            color: Color {
+                red: 255,
+                green: 0,
+                blue: 0,
+                alpha: 255,
+            },
+            intensity: None,
+        };
+
+        let batch_size = NUM_POINTS_PER_BATCH / 10;
+        let mut points = vec![default_point; 3 * batch_size + 1];
+        points[3 * batch_size + 1].position = Vector3::new(-2_702_846.0, -4_291_151.0, 3855012.0); // ECEF STANFORD
+
+        let p = Point3::new(6_400_000.0, 6_400_000.0, 6_400_000.0);
+        let bounding_box = Aabb3::new(-1.0 * p, p);
+
+        let pool = scoped_pool::Pool::new(10);
+        let tmp_dir = TempDir::new("octree").unwrap();
+        build_octree(&pool, tmp_dir, 1.0, bounding_box, points.into_iter());
+        let octree = crate::octree::on_disk::octree_from_directory(tmp_dir.into_path()).unwrap();
+        let batch_iterator =
+            BatchIterator::new(&octree, &PointLocation::Aabb(bounding_box), batch_size);
+
+        //define function
+        let mut point_count: usize = 0;
+        let mut print_count: usize = 1;
+        let num_points = 25 * batch_size / 10;
+        let callback_func = |point_data: PointData| -> Result<()> {
+            point_count += point_data.position.len();
+            if point_count >= print_count * 100_000 {
+                print_count += 1;
+                println!("Streamed {} points", point_count);
+            }
+            if point_count >= num_points {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Interrupted,
+                    format!("Maximum number of {} points reached.", num_points),
+                )
+                .into());
+            }
+            Ok(())
+        };
+
+        let result = batch_iterator.try_for_each_batch(callback_func);
+        //call batch
+        assert!(
+            result,
+            Err(std::io::Error::new(std::io::ErrorKind::Interrupted)),
+        );
+        assert_eq!(3 * batch_size, point_count);
+        assert_eq!(3, print_count);
+    }
+}
