@@ -9,7 +9,7 @@ use fnv::FnvHashMap;
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
-/// enum to disambiguate the kind of iterator needed in batch
+///possible kind of iterators that can be evaluated in batch of points in BatchIterator
 #[allow(clippy::large_enum_variant)]
 pub enum PointLocation {
     Any(),
@@ -18,7 +18,7 @@ pub enum PointLocation {
     OrientedBeam(OrientedBeam),
 }
 
-/// current implementation of the stream of points used in batch
+/// current implementation of the stream of points used in BatchIterator
 struct PointStream<'a, F>
 where
     F: FnMut(PointData) -> Result<()>,
@@ -81,6 +81,7 @@ where
     }
 }
 
+/// Iterator on point batches
 pub struct BatchIterator<'a> {
     _octree: &'a Octree,
     iterator: Box<Iterator<Item = Point> + 'a>,
@@ -106,6 +107,7 @@ impl<'a> BatchIterator<'a> {
         }
     }
 
+    /// compute a funtion while iterating on a batch of points
     pub fn try_for_each_batch<F>(&mut self, mut func: F) -> Result<()>
     where
         F: FnMut(PointData) -> Result<()>,
@@ -124,13 +126,13 @@ impl<'a> BatchIterator<'a> {
                     }
                 }
             }
-            //call at every batch, return if error
+            // call at every batch, return if error
             match point_stream.callback() {
                 Ok(()) => continue,
                 Err(e) => return Err(e),
             }
         }
-        //call on the last batch
+        // call on the last batch
         point_stream.callback()
     }
 }
@@ -167,7 +169,7 @@ mod tests {
         let pool = scoped_pool::Pool::new(10);
         let tmp_dir = TempDir::new("octree").unwrap();
 
-        //define function
+        // define function
         let mut point_count: usize = 0;
         let mut print_count: usize = 1;
         let num_points = 25 * batch_size / 10;
@@ -188,7 +190,7 @@ mod tests {
             Ok(())
         };
 
-        //octree and iterator
+        // octree and iterator
         build_octree(&pool, &tmp_dir, 1.0, bounding_box, points.into_iter());
         let octree = crate::octree::on_disk::octree_from_directory(tmp_dir.into_path()).unwrap();
         let location = PointLocation::Aabb(bounding_box);
