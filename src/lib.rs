@@ -28,9 +28,9 @@ pub mod octree;
 pub mod ply;
 pub mod pts;
 
-use crate::errors::Result;
 use cgmath::{Vector3, Vector4};
 use fnv::FnvHashMap;
+
 
 #[derive(Debug, Clone)]
 pub struct Point {
@@ -76,79 +76,6 @@ pub struct PointData {
     pub layers: FnvHashMap<String, LayerData>,
 }
 
-struct PointStream<'a, F> {
-    position: Vec<Vector3<f64>>,
-    color: Vec<Vector4<u8>>,
-    intensity: Vec<f32>,
-    func: &'a mut F,
-}
 
-impl<'a, F> PointStream<'a, F>
-where
-    F: FnMut(PointData) -> Result<()>,
-{
-    fn new(num_points_per_batch: usize, func: &'a mut F) -> Self {
-        PointStream {
-            position: Vec::with_capacity(num_points_per_batch),
-            color: Vec::with_capacity(num_points_per_batch),
-            intensity: Vec::with_capacity(num_points_per_batch),
-            func,
-        }
-    }
-
-    fn push_point(&mut self, point: Point) {
-        self.position.push(point.position);
-        self.color.push(Vector4::new(
-            point.color.red,
-            point.color.green,
-            point.color.blue,
-            point.color.alpha,
-        ));
-        if let Some(point_intensity) = point.intensity {
-            self.intensity.push(point_intensity);
-        };
-    }
-
-    fn callback(&mut self) -> Result<()> {
-        if self.position.is_empty() {
-            return Ok(());
-        }
-
-        let mut layers = FnvHashMap::default();
-        layers.insert(
-            "color".to_string(),
-            LayerData::U8Vec4(self.color.split_off(0)),
-        );
-        if !self.intensity.is_empty() {
-            layers.insert(
-                "intensity".to_string(),
-                LayerData::F32(self.intensity.split_off(0)),
-            );
-        }
-        let point_data = PointData {
-            position: self.position.split_off(0),
-            layers,
-        };
-        (self.func)(point_data)
-    }
-
-    fn push_point_and_callback(&mut self, point: Point) -> Result<()> {
-        self.push_point(point);
-        if self.position.len() == self.position.capacity() {
-            return self.callback();
-        }
-        Ok(())
-    }
-}
-
-
-
-/// trait that extends the std iterator to operate on point batche
-pub trait BatchIterator: Iterator{
-    type BatchContainer;
-
-    fn try_for_each_batch<F: FnMut(Self::BatchContainer)>(&mut self, f: F) -> Result<()>;
-    
-}
 
 pub use point_viewer_proto_rust::proto;
