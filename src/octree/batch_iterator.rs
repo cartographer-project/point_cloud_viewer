@@ -92,18 +92,18 @@ impl<'a> BatchIterator<'a> {
     pub fn new(
         octree: &'a octree::Octree,
         location: &'a octree::batch_iterator::PointLocation,
-        size: usize,
+        batch_size: usize,
     ) -> Self {
-        let iter: Box<Iterator<Item = Point>> = match location {
+        let iterator: Box<Iterator<Item = Point>> = match location {
             PointLocation::Any() => Box::new(octree.all_points()),
             PointLocation::Aabb(aabb) => Box::new(octree.points_in_box(aabb)),
             PointLocation::Frustum(frustum) => Box::new(octree.points_in_frustum(frustum)),
             PointLocation::OrientedBeam(beam) => Box::new(octree.points_in_oriented_beam(beam)),
         };
         BatchIterator {
-            _octree: octree,
-            iterator: iter,
-            batch_size: size,
+            octree,
+            iterator,
+            batch_size,
         }
     }
 
