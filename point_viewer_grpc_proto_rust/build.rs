@@ -45,7 +45,7 @@ fn replace_clippy(contents: String) -> String {
 fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    println!("cargo:rerun-if-changed=point_viewer_grpc_proto_rust/src/proto.proto");
+    println!("cargo:rerun-if-changed=src/proto.proto");
 
     let git_repo_root = find_git_repo_root();
     protoc_grpcio::compile_grpc_protos(
