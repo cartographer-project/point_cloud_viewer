@@ -101,7 +101,7 @@ impl<'a> BatchIterator<'a> {
             PointLocation::OrientedBeam(beam) => Box::new(octree.points_in_oriented_beam(beam)),
         };
         BatchIterator {
-            octree,
+            _octree: octree,
             iterator,
             batch_size,
         }
