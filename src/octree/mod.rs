@@ -392,10 +392,10 @@ impl Octree {
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
     pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f64>) -> FilteredPointsIterator<'a> {
         let mut node_ids = VecDeque::new();
-        let mut open_list = VecDeque::new();
-        open_list.push_back(Node::root_with_bounding_cube(Cube::bounding(
+        let mut open_list: VecDeque<Node> = vec![Node::root_with_bounding_cube(Cube::bounding(
             &self.meta.bounding_box,
-        )));
+        ))]
+        .into();
         while !open_list.is_empty() {
             let current = open_list.pop_front().unwrap();
             if !aabb.intersects(&current.bounding_cube.to_aabb3()) {
@@ -418,10 +418,10 @@ impl Octree {
         beam: &'a OrientedBeam,
     ) -> FilteredPointsIterator<'a> {
         let mut node_ids = VecDeque::new();
-        let mut open_list = VecDeque::new();
-        open_list.push_back(Node::root_with_bounding_cube(Cube::bounding(
+        let mut open_list: VecDeque<Node> = vec![Node::root_with_bounding_cube(Cube::bounding(
             &self.meta.bounding_box,
-        )));
+        ))]
+        .into();
         while !open_list.is_empty() {
             let current = open_list.pop_front().unwrap();
             if !beam.intersects(&current.bounding_cube.to_aabb3()) {
