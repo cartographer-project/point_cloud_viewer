@@ -14,9 +14,10 @@
 
 use crate::color;
 use crate::errors::*;
-use crate::{InternalIterator, Point};
+use crate::Point;
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
+use num_traits::identities::Zero;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::ops::Index;
@@ -121,7 +122,7 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
 
     let mut format = None;
     let mut current_element = None;
-    let mut offset = Vector3::new(0., 0., 0.);
+    let mut offset = Vector3::zero();
     let mut elements = Vec::new();
     loop {
         line.clear();
@@ -273,6 +274,7 @@ pub struct PlyIterator {
     readers: Vec<ReadingFn>,
     pub num_total_points: i64,
     offset: Vector3<f64>,
+    point_count: usize,
 }
 
 impl PlyIterator {
@@ -381,39 +383,47 @@ impl PlyIterator {
             readers,
             num_total_points: header["vertex"].count,
             offset: header.offset,
+            point_count: 0,
         })
     }
 }
 
-impl InternalIterator for PlyIterator {
-    fn size_hint(&self) -> Option<usize> {
-        Some(self.num_total_points as usize)
+impl Iterator for PlyIterator {
+    type Item = Point;
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = self.num_total_points as usize;
+        (size, Some(size))
     }
 
-    fn for_each<F: FnMut(&Point)>(mut self, mut func: F) {
+    fn next(&mut self) -> Option<Point> {
+        if self.point_count == self.num_total_points as usize {
+            return None;
+        }
+
         let mut point = Point {
-            position: Vector3::new(0., 0., 0.),
+            position: Vector3::zero(),
             color: color::WHITE.to_u8(),
             intensity: None,
         };
 
-        for _ in 0..self.num_total_points {
-            let mut nread = 0;
+        let mut nread = 0;
 
-            // We made sure before that the internal buffer of 'reader' is aligned to the number of
-            // bytes for a single point, therefore we can access it here and know that we can always
-            // read into it and are sure that it contains at least a full point.
-            {
-                let buf = self.reader.fill_buf().unwrap();
-                for r in &self.readers {
-                    let cnread = nread;
-                    r(&mut nread, &buf[cnread..], &mut point);
-                }
+        // We made sure before that the internal buffer of 'reader' is aligned to the number of
+        // bytes for a single point, therefore we can access it here and know that we can always
+        // read into it and are sure that it contains at least a full point.
+        {
+            let buf = self.reader.fill_buf().unwrap();
+            for r in &self.readers {
+                let cnread = nread;
+                r(&mut nread, &buf[cnread..], &mut point);
             }
-            point.position += self.offset;
-            func(&point);
-            self.reader.consume(nread);
         }
+        point.position += self.offset;
+        self.reader.consume(nread);
+        self.point_count += 1;
+
+        Some(point)
     }
 }
 
@@ -425,7 +435,7 @@ mod tests {
         let iterator = PlyIterator::from_file(path).unwrap();
         let mut points = Vec::new();
         iterator.for_each(|p| {
-            points.push(p.clone());
+            points.push(p);
         });
         points
     }

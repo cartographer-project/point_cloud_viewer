@@ -305,6 +305,54 @@ pub trait Extension {
     //fn handle_key(&mut self, key) -> KeyHandled; // TODO (catevita) make keys extendible
 }
 
+
+trait Joystick {
+    fn act(&self, camera: &mut Camera);
+    fn joystick(&self) -> &sdl2::joystick::Joystick;
+}
+
+struct XBoxJoystick {
+    joystick: sdl2::joystick::Joystick,
+}
+
+impl Joystick for XBoxJoystick {
+    fn act(&self, camera: &mut Camera) {
+        let right = f64::from(self.joystick.axis(0).unwrap()) / 1000.;
+        let forward = f64::from(self.joystick.axis(1).unwrap()) / 1000.;
+        let turning_right = -f64::from(self.joystick.axis(3).unwrap()) / 32000.;
+        let turning_up = -f64::from(self.joystick.axis(4).unwrap()) / 32000.;
+        camera.pan(right, 0., forward);
+        camera.rotate(turning_up, turning_right);
+    }
+
+    fn joystick(&self) -> &sdl2::joystick::Joystick {
+        &self.joystick
+    }
+}
+
+struct SpaceMouseJoystick {
+    joystick: sdl2::joystick::Joystick,
+}
+
+impl Joystick for SpaceMouseJoystick {
+    fn act(&self, camera: &mut Camera) {
+        let x = f64::from(self.joystick.axis(0).unwrap()) / 500.;
+        let y = f64::from(-self.joystick.axis(1).unwrap()) / 500.;
+        let z = f64::from(-self.joystick.axis(2).unwrap()) / 500.;
+        let up = f64::from(self.joystick.axis(3).unwrap()) / 500.;
+        // Combine tilting and turning on the knob.
+        let around = f64::from(self.joystick.axis(4).unwrap()) / 500.
+            - f64::from(self.joystick.axis(5).unwrap()) / 500.;
+        camera.pan(x, y, z);
+        camera.rotate(up, around);
+    }
+
+    fn joystick(&self) -> &sdl2::joystick::Joystick {
+        &self.joystick
+    }
+}
+
+
 /// running sdl_viewer
 /// nacigate with mouse, cursor or aswd.
 /// For local trees it is possible to save current camera pose will be saved locally when CTRL + SHIFT + Num0..Num9 is pressed,
@@ -367,13 +415,36 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     // We need to open the joysticks we are interested in and keep the object alive to receive
     // input from it. We just open the first we find.
     let joystick_subsystem = ctx.joystick().unwrap();
-    let joystick = match joystick_subsystem.open(0) {
-        Ok(j) => {
-            println!("Found a joystick and will use it.");
-            Some(j)
+    let mut joysticks = Vec::new();
+    for idx in 0..joystick_subsystem
+        .num_joysticks()
+        .expect("Should be able to enumerate joysticks.")
+    {
+        if let Ok(joystick) = joystick_subsystem.open(idx) {
+            let (kind, j) = if joystick.name().contains("Xbox") {
+                (
+                    "XBox controller",
+                    Box::new(XBoxJoystick { joystick }) as Box<dyn Joystick>,
+                )
+            } else {
+                (
+                    "Space mouse",
+                    Box::new(SpaceMouseJoystick { joystick }) as Box<dyn Joystick>,
+                )
+            };
+
+            println!(
+                "Found a joystick named '{}' ({} axes, {} buttons, {} balls, {} hats). Will treat it as a {}.",
+                j.joystick().name(),
+                j.joystick().num_axes(),
+                j.joystick().num_buttons(),
+                j.joystick().num_balls(),
+                j.joystick().num_hats(),
+                kind
+            );
+            joysticks.push(j);
         }
-        Err(_) => None,
-    };
+    }
 
     let gl_attr = video_subsystem.gl_attr();
 
@@ -535,16 +606,8 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
             }
         }
 
-        if let Some(j) = joystick.as_ref() {
-            let x = f64::from(j.axis(0).unwrap()) / 500.;
-            let y = f64::from(-j.axis(1).unwrap()) / 500.;
-            let z = f64::from(-j.axis(2).unwrap()) / 500.;
-            let up = f64::from(j.axis(3).unwrap()) / 500.;
-            // Combine tilting and turning on the knob.
-            let around =
-                f64::from(j.axis(4).unwrap()) / 500. - f64::from(j.axis(5).unwrap()) / 500.;
-            camera.pan(x, y, z);
-            camera.rotate(up, around);
+        for j in &joysticks {
+            j.act(&mut camera);
         }
         let current_time = time::PreciseTime::now();
         let elapsed = last_frame_time.to(current_time);

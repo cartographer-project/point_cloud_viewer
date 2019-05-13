@@ -21,6 +21,11 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .help("Size of 1px in meters on the finest X-Ray level.")
                 .long("resolution")
                 .default_value("0.01"),
+            clap::Arg::with_name("num_threads")
+                .help("The number of threads used to shard X-Ray tile building.")
+                .takes_value(true)
+                .long("num_threads")
+                .default_value("10"),
             clap::Arg::with_name("tile_size")
                 .help("Size of finest X-Ray level tile in pixels. Must be a power of two.")
                 .long("tile_size")
@@ -75,6 +80,11 @@ pub fn main() {
         .unwrap()
         .parse::<f64>()
         .expect("resolution could not be parsed.");
+    let num_threads = args
+        .value_of("num_threads")
+        .unwrap()
+        .parse::<usize>()
+        .expect("num_threads could not be parsed.");
     let tile_size = args
         .value_of("tile_size")
         .unwrap()
@@ -113,7 +123,7 @@ pub fn main() {
     let octree_directory = Path::new(args.value_of("octree_directory").unwrap());
     let output_directory = Path::new(args.value_of("output_directory").unwrap());
 
-    let pool = Pool::new(10);
+    let pool = Pool::new(num_threads);
     let octree = octree_from_directory(octree_directory).expect("Could not open octree.");
     xray::generation::build_xray_quadtree(
         &pool,
