@@ -92,7 +92,9 @@ class NodeLoader {
         }
         const headers = new Headers();
         headers.append('Content-Type', 'application/json; charset=UTF-8');
-        const request = new Request(`/nodes_data/${octreeId}/`, {
+        //encode octree id
+        let b64octreeId = btoa(octreeId);
+        const request = new Request(`/nodes_data/${b64octreeId}/`, {
             method: 'POST',
             body: '[' + query.join(',') + ']',
             headers: headers,
@@ -298,8 +300,10 @@ export class OctreeViewer {
 
     public frustumChanged(matrix: THREE.Matrix4, width: number, height: number) {
         // ThreeJS is column major.
+        //encode octree id
+        let b64octreeId = btoa(this.octreeId);
         const request = new Request(
-            `/visible_nodes/${this.octreeId}/?width=${width}&height=${height}&matrix=${matrixToString(
+            `/visible_nodes/${b64octreeId}/?width=${width}&height=${height}&matrix=${matrixToString(
                 matrix
             )}`,
             {

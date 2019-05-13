@@ -21,6 +21,7 @@ edition = "2018"
 [dependencies]
 actix = "0.7.9"
 actix-web = "0.7.18"
+base64 = "0.10.1"
 byteorder = "^0.5.3"
 cgmath = "0.16.0"
 clap = "2.32.0"

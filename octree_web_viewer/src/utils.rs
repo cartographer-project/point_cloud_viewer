@@ -46,8 +46,12 @@ pub fn start_octree_server(
                 r.method(Method::GET).f(app_bundle_source_map)
             })
             .resource("/init_tree", |r| r.with(get_init_tree))
-            .resource("/visible_nodes/{octree_id}/", |r| r.with(get_visible_nodes))
-            .resource("/nodes_data/{octree_id}/", |r| r.with_async(get_nodes_data))
+            .resource("/visible_nodes/{base64_octree_id}/", |r| {
+                r.with(get_visible_nodes)
+            })
+            .resource("/nodes_data/{base64_octree_id}/", |r| {
+                r.with_async(get_nodes_data)
+            })
     })
     .bind(&ip_port)
     .unwrap_or_else(|_| panic!("Can not bind to {}", &ip_port))
