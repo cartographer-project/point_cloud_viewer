@@ -21,6 +21,7 @@ pub struct Info {
 pub fn get_visible_nodes(
     (base64_octree_id, state, matrix_query): (Path<Vec<u8>>, State<Arc<AppState>>, Query<Info>),
 ) -> HttpResponse {
+    println!("current tree {:?}", base64_octree_id);
     match get_octree_from_state(&base64_octree_id.into_inner(), &state) {
         Err(err) => HttpResponse::from_error(err.into()),
         Ok(octree) => {
@@ -76,7 +77,7 @@ fn pad(input: &mut Vec<u8>) {
 }
 
 fn get_octree_from_state(
-    base64_octree_id: &Vec<u8>,
+    base64_octree_id: &[u8],
     state: &State<Arc<AppState>>,
 ) -> Result<Arc<Octree>, PointsViewerError> {
     // decode octree id
@@ -89,6 +90,7 @@ fn get_octree_from_state(
             )));
         }
     };
+    println!("current tree {}", octree_id);
     state.load_octree(&octree_id).map_err(|_error| {
         crate::backend_error::PointsViewerError::NotFound(format!(
             "Could not load tree with octree_id {}.",

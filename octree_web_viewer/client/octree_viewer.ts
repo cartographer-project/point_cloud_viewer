@@ -46,6 +46,14 @@ void main() {
 }
 `;
 
+// function btoaUTF16(sString: string) {
+
+//     var aUTF16CodeUnits = new Uint16Array(sString.length);
+//     Array.prototype.forEach.call(aUTF16CodeUnits, function (el: any, idx: number, arr: { [x: string]: number; }) { arr[idx] = sString.charCodeAt(idx); });
+//     return btoa(String.fromCharCode.apply(null, new Uint8Array(aUTF16CodeUnits.buffer)));
+
+// }
+
 function matrixToString(m: THREE.Matrix4): string {
     const me = m.elements;
     return [
