@@ -120,7 +120,7 @@ impl Camera {
             height: 0,
             ct_mode: CtMode {
                 enabled: false,
-                near_plane: 2.,
+                near_plane: 4.,
                 far_plane: 5.,
             },
         };

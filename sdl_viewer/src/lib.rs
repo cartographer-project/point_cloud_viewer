@@ -440,7 +440,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     gl_attr.set_context_version(4, 1);
 
     const WINDOW_WIDTH: i32 = 800;
-    const WINDOW_HEIGHT: i32 = 600;
+    const WINDOW_HEIGHT: i32 = 400;
     let window = match video_subsystem
         .window("sdl2_viewer", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
         .position_centered()
@@ -468,9 +468,8 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
 
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
-
+    let mut count = 0;
     let mut events = ctx.event_pump().unwrap();
-    let mut last_frame_time = time::PreciseTime::now();
     'outer_loop: loop {
         for event in events.poll_iter() {
             match event {
@@ -578,25 +577,99 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                 }
                 _ => (),
             }
-        }
+        } // end of event loop
 
         for j in &joysticks {
             j.act(&mut camera);
         }
-        let current_time = time::PreciseTime::now();
-        let elapsed = last_frame_time.to(current_time);
-        last_frame_time = current_time;
+        let elapsed = time::Duration::milliseconds(10);
+        extension.tick(&mut camera, &elapsed);
         if camera.update(elapsed) {
             renderer.camera_changed(&camera.get_world_to_gl());
             extension.camera_changed(&camera.get_world_to_gl());
         }
 
-        match renderer.draw() {
-            DrawResult::HasDrawn => {
-                extension.draw();
-                window.gl_swap_window()
-            }
-            DrawResult::NoChange => (),
+        while let DrawResult::HasDrawn = renderer.draw() {        
+            extension.draw();
+            window.gl_swap_window()
         }
+        let mut ppm = PPM::new(WINDOW_HEIGHT as u32, WINDOW_WIDTH as u32);
+        use std::ffi::c_void;
+        unsafe {
+            gl.ReadBuffer(opengl::BACK);
+            gl.ReadPixels(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, opengl::RGB, opengl::UNSIGNED_BYTE, ppm.data.as_mut_slice().as_mut_ptr() as *mut c_void);
+        }
+        let _ = ppm.write_file(&format!("/home/nmorin/Videos/ground_map/{:08}.ppm", count));
+        count += 1;
+    }
+}
+
+use std::path::Path;
+use std::io::Write;
+use std::fs::File;
+ 
+pub struct RGB {
+    r: u8,
+    g: u8,
+    b: u8,
+}
+ 
+pub struct PPM {
+    height: u32,
+    width: u32,
+    pub data: Vec<u8>,
+}
+ 
+impl PPM {
+    pub fn new(height: u32, width: u32) -> PPM {
+        let size = 3 * height * width;
+        let buffer = vec![0; size as usize];
+        PPM { height: height, width: width, data: buffer }
+    }
+ 
+    fn buffer_size(&self) -> u32 {
+        3 * self.height * self.width
+    }
+ 
+    fn get_offset(&self, x: u32, y: u32) -> Option<usize> {
+        let offset = (y * self.width * 3) + (x * 3);
+        if offset < self.buffer_size() {
+            Some(offset as usize)
+        } else {
+            None
+        }
+    }
+ 
+    pub fn get_pixel(&self, x: u32, y: u32) -> Option<RGB> {
+        match self.get_offset(x, y) {
+            Some(offset) => {
+                let r = self.data[offset];
+                let g = self.data[offset + 1];
+                let b = self.data[offset + 2];
+                Some(RGB {r: r, g: g, b: b})
+            },
+            None => None
+        }
+    }
+ 
+    pub fn set_pixel(&mut self, x: u32, y: u32, color: RGB) -> bool {
+        match self.get_offset(x, y) {
+            Some(offset) => {
+                self.data[offset] = color.r;
+                self.data[offset + 1] = color.g;
+                self.data[offset + 2] = color.b;
+                true
+            },
+            None => false
+        }
+    }
+ 
+    pub fn write_file(&self, filename: &str) -> std::io::Result<()> {
+        let path = Path::new(filename);
+        let mut file = File::create(&path)?;
+        let header = format!("P6 {} {} 255\n", self.width, self.height);
+        file.write(header.as_bytes())?;
+        file.write(&self.data)?;
+        Ok(())
     }
 }
