@@ -187,7 +187,7 @@ impl<'a> Iterator for FilteredPointsIterator<'a> {
 pub struct AllPointsIterator<'a> {
     octree: &'a Octree,
     node_iterator: NodeIterator,
-    open_list: Vec<NodeId>,
+    open_list: VecDeque<NodeId>,
 }
 
 impl<'a> AllPointsIterator<'a> {
@@ -195,7 +195,7 @@ impl<'a> AllPointsIterator<'a> {
         AllPointsIterator {
             octree,
             node_iterator: NodeIterator::Empty,
-            open_list: vec![NodeId::from_level_index(0, 0)],
+            open_list: vec![NodeId::from_level_index(0, 0)].into(),
         }
     }
 }
@@ -208,12 +208,12 @@ impl<'a> Iterator for AllPointsIterator<'a> {
             if let Some(point) = self.node_iterator.next() {
                 return Some(point);
             }
-            match self.open_list.pop() {
+            match self.open_list.pop_front() {
                 Some(current) => {
                     for child_index in 0..8 {
                         let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
                         if self.octree.nodes.contains_key(&child_id) {
-                            self.open_list.push(child_id);
+                            self.open_list.push_back(child_id);
                         }
                     }
                     self.node_iterator = get_node_iterator(self.octree, &current);
@@ -392,11 +392,12 @@ impl Octree {
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
     pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f64>) -> FilteredPointsIterator<'a> {
         let mut node_ids = VecDeque::new();
-        let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
+        let mut open_list: VecDeque<Node> = vec![Node::root_with_bounding_cube(Cube::bounding(
             &self.meta.bounding_box,
-        ))];
+        ))]
+        .into();
         while !open_list.is_empty() {
-            let current = open_list.pop().unwrap();
+            let current = open_list.pop_front().unwrap();
             if !aabb.intersects(&current.bounding_cube.to_aabb3()) {
                 continue;
             }
@@ -404,7 +405,7 @@ impl Octree {
             for child_index in 0..8 {
                 let child = current.get_child(ChildIndex::from_u8(child_index));
                 if self.nodes.contains_key(&child.id) {
-                    open_list.push(child);
+                    open_list.push_back(child);
                 }
             }
         }
@@ -417,11 +418,12 @@ impl Octree {
         beam: &'a OrientedBeam,
     ) -> FilteredPointsIterator<'a> {
         let mut node_ids = VecDeque::new();
-        let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
+        let mut open_list: VecDeque<Node> = vec![Node::root_with_bounding_cube(Cube::bounding(
             &self.meta.bounding_box,
-        ))];
+        ))]
+        .into();
         while !open_list.is_empty() {
-            let current = open_list.pop().unwrap();
+            let current = open_list.pop_front().unwrap();
             if !beam.intersects(&current.bounding_cube.to_aabb3()) {
                 continue;
             }
@@ -429,7 +431,7 @@ impl Octree {
             for child_index in 0..8 {
                 let child = current.get_child(ChildIndex::from_u8(child_index));
                 if self.nodes.contains_key(&child.id) {
-                    open_list.push(child);
+                    open_list.push_back(child);
                 }
             }
         }
