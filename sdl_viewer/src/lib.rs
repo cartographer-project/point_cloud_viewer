@@ -439,7 +439,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     gl_attr.set_context_profile(GLProfile::Core);
     gl_attr.set_context_version(4, 1);
 
-    const WINDOW_WIDTH: i32 = 800;
+    const WINDOW_WIDTH: i32 = 1200;
     const WINDOW_HEIGHT: i32 = 400;
     let window = match video_subsystem
         .window("sdl2_viewer", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
@@ -582,7 +582,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
         for j in &joysticks {
             j.act(&mut camera);
         }
-        let elapsed = time::Duration::milliseconds(10);
+        let elapsed = time::Duration::milliseconds(20);
         extension.tick(&mut camera, &elapsed);
         if camera.update(elapsed) {
             renderer.camera_changed(&camera.get_world_to_gl());
@@ -593,6 +593,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
             extension.draw();
             window.gl_swap_window()
         }
+        println!("Frame complete");
         let mut ppm = PPM::new(WINDOW_HEIGHT as u32, WINDOW_WIDTH as u32);
         use std::ffi::c_void;
         unsafe {

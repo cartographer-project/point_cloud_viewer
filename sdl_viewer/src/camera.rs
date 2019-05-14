@@ -119,9 +119,9 @@ impl Camera {
             width: 0,
             height: 0,
             ct_mode: CtMode {
-                enabled: false,
-                near_plane: 4.,
-                far_plane: 5.,
+                enabled: true,
+                near_plane: 5.,
+                far_plane: 6.,
             },
         };
         camera.set_size(gl, width, height);
