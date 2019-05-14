@@ -119,34 +119,6 @@ impl<'a> BatchIterator<'a> {
         F: FnMut(PointData) -> Result<()>,
     {
         let mut point_stream = PointStream::new(self.batch_size, &mut func);
-        'octree_loop: loop {
-            let mut n = 0;
-            while n < self.batch_size {
-                match self.iterator.next() {
-                    Some(point) => {
-                        n += 1;
-                        point_stream.push_point(point);
-                    }
-                    None => {
-                        break 'octree_loop;
-                    }
-                }
-            }
-            // call at every batch, return if error
-            match point_stream.callback() {
-                Ok(()) => continue,
-                Err(e) => return Err(e),
-            }
-        }
-        // call on the last batch
-        point_stream.callback()
-    }
-
-    pub fn try_for_each_batch2<F>(&mut self, mut func: F) -> Result<()>
-    where
-        F: FnMut(PointData) -> Result<()>,
-    {
-        let mut point_stream = PointStream::new(self.batch_size, &mut func);
         self.iterator
             .try_for_each(|point: Point| point_stream.push_point_and_callback(point))
     }
@@ -160,7 +132,7 @@ mod tests {
     use cgmath::Point3;
     use tempdir::TempDir;
 
-    fn build_test_octree(batch_size: usize) -> Box<Octree> {
+    fn build_test_octree(batch_size: usize) -> Box<octree::Octree> {
         let default_point = Point {
             position: Vector3::new(-2_699_182.0, -4_294_938.0, 3_853_373.0), //ECEF parking lot porter dr
             color: Color {
@@ -221,37 +193,5 @@ mod tests {
 
         assert_eq!(3 * batch_size, point_count);
         assert_eq!(2, print_count);
-    }
-
-    #[test]
-    fn test_batch_iterator_time() {
-        let batch_size = NUM_POINTS_PER_BATCH / 10;
-        // define function
-
-        let callback_func = |point_data: PointData| -> Result<()> {
-            println!("Test_batch_function");
-            Ok(())
-        };
-
-        // octree and iterator
-        let octree = build_test_octree(batch_size);
-        let location = PointLocation::Any();
-        let mut batch_iterator = BatchIterator::new(&octree, &location, batch_size);
-        let time_test_loop_begin = std::time::Instant::now();
-        batch_iterator.try_for_each_batch(callback_func);
-        let time_test_loop_end = std::time::Instant::now();
-        println!(
-            "Current {:?}",
-            time_test_loop_end.duration_since(time_test_loop_begin)
-        );
-
-        let mut batch_iterator2 = BatchIterator::new(&octree, &location, batch_size);
-        let time_test_try_begin = std::time::Instant::now();
-        batch_iterator2.try_for_each_batch2(callback_func);
-        let time_test_try_end = std::time::Instant::now();
-        println!(
-            "Try for each {:?}",
-            time_test_try_end.duration_since(time_test_try_begin)
-        );
     }
 }
