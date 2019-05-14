@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::{Cube, OrientedBeam};
+use crate::math::{Cube, Obb, OrientedBeam};
 use crate::proto;
 use crate::Point;
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector4};
@@ -238,6 +238,31 @@ pub struct NodeData {
     pub color: Vec<u8>,
 }
 
+fn intersecting_node_ids(
+    octree: &Octree,
+    intersects: &Fn(&Aabb3<f64>) -> bool,
+) -> VecDeque<NodeId> {
+    let mut node_ids = VecDeque::new();
+    let mut open_list: VecDeque<Node> = vec![Node::root_with_bounding_cube(Cube::bounding(
+        &octree.meta.bounding_box,
+    ))]
+    .into();
+    while !open_list.is_empty() {
+        let current = open_list.pop_front().unwrap();
+        if !intersects(&current.bounding_cube.to_aabb3()) {
+            continue;
+        }
+        node_ids.push_back(current.id);
+        for child_index in 0..8 {
+            let child = current.get_child(ChildIndex::from_u8(child_index));
+            if octree.nodes.contains_key(&child.id) {
+                open_list.push_back(child);
+            }
+        }
+    }
+    node_ids
+}
+
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
     pub fn from_data_provider(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
@@ -390,25 +415,17 @@ impl Octree {
     }
 
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
-    pub fn points_in_box<'a>(&'a self, aabb: &'a Aabb3<f64>) -> FilteredPointsIterator<'a> {
-        let mut node_ids = VecDeque::new();
-        let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
-            &self.meta.bounding_box,
-        ))];
-        while !open_list.is_empty() {
-            let current = open_list.pop().unwrap();
-            if !aabb.intersects(&current.bounding_cube.to_aabb3()) {
-                continue;
-            }
-            node_ids.push_back(current.id);
-            for child_index in 0..8 {
-                let child = current.get_child(ChildIndex::from_u8(child_index));
-                if self.nodes.contains_key(&child.id) {
-                    open_list.push(child);
-                }
-            }
-        }
-        let filter_func = Box::new(move |p: &Point| aabb.contains(&Point3::from_vec(p.position)));
+    pub fn points_in_box<'a>(&'a self, bbox: &'a Aabb3<f64>) -> FilteredPointsIterator<'a> {
+        let intersects = |aabb: &Aabb3<f64>| bbox.intersects(aabb);
+        let node_ids = intersecting_node_ids(self, &intersects);
+        let filter_func = Box::new(move |p: &Point| bbox.contains(&Point3::from_vec(p.position)));
+        FilteredPointsIterator::new(&self, node_ids, filter_func)
+    }
+
+    pub fn points_in_obb<'a>(&'a self, obb: &'a Obb<f64>) -> FilteredPointsIterator<'a> {
+        let intersects = |aabb: &Aabb3<f64>| obb.intersects(aabb);
+        let node_ids = intersecting_node_ids(self, &intersects);
+        let filter_func = Box::new(move |p: &Point| obb.contains(&Point3::from_vec(p.position)));
         FilteredPointsIterator::new(&self, node_ids, filter_func)
     }
 
@@ -416,23 +433,8 @@ impl Octree {
         &'a self,
         beam: &'a OrientedBeam,
     ) -> FilteredPointsIterator<'a> {
-        let mut node_ids = VecDeque::new();
-        let mut open_list = vec![Node::root_with_bounding_cube(Cube::bounding(
-            &self.meta.bounding_box,
-        ))];
-        while !open_list.is_empty() {
-            let current = open_list.pop().unwrap();
-            if !beam.intersects(&current.bounding_cube.to_aabb3()) {
-                continue;
-            }
-            node_ids.push_back(current.id);
-            for child_index in 0..8 {
-                let child = current.get_child(ChildIndex::from_u8(child_index));
-                if self.nodes.contains_key(&child.id) {
-                    open_list.push(child);
-                }
-            }
-        }
+        let intersects = |aabb: &Aabb3<f64>| beam.intersects(aabb);
+        let node_ids = intersecting_node_ids(self, &intersects);
         let filter_func = Box::new(move |p: &Point| beam.contains(&Point3::from_vec(p.position)));
         FilteredPointsIterator::new(&self, node_ids, filter_func)
     }
