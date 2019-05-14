@@ -1,6 +1,6 @@
 use crate::errors::*;
 use crate::math::OrientedBeam;
-use crate::octree::{self, Octree};
+use crate::octree;
 use crate::{LayerData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
@@ -91,7 +91,6 @@ where
 
 /// Iterator on point batches
 pub struct BatchIterator<'a> {
-    _octree: &'a Octree,
     iterator: Box<Iterator<Item = Point> + 'a>,
     batch_size: usize,
 }
@@ -109,7 +108,6 @@ impl<'a> BatchIterator<'a> {
             PointLocation::OrientedBeam(beam) => Box::new(octree.points_in_oriented_beam(beam)),
         };
         BatchIterator {
-            _octree: octree,
             iterator,
             batch_size,
         }
