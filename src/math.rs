@@ -269,7 +269,7 @@ impl OrientedBeam {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cgmath::Zero;
+    use cgmath::{Rad, Rotation3, Zero};
     // These tests were created in Blender by creating two cubes, naming one
     // "Beam" and scaling it up in its local z direction. The corresponding
     // object in Rust was defined by querying Blender's Python API with
@@ -318,5 +318,25 @@ mod tests {
         let vertical_beam =
             OrientedBeam::new(Quaternion::zero(), Vector3::zero(), Vector2::new(1.0, 1.0));
         assert_eq!(vertical_beam.intersects(&bbox1), true);
+    }
+
+    #[test]
+    fn test_obb_intersects() {
+        let zero_rot: Quaternion<f64> = Rotation3::from_angle_z(Rad(0.0));
+        let fourty_five_deg_rot: Quaternion<f64> =
+            Rotation3::from_angle_z(Rad(std::f64::consts::PI / 4.0));
+        let arbitrary_rot: Quaternion<f64> =
+            Rotation3::from_axis_angle(Vector3::new(0.2, 0.5, -0.7), Rad(0.123));
+        let translation = Vector3::new(0.0, 0.0, 0.0);
+        let half_extent = Vector3::new(1.0, 2.0, 3.0);
+        let zero_obb = Obb::new(zero_rot, translation, half_extent);
+        let fourty_five_deg_obb = Obb::new(fourty_five_deg_rot, translation, half_extent);
+        let arbitrary_obb = Obb::new(arbitrary_rot, translation, half_extent);
+        let bbox = Aabb3::new(Point3::new(0.5, 1.0, -3.0), Point3::new(1.5, 3.0, 3.0));
+        assert_eq!(zero_obb.separating_axes.len(), 3);
+        assert_eq!(zero_obb.intersects(&bbox), true);
+        assert_eq!(fourty_five_deg_obb.separating_axes.len(), 5);
+        assert_eq!(fourty_five_deg_obb.intersects(&bbox), false);
+        assert_eq!(arbitrary_obb.separating_axes.len(), 15);
     }
 }
