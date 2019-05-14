@@ -439,8 +439,8 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     gl_attr.set_context_profile(GLProfile::Core);
     gl_attr.set_context_version(4, 1);
 
-    const WINDOW_WIDTH: i32 = 1200;
-    const WINDOW_HEIGHT: i32 = 400;
+    const WINDOW_WIDTH: i32 = 1800;
+    const WINDOW_HEIGHT: i32 = 600;
     let window = match video_subsystem
         .window("sdl2_viewer", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
         .position_centered()
@@ -588,20 +588,31 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
             renderer.camera_changed(&camera.get_world_to_gl());
             extension.camera_changed(&camera.get_world_to_gl());
         }
-
-        while let DrawResult::HasDrawn = renderer.draw() {        
-            extension.draw();
-            window.gl_swap_window()
+        use std::env;
+        match env::var("RENDER_TO") {
+            Ok(out_dir) => {
+                while let DrawResult::HasDrawn = renderer.draw() {        
+                    extension.draw();
+                    window.gl_swap_window()
+                }
+                println!("Frame complete");
+                let mut ppm = PPM::new(WINDOW_HEIGHT as u32, WINDOW_WIDTH as u32);
+                use std::ffi::c_void;
+                unsafe {
+                    gl.ReadBuffer(opengl::BACK);
+                    gl.ReadPixels(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, opengl::RGB, opengl::UNSIGNED_BYTE, ppm.data.as_mut_slice().as_mut_ptr() as *mut c_void);
+                }
+                let filename = out_dir + &format!("/{:08}.ppm", count);
+                ppm.write_file(&filename).unwrap();
+                count += 1;
+            },
+            _ => {        
+                if let DrawResult::HasDrawn = renderer.draw() {
+                    extension.draw();
+                    window.gl_swap_window()
+                }
+            }
         }
-        println!("Frame complete");
-        let mut ppm = PPM::new(WINDOW_HEIGHT as u32, WINDOW_WIDTH as u32);
-        use std::ffi::c_void;
-        unsafe {
-            gl.ReadBuffer(opengl::BACK);
-            gl.ReadPixels(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, opengl::RGB, opengl::UNSIGNED_BYTE, ppm.data.as_mut_slice().as_mut_ptr() as *mut c_void);
-        }
-        let _ = ppm.write_file(&format!("/home/nmorin/Videos/ground_map/{:08}.ppm", count));
-        count += 1;
     }
 }
 
