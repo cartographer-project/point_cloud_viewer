@@ -13,14 +13,20 @@
 // limitations under the License.
 
 use clap::value_t;
-use futures::sync::oneshot;
 use futures::Future;
-use std::io::Read;
 use std::path::PathBuf;
-use std::{io, thread};
 
 use point_viewer::octree::OctreeFactory;
 use point_viewer_grpc::service::start_grpc_server;
+
+fn ctrlc_channel() -> Result<crossbeam_channel::Receiver<()>, ctrlc::Error> {
+    let (tx, rx) = crossbeam_channel::bounded(100);
+    ctrlc::set_handler(move || {
+        let _ = tx.send(());
+    })?;
+
+    Ok(rx)
+}
 
 fn main() {
     let matches = clap::App::new("octree_server")
@@ -45,12 +51,8 @@ fn main() {
     for &(ref host, port) in server.bind_addrs() {
         println!("listening on {}:{}", host, port);
     }
-    let (tx, rx) = oneshot::channel();
-    thread::spawn(move || {
-        println!("Press ENTER to exit...");
-        let _ = io::stdin().read(&mut [0]).unwrap();
-        tx.send(())
-    });
-    let _ = rx.wait();
+    let rx: crossbeam_channel::Receiver<()> = ctrlc_channel().unwrap();
+    println!("Exit with Ctrl-C");
+    let _ = rx.recv();
     let _ = server.shutdown().wait();
 }

@@ -28,6 +28,9 @@ pub mod octree;
 pub mod ply;
 pub mod pts;
 
+use cgmath::{Vector3, Vector4};
+use fnv::FnvHashMap;
+
 #[derive(Debug, Clone)]
 pub struct Point {
     pub position: cgmath::Vector3<f64>,
@@ -37,6 +40,39 @@ pub struct Point {
     // The intensity of the point if it exists. This value is usually handed through directly by a
     // sensor and has therefore no defined range - or even meaning.
     pub intensity: Option<f32>,
+}
+
+/// general field to describe point features such as position, color, intensity..
+pub enum LayerData {
+    F32(Vec<f32>),
+    F64Vec3(Vec<Vector3<f64>>),
+    U8Vec4(Vec<Vector4<u8>>),
+}
+
+impl LayerData {
+    pub fn len(&self) -> usize {
+        match self {
+            LayerData::F32(data) => data.len(),
+            LayerData::F64Vec3(data) => data.len(),
+            LayerData::U8Vec4(data) => data.len(),
+        }
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    pub fn dim(&self) -> usize {
+        match self {
+            LayerData::F32(_) => 1,
+            LayerData::F64Vec3(_) => 3,
+            LayerData::U8Vec4(_) => 4,
+        }
+    }
+}
+
+/// general structure that contains points and attached feature layers
+pub struct PointData {
+    pub position: Vec<Vector3<f64>>,
+    pub layers: FnvHashMap<String, LayerData>,
 }
 
 pub use point_viewer_proto_rust::proto;
