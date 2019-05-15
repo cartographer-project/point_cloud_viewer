@@ -129,7 +129,7 @@ impl<S: BaseFloat> Obb<S> {
     pub fn new(rotation: Quaternion<S>, translation: Vector3<S>, half_extent: Vector3<S>) -> Self {
         Obb {
             rotation_inv: rotation.conjugate(),
-            translation_inv: -rotation.conjugate() * translation,
+            translation_inv: -(rotation.conjugate() * translation),
             half_extent,
             corners: Obb::precompute_corners(&rotation, &translation, &half_extent),
             separating_axes: Obb::precompute_separating_axes(&rotation),
@@ -150,7 +150,7 @@ impl<S: BaseFloat> Obb<S> {
     pub fn transform(&self, rotation: &Quaternion<S>, translation: &Vector3<S>) -> Self {
         Self::new(
             rotation * self.rotation_inv.conjugate(),
-            rotation * -self.rotation_inv.conjugate() * self.translation_inv + translation,
+            rotation * -(self.rotation_inv.conjugate() * self.translation_inv) + translation,
             self.half_extent,
         )
     }
@@ -230,7 +230,7 @@ impl OrientedBeam {
     ) -> Self {
         OrientedBeam {
             rotation_inv: rotation.conjugate(),
-            translation_inv: -rotation.conjugate() * translation,
+            translation_inv: -(rotation.conjugate() * translation),
             half_extent,
             corners: OrientedBeam::precompute_corners(&rotation, &translation, &half_extent),
             separating_axes: OrientedBeam::precompute_separating_axes(&rotation),
@@ -250,7 +250,7 @@ impl OrientedBeam {
     pub fn transform(&self, rotation: &Quaternion<f64>, translation: &Vector3<f64>) -> Self {
         Self::new(
             rotation * self.rotation_inv.conjugate(),
-            rotation * -self.rotation_inv.conjugate() * self.translation_inv + translation,
+            rotation * -(self.rotation_inv.conjugate() * self.translation_inv) + translation,
             self.half_extent,
         )
     }
