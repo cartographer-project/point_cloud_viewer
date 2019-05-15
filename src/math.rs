@@ -115,11 +115,21 @@ pub struct Obb<S> {
     separating_axes: Vec<Vector3<S>>,
 }
 
+impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
+    fn from(aabb: Aabb3<S>) -> Self {
+        Obb::new(
+            Quaternion::new(S::one(), S::zero(), S::zero(), S::zero()),
+            aabb.center().to_homogeneous().truncate(),
+            aabb.dim() / (S::one() + S::one()),
+        )
+    }
+}
+
 impl<S: BaseFloat> Obb<S> {
     pub fn new(rotation: Quaternion<S>, translation: Vector3<S>, half_extent: Vector3<S>) -> Self {
         Obb {
             rotation_inv: rotation.conjugate(),
-            translation_inv: -rotation.conjugate().rotate_vector(translation),
+            translation_inv: -rotation.conjugate() * translation,
             half_extent,
             corners: Obb::precompute_corners(&rotation, &translation, &half_extent),
             separating_axes: Obb::precompute_separating_axes(&rotation),
@@ -135,6 +145,14 @@ impl<S: BaseFloat> Obb<S> {
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
+    }
+
+    pub fn transform(&self, rotation: &Quaternion<S>, translation: &Vector3<S>) -> Self {
+        Self::new(
+            rotation * self.rotation_inv.conjugate(),
+            rotation * -self.rotation_inv.conjugate() * self.translation_inv + translation,
+            self.half_extent,
+        )
     }
 
     fn precompute_corners(
@@ -160,9 +178,9 @@ impl<S: BaseFloat> Obb<S> {
         let unit_x = Vector3::unit_x();
         let unit_y = Vector3::unit_y();
         let unit_z = Vector3::unit_z();
-        let rot_x = rotation.rotate_vector(unit_x);
-        let rot_y = rotation.rotate_vector(unit_y);
-        let rot_z = rotation.rotate_vector(unit_z);
+        let rot_x = rotation * unit_x;
+        let rot_y = rotation * unit_y;
+        let rot_z = rotation * unit_z;
         let mut separating_axes = vec![unit_x, unit_y, unit_z];
         for axis in &[
             rot_x,
@@ -212,7 +230,7 @@ impl OrientedBeam {
     ) -> Self {
         OrientedBeam {
             rotation_inv: rotation.conjugate(),
-            translation_inv: -rotation.conjugate().rotate_vector(translation),
+            translation_inv: -rotation.conjugate() * translation,
             half_extent,
             corners: OrientedBeam::precompute_corners(&rotation, &translation, &half_extent),
             separating_axes: OrientedBeam::precompute_separating_axes(&rotation),
@@ -227,6 +245,14 @@ impl OrientedBeam {
         // What is the point in beam coordinates?
         let Point3 { x, y, .. } = self.rotation_inv.rotate_point(*p) + self.translation_inv;
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
+    }
+
+    pub fn transform(&self, rotation: &Quaternion<f64>, translation: &Vector3<f64>) -> Self {
+        Self::new(
+            rotation * self.rotation_inv.conjugate(),
+            rotation * -self.rotation_inv.conjugate() * self.translation_inv + translation,
+            self.half_extent,
+        )
     }
 
     fn precompute_corners(
@@ -252,10 +278,10 @@ impl OrientedBeam {
         // The separating axis needs to be perpendicular to the beam's main
         // axis, i.e. the possible axes are the cross product of the three unit
         // vectors with the beam's main axis and the beam's face normals.
-        let main_axis = rotation.rotate_vector(Vector3::unit_z());
+        let main_axis = rotation * Vector3::unit_z();
         vec![
-            rotation.rotate_vector(Vector3::unit_x()),
-            rotation.rotate_vector(Vector3::unit_y()),
+            rotation * Vector3::unit_x(),
+            rotation * Vector3::unit_y(),
             main_axis.cross(Vector3::unit_x()).normalize(),
             main_axis.cross(Vector3::unit_y()).normalize(),
             main_axis.cross(Vector3::unit_z()).normalize(),
