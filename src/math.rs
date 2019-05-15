@@ -186,18 +186,18 @@ impl<S: BaseFloat> Obb<S> {
     }
 
     fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector3<S>) -> [Point3<S>; 8] {
-        let transform = |x: S, y: S, z: S| {
+        let corner_from = |x: S, y: S, z: S| {
             isometry.rotation.rotate_point(Point3::new(x, y, z)) + isometry.translation
         };
         [
-            transform(-half_extent.x, -half_extent.y, -half_extent.z),
-            transform(half_extent.x, -half_extent.y, -half_extent.z),
-            transform(-half_extent.x, half_extent.y, -half_extent.z),
-            transform(half_extent.x, half_extent.y, -half_extent.z),
-            transform(-half_extent.x, -half_extent.y, half_extent.z),
-            transform(half_extent.x, -half_extent.y, half_extent.z),
-            transform(-half_extent.x, half_extent.y, half_extent.z),
-            transform(half_extent.x, half_extent.y, half_extent.z),
+            corner_from(-half_extent.x, -half_extent.y, -half_extent.z),
+            corner_from(half_extent.x, -half_extent.y, -half_extent.z),
+            corner_from(-half_extent.x, half_extent.y, -half_extent.z),
+            corner_from(half_extent.x, half_extent.y, -half_extent.z),
+            corner_from(-half_extent.x, -half_extent.y, half_extent.z),
+            corner_from(half_extent.x, -half_extent.y, half_extent.z),
+            corner_from(-half_extent.x, half_extent.y, half_extent.z),
+            corner_from(half_extent.x, half_extent.y, half_extent.z),
         ]
     }
 
@@ -277,14 +277,14 @@ impl OrientedBeam {
         isometry: &Isometry3<f64>,
         half_extent: &Vector2<f64>,
     ) -> [Point3<f64>; 4] {
-        let transform = |x: f64, y: f64| {
+        let corner_from = |x: f64, y: f64| {
             isometry.rotation.rotate_point(Point3::new(x, y, 0.0)) + isometry.translation
         };
         [
-            transform(half_extent.x, half_extent.y),
-            transform(half_extent.x, -half_extent.y),
-            transform(-half_extent.x, half_extent.y),
-            transform(-half_extent.x, -half_extent.y),
+            corner_from(half_extent.x, half_extent.y),
+            corner_from(half_extent.x, -half_extent.y),
+            corner_from(-half_extent.x, half_extent.y),
+            corner_from(-half_extent.x, -half_extent.y),
         ]
     }
 
