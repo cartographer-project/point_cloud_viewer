@@ -16,6 +16,7 @@ use cgmath::{
     BaseFloat, EuclideanSpace, InnerSpace, Point3, Quaternion, Rotation, Vector2, Vector3,
 };
 use collision::{Aabb, Aabb3};
+use num_traits::identities::One;
 use num_traits::Float;
 use std::ops::Mul;
 
@@ -152,10 +153,7 @@ pub struct Obb<S> {
 impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
     fn from(aabb: Aabb3<S>) -> Self {
         Obb::new(
-            Isometry3::new(
-                Quaternion::new(S::one(), S::zero(), S::zero(), S::zero()),
-                EuclideanSpace::to_vec(aabb.center()),
-            ),
+            Isometry3::new(Quaternion::one(), EuclideanSpace::to_vec(aabb.center())),
             aabb.dim() / (S::one() + S::one()),
         )
     }
