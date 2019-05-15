@@ -107,6 +107,7 @@ fn intersects<S: BaseFloat>(
     true
 }
 
+#[derive(Debug, Clone)]
 pub struct Obb<S> {
     rotation_inv: Quaternion<S>,
     translation_inv: Vector3<S>,
