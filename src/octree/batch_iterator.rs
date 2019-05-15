@@ -162,7 +162,8 @@ impl<'a> BatchIterator<'a> {
             PointCulling::Frustum(frustum) => Box::new(self.octree.points_in_frustum(frustum)),
             PointCulling::OrientedBeam(beam) => Box::new(self.octree.points_in_oriented_beam(beam)),
         };
-        iterator.try_for_each(|point: Point| point_stream.push_point_and_callback(point))
+        iterator.try_for_each(|point: Point| point_stream.push_point_and_callback(point))?;
+        point_stream.callback()
     }
 }
 
