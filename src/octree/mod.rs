@@ -41,6 +41,9 @@ pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 mod factory;
 pub use self::factory::OctreeFactory;
 
+mod batch_iterator;
+pub use self::batch_iterator::{BatchIterator, PointLocation, NUM_POINTS_PER_BATCH};
+
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
 // (u64). We are able to convert the proto on read, so the tools can still read version 9.
 // Version 10 -> 11: Change in AxisAlignedCuboid proto from Vector3f min/max to Vector3d min/max.
@@ -133,6 +136,7 @@ pub struct Octree {
     nodes: FnvHashMap<NodeId, NodeMeta>,
 }
 
+/// returns an Iterator over the points of the current node
 fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator {
     // TODO(sirver): This crashes on error. We should bubble up an error.
     NodeIterator::from_data_provider(
@@ -144,6 +148,7 @@ fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator {
     .expect("Could not read node points")
 }
 
+/// iterator over the points of the octree that satisfy the condition expressed by a boolean function
 pub struct FilteredPointsIterator<'a> {
     octree: &'a Octree,
     filter_func: Box<Fn(&Point) -> bool + 'a>,
@@ -183,7 +188,7 @@ impl<'a> Iterator for FilteredPointsIterator<'a> {
         }
     }
 }
-
+///iterator for all points in an octree
 pub struct AllPointsIterator<'a> {
     octree: &'a Octree,
     node_iterator: NodeIterator,
