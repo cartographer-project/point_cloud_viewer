@@ -120,7 +120,7 @@ impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
     fn from(aabb: Aabb3<S>) -> Self {
         Obb::new(
             Quaternion::new(S::one(), S::zero(), S::zero(), S::zero()),
-            aabb.center().to_homogeneous().truncate(),
+            EuclideanSpace::to_vec(aabb.center()),
             aabb.dim() / (S::one() + S::one()),
         )
     }
