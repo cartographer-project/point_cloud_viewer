@@ -305,7 +305,6 @@ pub trait Extension {
     //fn handle_key(&mut self, key) -> KeyHandled; // TODO (catevita) make keys extendible
 }
 
-
 trait Joystick {
     fn act(&self, camera: &mut Camera);
     fn joystick(&self) -> &sdl2::joystick::Joystick;
@@ -351,7 +350,6 @@ impl Joystick for SpaceMouseJoystick {
         &self.joystick
     }
 }
-
 
 /// running sdl_viewer
 /// nacigate with mouse, cursor or aswd.
