@@ -25,7 +25,7 @@ use grpcio::{
     UnarySink, WriteFlags,
 };
 use point_viewer::errors::*;
-use point_viewer::math::OrientedBeam;
+use point_viewer::math::{Isometry3, OrientedBeam};
 use point_viewer::octree::{NodeId, Octree, OctreeFactory};
 use point_viewer::Point;
 use protobuf::Message;
@@ -201,7 +201,7 @@ impl proto_grpc::Octree for OctreeService {
             Vector2::new(e.x, e.y)
         };
 
-        let beam = OrientedBeam::new(rotation, translation, half_extent);
+        let beam = OrientedBeam::new(Isometry3::new(rotation, translation), half_extent);
         self.stream_points_back_to_sink(
             OctreeQuery::OrientedBeam(Box::new(beam)),
             &req.octree_id,
