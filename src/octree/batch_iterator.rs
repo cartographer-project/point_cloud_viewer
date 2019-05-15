@@ -1,8 +1,8 @@
 use crate::errors::*;
-use crate::math::OrientedBeam;
-use crate::octree;
+use crate::math::{Isometry3, Obb, OrientedBeam};
+use crate::octree::{self, Octree};
 use crate::{LayerData, Point, PointData};
-use cgmath::{Matrix4, Vector3, Vector4};
+use cgmath::{Decomposed, Matrix4, Vector3, Vector4};
 use collision::Aabb3;
 use fnv::FnvHashMap;
 
@@ -11,11 +11,19 @@ pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
 ///possible kind of iterators that can be evaluated in batch of points in BatchIterator
 #[allow(clippy::large_enum_variant)]
-pub enum PointLocation {
+#[derive(Clone)]
+pub enum PointCulling {
     Any(),
     Aabb(Aabb3<f64>),
+    Obb(Obb<f64>),
     Frustum(Matrix4<f64>),
     OrientedBeam(OrientedBeam),
+}
+
+pub struct PointLocation {
+    pub culling: PointCulling,
+    // If set, culling and the returned points are interpreted to be in local coordinates.
+    pub global_from_local: Option<Isometry3<f64>>,
 }
 
 /// current implementation of the stream of points used in BatchIterator
@@ -26,6 +34,7 @@ where
     position: Vec<Vector3<f64>>,
     color: Vec<Vector4<u8>>,
     intensity: Vec<f32>,
+    local_from_global: Option<Isometry3<f64>>,
     func: &'a mut F,
 }
 
@@ -33,18 +42,29 @@ impl<'a, F> PointStream<'a, F>
 where
     F: FnMut(PointData) -> Result<()>,
 {
-    fn new(num_points_per_batch: usize, func: &'a mut F) -> Self {
+    fn new(
+        num_points_per_batch: usize,
+        local_from_global: Option<Isometry3<f64>>,
+        func: &'a mut F,
+    ) -> Self {
         PointStream {
             position: Vec::with_capacity(num_points_per_batch),
             color: Vec::with_capacity(num_points_per_batch),
             intensity: Vec::with_capacity(num_points_per_batch),
+            local_from_global,
             func,
         }
     }
 
     /// push point in batch
     fn push_point(&mut self, point: Point) {
-        self.position.push(point.position);
+        let position = match &self.local_from_global {
+            Some(local_from_global) => {
+                local_from_global.rotation * point.position + local_from_global.translation
+            }
+            None => point.position,
+        };
+        self.position.push(position);
         self.color.push(Vector4::new(
             point.color.red,
             point.color.green,
@@ -91,36 +111,58 @@ where
 
 /// Iterator on point batches
 pub struct BatchIterator<'a> {
-    iterator: Box<Iterator<Item = Point> + 'a>,
+    octree: &'a Octree,
+    culling: PointCulling,
+    local_from_global: Option<Isometry3<f64>>,
     batch_size: usize,
 }
 
 impl<'a> BatchIterator<'a> {
-    pub fn new(
-        octree: &'a octree::Octree,
-        location: &'a octree::batch_iterator::PointLocation,
-        batch_size: usize,
-    ) -> Self {
-        let iterator: Box<Iterator<Item = Point>> = match location {
-            PointLocation::Any() => Box::new(octree.all_points()),
-            PointLocation::Aabb(aabb) => Box::new(octree.points_in_box(aabb)),
-            PointLocation::Frustum(frustum) => Box::new(octree.points_in_frustum(frustum)),
-            PointLocation::OrientedBeam(beam) => Box::new(octree.points_in_oriented_beam(beam)),
+    pub fn new(octree: &'a octree::Octree, location: &'a PointLocation, batch_size: usize) -> Self {
+        let culling = match &location.global_from_local {
+            Some(global_from_local) => match &location.culling {
+                PointCulling::Any() => PointCulling::Any(),
+                PointCulling::Aabb(aabb) => {
+                    PointCulling::Obb(Obb::from(*aabb).transform(global_from_local))
+                }
+                PointCulling::Obb(obb) => PointCulling::Obb(obb.transform(global_from_local)),
+                PointCulling::Frustum(frustum) => PointCulling::Frustum(
+                    Matrix4::from(Decomposed {
+                        scale: 1.0,
+                        rot: global_from_local.rotation,
+                        disp: global_from_local.translation,
+                    }) * frustum,
+                ),
+                PointCulling::OrientedBeam(beam) => {
+                    PointCulling::OrientedBeam(beam.transform(global_from_local))
+                }
+            },
+            None => location.culling.clone(),
         };
+        let local_from_global = location.global_from_local.clone().map(|t| t.inverse());
         BatchIterator {
-            iterator,
+            octree,
+            culling,
+            local_from_global,
             batch_size,
         }
     }
 
-    /// compute a funtion while iterating on a batch of points
+    /// compute a function while iterating on a batch of points
     pub fn try_for_each_batch<F>(&mut self, mut func: F) -> Result<()>
     where
         F: FnMut(PointData) -> Result<()>,
     {
-        let mut point_stream = PointStream::new(self.batch_size, &mut func);
-        self.iterator
-            .try_for_each(|point: Point| point_stream.push_point_and_callback(point))
+        let mut point_stream =
+            PointStream::new(self.batch_size, self.local_from_global.clone(), &mut func);
+        let mut iterator: Box<Iterator<Item = Point>> = match &self.culling {
+            PointCulling::Any() => Box::new(self.octree.all_points()),
+            PointCulling::Aabb(aabb) => Box::new(self.octree.points_in_box(aabb)),
+            PointCulling::Obb(obb) => Box::new(self.octree.points_in_obb(obb)),
+            PointCulling::Frustum(frustum) => Box::new(self.octree.points_in_frustum(frustum)),
+            PointCulling::OrientedBeam(beam) => Box::new(self.octree.points_in_oriented_beam(beam)),
+        };
+        iterator.try_for_each(|point: Point| point_stream.push_point_and_callback(point))
     }
 }
 
@@ -184,7 +226,10 @@ mod tests {
 
         // octree and iterator
         let octree = build_test_octree(batch_size);
-        let location = PointLocation::Any();
+        let location = PointLocation {
+            culling: PointCulling::Any(),
+            global_from_local: None,
+        };
         let mut batch_iterator = BatchIterator::new(&octree, &location, batch_size);
 
         let _err_stop = batch_iterator
