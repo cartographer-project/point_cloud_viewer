@@ -16,7 +16,9 @@ use cgmath::{
     BaseFloat, EuclideanSpace, InnerSpace, Point3, Quaternion, Rotation, Vector2, Vector3,
 };
 use collision::{Aabb, Aabb3};
+use num_traits::identities::One;
 use num_traits::Float;
+use std::ops::Mul;
 
 #[derive(Debug, Clone)]
 pub struct Cube {
@@ -107,22 +109,86 @@ fn intersects<S: BaseFloat>(
     true
 }
 
+#[derive(Debug, Clone)]
+pub struct Isometry3<S> {
+    pub rotation: Quaternion<S>,
+    pub translation: Vector3<S>,
+}
+
+impl<S: BaseFloat> Mul for Isometry3<S> {
+    type Output = Self;
+    fn mul(self, _rhs: Self) -> Self {
+        Self::new(
+            self.rotation * _rhs.rotation,
+            self.rotation * _rhs.translation + self.translation,
+        )
+    }
+}
+
+impl<'a, S: BaseFloat> Mul for &'a Isometry3<S> {
+    type Output = Isometry3<S>;
+    fn mul(self, _rhs: &'a Isometry3<S>) -> Isometry3<S> {
+        Isometry3::new(
+            self.rotation * _rhs.rotation,
+            self.rotation * _rhs.translation + self.translation,
+        )
+    }
+}
+
+impl<S: BaseFloat> Mul<Vector3<S>> for Isometry3<S> {
+    type Output = Vector3<S>;
+    fn mul(self, _rhs: Vector3<S>) -> Vector3<S> {
+        self.rotation * _rhs + self.translation
+    }
+}
+
+impl<'a, S: BaseFloat> Mul<&'a Vector3<S>> for &'a Isometry3<S> {
+    type Output = Vector3<S>;
+    fn mul(self, _rhs: &'a Vector3<S>) -> Vector3<S> {
+        self.rotation * _rhs + self.translation
+    }
+}
+
+impl<S: BaseFloat> Isometry3<S> {
+    pub fn new(rotation: Quaternion<S>, translation: Vector3<S>) -> Self {
+        Isometry3 {
+            rotation,
+            translation,
+        }
+    }
+
+    pub fn inverse(&self) -> Self {
+        Self::new(
+            self.rotation.conjugate(),
+            -(self.rotation.conjugate() * self.translation),
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Obb<S> {
-    rotation_inv: Quaternion<S>,
-    translation_inv: Vector3<S>,
+    isometry_inv: Isometry3<S>,
     half_extent: Vector3<S>,
     corners: [Point3<S>; 8],
     separating_axes: Vec<Vector3<S>>,
 }
 
+impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
+    fn from(aabb: Aabb3<S>) -> Self {
+        Obb::new(
+            Isometry3::new(Quaternion::one(), EuclideanSpace::to_vec(aabb.center())),
+            aabb.dim() / (S::one() + S::one()),
+        )
+    }
+}
+
 impl<S: BaseFloat> Obb<S> {
-    pub fn new(rotation: Quaternion<S>, translation: Vector3<S>, half_extent: Vector3<S>) -> Self {
+    pub fn new(isometry: Isometry3<S>, half_extent: Vector3<S>) -> Self {
         Obb {
-            rotation_inv: rotation.conjugate(),
-            translation_inv: -rotation.conjugate().rotate_vector(translation),
+            isometry_inv: isometry.inverse(),
             half_extent,
-            corners: Obb::precompute_corners(&rotation, &translation, &half_extent),
-            separating_axes: Obb::precompute_separating_axes(&rotation),
+            corners: Obb::precompute_corners(&isometry, &half_extent),
+            separating_axes: Obb::precompute_separating_axes(&isometry.rotation),
         }
     }
 
@@ -131,28 +197,30 @@ impl<S: BaseFloat> Obb<S> {
     }
 
     pub fn contains(&self, p: &Point3<S>) -> bool {
-        let Point3 { x, y, z } = self.rotation_inv.rotate_point(*p) + self.translation_inv;
+        let Point3 { x, y, z } =
+            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
     }
 
-    fn precompute_corners(
-        rotation: &Quaternion<S>,
-        translation: &Vector3<S>,
-        half_extent: &Vector3<S>,
-    ) -> [Point3<S>; 8] {
-        let transform =
-            |x: S, y: S, z: S| rotation.rotate_point(Point3::new(x, y, z)) + translation;
+    pub fn transform(&self, isometry: &Isometry3<S>) -> Self {
+        Self::new(isometry * &self.isometry_inv.inverse(), self.half_extent)
+    }
+
+    fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector3<S>) -> [Point3<S>; 8] {
+        let corner_from = |x: S, y: S, z: S| {
+            isometry.rotation.rotate_point(Point3::new(x, y, z)) + isometry.translation
+        };
         [
-            transform(-half_extent.x, -half_extent.y, -half_extent.z),
-            transform(half_extent.x, -half_extent.y, -half_extent.z),
-            transform(-half_extent.x, half_extent.y, -half_extent.z),
-            transform(half_extent.x, half_extent.y, -half_extent.z),
-            transform(-half_extent.x, -half_extent.y, half_extent.z),
-            transform(half_extent.x, -half_extent.y, half_extent.z),
-            transform(-half_extent.x, half_extent.y, half_extent.z),
-            transform(half_extent.x, half_extent.y, half_extent.z),
+            corner_from(-half_extent.x, -half_extent.y, -half_extent.z),
+            corner_from(half_extent.x, -half_extent.y, -half_extent.z),
+            corner_from(-half_extent.x, half_extent.y, -half_extent.z),
+            corner_from(half_extent.x, half_extent.y, -half_extent.z),
+            corner_from(-half_extent.x, -half_extent.y, half_extent.z),
+            corner_from(half_extent.x, -half_extent.y, half_extent.z),
+            corner_from(-half_extent.x, half_extent.y, half_extent.z),
+            corner_from(half_extent.x, half_extent.y, half_extent.z),
         ]
     }
 
@@ -160,9 +228,9 @@ impl<S: BaseFloat> Obb<S> {
         let unit_x = Vector3::unit_x();
         let unit_y = Vector3::unit_y();
         let unit_z = Vector3::unit_z();
-        let rot_x = rotation.rotate_vector(unit_x);
-        let rot_y = rotation.rotate_vector(unit_y);
-        let rot_z = rotation.rotate_vector(unit_z);
+        let rot_x = rotation * unit_x;
+        let rot_y = rotation * unit_y;
+        let rot_z = rotation * unit_z;
         let mut separating_axes = vec![unit_x, unit_y, unit_z];
         for axis in &[
             rot_x,
@@ -195,27 +263,20 @@ impl<S: BaseFloat> Obb<S> {
 pub struct OrientedBeam {
     // The members here are an implementation detail and differ from the
     // minimal representation in the gRPC message to speed up operations.
-    // Rotation_inv and translation_inv together form the transform from world
-    // coordinates into "beam coordinates".
-    rotation_inv: Quaternion<f64>,
-    translation_inv: Vector3<f64>,
+    // Isometry_inv is the transform from world coordinates into "beam coordinates".
+    isometry_inv: Isometry3<f64>,
     half_extent: Vector2<f64>,
     corners: [Point3<f64>; 4],
     separating_axes: Vec<Vector3<f64>>,
 }
 
 impl OrientedBeam {
-    pub fn new(
-        rotation: Quaternion<f64>,
-        translation: Vector3<f64>,
-        half_extent: Vector2<f64>,
-    ) -> Self {
+    pub fn new(isometry: Isometry3<f64>, half_extent: Vector2<f64>) -> Self {
         OrientedBeam {
-            rotation_inv: rotation.conjugate(),
-            translation_inv: -rotation.conjugate().rotate_vector(translation),
+            isometry_inv: isometry.inverse(),
             half_extent,
-            corners: OrientedBeam::precompute_corners(&rotation, &translation, &half_extent),
-            separating_axes: OrientedBeam::precompute_separating_axes(&rotation),
+            corners: OrientedBeam::precompute_corners(&isometry, &half_extent),
+            separating_axes: OrientedBeam::precompute_separating_axes(&isometry.rotation),
         }
     }
 
@@ -225,22 +286,27 @@ impl OrientedBeam {
 
     pub fn contains(&self, p: &Point3<f64>) -> bool {
         // What is the point in beam coordinates?
-        let Point3 { x, y, .. } = self.rotation_inv.rotate_point(*p) + self.translation_inv;
+        let Point3 { x, y, .. } =
+            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
 
+    pub fn transform(&self, isometry: &Isometry3<f64>) -> Self {
+        Self::new(isometry * &self.isometry_inv.inverse(), self.half_extent)
+    }
+
     fn precompute_corners(
-        rotation: &Quaternion<f64>,
-        translation: &Vector3<f64>,
+        isometry: &Isometry3<f64>,
         half_extent: &Vector2<f64>,
     ) -> [Point3<f64>; 4] {
-        let transform =
-            |x: f64, y: f64| rotation.rotate_point(Point3::new(x, y, 0.0)) + translation;
+        let corner_from = |x: f64, y: f64| {
+            isometry.rotation.rotate_point(Point3::new(x, y, 0.0)) + isometry.translation
+        };
         [
-            transform(half_extent.x, half_extent.y),
-            transform(half_extent.x, -half_extent.y),
-            transform(-half_extent.x, half_extent.y),
-            transform(-half_extent.x, -half_extent.y),
+            corner_from(half_extent.x, half_extent.y),
+            corner_from(half_extent.x, -half_extent.y),
+            corner_from(-half_extent.x, half_extent.y),
+            corner_from(-half_extent.x, -half_extent.y),
         ]
     }
 
@@ -252,10 +318,10 @@ impl OrientedBeam {
         // The separating axis needs to be perpendicular to the beam's main
         // axis, i.e. the possible axes are the cross product of the three unit
         // vectors with the beam's main axis and the beam's face normals.
-        let main_axis = rotation.rotate_vector(Vector3::unit_z());
+        let main_axis = rotation * Vector3::unit_z();
         vec![
-            rotation.rotate_vector(Vector3::unit_x()),
-            rotation.rotate_vector(Vector3::unit_y()),
+            rotation * Vector3::unit_x(),
+            rotation * Vector3::unit_y(),
             main_axis.cross(Vector3::unit_x()).normalize(),
             main_axis.cross(Vector3::unit_y()).normalize(),
             main_axis.cross(Vector3::unit_z()).normalize(),
@@ -285,7 +351,7 @@ mod tests {
         );
         let translation = Vector3::new(1.0, 2.0, 0.0);
         let half_extent = Vector2::new(1.0, 1.0);
-        OrientedBeam::new(quater, translation, half_extent)
+        OrientedBeam::new(Isometry3::new(quater, translation), half_extent)
     }
 
     #[test]
@@ -315,8 +381,10 @@ mod tests {
         assert_eq!(some_beam().intersects(&bbox5), false);
         assert_eq!(some_beam().intersects(&bbox6), false);
         assert_eq!(some_beam().intersects(&bbox7), true);
-        let vertical_beam =
-            OrientedBeam::new(Quaternion::zero(), Vector3::zero(), Vector2::new(1.0, 1.0));
+        let vertical_beam = OrientedBeam::new(
+            Isometry3::new(Quaternion::zero(), Vector3::zero()),
+            Vector2::new(1.0, 1.0),
+        );
         assert_eq!(vertical_beam.intersects(&bbox1), true);
     }
 
@@ -329,9 +397,12 @@ mod tests {
             Rotation3::from_axis_angle(Vector3::new(0.2, 0.5, -0.7), Rad(0.123));
         let translation = Vector3::new(0.0, 0.0, 0.0);
         let half_extent = Vector3::new(1.0, 2.0, 3.0);
-        let zero_obb = Obb::new(zero_rot, translation, half_extent);
-        let fourty_five_deg_obb = Obb::new(fourty_five_deg_rot, translation, half_extent);
-        let arbitrary_obb = Obb::new(arbitrary_rot, translation, half_extent);
+        let zero_obb = Obb::new(Isometry3::new(zero_rot, translation), half_extent);
+        let fourty_five_deg_obb = Obb::new(
+            Isometry3::new(fourty_five_deg_rot, translation),
+            half_extent,
+        );
+        let arbitrary_obb = Obb::new(Isometry3::new(arbitrary_rot, translation), half_extent);
         let bbox = Aabb3::new(Point3::new(0.5, 1.0, -3.0), Point3::new(1.5, 3.0, 3.0));
         assert_eq!(zero_obb.separating_axes.len(), 3);
         assert_eq!(zero_obb.intersects(&bbox), true);
