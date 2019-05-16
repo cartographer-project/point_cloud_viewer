@@ -59,9 +59,7 @@ where
     /// push point in batch
     fn push_point(&mut self, point: Point) {
         let position = match &self.local_from_global {
-            Some(local_from_global) => {
-                local_from_global.rotation * point.position + local_from_global.translation
-            }
+            Some(local_from_global) => local_from_global.clone() * point.position,
             None => point.position,
         };
         self.position.push(position);

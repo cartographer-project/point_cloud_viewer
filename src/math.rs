@@ -115,14 +115,37 @@ pub struct Isometry3<S> {
     pub translation: Vector3<S>,
 }
 
-impl<'a, S: BaseFloat> Mul<&'a Isometry3<S>> for &'a Isometry3<S> {
-    type Output = Isometry3<S>;
+impl<S: BaseFloat> Mul for Isometry3<S> {
+    type Output = Self;
+    fn mul(self, _rhs: Self) -> Self {
+        Self::new(
+            self.rotation * _rhs.rotation,
+            self.rotation * _rhs.translation + self.translation,
+        )
+    }
+}
 
+impl<'a, S: BaseFloat> Mul for &'a Isometry3<S> {
+    type Output = Isometry3<S>;
     fn mul(self, _rhs: &'a Isometry3<S>) -> Isometry3<S> {
         Isometry3::new(
             self.rotation * _rhs.rotation,
             self.rotation * _rhs.translation + self.translation,
         )
+    }
+}
+
+impl<S: BaseFloat> Mul<Vector3<S>> for Isometry3<S> {
+    type Output = Vector3<S>;
+    fn mul(self, _rhs: Vector3<S>) -> Vector3<S> {
+        self.rotation * _rhs + self.translation
+    }
+}
+
+impl<'a, S: BaseFloat> Mul<&'a Vector3<S>> for &'a Isometry3<S> {
+    type Output = Vector3<S>;
+    fn mul(self, _rhs: &'a Vector3<S>) -> Vector3<S> {
+        self.rotation * _rhs + self.translation
     }
 }
 
