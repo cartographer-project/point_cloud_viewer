@@ -582,7 +582,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
         for j in &joysticks {
             j.act(&mut camera);
         }
-        let elapsed = time::Duration::milliseconds(20);
+        let elapsed = time::Duration::milliseconds(40);
         extension.tick(&mut camera, &elapsed);
         if camera.update(elapsed) {
             renderer.camera_changed(&camera.get_world_to_gl());

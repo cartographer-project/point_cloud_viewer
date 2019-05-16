@@ -20,6 +20,7 @@ use cgmath::{
 use serde_derive::{Deserialize, Serialize};
 use std::f64;
 use time;
+use std::env;
 
 #[derive(Debug)]
 struct RotationAngle {
@@ -119,7 +120,7 @@ impl Camera {
             width: 0,
             height: 0,
             ct_mode: CtMode {
-                enabled: true,
+                enabled: env::var("RENDER_TO").is_ok(),
                 near_plane: 5.,
                 far_plane: 6.,
             },
@@ -224,7 +225,7 @@ impl Camera {
 
         let elapsed_seconds = elapsed.num_milliseconds() as f64 / 1000.;
 
-        const TURNING_SPEED: Rad<f64> = Rad(0.15);
+        const TURNING_SPEED: Rad<f64> = Rad(0.5);
         if self.turning_left {
             self.rotation_speed.theta += TURNING_SPEED;
         }
