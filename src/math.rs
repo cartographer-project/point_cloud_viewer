@@ -263,8 +263,7 @@ impl<S: BaseFloat> Obb<S> {
 pub struct OrientedBeam {
     // The members here are an implementation detail and differ from the
     // minimal representation in the gRPC message to speed up operations.
-    // Rotation_inv and translation_inv together form the transform from world
-    // coordinates into "beam coordinates".
+    // Isometry_inv is the transform from world coordinates into "beam coordinates".
     isometry_inv: Isometry3<f64>,
     half_extent: Vector2<f64>,
     corners: [Point3<f64>; 4],
