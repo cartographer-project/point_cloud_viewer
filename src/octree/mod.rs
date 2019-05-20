@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::{Cube, Obb, OrientedBeam};
+use crate::math::{Cube, Isometry3, Obb, OrientedBeam};
 use crate::proto;
 use crate::Point;
 use cgmath::{EuclideanSpace, Matrix4, Point3};
@@ -43,11 +43,14 @@ pub use self::factory::OctreeFactory;
 
 mod octree_iterator;
 pub use self::octree_iterator::{
-    contains, intersecting_node_ids, AllPointsIterator, FilteredPointsIterator,
+    contains, intersecting_node_ids, AllPointsIterator, FilteredPointsIterator, NodeIdIterator,
 };
 
 mod batch_iterator;
 pub use self::batch_iterator::{BatchIterator, PointCulling, PointLocation, NUM_POINTS_PER_BATCH};
+
+#[cfg(test)]
+mod octree_test;
 
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
 // (u64). We are able to convert the proto on read, so the tools can still read version 9.
@@ -338,8 +341,56 @@ impl Octree {
         AllPointsIterator::new(&self)
     }
 
+    /// return the bounding box saved in meta
     pub fn bounding_box(&self) -> &Aabb3<f64> {
         &self.meta.bounding_box
+    }
+
+    /// return the bounding box from the node that contains all tree points
+    /// aligned with the coodinate system of choice
+    pub fn get_node_bounding_box(&self, coordinate_system: &Isometry3<f64>) -> Option<Aabb3<f64>> {
+        // traversal and return the first non-empty node or node with at least two existing children
+        // (to care for disjointed subtrees)
+        let first_node_func = Box::new(move |node_id: &NodeId, octree: &Octree| -> bool {
+            // if has point return
+            match octree.nodes.get(&node_id) {
+                Some(node) => {
+                    if node.num_points > 0 {
+                        return true;
+                    }
+                    //corner case: if it has at least two children
+                    let mut num_children = 0;
+                    for child_index in 0..8 {
+                        let child_id = node_id.get_child_id(ChildIndex::from_u8(child_index));
+                        if octree.nodes.contains_key(&child_id) {
+                            num_children += 1;
+                        }
+
+                        if num_children >= 2 {
+                            return true;
+                        }
+                    }
+                    false
+                }
+                None => false,
+            }
+        });
+
+        let mut node_id_iterator = NodeIdIterator::new(self, first_node_func);
+        let id: NodeId = match node_id_iterator.next() {
+            Some(id) => id,
+            None => {
+                return None;
+            }
+        };
+
+        let o_box = Obb::from(
+            id.find_bounding_cube(&Cube::bounding(&self.meta.bounding_box))
+                .to_aabb3(),
+        );
+        // convert to coordinate system
+        let rotated_o_box = o_box.transform(&coordinate_system);
+        Some(rotated_o_box.get_encasing_aabb())
     }
 }
 

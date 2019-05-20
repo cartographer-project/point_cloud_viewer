@@ -130,3 +130,42 @@ pub fn intersecting_node_ids(
     }
     node_ids
 }
+
+pub struct NodeIdIterator<'a> {
+    octree: &'a Octree,
+    filter_func: Box<Fn(&NodeId, &Octree) -> bool + 'a>,
+    node_ids: VecDeque<NodeId>,
+}
+
+impl<'a> NodeIdIterator<'a> {
+    pub fn new(octree: &'a Octree, filter_func: Box<Fn(&NodeId, &Octree) -> bool + 'a>) -> Self {
+        NodeIdIterator {
+            octree,
+            node_ids: vec![NodeId::from_level_index(0, 0)].into(),
+            filter_func,
+        }
+    }
+}
+
+impl<'a> Iterator for NodeIdIterator<'a> {
+    type Item = NodeId;
+
+    fn next(&mut self) -> Option<NodeId> {
+        loop {
+            match self.node_ids.pop_front() {
+                Some(current) => {
+                    for child_index in 0..8 {
+                        let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
+                        if self.octree.nodes.contains_key(&child_id) {
+                            self.node_ids.push_back(child_id);
+                        }
+                    }
+                    if (self.filter_func)(&current, &self.octree) {
+                        return Some(current);
+                    }
+                }
+                None => return None,
+            }
+        }
+    }
+}
