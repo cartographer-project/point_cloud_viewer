@@ -4,11 +4,9 @@ mod tests {
     use crate::errors::Result;
     use crate::generation::build_octree;
     use crate::math::Isometry3;
-    use crate::octree::{
-        self, BatchIterator, NodeIdIterator, PointCulling, PointLocation, NUM_POINTS_PER_BATCH,
-    };
+    use crate::octree::{self, BatchIterator, PointCulling, PointLocation, NUM_POINTS_PER_BATCH};
     use crate::{Point, PointData};
-    use cgmath::{Point3, Matrix3, Quaternion, Vector3};
+    use cgmath::{Matrix3, Point3, Quaternion, Vector3, Zero};
     use collision::Aabb3;
     use tempdir::TempDir;
 
@@ -38,7 +36,7 @@ mod tests {
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn test_batch_iterator() {
         let batch_size = NUM_POINTS_PER_BATCH / 10;
         // define function
@@ -79,11 +77,25 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_bounding_box() {
         let octree = build_test_octree(300_000);
-        let y_with_z = Isometry3{rotation: Quaternion::from_rotation(Matrix3::from_cols(Vector3::unit_x(), Vector3::unit_z() , Vector3::unit_y())), translation: Vector3::new(0.0,0.0,0.0)}; 
-        let aabb = octree.get_node_bounding_box(&y_with_z);
-        let no_rot = Isometry3{rotation: Quaternion::one(), translation: Vector3::(0.0, 0.0, 0.0)};
-        let aabb_no_change = octree.get_node_bounding_box(&no_rot);
+        let y_with_z = Isometry3 {
+            rotation: Quaternion::from(Matrix3::from_cols(
+                Vector3::unit_x(),
+                Vector3::unit_z(),
+                Vector3::unit_y(),
+            )),
+            translation: Vector3::new(0.0, 0.0, 0.0),
+        };
+        let _aabb = octree.get_node_bounding_box(&y_with_z);
+        let no_rot = Isometry3 {
+            rotation: Quaternion::zero(),
+            translation: Vector3::new(0.0, 0.0, 0.0),
+        };
+        println!("rotation y with z {:?}", _aabb);
+        let _aabb_no_change = octree.get_node_bounding_box(&no_rot);
+
+        println!("no rotation  {:?}", _aabb_no_change);
     }
 }
