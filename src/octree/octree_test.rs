@@ -22,7 +22,7 @@ mod tests {
             intensity: None,
         };
 
-        let mut points = vec![default_point; 4 * batch_size + 1];
+        let mut points = vec![default_point; 4 * batch_size];
         points[3 * batch_size].position = Vector3::new(-2_702_846.0, -4_291_151.0, 3_855_012.0); // ECEF STANFORD
 
         let p = Point3::new(6_400_000.0, 6_400_000.0, 6_400_000.0);
@@ -77,9 +77,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    //#[ignore]
     fn test_bounding_box() {
-        let octree = build_test_octree(300_000);
+        let octree = build_test_octree(100_000);
         let y_with_z = Isometry3 {
             rotation: Quaternion::from(Matrix3::from_cols(
                 Vector3::unit_x(),
@@ -88,14 +88,14 @@ mod tests {
             )),
             translation: Vector3::new(0.0, 0.0, 0.0),
         };
-        let _aabb = octree.get_node_bounding_box(&y_with_z);
+        let aabb = octree.get_node_bounding_box(&y_with_z);
         let no_rot = Isometry3 {
             rotation: Quaternion::zero(),
             translation: Vector3::new(0.0, 0.0, 0.0),
         };
-        println!("rotation y with z {:?}", _aabb);
-        let _aabb_no_change = octree.get_node_bounding_box(&no_rot);
+        println!("rotation y with z {:?}", aabb);
+        let aabb_no_change = octree.get_node_bounding_box(&no_rot);
 
-        println!("no rotation  {:?}", _aabb_no_change);
+        println!("no rotation  {:?}", aabb_no_change);
     }
 }

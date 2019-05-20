@@ -355,7 +355,8 @@ impl Octree {
             // if has point return
             match octree.nodes.get(&node_id) {
                 Some(node) => {
-                    if node.num_points > 0 {
+                    // corner case: root node has one point
+                    if !(node_id.index() == 0 && node.num_points == 1) && node.num_points > 0 {
                         return true;
                     }
                     //corner case: if it has at least two children
@@ -384,10 +385,8 @@ impl Octree {
             }
         };
 
-        let o_box = Obb::from(
-            id.find_bounding_cube(&Cube::bounding(&self.meta.bounding_box))
-                .to_aabb3(),
-        );
+        let current = self.nodes.get(&id).unwrap();
+        let o_box: Obb<f64> = Obb::from(current.bounding_cube.to_aabb3());
         // convert to coordinate system
         let rotated_o_box = o_box.transform(&coordinate_system);
         Some(rotated_o_box.get_encasing_aabb())
