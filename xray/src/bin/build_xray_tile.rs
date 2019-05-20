@@ -1,8 +1,10 @@
 use cgmath::{Point2, Point3};
 use clap::value_t;
 use collision::{Aabb, Aabb2, Aabb3};
+use point_cloud_client::PointCloudClient;
 use point_viewer::color::{Color, TRANSPARENT, WHITE};
-use point_viewer::octree::octree_from_directory;
+use point_viewer::octree::OctreeFactory;
+use point_viewer_grpc::octree_from_grpc_address;
 use std::error::Error;
 use std::path::Path;
 use xray::generation::{
@@ -54,9 +56,10 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
                 .long("max_stddev")
                 .takes_value(true)
                 .required_if("coloring_strategy", "colored_with_height_stddev"),
-            clap::Arg::with_name("octree_directory")
-                .help("Octree directory to turn into xrays.")
+            clap::Arg::with_name("octree_locations")
+                .help("Octree locations to turn into xrays.")
                 .index(1)
+                .multiple(true)
                 .required(true),
             clap::Arg::with_name("min_x")
                 .long("min_x")
@@ -88,15 +91,18 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
 }
 
 fn run(
-    octree_directory: &Path,
+    octree_locations: &[String],
     output_filename: &Path,
     resolution: f64,
     coloring_strategy_kind: &ColoringStrategyKind,
     tile_background_color: Color<u8>,
     bbox2: &Aabb2<f64>,
 ) -> Result<(), Box<Error>> {
-    let octree = &octree_from_directory(octree_directory)?;
-    let bbox3 = octree.bounding_box();
+    let octree_factory = OctreeFactory::new().register("grpc://", octree_from_grpc_address);
+    let point_cloud_client = PointCloudClient::new(octree_locations, octree_factory)?;
+    // TODO(mfeuerstein): Get proper bounding box
+    // let bbox3 = octree.bounding_box();
+    let bbox3 = point_cloud_client.octrees.first().unwrap().bounding_box();
     let bbox3 = Aabb3::new(
         Point3::new(
             bbox2.min().x.max(bbox3.min().x),
@@ -112,7 +118,7 @@ fn run(
     let image_width = (bbox2.dim().x / resolution).ceil() as u32;
     let image_height = (bbox2.dim().y / resolution).ceil() as u32;
     if !xray_from_points(
-        octree,
+        &point_cloud_client,
         &bbox3,
         output_filename,
         image_width,
@@ -156,7 +162,11 @@ pub fn main() {
             TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
         }
     };
-    let octree_directory = Path::new(matches.value_of("octree_directory").unwrap());
+    let octree_locations = matches
+        .values_of("octree_locations")
+        .unwrap()
+        .map(String::from)
+        .collect::<Vec<_>>();
     let output_filename = Path::new(matches.value_of("output_filename").unwrap());
     let min_x = value_t!(matches, "min_x", f64).expect("min_x could not be parsed.");
     let min_y = value_t!(matches, "min_y", f64).expect("min_y could not be parsed.");
@@ -165,7 +175,7 @@ pub fn main() {
 
     let bbox2 = Aabb2::new(Point2::new(min_x, min_y), Point2::new(max_x, max_y));
     run(
-        octree_directory,
+        &octree_locations,
         output_filename,
         resolution,
         &coloring_strategy_kind,

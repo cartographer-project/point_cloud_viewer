@@ -9,8 +9,8 @@ use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
-use point_viewer::octree::{self, PointCulling, PointLocation};
-use point_viewer::{color::Color, LayerData, Point, PointData};
+use point_viewer::octree::{PointCulling, PointLocation};
+use point_viewer::{color::Color, LayerData, PointData};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -138,7 +138,7 @@ pub trait ColoringStrategy: Send {
         image_height: u32,
     ) {
         let mut discretized = Vec::with_capacity(point_data.position.len());
-        for pos in point_data.position {
+        for pos in &point_data.position {
             // We want a right handed coordinate system with the x-axis of world and images aligning.
             // This means that the y-axis aligns too, but the origin of the image space must be at the
             // bottom left. Since images have their origin at the top left, we need actually have to
@@ -423,9 +423,13 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
         point_data: &PointData,
         discretized: Vec<Point3<u32>>,
     ) {
-        for i in 0..point_data.position.len() {
+        for (i, discretized_pos) in discretized
+            .iter()
+            .enumerate()
+            .take(point_data.position.len())
+        {
             self.per_column_data
-                .entry((discretized[i].x, discretized[i].y))
+                .entry((discretized_pos.x, discretized_pos.y))
                 .or_insert_with(OnlineStats::new)
                 .add(point_data.position[i].z);
         }
@@ -452,10 +456,10 @@ pub fn xray_from_points(
 ) -> bool {
     let mut seen_any_points = false;
     let point_location = PointLocation {
-        culling: PointCulling::Aabb(bbox.clone()),
+        culling: PointCulling::Aabb(*bbox),
         global_from_local: None,
     };
-    point_cloud_client.for_each_point_data(&point_location, |point_data| {
+    let _ = point_cloud_client.for_each_point_data(&point_location, |point_data| {
         seen_any_points = true;
         coloring_strategy.process_point_data(&point_data, bbox, image_width, image_height);
         Ok(())
@@ -513,7 +517,9 @@ pub fn build_xray_quadtree(
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    let bounding_box = octree.bounding_box();
+    // TODO(mfeuerstein): Get proper bounding box
+    // let bounding_box = octree.bounding_box();
+    let bounding_box = point_cloud_client.octrees.first().unwrap().bounding_box();
     let (bounding_rect, deepest_level) =
         find_quadtree_bounding_rect_and_levels(bounding_box, f64::from(tile_size_px) * resolution);
 

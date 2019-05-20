@@ -5,7 +5,8 @@ use point_viewer::octree::{
 use point_viewer::PointData;
 
 pub struct PointCloudClient {
-    octrees: Vec<Octree>,
+    // TODO(mfeuerstein): Make private again.
+    pub octrees: Vec<Octree>,
     pub num_points_per_batch: usize,
 }
 
