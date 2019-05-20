@@ -3,7 +3,7 @@
 
 use cgmath::Point3;
 use collision::Aabb3;
-use point_cloud::PointCloudClient;
+use point_cloud_client::PointCloudClient;
 use point_viewer::errors::*;
 use point_viewer::octree::{OctreeFactory, PointCulling, PointLocation};
 use point_viewer::PointData;
