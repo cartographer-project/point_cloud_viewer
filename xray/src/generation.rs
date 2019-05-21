@@ -527,9 +527,11 @@ pub fn build_xray_quadtree(
 
     let bounding_box = match global_from_local {
         Some(global_from_local) => {
-            let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> =
-                global_from_local.clone().into();
-            point_cloud_client.bounding_box().transform(&decomposed)
+            let local_from_global: Decomposed<Vector3<f64>, Quaternion<f64>> =
+                global_from_local.inverse().into();
+            point_cloud_client
+                .bounding_box()
+                .transform(&local_from_global)
         }
         None => *point_cloud_client.bounding_box(),
     };
