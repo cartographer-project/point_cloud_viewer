@@ -100,9 +100,7 @@ fn run(
 ) -> Result<(), Box<Error>> {
     let octree_factory = OctreeFactory::new().register("grpc://", octree_from_grpc_address);
     let point_cloud_client = PointCloudClient::new(octree_locations, octree_factory)?;
-    // TODO(mfeuerstein): Get proper bounding box
-    // let bbox3 = octree.bounding_box();
-    let bbox3 = point_cloud_client.octrees.first().unwrap().bounding_box();
+    let bbox3 = point_cloud_client.bounding_box();
     let bbox3 = Aabb3::new(
         Point3::new(
             bbox2.min().x.max(bbox3.min().x),

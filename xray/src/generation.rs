@@ -517,9 +517,7 @@ pub fn build_xray_quadtree(
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    // TODO(mfeuerstein): Get proper bounding box
-    // let bounding_box = octree.bounding_box();
-    let bounding_box = point_cloud_client.octrees.first().unwrap().bounding_box();
+    let bounding_box = point_cloud_client.bounding_box();
     let (bounding_rect, deepest_level) =
         find_quadtree_bounding_rect_and_levels(bounding_box, f64::from(tile_size_px) * resolution);
 
