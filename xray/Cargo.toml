@@ -25,6 +25,12 @@ streaming-stats = "0.2.2"
 [dependencies.point_viewer]
 path = ".."
 
+[dependencies.point_viewer_grpc]
+path = "../point_viewer_grpc"
+
+[dependencies.point_cloud_client]
+path = "../point_cloud_client"
+
 [dependencies.xray_proto_rust]
 path = "../xray_proto_rust"
 

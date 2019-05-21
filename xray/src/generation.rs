@@ -8,7 +8,9 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use num::clamp;
-use point_viewer::{color::Color, octree, Point};
+use point_cloud_client::PointCloudClient;
+use point_viewer::octree::{PointCulling, PointLocation};
+use point_viewer::{color::Color, LayerData, PointData};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -120,9 +122,35 @@ impl ColoringStrategyKind {
 }
 
 pub trait ColoringStrategy: Send {
-    // Processes a point that has been discretized into the pixel (x, y) and the z column according
+    // Processes points that have been discretized into the pixels (x, y) and the z columns according
     // to NUM_Z_BUCKETS.
-    fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, z: u32);
+    fn process_discretized_point_data(
+        &mut self,
+        point_data: &PointData,
+        discretized_locations: Vec<Point3<u32>>,
+    );
+
+    fn process_point_data(
+        &mut self,
+        point_data: &PointData,
+        bbox: &Aabb3<f64>,
+        image_width: u32,
+        image_height: u32,
+    ) {
+        let mut discretized_locations = Vec::with_capacity(point_data.position.len());
+        for pos in &point_data.position {
+            // We want a right handed coordinate system with the x-axis of world and images aligning.
+            // This means that the y-axis aligns too, but the origin of the image space must be at the
+            // bottom left. Since images have their origin at the top left, we need actually have to
+            // invert y and go from the bottom of the image.
+            let x = (((pos.x - bbox.min().x) / bbox.dim().x) * f64::from(image_width)) as u32;
+            let y =
+                ((1. - ((pos.y - bbox.min().y) / bbox.dim().y)) * f64::from(image_height)) as u32;
+            let z = (((pos.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
+            discretized_locations.push(Point3::new(x, y, z));
+        }
+        self.process_discretized_point_data(point_data, discretized_locations)
+    }
 
     // After all points are processed, this is used to query the color that should be assigned to
     // the pixel (x, y) in the final tile image.
@@ -145,15 +173,21 @@ impl XRayColoringStrategy {
 }
 
 impl ColoringStrategy for XRayColoringStrategy {
-    fn process_discretized_point(&mut self, _: &Point, x: u32, y: u32, z: u32) {
-        match self.z_buckets.entry((x, y)) {
-            Entry::Occupied(mut e) => {
-                e.get_mut().insert(z);
-            }
-            Entry::Vacant(v) => {
-                let mut set = FnvHashSet::default();
-                set.insert(z);
-                v.insert(set);
+    fn process_discretized_point_data(
+        &mut self,
+        _: &PointData,
+        discretized_locations: Vec<Point3<u32>>,
+    ) {
+        for d_loc in discretized_locations {
+            match self.z_buckets.entry((d_loc.x, d_loc.y)) {
+                Entry::Occupied(mut e) => {
+                    e.get_mut().insert(d_loc.z);
+                }
+                Entry::Vacant(v) => {
+                    let mut set = FnvHashSet::default();
+                    set.insert(d_loc.z);
+                    v.insert(set);
+                }
             }
         }
     }
@@ -195,24 +229,37 @@ impl IntensityColoringStrategy {
 }
 
 impl ColoringStrategy for IntensityColoringStrategy {
-    fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
-        let intensity = p
-            .intensity
-            .expect("Coloring by intensity was requested, but point without intensity found.");
-        if intensity < 0. {
-            return;
-        }
-        match self.per_column_data.entry((x, y)) {
-            Entry::Occupied(mut e) => {
-                let per_column_data = e.get_mut();
-                per_column_data.sum += intensity;
-                per_column_data.count += 1;
-            }
-            Entry::Vacant(v) => {
-                v.insert(IntensityPerColumnData {
-                    sum: intensity,
-                    count: 1,
-                });
+    fn process_discretized_point_data(
+        &mut self,
+        point_data: &PointData,
+        discretized_locations: Vec<Point3<u32>>,
+    ) {
+        let intensity_layer = point_data
+            .layers
+            .get("intensity")
+            .expect("Coloring by intensity was requested, but point data without intensity found.");
+        if let LayerData::F32(intensity_vec) = intensity_layer {
+            for i in 0..intensity_vec.len() {
+                let intensity = intensity_vec[i];
+                if intensity < 0. {
+                    return;
+                }
+                match self
+                    .per_column_data
+                    .entry((discretized_locations[i].x, discretized_locations[i].y))
+                {
+                    Entry::Occupied(mut e) => {
+                        let per_column_data = e.get_mut();
+                        per_column_data.sum += intensity;
+                        per_column_data.count += 1;
+                    }
+                    Entry::Vacant(v) => {
+                        v.insert(IntensityPerColumnData {
+                            sum: intensity,
+                            count: 1,
+                        });
+                    }
+                }
             }
         }
     }
@@ -248,22 +295,43 @@ struct PointColorColoringStrategy {
 }
 
 impl ColoringStrategy for PointColorColoringStrategy {
-    fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
-        match self.per_column_data.entry((x, y)) {
-            Entry::Occupied(mut e) => {
-                let per_column_data = e.get_mut();
-                let clr = p.color.to_f32();
-                per_column_data.color_sum.red += clr.red;
-                per_column_data.color_sum.green += clr.green;
-                per_column_data.color_sum.blue += clr.blue;
-                per_column_data.color_sum.alpha += clr.alpha;
-                per_column_data.count += 1;
-            }
-            Entry::Vacant(v) => {
-                v.insert(PerColumnData {
-                    color_sum: p.color.to_f32(),
-                    count: 1,
-                });
+    fn process_discretized_point_data(
+        &mut self,
+        point_data: &PointData,
+        discretized_locations: Vec<Point3<u32>>,
+    ) {
+        let color_layer = point_data
+            .layers
+            .get("color")
+            .expect("Coloring was requested, but point data without color found.");
+        if let LayerData::U8Vec4(color_vec) = color_layer {
+            for i in 0..color_vec.len() {
+                let clr = Color::<u8> {
+                    red: color_vec[i][0],
+                    green: color_vec[i][1],
+                    blue: color_vec[i][2],
+                    alpha: color_vec[i][3],
+                }
+                .to_f32();
+                match self
+                    .per_column_data
+                    .entry((discretized_locations[i].x, discretized_locations[i].y))
+                {
+                    Entry::Occupied(mut e) => {
+                        let per_column_data = e.get_mut();
+                        per_column_data.color_sum.red += clr.red;
+                        per_column_data.color_sum.green += clr.green;
+                        per_column_data.color_sum.blue += clr.blue;
+                        per_column_data.color_sum.alpha += clr.alpha;
+                        per_column_data.count += 1;
+                    }
+                    Entry::Vacant(v) => {
+                        v.insert(PerColumnData {
+                            color_sum: clr,
+                            count: 1,
+                        });
+                    }
+                }
             }
         }
     }
@@ -354,11 +422,21 @@ pub fn build_parent(
 }
 
 impl ColoringStrategy for HeightStddevColoringStrategy {
-    fn process_discretized_point(&mut self, p: &Point, x: u32, y: u32, _: u32) {
-        self.per_column_data
-            .entry((x, y))
-            .or_insert_with(OnlineStats::new)
-            .add(p.position.z);
+    fn process_discretized_point_data(
+        &mut self,
+        point_data: &PointData,
+        discretized_locations: Vec<Point3<u32>>,
+    ) {
+        for (i, d_loc) in discretized_locations
+            .iter()
+            .enumerate()
+            .take(discretized_locations.len())
+        {
+            self.per_column_data
+                .entry((d_loc.x, d_loc.y))
+                .or_insert_with(OnlineStats::new)
+                .add(point_data.position[i].z);
+        }
     }
 
     fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
@@ -372,7 +450,7 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
 }
 
 pub fn xray_from_points(
-    octree: &octree::Octree,
+    point_cloud_client: &PointCloudClient,
     bbox: &Aabb3<f64>,
     png_file: &Path,
     image_width: u32,
@@ -381,17 +459,14 @@ pub fn xray_from_points(
     tile_background_color: Color<u8>,
 ) -> bool {
     let mut seen_any_points = false;
-    octree.points_in_box(bbox).for_each(|p| {
+    let point_location = PointLocation {
+        culling: PointCulling::Aabb(*bbox),
+        global_from_local: None,
+    };
+    let _ = point_cloud_client.for_each_point_data(&point_location, |point_data| {
         seen_any_points = true;
-        // We want a right handed coordinate system with the x-axis of world and images aligning.
-        // This means that the y-axis aligns too, but the origin of the image space must be at the
-        // bottom left. Since images have their origin at the top left, we need actually have to
-        // invert y and go from the bottom of the image.
-        let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * f64::from(image_width)) as u32;
-        let y = ((1. - ((p.position.y - bbox.min().y) / bbox.dim().y)) * f64::from(image_height))
-            as u32;
-        let z = (((p.position.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
-        coloring_strategy.process_discretized_point(&p, x, y, z);
+        coloring_strategy.process_point_data(&point_data, bbox, image_width, image_height);
+        Ok(())
     });
 
     if !seen_any_points {
@@ -436,7 +511,7 @@ pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
 
 pub fn build_xray_quadtree(
     pool: &Pool,
-    octree: &octree::Octree,
+    point_cloud_client: &PointCloudClient,
     output_directory: &Path,
     resolution: f64,
     tile_size_px: u32,
@@ -446,7 +521,7 @@ pub fn build_xray_quadtree(
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    let bounding_box = octree.bounding_box();
+    let bounding_box = point_cloud_client.bounding_box();
     let (bounding_rect, deepest_level) =
         find_quadtree_bounding_rect_and_levels(bounding_box, f64::from(tile_size_px) * resolution);
 
@@ -477,7 +552,7 @@ pub fn build_xray_quadtree(
                         ),
                     );
                     if xray_from_points(
-                        octree,
+                        point_cloud_client,
                         &bbox,
                         &get_image_path(output_directory, node.id),
                         tile_size_px,
