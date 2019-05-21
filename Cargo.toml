@@ -41,6 +41,7 @@ tempdir = "0.3.7"
 
 [workspace]
 members = [
+   "point_cloud_client",
    "point_viewer_grpc",
    "point_viewer_grpc_proto_rust",
    "point_viewer_proto_rust",

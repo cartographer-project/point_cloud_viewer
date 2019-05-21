@@ -1511,6 +1511,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "point_cloud_client"
+version = "0.1.0"
+dependencies = [
+ "cgmath 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "collision 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "point_viewer 0.1.0",
+ "point_viewer_grpc 0.1.0",
+ "protobuf 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "structopt 0.2.15 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "point_viewer"
 version = "0.1.0"
 dependencies = [
