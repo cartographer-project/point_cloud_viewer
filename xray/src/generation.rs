@@ -2,7 +2,7 @@
 
 use crate::proto;
 use crate::CURRENT_VERSION;
-use cgmath::{Decomposed, Point2, Point3, Quaternion, Vector3};
+use cgmath::{Decomposed, Point2, Point3, Quaternion, Vector2, Vector3};
 use clap::{_clap_count_exprs, arg_enum};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
@@ -134,8 +134,7 @@ pub trait ColoringStrategy: Send {
         &mut self,
         point_data: &PointData,
         bbox: &Aabb3<f64>,
-        image_width: u32,
-        image_height: u32,
+        image_size: Vector2<u32>,
     ) {
         let mut discretized_locations = Vec::with_capacity(point_data.position.len());
         for pos in &point_data.position {
@@ -143,9 +142,9 @@ pub trait ColoringStrategy: Send {
             // This means that the y-axis aligns too, but the origin of the image space must be at the
             // bottom left. Since images have their origin at the top left, we need actually have to
             // invert y and go from the bottom of the image.
-            let x = (((pos.x - bbox.min().x) / bbox.dim().x) * f64::from(image_width)) as u32;
+            let x = (((pos.x - bbox.min().x) / bbox.dim().x) * f64::from(image_size.x)) as u32;
             let y =
-                ((1. - ((pos.y - bbox.min().y) / bbox.dim().y)) * f64::from(image_height)) as u32;
+                ((1. - ((pos.y - bbox.min().y) / bbox.dim().y)) * f64::from(image_size.y)) as u32;
             let z = (((pos.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
             discretized_locations.push(Point3::new(x, y, z));
         }
@@ -449,13 +448,17 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
     }
 }
 
+pub struct Tile {
+    pub size_px: u32,
+    pub resolution: f64,
+}
+
 pub fn xray_from_points(
     point_cloud_client: &PointCloudClient,
     global_from_local: &Option<Isometry3<f64>>,
     bbox: &Aabb3<f64>,
     png_file: &Path,
-    image_width: u32,
-    image_height: u32,
+    image_size: Vector2<u32>,
     mut coloring_strategy: Box<ColoringStrategy>,
     tile_background_color: Color<u8>,
 ) -> bool {
@@ -466,7 +469,7 @@ pub fn xray_from_points(
     };
     let _ = point_cloud_client.for_each_point_data(&point_location, |point_data| {
         seen_any_points = true;
-        coloring_strategy.process_point_data(&point_data, bbox, image_width, image_height);
+        coloring_strategy.process_point_data(&point_data, bbox, image_size);
         Ok(())
     });
 
@@ -474,9 +477,9 @@ pub fn xray_from_points(
         return false;
     }
 
-    let mut image = image::RgbaImage::new(image_width, image_height);
-    for x in 0..image_width {
-        for y in 0..image_height {
+    let mut image = image::RgbaImage::new(image_size.x, image_size.y);
+    for x in 0..image.width() {
+        for y in 0..image.height() {
             let color = coloring_strategy.get_pixel_color(x, y, tile_background_color);
             image.put_pixel(
                 x,
@@ -515,8 +518,7 @@ pub fn build_xray_quadtree(
     point_cloud_client: &PointCloudClient,
     global_from_local: &Option<Isometry3<f64>>,
     output_directory: &Path,
-    resolution: f64,
-    tile_size_px: u32,
+    tile: &Tile,
     coloring_strategy_kind: &ColoringStrategyKind,
     tile_background_color: Color<u8>,
 ) -> Result<(), Box<Error>> {
@@ -531,8 +533,10 @@ pub fn build_xray_quadtree(
         }
         None => *point_cloud_client.bounding_box(),
     };
-    let (bounding_rect, deepest_level) =
-        find_quadtree_bounding_rect_and_levels(&bounding_box, f64::from(tile_size_px) * resolution);
+    let (bounding_rect, deepest_level) = find_quadtree_bounding_rect_and_levels(
+        &bounding_box,
+        f64::from(tile.size_px) * tile.resolution,
+    );
 
     // Create the deepest level of the quadtree.
     let (parents_to_create_tx, mut parents_to_create_rx) = mpsc::channel();
@@ -565,8 +569,7 @@ pub fn build_xray_quadtree(
                         global_from_local,
                         &bbox,
                         &get_image_path(output_directory, node.id),
-                        tile_size_px,
-                        tile_size_px,
+                        Vector2::new(tile.size_px, tile.size_px),
                         strategy,
                         tile_background_color,
                     ) {
@@ -613,8 +616,8 @@ pub fn build_xray_quadtree(
                     }
                     let large_image = build_parent(&children, tile_background_color);
                     let image = image::DynamicImage::ImageRgba8(large_image).resize(
-                        tile_size_px,
-                        tile_size_px,
+                        tile.size_px,
+                        tile.size_px,
                         image::FilterType::Lanczos3,
                     );
                     image
@@ -643,7 +646,7 @@ pub fn build_xray_quadtree(
         meta.mut_bounding_rect()
             .set_edge_length(bounding_rect.edge_length());
         meta.set_deepest_level(u32::from(deepest_level));
-        meta.set_tile_size(tile_size_px);
+        meta.set_tile_size(tile.size_px);
         meta.set_version(CURRENT_VERSION);
 
         for node_id in all_nodes_rx {

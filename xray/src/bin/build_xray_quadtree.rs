@@ -4,5 +4,5 @@ use xray::build_quadtree::run;
 
 pub fn main() {
     let octree_factory = OctreeFactory::new().register("grpc://", octree_from_grpc_address);
-    run(octree_factory);
+    run(octree_factory, None);
 }

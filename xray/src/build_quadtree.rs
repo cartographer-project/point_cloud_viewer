@@ -1,10 +1,11 @@
 use crate::generation::{
     build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind,
-    TileBackgroundColorArgument,
+    Tile, TileBackgroundColorArgument,
 };
 use clap::value_t;
 use point_cloud_client::PointCloudClient;
 use point_viewer::color::{TRANSPARENT, WHITE};
+use point_viewer::math::Isometry3;
 use point_viewer::octree::OctreeFactory;
 use scoped_pool::Pool;
 use std::path::Path;
@@ -76,7 +77,7 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
         .get_matches()
 }
 
-pub fn run(octree_factory: OctreeFactory) {
+pub fn run(octree_factory: OctreeFactory, global_from_local: Option<Isometry3<f64>>) {
     let args = parse_arguments();
     let resolution = args
         .value_of("resolution")
@@ -136,10 +137,9 @@ pub fn run(octree_factory: OctreeFactory) {
     build_xray_quadtree(
         &pool,
         &point_cloud_client,
-        &None,
+        &global_from_local,
         output_directory,
-        resolution,
-        tile_size,
+        &Tile{size_px: tile_size, resolution},
         &coloring_strategy_kind,
         tile_background_color,
     )
