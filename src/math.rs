@@ -160,6 +160,12 @@ impl<S: BaseFloat> Into<Decomposed<Vector3<S>, Quaternion<S>>> for Isometry3<S> 
     }
 }
 
+impl<S: BaseFloat> From<Decomposed<Vector3<S>, Quaternion<S>>> for Isometry3<S> {
+    fn from(decomposed: Decomposed<Vector3<S>, Quaternion<S>>) -> Self {
+        Self::new(decomposed.rot, decomposed.disp)
+    }
+}
+
 impl<S: BaseFloat> Isometry3<S> {
     pub fn new(rotation: Quaternion<S>, translation: Vector3<S>) -> Self {
         Isometry3 {
