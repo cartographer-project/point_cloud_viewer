@@ -1,4 +1,4 @@
-use collision::{Aabb, Aabb3};
+use collision::{Aabb, Aabb3, Union};
 use point_viewer::errors::*;
 use point_viewer::octree::{
     BatchIterator, Octree, OctreeFactory, PointLocation, NUM_POINTS_PER_BATCH,
@@ -13,25 +13,22 @@ pub struct PointCloudClient {
 
 impl PointCloudClient {
     pub fn new(locations: &[String], octree_factory: OctreeFactory) -> Result<Self> {
-        let octrees: Result<Vec<Octree>> = locations
+        let octrees = locations
             .iter()
             .map(|location| {
                 octree_factory
                     .generate_octree(location)
                     .map(|octree| *octree)
             })
-            .collect();
+            .collect::<Result<Vec<Octree>>>()?;
         let mut aabb = Aabb3::zero();
-        if let Ok(octrees) = &octrees {
-            if let Some(first_octree) = octrees.first() {
-                aabb = *first_octree.bounding_box();
-                for octree in octrees.iter().skip(1) {
-                    let octree_bbox = octree.bounding_box();
-                    aabb = aabb.grow(octree_bbox.min()).grow(octree_bbox.max());
-                }
+        if let Some((first_octree, remaining_octrees)) = octrees.split_first() {
+            aabb = *first_octree.bounding_box();
+            for octree in remaining_octrees {
+                aabb = aabb.union(octree.bounding_box());
             }
         }
-        octrees.map(|octrees| PointCloudClient {
+        Ok(PointCloudClient {
             octrees,
             aabb,
             num_points_per_batch: NUM_POINTS_PER_BATCH,
