@@ -387,7 +387,7 @@ impl Octree {
                 }
             };
 
-            let current = self.nodes.get(&id).unwrap();
+            let current = &self.nodes[&id];
             // grow and continue if only one point
             if current.num_points == 1 {
                 let mut node_iterator = get_node_iterator(self, &id);
@@ -395,10 +395,10 @@ impl Octree {
                 aabb = aabb.grow(Point3::from_vec(sparse_point.position));
             } else {
                 let aabb_current_points = current.bounding_cube.to_aabb3().to_corners();
-                for corner in 0..8 {
-                    aabb = aabb.grow(aabb_current_points[corner]);
-                    break 'outer;
+                for corner in &aabb_current_points {
+                    aabb = aabb.grow(*corner);
                 }
+                break 'outer;
             }
         }
 
