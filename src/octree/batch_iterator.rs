@@ -1,10 +1,9 @@
-use crate::octree::octree_iterator::get_node_iterator;
 use crate::octree::node::NodeId;
 use crate::errors::*;
-use crate::math::{Isometry3, Obb, OrientedBeam};
+use crate::math::{Isometry3, Obb, OrientedBeam, SpatialRelation};
 use crate::octree::{self, Octree};
 use crate::{LayerData, Point, PointData};
-use cgmath::{Decomposed, Matrix4, Vector3, Vector4};
+use cgmath::{Decomposed, Matrix4, Point3, Vector3, Vector4};
 use collision::Aabb3;
 use fnv::FnvHashMap;
 
@@ -15,18 +14,27 @@ pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum PointCulling {
-    Any(),
+    Any(AllSpace),
     Aabb(Aabb3<f64>),
     Obb(Obb<f64>),
     Frustum(Matrix4<f64>),
     OrientedBeam(OrientedBeam),
 }
 
+#[derive(Clone)]
+struct AllSpace{}
+impl SpatialRelation<f64> for AllSpace{
+    fn contains(&self, _point: &Point3<f64>)-> bool{true};
+    fn intersects(&self, _aabb: &Aabb3<f64>)->bool{true};
+}
+
+
 pub struct PointLocation {
     pub culling: PointCulling,
     // If set, culling and the returned points are interpreted to be in local coordinates.
     pub global_from_local: Option<Isometry3<f64>>,
 }
+
 
 /// current implementation of the stream of points used in BatchIterator
 struct PointStream<'a, F>
@@ -157,5 +165,6 @@ impl<'a> BatchIterator<'a> {
         let mut iterator: Box<Iterator<Item = NodeId>> = get_node_id_iterator(&self.octree, &self.culling);
         iterator.par_iter()
                 .map(|&id| point_stream.push_node_and_callback(get_node_iterator(&self.octree, &id, &self.culling)));
+        Ok(())
     }
 }

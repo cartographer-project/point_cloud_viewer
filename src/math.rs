@@ -338,12 +338,12 @@ impl OrientedBeam {
     }
 }
 
-impl<S: BaseFloat> SpatialRelation<S> for OrientedBeam<S> {
-    fn intersects(&self, aabb: &Aabb3<S>) -> bool {
+impl SpatialRelation<f64> for OrientedBeam<f64> {
+    fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
         intersects(&self.corners, &self.separating_axes, aabb)
     }
 
-    fn contains(&self, p: &Point3<S>) -> bool {
+    fn contains(&self, p: &Point3<f64>) -> bool {
         // What is the point in beam coordinates?
         let Point3 { x, y, .. } =
             self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;

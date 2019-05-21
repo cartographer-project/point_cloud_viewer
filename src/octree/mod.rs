@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::math::SpatialRelation;
 use crate::errors::*;
 use crate::math::{Cube, Obb, OrientedBeam};
 use crate::proto;
@@ -302,30 +303,19 @@ impl Octree {
         })
     }
 
+    pub fn nodes_in_location<'a>(&'a self,  container: &'a Box<SpatialRelation<f64>>)-> NodeIdIterator<'a>{
+        let filter_func = |node_id: NodeId, &self| {let current = self.nodes[&id];
+        container.intersects(current.bounding_cube.to_aabb3)}
+        NodeIdIterator::new(&self, filter_func);
+    }    
+    
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
-    pub fn points_in_box<'a>(&'a self, bbox: &'a Aabb3<f64>) -> FilteredPointsIterator<'a> {
-        let intersects = |aabb: &Aabb3<f64>| bbox.intersects(aabb);
-        let node_ids = intersecting_node_ids(self, &intersects);
-        let filter_func = Box::new(move |p: &Point| bbox.contains(&Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids, filter_func)
+    pub fn points_in_node<'a>(&'a self, container: &'a Box<SpatialRelation<f64>>, node_id: NodeId) -> FilteredPointsIterator<'a> {
+        let filter_func = Box::new(move |p: &Point| container.contains(&Point3::from_vec(p.position)));
+        FilteredPointsIterator::new(&self, node_id, filter_func)
     }
 
-    pub fn points_in_obb<'a>(&'a self, obb: &'a Obb<f64>) -> FilteredPointsIterator<'a> {
-        let intersects = |aabb: &Aabb3<f64>| obb.intersects(aabb);
-        let node_ids = intersecting_node_ids(self, &intersects);
-        let filter_func = Box::new(move |p: &Point| obb.contains(&Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids, filter_func)
-    }
-
-    pub fn points_in_oriented_beam<'a>(
-        &'a self,
-        beam: &'a OrientedBeam,
-    ) -> FilteredPointsIterator<'a> {
-        let intersects = |aabb: &Aabb3<f64>| beam.intersects(aabb);
-        let node_ids = intersecting_node_ids(self, &intersects);
-        let filter_func = Box::new(move |p: &Point| beam.contains(&Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids, filter_func)
-    }
+   
 
     pub fn points_in_frustum<'a>(
         &'a self,
@@ -396,4 +386,32 @@ fn maybe_push_node(
             empty: meta.num_points == 0,
         });
     }
+}
+
+struct Frustum{
+    pub matrix: Matrix4<f64>,
+    pub frustum: collision::Frustum
+}
+
+impl Frustum{
+    pub fn new(matrix: Matrix4<f64>) -> Self{
+        Frustum{matrix, frustum: collision::Frustum::from_matrix4(matrix)}
+    }
+}
+
+impl SpatialRelation<f64> for Frustum{
+    fn contains(&self, point: &Point3<f64>) -> bool{
+        contains(&self.matrix, point)
+    }
+
+    fn intersects(&self, aabb :&Aabb3<f64>) -> bool{
+        match self.frustum.contains(&aabb){
+         Relation::Cross => true,
+         Relation::In => true,
+         Relation::Out => false,
+        }
+    }
+
+
+
 }
