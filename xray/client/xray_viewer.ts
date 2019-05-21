@@ -56,6 +56,7 @@ class NodeData {
     let material = new THREE.MeshBasicMaterial({
       map: texture,
       side: THREE.DoubleSide,
+      transparent: true
     });
     this.plane = new THREE.Mesh(geometry, material);
     this.plane.position.set(
