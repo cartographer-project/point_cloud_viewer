@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use cgmath::{
-    BaseFloat, EuclideanSpace, InnerSpace, Point3, Quaternion, Rotation, Vector2, Vector3,
+    BaseFloat, Decomposed, EuclideanSpace, InnerSpace, Point3, Quaternion, Rotation, Vector2,
+    Vector3,
 };
 use collision::{Aabb, Aabb3};
 use num_traits::identities::One;
@@ -146,6 +147,16 @@ impl<'a, S: BaseFloat> Mul<&'a Vector3<S>> for &'a Isometry3<S> {
     type Output = Vector3<S>;
     fn mul(self, _rhs: &'a Vector3<S>) -> Vector3<S> {
         self.rotation * _rhs + self.translation
+    }
+}
+
+impl<S: BaseFloat> Into<Decomposed<Vector3<S>, Quaternion<S>>> for Isometry3<S> {
+    fn into(self) -> Decomposed<Vector3<S>, Quaternion<S>> {
+        Decomposed {
+            scale: S::one(),
+            rot: self.rotation,
+            disp: self.translation,
+        }
     }
 }
 

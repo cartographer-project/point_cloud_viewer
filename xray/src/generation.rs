@@ -2,7 +2,7 @@
 
 use crate::proto;
 use crate::CURRENT_VERSION;
-use cgmath::{Point2, Point3};
+use cgmath::{Decomposed, Point2, Point3, Quaternion, Vector3};
 use clap::{_clap_count_exprs, arg_enum};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
@@ -10,7 +10,7 @@ use image::{self, GenericImage};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::octree::{PointCulling, PointLocation};
-use point_viewer::{color::Color, LayerData, PointData};
+use point_viewer::{color::Color, math::Isometry3, LayerData, PointData};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -451,6 +451,7 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
 
 pub fn xray_from_points(
     point_cloud_client: &PointCloudClient,
+    global_from_local: &Option<Isometry3<f64>>,
     bbox: &Aabb3<f64>,
     png_file: &Path,
     image_width: u32,
@@ -461,7 +462,7 @@ pub fn xray_from_points(
     let mut seen_any_points = false;
     let point_location = PointLocation {
         culling: PointCulling::Aabb(*bbox),
-        global_from_local: None,
+        global_from_local: global_from_local.clone(),
     };
     let _ = point_cloud_client.for_each_point_data(&point_location, |point_data| {
         seen_any_points = true;
@@ -512,6 +513,7 @@ pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
 pub fn build_xray_quadtree(
     pool: &Pool,
     point_cloud_client: &PointCloudClient,
+    global_from_local: &Option<Isometry3<f64>>,
     output_directory: &Path,
     resolution: f64,
     tile_size_px: u32,
@@ -521,9 +523,16 @@ pub fn build_xray_quadtree(
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    let bounding_box = point_cloud_client.bounding_box();
+    let bounding_box = match global_from_local {
+        Some(global_from_local) => {
+            let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> =
+                global_from_local.clone().into();
+            point_cloud_client.bounding_box().transform(&decomposed)
+        }
+        None => *point_cloud_client.bounding_box(),
+    };
     let (bounding_rect, deepest_level) =
-        find_quadtree_bounding_rect_and_levels(bounding_box, f64::from(tile_size_px) * resolution);
+        find_quadtree_bounding_rect_and_levels(&bounding_box, f64::from(tile_size_px) * resolution);
 
     // Create the deepest level of the quadtree.
     let (parents_to_create_tx, mut parents_to_create_rx) = mpsc::channel();
@@ -553,6 +562,7 @@ pub fn build_xray_quadtree(
                     );
                     if xray_from_points(
                         point_cloud_client,
+                        global_from_local,
                         &bbox,
                         &get_image_path(output_directory, node.id),
                         tile_size_px,

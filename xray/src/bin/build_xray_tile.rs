@@ -117,6 +117,7 @@ fn run(
     let image_height = (bbox2.dim().y / resolution).ceil() as u32;
     if !xray_from_points(
         &point_cloud_client,
+        &None,
         &bbox3,
         output_filename,
         image_width,

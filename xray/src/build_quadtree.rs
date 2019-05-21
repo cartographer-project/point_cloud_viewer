@@ -136,6 +136,7 @@ pub fn run(octree_factory: OctreeFactory) {
     build_xray_quadtree(
         &pool,
         &point_cloud_client,
+        &None,
         output_directory,
         resolution,
         tile_size,
