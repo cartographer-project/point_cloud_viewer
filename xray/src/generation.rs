@@ -127,7 +127,7 @@ pub trait ColoringStrategy: Send {
     fn process_discretized_point_data(
         &mut self,
         point_data: &PointData,
-        discretized: Vec<Point3<u32>>,
+        discretized_locations: Vec<Point3<u32>>,
     );
 
     fn process_point_data(
@@ -137,7 +137,7 @@ pub trait ColoringStrategy: Send {
         image_width: u32,
         image_height: u32,
     ) {
-        let mut discretized = Vec::with_capacity(point_data.position.len());
+        let mut discretized_locations = Vec::with_capacity(point_data.position.len());
         for pos in &point_data.position {
             // We want a right handed coordinate system with the x-axis of world and images aligning.
             // This means that the y-axis aligns too, but the origin of the image space must be at the
@@ -147,9 +147,9 @@ pub trait ColoringStrategy: Send {
             let y =
                 ((1. - ((pos.y - bbox.min().y) / bbox.dim().y)) * f64::from(image_height)) as u32;
             let z = (((pos.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
-            discretized.push(Point3::new(x, y, z));
+            discretized_locations.push(Point3::new(x, y, z));
         }
-        self.process_discretized_point_data(point_data, discretized)
+        self.process_discretized_point_data(point_data, discretized_locations)
     }
 
     // After all points are processed, this is used to query the color that should be assigned to
@@ -173,15 +173,19 @@ impl XRayColoringStrategy {
 }
 
 impl ColoringStrategy for XRayColoringStrategy {
-    fn process_discretized_point_data(&mut self, _: &PointData, discretized: Vec<Point3<u32>>) {
-        for d in discretized {
-            match self.z_buckets.entry((d.x, d.y)) {
+    fn process_discretized_point_data(
+        &mut self,
+        _: &PointData,
+        discretized_locations: Vec<Point3<u32>>,
+    ) {
+        for d_loc in discretized_locations {
+            match self.z_buckets.entry((d_loc.x, d_loc.y)) {
                 Entry::Occupied(mut e) => {
-                    e.get_mut().insert(d.z);
+                    e.get_mut().insert(d_loc.z);
                 }
                 Entry::Vacant(v) => {
                     let mut set = FnvHashSet::default();
-                    set.insert(d.z);
+                    set.insert(d_loc.z);
                     v.insert(set);
                 }
             }
@@ -228,7 +232,7 @@ impl ColoringStrategy for IntensityColoringStrategy {
     fn process_discretized_point_data(
         &mut self,
         point_data: &PointData,
-        discretized: Vec<Point3<u32>>,
+        discretized_locations: Vec<Point3<u32>>,
     ) {
         let intensity_layer = point_data
             .layers
@@ -242,7 +246,7 @@ impl ColoringStrategy for IntensityColoringStrategy {
                 }
                 match self
                     .per_column_data
-                    .entry((discretized[i].x, discretized[i].y))
+                    .entry((discretized_locations[i].x, discretized_locations[i].y))
                 {
                     Entry::Occupied(mut e) => {
                         let per_column_data = e.get_mut();
@@ -294,7 +298,7 @@ impl ColoringStrategy for PointColorColoringStrategy {
     fn process_discretized_point_data(
         &mut self,
         point_data: &PointData,
-        discretized: Vec<Point3<u32>>,
+        discretized_locations: Vec<Point3<u32>>,
     ) {
         let color_layer = point_data
             .layers
@@ -311,7 +315,7 @@ impl ColoringStrategy for PointColorColoringStrategy {
                 .to_f32();
                 match self
                     .per_column_data
-                    .entry((discretized[i].x, discretized[i].y))
+                    .entry((discretized_locations[i].x, discretized_locations[i].y))
                 {
                     Entry::Occupied(mut e) => {
                         let per_column_data = e.get_mut();
@@ -421,15 +425,15 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
     fn process_discretized_point_data(
         &mut self,
         point_data: &PointData,
-        discretized: Vec<Point3<u32>>,
+        discretized_locations: Vec<Point3<u32>>,
     ) {
-        for (i, discretized_pos) in discretized
+        for (i, d_loc) in discretized_locations
             .iter()
             .enumerate()
-            .take(point_data.position.len())
+            .take(discretized_locations.len())
         {
             self.per_column_data
-                .entry((discretized_pos.x, discretized_pos.y))
+                .entry((d_loc.x, d_loc.y))
                 .or_insert_with(OnlineStats::new)
                 .add(point_data.position[i].z);
         }
