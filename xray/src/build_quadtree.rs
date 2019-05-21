@@ -10,8 +10,12 @@ use point_viewer::octree::OctreeFactory;
 use scoped_pool::Pool;
 use std::path::Path;
 
-pub fn parse_arguments() -> clap::ArgMatches<'static> {
-    clap::App::new("build_xray_quadtree")
+pub trait Extension {
+    fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
+}
+
+pub fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
+    let mut app = clap::App::new("build_xray_quadtree")
         .version("1.0")
         .author("Holger H. Rapp <hrapp@lyft.com>")
         .args(&[
@@ -73,8 +77,9 @@ pub fn parse_arguments() -> clap::ArgMatches<'static> {
                 .takes_value(true)
                 .possible_values(&TileBackgroundColorArgument::variants())
                 .default_value("white"),
-        ])
-        .get_matches()
+        ]);
+    app = T::pre_init(app);
+    app.get_matches()
 }
 
 pub fn point_cloud_client(
