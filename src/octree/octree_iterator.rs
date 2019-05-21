@@ -7,7 +7,7 @@ use collision::Aabb3;
 use std::collections::VecDeque;
 
 /// returns an Iterator over the points of the current node
-fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator {
+pub fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator {
     // TODO(sirver): This crashes on error. We should bubble up an error.
     NodeIterator::from_data_provider(
         &*octree.data_provider,

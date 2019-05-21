@@ -14,6 +14,7 @@
 
 use crate::errors::*;
 use crate::math::{Cube, Isometry3, Obb, OrientedBeam};
+use crate::octree::octree_iterator::get_node_iterator;
 use crate::proto;
 use crate::Point;
 use cgmath::{EuclideanSpace, Matrix4, Point3};
@@ -355,8 +356,7 @@ impl Octree {
             // if has point return
             match octree.nodes.get(&node_id) {
                 Some(node) => {
-                    // corner case: root node has one point
-                    if !(node_id.index() == 0 && node.num_points == 1) && node.num_points > 0 {
+                    if node.num_points > 0 {
                         return true;
                     }
                     //corner case: if it has at least two children
@@ -378,15 +378,31 @@ impl Octree {
         });
 
         let mut node_id_iterator = NodeIdIterator::new(self, first_node_func);
-        let id: NodeId = match node_id_iterator.next() {
-            Some(id) => id,
-            None => {
-                return None;
-            }
-        };
+        let mut aabb: Aabb3<f64> = Aabb3::zero();
+        'outer: loop {
+            let id: NodeId = match node_id_iterator.next() {
+                Some(id) => id,
+                None => {
+                    return None;
+                }
+            };
 
-        let current = self.nodes.get(&id).unwrap();
-        let o_box: Obb<f64> = Obb::from(current.bounding_cube.to_aabb3());
+            let current = self.nodes.get(&id).unwrap();
+            // grow and continue if only one point
+            if current.num_points == 1 {
+                let mut node_iterator = get_node_iterator(self, &id);
+                let sparse_point = node_iterator.next().unwrap();
+                aabb = aabb.grow(Point3::from_vec(sparse_point.position));
+            } else {
+                let aabb_current_points = current.bounding_cube.to_aabb3().to_corners();
+                for corner in 0..8 {
+                    aabb = aabb.grow(aabb_current_points[corner]);
+                    break 'outer;
+                }
+            }
+        }
+
+        let o_box: Obb<f64> = Obb::from(aabb);
         // convert to coordinate system
         let rotated_o_box = o_box.transform(&coordinate_system);
         Some(rotated_o_box.get_encasing_aabb())
