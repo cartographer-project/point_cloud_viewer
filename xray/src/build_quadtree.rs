@@ -1,6 +1,6 @@
 use crate::generation::{
-    build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind,
-    Tile, TileBackgroundColorArgument,
+    build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, Tile,
+    TileBackgroundColorArgument,
 };
 use clap::value_t;
 use point_cloud_client::PointCloudClient;
@@ -10,7 +10,7 @@ use point_viewer::octree::OctreeFactory;
 use scoped_pool::Pool;
 use std::path::Path;
 
-fn parse_arguments() -> clap::ArgMatches<'static> {
+pub fn parse_arguments() -> clap::ArgMatches<'static> {
     clap::App::new("build_xray_quadtree")
         .version("1.0")
         .author("Holger H. Rapp <hrapp@lyft.com>")
@@ -77,8 +77,23 @@ fn parse_arguments() -> clap::ArgMatches<'static> {
         .get_matches()
 }
 
-pub fn run(octree_factory: OctreeFactory, global_from_local: Option<Isometry3<f64>>) {
-    let args = parse_arguments();
+pub fn point_cloud_client(
+    args: &clap::ArgMatches<'static>,
+    octree_factory: OctreeFactory,
+) -> PointCloudClient {
+    let octree_locations = args
+        .values_of("octree_locations")
+        .unwrap()
+        .map(String::from)
+        .collect::<Vec<_>>();
+    PointCloudClient::new(&octree_locations, octree_factory).expect("Could not open octree.")
+}
+
+pub fn run(
+    args: &clap::ArgMatches<'static>,
+    point_cloud_client: &PointCloudClient,
+    global_from_local: Option<Isometry3<f64>>,
+) {
     let resolution = args
         .value_of("resolution")
         .unwrap()
@@ -124,22 +139,18 @@ pub fn run(octree_factory: OctreeFactory, global_from_local: Option<Isometry3<f6
         }
     };
 
-    let octree_locations = args
-        .values_of("octree_locations")
-        .unwrap()
-        .map(String::from)
-        .collect::<Vec<_>>();
     let output_directory = Path::new(args.value_of("output_directory").unwrap());
 
     let pool = Pool::new(num_threads);
-    let point_cloud_client =
-        PointCloudClient::new(&octree_locations, octree_factory).expect("Could not open octree.");
     build_xray_quadtree(
         &pool,
-        &point_cloud_client,
+        point_cloud_client,
         &global_from_local,
         output_directory,
-        &Tile{size_px: tile_size, resolution},
+        &Tile {
+            size_px: tile_size,
+            resolution,
+        },
         &coloring_strategy_kind,
         tile_background_color,
     )
