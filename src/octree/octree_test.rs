@@ -77,7 +77,7 @@ mod tests {
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn test_bounding_box() {
         let octree = build_test_octree(100_000);
         let y_with_z = Isometry3 {
@@ -89,11 +89,12 @@ mod tests {
             translation: Vector3::new(0.0, 0.0, 0.0),
         };
         let aabb = octree.get_node_bounding_box(&y_with_z);
+
+        println!("rotation y with z {:?}", aabb);
         let no_rot = Isometry3 {
             rotation: Quaternion::zero(),
             translation: Vector3::new(0.0, 0.0, 0.0),
         };
-        println!("rotation y with z {:?}", aabb);
         let aabb_no_change = octree.get_node_bounding_box(&no_rot);
 
         println!("no rotation  {:?}", aabb_no_change);
