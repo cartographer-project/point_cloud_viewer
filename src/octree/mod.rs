@@ -379,6 +379,7 @@ impl Octree {
 
         let mut node_id_iterator = NodeIdIterator::new(self, first_node_func);
         let mut aabb: Aabb3<f64> = Aabb3::zero();
+        let mut is_initialized = false;
         'outer: loop {
             let id: NodeId = match node_id_iterator.next() {
                 Some(id) => id,
@@ -392,11 +393,21 @@ impl Octree {
             if current.num_points == 1 {
                 let mut node_iterator = get_node_iterator(self, &id);
                 let sparse_point = node_iterator.next().unwrap();
-                aabb = aabb.grow(Point3::from_vec(sparse_point.position));
+                let geo_point = Point3::from_vec(sparse_point.position);
+                if !is_initialized {
+                    aabb = Aabb3::new(geo_point, geo_point);
+                    is_initialized = true;
+                } else {
+                    aabb = aabb.grow(Point3::from_vec(sparse_point.position));
+                }
             } else {
-                let aabb_current_points = current.bounding_cube.to_aabb3().to_corners();
-                for corner in &aabb_current_points {
-                    aabb = aabb.grow(*corner);
+                let current_id_aabb = current.bounding_cube.to_aabb3();
+                if !is_initialized {
+                    aabb = current_id_aabb;
+                } else {
+                    for corner in &current_id_aabb.to_corners() {
+                        aabb = aabb.grow(*corner);
+                    }
                 }
                 break 'outer;
             }
