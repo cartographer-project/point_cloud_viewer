@@ -1,3 +1,5 @@
+use crate::octree::octree_iterator::get_node_iterator;
+use crate::octree::node::NodeId;
 use crate::errors::*;
 use crate::math::{Isometry3, Obb, OrientedBeam};
 use crate::octree::{self, Octree};
@@ -57,8 +59,10 @@ where
     }
 
     /// push point in batch
-    fn push_point(&mut self, point: Point) {
-        let position = match &self.local_from_global {
+    fn push_node_points(&mut self, node: NodeIterator) {
+        loop{
+
+            let position = match &self.local_from_global {
             Some(local_from_global) => local_from_global * &point.position,
             None => point.position,
         };
@@ -98,12 +102,9 @@ where
         (self.func)(point_data)
     }
 
-    fn push_point_and_callback(&mut self, point: Point) -> Result<()> {
-        self.push_point(point);
-        if self.position.len() == self.position.capacity() {
-            return self.callback();
-        }
-        Ok(())
+    fn push_node_and_callback(&mut self, node_iterator: NodeIterator) -> Result<()> {
+        self.push_node(node_iterator);
+        return self.callback();
     }
 }
 
@@ -153,14 +154,8 @@ impl<'a> BatchIterator<'a> {
     {
         let mut point_stream =
             PointStream::new(self.batch_size, self.local_from_global.clone(), &mut func);
-        let mut iterator: Box<Iterator<Item = Point>> = match &self.culling {
-            PointCulling::Any() => Box::new(self.octree.all_points()),
-            PointCulling::Aabb(aabb) => Box::new(self.octree.points_in_box(aabb)),
-            PointCulling::Obb(obb) => Box::new(self.octree.points_in_obb(obb)),
-            PointCulling::Frustum(frustum) => Box::new(self.octree.points_in_frustum(frustum)),
-            PointCulling::OrientedBeam(beam) => Box::new(self.octree.points_in_oriented_beam(beam)),
-        };
-        iterator.try_for_each(|point: Point| point_stream.push_point_and_callback(point))?;
-        point_stream.callback()
+        let mut iterator: Box<Iterator<Item = NodeId>> = get_node_id_iterator(&self.octree, &self.culling);
+        iterator.par_iter()
+                .map(|&id| point_stream.push_node_and_callback(get_node_iterator(&self.octree, &id, &self.culling)));
     }
 }
