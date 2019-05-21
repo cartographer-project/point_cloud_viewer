@@ -154,13 +154,13 @@ impl<'a> Iterator for NodeIdIterator<'a> {
         loop {
             match self.node_ids.pop_front() {
                 Some(current) => {
-                    for child_index in 0..8 {
-                        let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
-                        if self.octree.nodes.contains_key(&child_id) {
-                            self.node_ids.push_back(child_id);
-                        }
-                    }
                     if (self.filter_func)(&current, &self.octree) {
+                        for child_index in 0..8 {
+                            let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
+                            if self.octree.nodes.contains_key(&child_id) {
+                                self.node_ids.push_back(child_id);
+                            }
+                        }
                         return Some(current);
                     }
                 }

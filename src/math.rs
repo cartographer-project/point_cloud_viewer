@@ -208,16 +208,6 @@ impl<S: BaseFloat> Obb<S> {
         Self::new(isometry * &self.isometry_inv.inverse(), self.half_extent)
     }
 
-    /// returns the axis aligned box that holds the obb in the coordinate frame
-    pub fn get_encasing_aabb(&self) -> Aabb3<S> {
-        let a_box: Aabb3<S> = Aabb3::new(self.corners[0], self.corners[1]);
-        // grow the box
-        for i in 2..8 {
-            a_box.grow(self.corners[i]);
-        }
-        a_box
-    }
-
     fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector3<S>) -> [Point3<S>; 8] {
         let corner_from = |x: S, y: S, z: S| {
             isometry.rotation.rotate_point(Point3::new(x, y, z)) + isometry.translation

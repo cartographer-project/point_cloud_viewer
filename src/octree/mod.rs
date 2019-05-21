@@ -13,8 +13,7 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::{Cube, Isometry3, Obb, OrientedBeam};
-use crate::octree::octree_iterator::get_node_iterator;
+use crate::math::{Cube, Obb, OrientedBeam};
 use crate::proto;
 use crate::Point;
 use cgmath::{EuclideanSpace, Matrix4, Point3};
@@ -346,80 +345,7 @@ impl Octree {
     pub fn bounding_box(&self) -> &Aabb3<f64> {
         &self.meta.bounding_box
     }
-
-    /// return the bounding box from the node that contains all tree points
-    /// aligned with the coodinate system of choice
-    pub fn get_node_bounding_box(&self, coordinate_system: &Isometry3<f64>) -> Option<Aabb3<f64>> {
-        // traversal and return the first non-empty node or node with at least two existing children
-        // (to care for disjointed subtrees)
-        let first_node_func = Box::new(move |node_id: &NodeId, octree: &Octree| -> bool {
-            // if has point return
-            match octree.nodes.get(&node_id) {
-                Some(node) => {
-                    if node.num_points > 0 {
-                        return true;
-                    }
-                    //corner case: if it has at least two children
-                    let mut num_children = 0;
-                    for child_index in 0..8 {
-                        let child_id = node_id.get_child_id(ChildIndex::from_u8(child_index));
-                        if octree.nodes.contains_key(&child_id) {
-                            num_children += 1;
-                        }
-
-                        if num_children >= 2 {
-                            return true;
-                        }
-                    }
-                    false
-                }
-                None => false,
-            }
-        });
-
-        let mut node_id_iterator = NodeIdIterator::new(self, first_node_func);
-        let mut aabb: Aabb3<f64> = Aabb3::zero();
-        let mut is_initialized = false;
-        'outer: loop {
-            let id: NodeId = match node_id_iterator.next() {
-                Some(id) => id,
-                None => {
-                    return None;
-                }
-            };
-
-            let current = &self.nodes[&id];
-            // grow and continue if only one point
-            if current.num_points == 1 {
-                let mut node_iterator = get_node_iterator(self, &id);
-                let sparse_point = node_iterator.next().unwrap();
-                let geo_point = Point3::from_vec(sparse_point.position);
-                if !is_initialized {
-                    aabb = Aabb3::new(geo_point, geo_point);
-                    is_initialized = true;
-                } else {
-                    aabb = aabb.grow(geo_point);
-                }
-            } else {
-                let current_id_aabb = current.bounding_cube.to_aabb3();
-                if !is_initialized {
-                    aabb = current_id_aabb;
-                } else {
-                    for corner in &current_id_aabb.to_corners() {
-                        aabb = aabb.grow(*corner);
-                    }
-                }
-                break 'outer;
-            }
-        }
-
-        let o_box: Obb<f64> = Obb::from(aabb);
-        // convert to coordinate system
-        let rotated_o_box = o_box.transform(&coordinate_system);
-        Some(rotated_o_box.get_encasing_aabb())
-    }
 }
-
 struct OpenNode {
     node: Node,
     relation: Relation,
