@@ -398,7 +398,7 @@ impl Octree {
                     aabb = Aabb3::new(geo_point, geo_point);
                     is_initialized = true;
                 } else {
-                    aabb = aabb.grow(Point3::from_vec(sparse_point.position));
+                    aabb = aabb.grow(geo_point);
                 }
             } else {
                 let current_id_aabb = current.bounding_cube.to_aabb3();
