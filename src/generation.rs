@@ -30,7 +30,6 @@ use std::fs::{self, File};
 use std::io::{BufWriter, Stdout};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use structopt::clap::{_clap_count_exprs, arg_enum};
 
 const UPDATE_COUNT: i64 = 100_000;
 const MAX_POINTS_PER_NODE: i64 = 100_000;
@@ -253,14 +252,6 @@ fn make_stream(input: &InputFile) -> (InputFileIterator, Option<ProgressBar<Stdo
     (stream, progress_bar)
 }
 
-arg_enum! {
-    #[derive(Debug)]
-    pub enum RootBbox {
-        FromData,
-        EarthECEF,
-        // TODO(nnmm): Custom fixed bbox
-    }
-}
 /// Returns the bounding box containing all points
 fn find_bounding_box(input: &InputFile) -> Aabb3<f64> {
     let mut num_points = 0i64;
@@ -292,7 +283,6 @@ pub fn build_octree_from_file(
     output_directory: impl AsRef<Path>,
     resolution: f64,
     filename: impl AsRef<Path>,
-    bbox_type: RootBbox,
 ) {
     // TODO(ksavinash9): This function should return a Result.
     let input = {
@@ -306,13 +296,7 @@ pub fn build_octree_from_file(
             other => panic!("Unknown input file format: {:?}", other),
         }
     };
-    let bounding_box = match bbox_type {
-        RootBbox::EarthECEF => {
-            let p = Point3::new(6_400_000.0, 6_400_000.0, 6_400_000.0);
-            Aabb3::new(-1.0 * p, p)
-        }
-        RootBbox::FromData => find_bounding_box(&input),
-    };
+    let bounding_box = find_bounding_box(&input);
     let (stream, _) = make_stream(&input);
     build_octree(pool, output_directory, resolution, bounding_box, stream)
 }
