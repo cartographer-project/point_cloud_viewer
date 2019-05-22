@@ -41,7 +41,8 @@ use crate::box_drawer::BoxDrawer;
 use crate::camera::{Camera, CameraPose};
 use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 
-use cgmath::{Matrix4, SquareMatrix, Vector3};
+use collision::{Aabb};
+use cgmath::{EuclideanSpace, Matrix4, SquareMatrix};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, Octree, OctreeFactory};
 use sdl2::event::{Event, WindowEvent};
@@ -478,13 +479,17 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
 
     let mut extension = T::new(&matches, Rc::clone(&gl));
 
-    //let init_point = octree.get_first_point();
+    // compute center of initial box
+    let root_aabb = octree.bounding_box();
+    let mut init_point = root_aabb.center();
+    let max_z = root_aabb.max().z;
+    init_point.z = max_z;
+    
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
     if is_octree_ecef {
         println!("Camera hovering over Lyft L5 Office, Palo Alto, CA \n");
-        camera.set_displacement(
-            Vector3::new(-2_699_316.0, -4_294_821.0, 3_853_410.0),
+        camera.set_displacement( init_point.to_vec(),
             CameraPose::Init,
         ); //PAO, Porter Drive
     }
