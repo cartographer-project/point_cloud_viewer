@@ -1,7 +1,7 @@
 use crate::errors::*;
 use crate::math::{Isometry3, Obb, OrientedBeam, PointCulling};
 use crate::octree::node::NodeId;
-use crate::octree::{self, get_node_id_iterator, Octree};
+use crate::octree::{self, Octree, FilteredPointsIterator};
 use crate::{LayerData, Point, PointData};
 use cgmath::{Decomposed, Matrix4, Point3, Vector3, Vector4};
 use collision::Aabb3;
@@ -11,7 +11,7 @@ use fnv::FnvHashMap;
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
 pub struct PointLocation {
-    pub culling: impl PointCulling,
+    pub culling : Box<(PointCulling<f64>)>,
     // If set, culling and the returned points are interpreted to be in local coordinates.
     pub global_from_local: Option<Isometry3<f64>>,
 }
@@ -88,8 +88,9 @@ where
         (self.func)(point_data)
     }
 
-    fn push_node_and_callback(&mut self, node_iterator: NodeIterator) -> Result<()> {
+    fn push_node_and_callback(&mut self, node_iterator: FilteredPointsIterator) -> Result<()> {
         let mut current_num_points = 0;
+        let max_points = self.position.capacity();
         loop {
             match node_iterator.next() {
                 Some(point) => {
@@ -98,7 +99,7 @@ where
                 }
                 None => return self.callback(),
             }
-            if current_num_points >= self.num_points_per_batch {
+            if current_num_points >= max_points {
                 current_num_points = 0;
                 self.callback();
             }
@@ -109,7 +110,7 @@ where
 /// Iterator on point batches
 pub struct BatchIterator<'a> {
     octree: &'a Octree,
-    culling: PointCulling,
+    culling: &'a Box<(PointCulling<f64> + 'a)>,
     local_from_global: Option<Isometry3<f64>>,
     batch_size: usize,
 }
@@ -134,12 +135,13 @@ impl<'a> BatchIterator<'a> {
     where
         F: FnMut(PointData) -> Result<()>,
     {
+        //todo (catevita) mutable function parallelization
         let mut point_stream =
             PointStream::new(self.batch_size, self.local_from_global.clone(), &mut func);
-        let mut iterator: Box<Iterator<Item = NodeId>> =
-            get_node_id_iterator(&self.octree, &self.culling);
-        iterator.par_iter().map(|&id| {
-            point_stream.push_node_and_callback(get_node_iterator(&self.octree, &id, &self.culling))
+        let mut iterator =
+            Box::new(self.octree.nodes_in_location(&self.culling));
+        iterator.par_iter().map(|id| {
+            point_stream.push_node_and_callback(self.octree.points_in_node(&self.culling, id))
         });
         Ok(())
     }

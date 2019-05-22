@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::{Cube, Obb, OrientedBeam, PointCulling};
+use crate::math::{Cube, Isometry3, PointCulling};
 use crate::proto;
 use crate::Point;
-use cgmath::{Decomposed, EuclideanSpace, Matrix4, Point3};
+use cgmath::{Decomposed, EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Contains, Discrete, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
@@ -42,9 +42,7 @@ mod factory;
 pub use self::factory::OctreeFactory;
 
 mod octree_iterator;
-pub use self::octree_iterator::{
-    contains, intersecting_node_ids, AllPointsIterator, FilteredPointsIterator, NodeIdIterator,
-};
+pub use self::octree_iterator::{FilteredPointsIterator, NodeIdIterator};
 
 mod batch_iterator;
 pub use self::batch_iterator::{BatchIterator, PointLocation, NUM_POINTS_PER_BATCH};
@@ -304,13 +302,13 @@ impl Octree {
 
     pub fn nodes_in_location<'a>(
         &'a self,
-        container: &'a Box<PointCulling<f64>>,
+        container: &'a Box<impl PointCulling<f64>>,
     ) -> NodeIdIterator<'a> {
-        let filter_func = |node_id: NodeId, &self| {
-            let current = self.nodes[&id];
-            container.intersects(current.bounding_cube.to_aabb3)
-        };
-        NodeIdIterator::new(&self, filter_func);
+        let filter_func = Box::new(move |node_id: &NodeId, octree: &Octree| {
+            let current = octree.nodes[&node_id];
+            container.intersects(&current.bounding_cube.to_aabb3())
+        });
+        NodeIdIterator::new(&self, filter_func)
     }
 
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
@@ -322,20 +320,6 @@ impl Octree {
         let filter_func =
             Box::new(move |p: &Point| container.contains(&Point3::from_vec(p.position)));
         FilteredPointsIterator::new(&self, node_id, filter_func)
-    }
-
-    pub fn points_in_frustum<'a>(
-        &'a self,
-        frustum_matrix: &'a Matrix4<f64>,
-    ) -> FilteredPointsIterator<'a> {
-        let node_ids = self.get_visible_nodes(frustum_matrix);
-        let filter_func =
-            Box::new(move |p: &Point| contains(frustum_matrix, &Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids.into(), filter_func)
-    }
-
-    pub fn all_points(&self) -> AllPointsIterator {
-        AllPointsIterator::new(&self)
     }
 
     /// return the bounding box saved in meta
@@ -395,16 +379,22 @@ fn maybe_push_node(
     }
 }
 
+// TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
+pub fn contains(projection_matrix: &Matrix4<f64>, point: &Point3<f64>) -> bool {
+    let v = Vector4::new(point.x, point.y, point.z, 1.);
+    let clip_v = projection_matrix * v;
+    clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z && clip_v.z < clip_v.w
+}
 struct Frustum {
     pub matrix: Matrix4<f64>,
-    pub frustum: collision::Frustum,
+    pub frustum: collision::Frustum<f64>,
 }
 
 impl Frustum {
     pub fn new(matrix: Matrix4<f64>) -> Self {
         Frustum {
             matrix,
-            frustum: collision::Frustum::from_matrix4(matrix),
+            frustum: collision::Frustum::from_matrix4(matrix).unwrap(),
         }
     }
 }
@@ -415,19 +405,19 @@ impl PointCulling<f64> for Frustum {
     }
 
     fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
-        match self.frustum.contains(&aabb) {
+        match self.frustum.contains(aabb) {
             Relation::Cross => true,
             Relation::In => true,
             Relation::Out => false,
         }
     }
 
-    fn transform(&self, isometry: Isometry3<f64>) -> Self {
+    fn transform(&self, isometry: Isometry3<f64>) -> Box<Self> {
         let matrix = Matrix4::from(Decomposed {
             scale: 1.0,
             rot: isometry.rotation,
             disp: isometry.translation,
         }) * self.matrix;
-        Frustum::new(matrix)
+        Box::new(Frustum::new(matrix))
     }
 }
