@@ -26,9 +26,10 @@ pub struct Cube {
     edge_length: f64,
 }
 
-pub trait SpatialRelation<S: BaseFloat> {
+pub trait PointCulling<S: BaseFloat> {
     fn contains(&self, point: &Point3<S>) -> bool;
     fn intersects(&self, aabb: &Aabb3<S>) -> bool;
+    fn transform(&self, isometry: Isometry3<S>) -> Self;
 }
 
 impl Cube {
@@ -78,17 +79,19 @@ impl Cube {
     }
 }
 
-impl SpatialRelation<f64> for Cube {
-    fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
-        let aabb_cube = self.to_aabb3();
-        aabb_cube.intersects(aabb)
-    }
+// impl PointCulling<f64> for Cube {
+//     fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
+//         let aabb_cube = self.to_aabb3();
+//         aabb_cube.intersects(aabb)
+//     }
 
-    fn contains(&self, p: &Point3<f64>) -> bool {
-        let aabb_cube = self.to_aabb3();
-        aabb_cube.contains(p);
-    }
-}
+//     fn contains(&self, p: &Point3<f64>) -> bool {
+//         let aabb_cube = self.to_aabb3();
+//         aabb_cube.contains(p);
+//     }
+
+//     fn transform(&self, Isometry3<S>)
+// }
 
 // This guards against the separating axes being NaN, which may happen when the orientation aligns with the unit axes.
 fn is_finite<S: BaseFloat>(vec: &Vector3<S>) -> bool {
@@ -209,10 +212,6 @@ impl<S: BaseFloat> Obb<S> {
         }
     }
 
-    pub fn transform(&self, isometry: &Isometry3<S>) -> Self {
-        Self::new(isometry * &self.isometry_inv.inverse(), self.half_extent)
-    }
-
     fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector3<S>) -> [Point3<S>; 8] {
         let corner_from = |x: S, y: S, z: S| {
             isometry.rotation.rotate_point(Point3::new(x, y, z)) + isometry.translation
@@ -264,7 +263,7 @@ impl<S: BaseFloat> Obb<S> {
     }
 }
 
-impl<S: BaseFloat> SpatialRelation<S> for Obb<S> {
+impl<S: BaseFloat> PointCulling<S> for Obb<S> {
     fn intersects(&self, aabb: &Aabb3<S>) -> bool {
         intersects(&self.corners, &self.separating_axes, aabb)
     }
@@ -273,6 +272,10 @@ impl<S: BaseFloat> SpatialRelation<S> for Obb<S> {
         let Point3 { x, y, z } =
             self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
         &&y.abs() <= self.half_extent.y && z.abs() <= self.half_extent.z
+    }
+
+    pub fn transform(&self, isometry: &Isometry3<S>) -> Self {
+        Self::new(isometry * &self.isometry_inv.inverse(), self.half_extent)
     }
 }
 
@@ -295,10 +298,6 @@ impl OrientedBeam {
             corners: OrientedBeam::precompute_corners(&isometry, &half_extent),
             separating_axes: OrientedBeam::precompute_separating_axes(&isometry.rotation),
         }
-    }
-
-    pub fn transform(&self, isometry: &Isometry3<f64>) -> Self {
-        Self::new(isometry * &self.isometry_inv.inverse(), self.half_extent)
     }
 
     fn precompute_corners(
@@ -338,7 +337,7 @@ impl OrientedBeam {
     }
 }
 
-impl SpatialRelation<f64> for OrientedBeam<f64> {
+impl PointCulling<f64> for OrientedBeam<f64> {
     fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
         intersects(&self.corners, &self.separating_axes, aabb)
     }
@@ -348,6 +347,10 @@ impl SpatialRelation<f64> for OrientedBeam<f64> {
         let Point3 { x, y, .. } =
             self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
+    }
+
+    fn transform(&self, isometry: &Isometry3<f64>) -> Self {
+        Self::new(isometry * &self.isometry_inv.inverse(), self.half_extent)
     }
 }
 

@@ -1,7 +1,7 @@
-use crate::octree::node::NodeId;
 use crate::errors::*;
-use crate::math::{Isometry3, Obb, OrientedBeam, SpatialRelation};
-use crate::octree::{self, Octree};
+use crate::math::{Isometry3, Obb, OrientedBeam, PointCulling};
+use crate::octree::node::NodeId;
+use crate::octree::{self, get_node_id_iterator, Octree};
 use crate::{LayerData, Point, PointData};
 use cgmath::{Decomposed, Matrix4, Point3, Vector3, Vector4};
 use collision::Aabb3;
@@ -10,31 +10,11 @@ use fnv::FnvHashMap;
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
-///possible kind of iterators that can be evaluated in batch of points in BatchIterator
-#[allow(clippy::large_enum_variant)]
-#[derive(Clone)]
-pub enum PointCulling {
-    Any(AllSpace),
-    Aabb(Aabb3<f64>),
-    Obb(Obb<f64>),
-    Frustum(Matrix4<f64>),
-    OrientedBeam(OrientedBeam),
-}
-
-#[derive(Clone)]
-struct AllSpace{}
-impl SpatialRelation<f64> for AllSpace{
-    fn contains(&self, _point: &Point3<f64>)-> bool{true};
-    fn intersects(&self, _aabb: &Aabb3<f64>)->bool{true};
-}
-
-
 pub struct PointLocation {
-    pub culling: PointCulling,
+    pub culling: impl PointCulling,
     // If set, culling and the returned points are interpreted to be in local coordinates.
     pub global_from_local: Option<Isometry3<f64>>,
 }
-
 
 /// current implementation of the stream of points used in BatchIterator
 struct PointStream<'a, F>
@@ -67,10 +47,8 @@ where
     }
 
     /// push point in batch
-    fn push_node_points(&mut self, node: NodeIterator) {
-        loop{
-
-            let position = match &self.local_from_global {
+    fn push_point(&mut self, point: Point) {
+        let position = match &self.local_from_global {
             Some(local_from_global) => local_from_global * &point.position,
             None => point.position,
         };
@@ -111,8 +89,20 @@ where
     }
 
     fn push_node_and_callback(&mut self, node_iterator: NodeIterator) -> Result<()> {
-        self.push_node(node_iterator);
-        return self.callback();
+        let mut current_num_points = 0;
+        loop {
+            match node_iterator.next() {
+                Some(point) => {
+                    self.push_point(point);
+                    current_num_points += 1;
+                }
+                None => return self.callback(),
+            }
+            if current_num_points >= self.num_points_per_batch {
+                current_num_points = 0;
+                self.callback();
+            }
+        }
     }
 }
 
@@ -127,23 +117,7 @@ pub struct BatchIterator<'a> {
 impl<'a> BatchIterator<'a> {
     pub fn new(octree: &'a octree::Octree, location: &'a PointLocation, batch_size: usize) -> Self {
         let culling = match &location.global_from_local {
-            Some(global_from_local) => match &location.culling {
-                PointCulling::Any() => PointCulling::Any(),
-                PointCulling::Aabb(aabb) => {
-                    PointCulling::Obb(Obb::from(*aabb).transform(global_from_local))
-                }
-                PointCulling::Obb(obb) => PointCulling::Obb(obb.transform(global_from_local)),
-                PointCulling::Frustum(frustum) => PointCulling::Frustum(
-                    Matrix4::from(Decomposed {
-                        scale: 1.0,
-                        rot: global_from_local.rotation,
-                        disp: global_from_local.translation,
-                    }) * frustum,
-                ),
-                PointCulling::OrientedBeam(beam) => {
-                    PointCulling::OrientedBeam(beam.transform(global_from_local))
-                }
-            },
+            Some(global_from_local) => location.culling.transform(global_from_local),
             None => location.culling.clone(),
         };
         let local_from_global = location.global_from_local.clone().map(|t| t.inverse());
@@ -162,9 +136,11 @@ impl<'a> BatchIterator<'a> {
     {
         let mut point_stream =
             PointStream::new(self.batch_size, self.local_from_global.clone(), &mut func);
-        let mut iterator: Box<Iterator<Item = NodeId>> = get_node_id_iterator(&self.octree, &self.culling);
-        iterator.par_iter()
-                .map(|&id| point_stream.push_node_and_callback(get_node_iterator(&self.octree, &id, &self.culling)));
+        let mut iterator: Box<Iterator<Item = NodeId>> =
+            get_node_id_iterator(&self.octree, &self.culling);
+        iterator.par_iter().map(|&id| {
+            point_stream.push_node_and_callback(get_node_iterator(&self.octree, &id, &self.culling))
+        });
         Ok(())
     }
 }

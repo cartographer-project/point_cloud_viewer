@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::math::SpatialRelation;
 use crate::errors::*;
-use crate::math::{Cube, Obb, OrientedBeam};
+use crate::math::{Cube, Obb, OrientedBeam, PointCulling};
 use crate::proto;
 use crate::Point;
-use cgmath::{EuclideanSpace, Matrix4, Point3};
-use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
+use cgmath::{Decomposed, EuclideanSpace, Matrix4, Point3};
+use collision::{Aabb, Aabb3, Contains, Discrete, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
 use std::cmp::Ordering;
@@ -48,7 +47,7 @@ pub use self::octree_iterator::{
 };
 
 mod batch_iterator;
-pub use self::batch_iterator::{BatchIterator, PointCulling, PointLocation, NUM_POINTS_PER_BATCH};
+pub use self::batch_iterator::{BatchIterator, PointLocation, NUM_POINTS_PER_BATCH};
 
 #[cfg(test)]
 mod octree_test;
@@ -226,7 +225,7 @@ impl Octree {
     }
 
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
-        let frustum = Frustum::from_matrix4(*projection_matrix).unwrap();
+        let frustum = collision::Frustum::from_matrix4(*projection_matrix).unwrap();
         let mut open = BinaryHeap::new();
         maybe_push_node(
             &mut open,
@@ -303,19 +302,27 @@ impl Octree {
         })
     }
 
-    pub fn nodes_in_location<'a>(&'a self,  container: &'a Box<SpatialRelation<f64>>)-> NodeIdIterator<'a>{
-        let filter_func = |node_id: NodeId, &self| {let current = self.nodes[&id];
-        container.intersects(current.bounding_cube.to_aabb3)}
+    pub fn nodes_in_location<'a>(
+        &'a self,
+        container: &'a Box<PointCulling<f64>>,
+    ) -> NodeIdIterator<'a> {
+        let filter_func = |node_id: NodeId, &self| {
+            let current = self.nodes[&id];
+            container.intersects(current.bounding_cube.to_aabb3)
+        };
         NodeIdIterator::new(&self, filter_func);
-    }    
-    
-    /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
-    pub fn points_in_node<'a>(&'a self, container: &'a Box<SpatialRelation<f64>>, node_id: NodeId) -> FilteredPointsIterator<'a> {
-        let filter_func = Box::new(move |p: &Point| container.contains(&Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_id, filter_func)
     }
 
-   
+    /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
+    pub fn points_in_node<'a>(
+        &'a self,
+        container: &'a Box<impl PointCulling<f64>>,
+        node_id: NodeId,
+    ) -> FilteredPointsIterator<'a> {
+        let filter_func =
+            Box::new(move |p: &Point| container.contains(&Point3::from_vec(p.position)));
+        FilteredPointsIterator::new(&self, node_id, filter_func)
+    }
 
     pub fn points_in_frustum<'a>(
         &'a self,
@@ -388,30 +395,39 @@ fn maybe_push_node(
     }
 }
 
-struct Frustum{
+struct Frustum {
     pub matrix: Matrix4<f64>,
-    pub frustum: collision::Frustum
+    pub frustum: collision::Frustum,
 }
 
-impl Frustum{
-    pub fn new(matrix: Matrix4<f64>) -> Self{
-        Frustum{matrix, frustum: collision::Frustum::from_matrix4(matrix)}
+impl Frustum {
+    pub fn new(matrix: Matrix4<f64>) -> Self {
+        Frustum {
+            matrix,
+            frustum: collision::Frustum::from_matrix4(matrix),
+        }
     }
 }
 
-impl SpatialRelation<f64> for Frustum{
-    fn contains(&self, point: &Point3<f64>) -> bool{
+impl PointCulling<f64> for Frustum {
+    fn contains(&self, point: &Point3<f64>) -> bool {
         contains(&self.matrix, point)
     }
 
-    fn intersects(&self, aabb :&Aabb3<f64>) -> bool{
-        match self.frustum.contains(&aabb){
-         Relation::Cross => true,
-         Relation::In => true,
-         Relation::Out => false,
+    fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
+        match self.frustum.contains(&aabb) {
+            Relation::Cross => true,
+            Relation::In => true,
+            Relation::Out => false,
         }
     }
 
-
-
+    fn transform(&self, isometry: Isometry3<f64>) -> Self {
+        let matrix = Matrix4::from(Decomposed {
+            scale: 1.0,
+            rot: isometry.rotation,
+            disp: isometry.translation,
+        }) * self.matrix;
+        Frustum::new(matrix)
+    }
 }
