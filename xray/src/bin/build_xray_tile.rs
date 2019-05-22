@@ -1,4 +1,4 @@
-use cgmath::{Point2, Point3};
+use cgmath::{Point2, Point3, Vector2};
 use clap::value_t;
 use collision::{Aabb, Aabb2, Aabb3};
 use point_cloud_client::PointCloudClient;
@@ -117,10 +117,10 @@ fn run(
     let image_height = (bbox2.dim().y / resolution).ceil() as u32;
     if !xray_from_points(
         &point_cloud_client,
+        &None,
         &bbox3,
         output_filename,
-        image_width,
-        image_height,
+        Vector2::new(image_width, image_height),
         coloring_strategy_kind.new_strategy(),
         tile_background_color,
     ) {
