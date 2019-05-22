@@ -488,7 +488,6 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
     if is_octree_ecef {
-        println!("Camera hovering over Lyft L5 Office, Palo Alto, CA \n");
         camera.set_displacement( init_point.to_vec(),
             CameraPose::Init,
         ); //PAO, Porter Drive
