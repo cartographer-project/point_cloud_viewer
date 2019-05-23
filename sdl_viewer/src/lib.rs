@@ -40,7 +40,7 @@ pub mod node_drawer;
 use crate::box_drawer::BoxDrawer;
 use crate::camera::Camera;
 use crate::node_drawer::{NodeDrawer, NodeViewContainer};
-use cgmath::{Matrix4, SquareMatrix};
+use cgmath::{Matrix4, SquareMatrix, Quaternion, Vector3, Decomposed};
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, OctreeFactory};
 use sdl2::event::{Event, WindowEvent};
@@ -361,6 +361,10 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                  The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.",
             )
             .required(false),
+        clap::Arg::with_name("view_pose")
+            .long("view_pose")
+            .help("A Rigid3 protobuf containing a transform from world coordinates into local coordinates.")
+            .takes_value(true),
     ]);
     app = T::pre_init(app);
 
@@ -431,6 +435,15 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
         }
     }
 
+    let world_to_local = matches.value_of("view_pose").map(|transform_filename| {
+        // Parse proto, which contains the values below
+        return Matrix4::from(Decomposed {
+            scale: 1.0,
+            rot: Quaternion::new(0.86146575164688544, -0.42569607968262335, 0.12265973608083422, 0.24822206917776735),
+            disp: Vector3::new(5.0931703299283981e-10, 20628.870751220267, -6370253.8586094687),
+        })
+    }); 
+
     let gl_attr = video_subsystem.gl_attr();
 
     // TODO(hrapp): This should use OpenGL ES 2.0 to be compatible with WebGL, so this can be made
@@ -466,7 +479,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     let mut extension = T::new(&matches, Rc::clone(&gl));
 
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
-    let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
+    let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT, world_to_local);
 
     let mut events = ctx.event_pump().unwrap();
     let mut last_frame_time = time::PreciseTime::now();

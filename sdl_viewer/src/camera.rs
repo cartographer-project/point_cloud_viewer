@@ -76,6 +76,7 @@ pub struct Camera {
     transform: Decomposed<Vector3<f64>, Quaternion<f64>>,
 
     projection_matrix: Matrix4<f32>,
+    world_to_local: Matrix4<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
@@ -89,7 +90,7 @@ const FAR_PLANE: f32 = 10000.;
 const NEAR_PLANE: f32 = 0.1;
 
 impl Camera {
-    pub fn new(gl: &opengl::Gl, width: i32, height: i32) -> Self {
+    pub fn new(gl: &opengl::Gl, width: i32, height: i32, world_to_local: Option<Matrix4<f64>>) -> Self {
         let mut camera = Camera {
             movement_speed: 10.,
             moving_backward: false,
@@ -123,6 +124,7 @@ impl Camera {
                 near_plane: 2.,
                 far_plane: 5.,
             },
+            world_to_local: world_to_local.unwrap_or(One::one()),
         };
         camera.set_size(gl, width, height);
         camera
@@ -188,8 +190,8 @@ impl Camera {
     }
 
     pub fn get_world_to_gl(&self) -> Matrix4<f64> {
-        let world_to_camera: Matrix4<f64> = self.transform.inverse_transform().unwrap().into();
-        self.projection_matrix.cast::<f64>().unwrap() * world_to_camera
+        let local_to_camera: Matrix4<f64> = self.transform.inverse_transform().unwrap().into();
+        self.projection_matrix.cast::<f64>().unwrap() * local_to_camera * self.world_to_local
     }
 
     /// Update the camera position for the current frame. Returns true if the camera moved in this

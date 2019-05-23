@@ -42,6 +42,11 @@ message Quaterniond {
   double w = 4;
 }
 
+message Rigid3d {
+  Quaterniond rot = 1;
+  Vector3d disp = 2;
+}
+
 // Based on OpenGL standards, the value of fields will be between 0 and 1
 message Color {
   float red = 1;
