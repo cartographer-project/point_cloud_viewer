@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use cgmath::Matrix4;
-use point_viewer::octree::OctreeFactory;
+use point_viewer::math::Isometry3;
+use point_viewer::octree::{Octree, OctreeFactory};
 use point_viewer_grpc::octree_from_grpc_address;
 use sdl_viewer::{opengl, run, Extension};
 use std::rc::Rc;
@@ -27,6 +28,10 @@ impl Extension for NullExtension {
 
     fn new(_: &clap::ArgMatches, _: Rc<opengl::Gl>) -> Self {
         Self
+    }
+
+    fn local_from_global(_: &clap::ArgMatches, _: &Octree) -> Option<Isometry3<f64>> {
+        None
     }
 
     fn camera_changed(&mut self, _: &Matrix4<f64>) {}

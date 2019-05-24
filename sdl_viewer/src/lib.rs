@@ -42,7 +42,8 @@ use crate::camera::Camera;
 use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 use cgmath::{Matrix4, SquareMatrix};
 use point_viewer::color::YELLOW;
-use point_viewer::octree::{self, OctreeFactory};
+use point_viewer::math::Isometry3;
+use point_viewer::octree::{self, Octree, OctreeFactory};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Scancode, LCTRLMOD, LSHIFTMOD, RCTRLMOD, RSHIFTMOD};
 use sdl2::video::GLProfile;
@@ -299,6 +300,7 @@ fn load_camera(index: usize, pose_path: &Option<PathBuf>, camera: &mut Camera) {
 pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
     fn new(matches: &clap::ArgMatches, opengl: Rc<opengl::Gl>) -> Self;
+    fn local_from_global(matches: &clap::ArgMatches, octree: &Octree) -> Option<Isometry3<f64>>;
     fn camera_changed(&mut self, transform: &Matrix4<f64>);
     fn draw(&mut self);
 }
@@ -382,7 +384,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     let max_nodes_in_memory = limit_cache_size_mb * 5;
 
     // If no octree was generated create an FromDisc loader
-    let octree = Arc::from(
+    let octree: Arc<Box<Octree>> = Arc::from(
         octree_factory
             .generate_octree(octree_argument)
             .expect("Valid path expected"),
@@ -464,9 +466,10 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     }));
 
     let mut extension = T::new(&matches, Rc::clone(&gl));
+    let local_from_global = T::local_from_global(&matches, &octree);
 
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
-    let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT);
+    let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT, local_from_global);
 
     let mut events = ctx.event_pump().unwrap();
     let mut last_frame_time = time::PreciseTime::now();

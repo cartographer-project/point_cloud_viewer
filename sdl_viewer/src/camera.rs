@@ -17,6 +17,7 @@ use cgmath::{
     Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
     Rotation3, Transform, Vector3, Zero,
 };
+use point_viewer::math::Isometry3;
 use serde_derive::{Deserialize, Serialize};
 use std::f64;
 use time;
@@ -76,6 +77,7 @@ pub struct Camera {
     transform: Decomposed<Vector3<f64>, Quaternion<f64>>,
 
     projection_matrix: Matrix4<f32>,
+    local_from_global: Matrix4<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
@@ -89,7 +91,16 @@ const FAR_PLANE: f32 = 10000.;
 const NEAR_PLANE: f32 = 0.1;
 
 impl Camera {
-    pub fn new(gl: &opengl::Gl, width: i32, height: i32) -> Self {
+    pub fn new(
+        gl: &opengl::Gl,
+        width: i32,
+        height: i32,
+        local_from_global: Option<Isometry3<f64>>,
+    ) -> Self {
+        let local_from_global = local_from_global.map_or_else(One::one, |local_from_global| {
+            let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> = local_from_global.into();
+            decomposed.into()
+        });
         let mut camera = Camera {
             movement_speed: 10.,
             moving_backward: false,
@@ -113,6 +124,7 @@ impl Camera {
                 rot: Quaternion::one(),
                 disp: Vector3::new(0., 0., 150.),
             },
+            local_from_global,
 
             // These will be set by set_size().
             projection_matrix: One::one(),
@@ -188,8 +200,8 @@ impl Camera {
     }
 
     pub fn get_world_to_gl(&self) -> Matrix4<f64> {
-        let world_to_camera: Matrix4<f64> = self.transform.inverse_transform().unwrap().into();
-        self.projection_matrix.cast::<f64>().unwrap() * world_to_camera
+        let camera_from_local: Matrix4<f64> = self.transform.inverse_transform().unwrap().into();
+        self.projection_matrix.cast::<f64>().unwrap() * camera_from_local * self.local_from_global
     }
 
     /// Update the camera position for the current frame. Returns true if the camera moved in this
