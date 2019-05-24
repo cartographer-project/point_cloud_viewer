@@ -300,7 +300,7 @@ fn load_camera(index: usize, pose_path: &Option<PathBuf>, camera: &mut Camera) {
 pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
     fn new(matches: &clap::ArgMatches, opengl: Rc<opengl::Gl>) -> Self;
-    fn global_from_local(matches: &clap::ArgMatches, octree: &Octree) -> Option<Isometry3<f64>>;
+    fn local_from_global(matches: &clap::ArgMatches, octree: &Octree) -> Option<Isometry3<f64>>;
     fn camera_changed(&mut self, transform: &Matrix4<f64>);
     fn draw(&mut self);
 }
@@ -466,10 +466,10 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     }));
 
     let mut extension = T::new(&matches, Rc::clone(&gl));
-    let global_from_local = T::global_from_local(&matches, &octree);
+    let local_from_global = T::local_from_global(&matches, &octree);
 
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
-    let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT, global_from_local);
+    let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT, local_from_global);
 
     let mut events = ctx.event_pump().unwrap();
     let mut last_frame_time = time::PreciseTime::now();

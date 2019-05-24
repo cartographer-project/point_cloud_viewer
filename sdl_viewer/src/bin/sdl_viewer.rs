@@ -30,7 +30,7 @@ impl Extension for NullExtension {
         Self
     }
 
-    fn global_from_local(_: &clap::ArgMatches, _: &Octree) -> Option<Isometry3<f64>> {
+    fn local_from_global(_: &clap::ArgMatches, _: &Octree) -> Option<Isometry3<f64>> {
         None
     }
 
