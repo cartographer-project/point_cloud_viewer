@@ -516,7 +516,7 @@ pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
 pub fn build_xray_quadtree(
     pool: &Pool,
     point_cloud_client: &PointCloudClient,
-    global_from_local: &Option<Isometry3<f64>>,
+    local_from_global: &Option<Isometry3<f64>>,
     output_directory: &Path,
     tile: &Tile,
     coloring_strategy_kind: &ColoringStrategyKind,
@@ -525,13 +525,11 @@ pub fn build_xray_quadtree(
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    let bounding_box = match global_from_local {
-        Some(global_from_local) => {
-            let local_from_global: Decomposed<Vector3<f64>, Quaternion<f64>> =
-                global_from_local.inverse().into();
-            point_cloud_client
-                .bounding_box()
-                .transform(&local_from_global)
+    let bounding_box = match local_from_global {
+        Some(local_from_global) => {
+            let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> =
+                local_from_global.clone().into();
+            point_cloud_client.bounding_box().transform(&decomposed)
         }
         None => *point_cloud_client.bounding_box(),
     };
@@ -545,6 +543,7 @@ pub fn build_xray_quadtree(
     let (all_nodes_tx, all_nodes_rx) = mpsc::channel();
     println!("Building level {}.", deepest_level);
 
+    let global_from_local = &local_from_global.as_ref().map(|t| t.inverse());
     pool.scoped(|scope| {
         let mut open = vec![Node::root_with_bounding_rect(bounding_rect.clone())];
         while !open.is_empty() {
