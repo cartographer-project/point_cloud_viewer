@@ -77,6 +77,7 @@ pub struct Camera {
     transform: Decomposed<Vector3<f64>, Quaternion<f64>>,
 
     projection_matrix: Matrix4<f32>,
+    local_from_global: Matrix4<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
@@ -94,12 +95,12 @@ impl Camera {
         gl: &opengl::Gl,
         width: i32,
         height: i32,
-        global_from_local: Option<Isometry3<f64>>,
+        local_from_global: Option<Isometry3<f64>>,
     ) -> Self {
-        let mut transform = Isometry3::new(Quaternion::one(), Vector3::new(0., 0., 150.));
-        if global_from_local.is_some() {
-            transform = global_from_local.unwrap() * transform;
-        }
+        let local_from_global = local_from_global.map_or_else(One::one, |local_from_global| {
+            let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> = local_from_global.into();
+            decomposed.into()
+        });
         let mut camera = Camera {
             movement_speed: 10.,
             moving_backward: false,
@@ -118,7 +119,12 @@ impl Camera {
             pan: Vector3::zero(),
             rotation_speed: RotationAngle::zero(),
             delta_rotation: RotationAngle::zero(),
-            transform: transform.into(),
+            transform: Decomposed {
+                scale: 1.,
+                rot: Quaternion::one(),
+                disp: Vector3::new(0., 0., 150.),
+            },
+            local_from_global,
 
             // These will be set by set_size().
             projection_matrix: One::one(),
@@ -194,8 +200,8 @@ impl Camera {
     }
 
     pub fn get_world_to_gl(&self) -> Matrix4<f64> {
-        let world_to_camera: Matrix4<f64> = self.transform.inverse_transform().unwrap().into();
-        self.projection_matrix.cast::<f64>().unwrap() * world_to_camera
+        let camera_from_local: Matrix4<f64> = self.transform.inverse_transform().unwrap().into();
+        self.projection_matrix.cast::<f64>().unwrap() * camera_from_local * self.local_from_global
     }
 
     /// Update the camera position for the current frame. Returns true if the camera moved in this
