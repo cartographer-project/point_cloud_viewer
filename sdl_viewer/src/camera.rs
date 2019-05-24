@@ -17,6 +17,7 @@ use cgmath::{
     Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
     Rotation3, Transform, Vector3, Zero,
 };
+use point_viewer::math::Isometry3;
 use serde_derive::{Deserialize, Serialize};
 use std::f64;
 use time;
@@ -89,7 +90,16 @@ const FAR_PLANE: f32 = 10000.;
 const NEAR_PLANE: f32 = 0.1;
 
 impl Camera {
-    pub fn new(gl: &opengl::Gl, width: i32, height: i32) -> Self {
+    pub fn new(
+        gl: &opengl::Gl,
+        width: i32,
+        height: i32,
+        global_from_local: Option<Isometry3<f64>>,
+    ) -> Self {
+        let mut transform = Isometry3::new(Quaternion::one(), Vector3::new(0., 0., 150.));
+        if global_from_local.is_some() {
+            transform = global_from_local.unwrap() * transform;
+        }
         let mut camera = Camera {
             movement_speed: 10.,
             moving_backward: false,
@@ -108,11 +118,7 @@ impl Camera {
             pan: Vector3::zero(),
             rotation_speed: RotationAngle::zero(),
             delta_rotation: RotationAngle::zero(),
-            transform: Decomposed {
-                scale: 1.,
-                rot: Quaternion::one(),
-                disp: Vector3::new(0., 0., 150.),
-            },
+            transform: transform.into(),
 
             // These will be set by set_size().
             projection_matrix: One::one(),
