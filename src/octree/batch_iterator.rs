@@ -137,7 +137,7 @@ impl<'a> BatchIterator<'a> {
             },
             None => location.culling.clone(),
         };
-        let local_from_global = location.global_from_local.clone().map(|t| t.inverse());
+        let local_from_global = location.global_from_local.as_ref().map(Isometry3::inverse);
         BatchIterator {
             octree,
             culling,

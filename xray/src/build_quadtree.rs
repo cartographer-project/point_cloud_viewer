@@ -12,9 +12,13 @@ use std::path::Path;
 
 pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
+    fn local_from_global(
+        matches: &clap::ArgMatches,
+        point_cloud_client: &PointCloudClient,
+    ) -> Option<Isometry3<f64>>;
 }
 
-pub fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
+fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
     let mut app = clap::App::new("build_xray_quadtree")
         .version("1.0")
         .author("Holger H. Rapp <hrapp@lyft.com>")
@@ -82,23 +86,8 @@ pub fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
     app.get_matches()
 }
 
-pub fn point_cloud_client(
-    args: &clap::ArgMatches<'static>,
-    octree_factory: OctreeFactory,
-) -> PointCloudClient {
-    let octree_locations = args
-        .values_of("octree_locations")
-        .unwrap()
-        .map(String::from)
-        .collect::<Vec<_>>();
-    PointCloudClient::new(&octree_locations, octree_factory).expect("Could not open octree.")
-}
-
-pub fn run(
-    args: &clap::ArgMatches<'static>,
-    point_cloud_client: &PointCloudClient,
-    global_from_local: Option<Isometry3<f64>>,
-) {
+pub fn run<T: Extension>(octree_factory: OctreeFactory) {
+    let args = parse_arguments::<T>();
     let resolution = args
         .value_of("resolution")
         .unwrap()
@@ -147,10 +136,20 @@ pub fn run(
     let output_directory = Path::new(args.value_of("output_directory").unwrap());
 
     let pool = Pool::new(num_threads);
+
+    let octree_locations = args
+        .values_of("octree_locations")
+        .unwrap()
+        .map(String::from)
+        .collect::<Vec<_>>();
+    let point_cloud_client =
+        PointCloudClient::new(&octree_locations, octree_factory).expect("Could not open octree.");
+
+    let local_from_global = T::local_from_global(&args, &point_cloud_client);
     build_xray_quadtree(
         &pool,
-        point_cloud_client,
-        &global_from_local,
+        &point_cloud_client,
+        &local_from_global,
         output_directory,
         &Tile {
             size_px: tile_size,
