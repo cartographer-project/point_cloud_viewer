@@ -543,7 +543,7 @@ pub fn build_xray_quadtree(
     let (all_nodes_tx, all_nodes_rx) = mpsc::channel();
     println!("Building level {}.", deepest_level);
 
-    let global_from_local = &local_from_global.clone().map(|t| t.inverse());
+    let global_from_local = &local_from_global.as_ref().map(|t| t.inverse());
     pool.scoped(|scope| {
         let mut open = vec![Node::root_with_bounding_rect(bounding_rect.clone())];
         while !open.is_empty() {
