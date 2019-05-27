@@ -15,21 +15,66 @@
 use cgmath::{
     BaseFloat, EuclideanSpace, InnerSpace, Point3, Quaternion, Rotation, Vector2, Vector3,
 };
-use collision::{Aabb, Aabb3};
+use collision::{Aabb, Aabb3, Contains};
 use num_traits::identities::One;
 use num_traits::Float;
 use std::ops::Mul;
+
+pub trait PointCulling<S>: PointCullingClone<S>
+where
+    S: BaseFloat,
+{
+    fn contains(&self, point: &Point3<S>) -> bool;
+    fn intersects(&self, aabb: &Aabb3<S>) -> bool;
+    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>>;
+}
+
+// Splitting PointCullingClone into its own trait allows us to provide a blanket
+// implementation for all compatible types, without having to implement the
+// rest of PointCulling.  In this case, we implement it for all types that have
+// 'static lifetime (*i.e.* they don't contain non-'static pointers), and
+// implement both PointCulling and Clone.
+pub trait PointCullingClone<S: BaseFloat> {
+    fn clone_box(&self) -> Box<PointCulling<S>>;
+}
+
+impl<T, S> PointCullingClone<S> for T
+where
+    S: BaseFloat,
+    T: 'static + PointCulling<S> + Clone,
+{
+    fn clone_box(&self) -> Box<PointCulling<S>> {
+        Box::new(self.clone())
+    }
+}
+
+// We can now implement Clone manually by forwarding to clone_box.
+impl<S: BaseFloat> Clone for Box<PointCulling<S>> {
+    fn clone(&self) -> Box<PointCulling<S>> {
+        self.clone_box()
+    }
+}
+
+// PointCulling for Aabb3
+impl<S: 'static + BaseFloat> PointCulling<S> for Aabb3<S> {
+    fn intersects(&self, aabb: &Aabb3<S>) -> bool {
+        let separating_axes = &[Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
+        intersects(&self.to_corners(), separating_axes, aabb)
+    }
+
+    fn contains(&self, p: &Point3<S>) -> bool {
+        Contains::contains(self, p)
+    }
+
+    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+        Obb::from(*self).transform(isometry)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Cube {
     min: Point3<f64>,
     edge_length: f64,
-}
-
-pub trait PointCulling<S: BaseFloat> {
-    fn contains(&self, point: &Point3<S>) -> bool;
-    fn intersects(&self, aabb: &Aabb3<S>) -> bool;
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<Self>;
 }
 
 impl Cube {
@@ -213,9 +258,8 @@ impl<S: BaseFloat> Obb<S> {
     }
 
     fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector3<S>) -> [Point3<S>; 8] {
-        let corner_from = |x, y, z| {
-            isometry.rotation.rotate_point(Point3::new(x, y, z)) + isometry.translation
-        };
+        let corner_from =
+            |x, y, z| isometry.rotation.rotate_point(Point3::new(x, y, z)) + isometry.translation;
         [
             corner_from(-half_extent.x, -half_extent.y, -half_extent.z),
             corner_from(half_extent.x, -half_extent.y, -half_extent.z),
@@ -263,7 +307,7 @@ impl<S: BaseFloat> Obb<S> {
     }
 }
 
-impl<S: BaseFloat> PointCulling<S> for Obb<S> {
+impl<S: 'static + BaseFloat> PointCulling<S> for Obb<S> {
     fn intersects(&self, aabb: &Aabb3<S>) -> bool {
         intersects(&self.corners, &self.separating_axes, aabb)
     }
@@ -271,11 +315,16 @@ impl<S: BaseFloat> PointCulling<S> for Obb<S> {
     fn contains(&self, p: &Point3<S>) -> bool {
         let Point3 { x, y, z } =
             self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
-        x.abs()<= self.half_extent.x && y.abs() <= self.half_extent.y && z.abs() <= self.half_extent.z
+        x.abs() <= self.half_extent.x
+            && y.abs() <= self.half_extent.y
+            && z.abs() <= self.half_extent.z
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<Self> {
-        Box::new(Self::new(isometry * &self.isometry_inv.inverse(), self.half_extent))
+    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+        Box::new(Self::new(
+            isometry * &self.isometry_inv.inverse(),
+            self.half_extent.clone(),
+        ))
     }
 }
 
@@ -300,12 +349,12 @@ impl<S: BaseFloat> OrientedBeam<S> {
         }
     }
 
-    fn precompute_corners(
-        isometry: &Isometry3<S>,
-        half_extent: &Vector2<S>,
-    ) -> [Point3<S>; 4] {
+    fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector2<S>) -> [Point3<S>; 4] {
         let corner_from = |x, y| {
-            isometry.rotation.rotate_point(Point3::new(x, y, 0.0)) + isometry.translation
+            isometry
+                .rotation
+                .rotate_point(Point3::new(x, y, S::from(0.0).unwrap()))
+                + isometry.translation
         };
         [
             corner_from(half_extent.x, half_extent.y),
@@ -337,7 +386,7 @@ impl<S: BaseFloat> OrientedBeam<S> {
     }
 }
 
-impl<S: BaseFloat> PointCulling<S> for OrientedBeam<S> {
+impl<S: 'static + BaseFloat> PointCulling<S> for OrientedBeam<S> {
     fn intersects(&self, aabb: &Aabb3<S>) -> bool {
         intersects(&self.corners, &self.separating_axes, aabb)
     }
@@ -349,8 +398,11 @@ impl<S: BaseFloat> PointCulling<S> for OrientedBeam<S> {
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<Self> {
-        Box::new(Self::new(isometry * &self.isometry_inv.inverse(), self.half_extent))
+    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+        Box::new(Self::new(
+            isometry * &self.isometry_inv.inverse(),
+            self.half_extent,
+        ))
     }
 }
 
@@ -366,10 +418,10 @@ mod tests {
 
     fn some_beam() -> OrientedBeam {
         let quater = Quaternion::new(
-            0.9292423725128174,
-            -0.2677415907382965,
-            -0.20863021910190582,
-            -0.14593297243118286,
+            0.929_242_372_512_817_4,
+            -0.267_741_590_738_296_5,
+            -0.208_630_219_101_905_82,
+            -0.145_932_972_431_182_86,
         );
         let translation = Vector3::new(1.0, 2.0, 0.0);
         let half_extent = Vector2::new(1.0, 1.0);

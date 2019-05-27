@@ -1,9 +1,5 @@
-use crate::math::Cube;
-
-use crate::octree::{ChildIndex, Node, NodeId, NodeIterator, Octree};
+use crate::octree::{ChildIndex, NodeId, NodeIterator, Octree};
 use crate::Point;
-use cgmath::{Matrix4, Point3, Vector4};
-use collision::Aabb3;
 use std::collections::VecDeque;
 
 /// returns an Iterator over the points of the current node

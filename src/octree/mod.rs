@@ -17,7 +17,7 @@ use crate::math::{Cube, Isometry3, PointCulling};
 use crate::proto;
 use crate::Point;
 use cgmath::{Decomposed, EuclideanSpace, Matrix4, Point3, Vector4};
-use collision::{Aabb, Aabb3, Contains, Discrete, Relation};
+use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
 use std::cmp::Ordering;
@@ -302,10 +302,10 @@ impl Octree {
 
     pub fn nodes_in_location<'a>(
         &'a self,
-        container: &'a Box<impl PointCulling<f64>>,
+        container: &'a Box<PointCulling<f64>>,
     ) -> NodeIdIterator<'a> {
         let filter_func = Box::new(move |node_id: &NodeId, octree: &Octree| {
-            let current = octree.nodes[&node_id];
+            let current = &octree.nodes[&node_id];
             container.intersects(&current.bounding_cube.to_aabb3())
         });
         NodeIdIterator::new(&self, filter_func)
@@ -314,7 +314,7 @@ impl Octree {
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
     pub fn points_in_node<'a>(
         &'a self,
-        container: &'a Box<impl PointCulling<f64>>,
+        container: &'a Box<PointCulling<f64>>,
         node_id: NodeId,
     ) -> FilteredPointsIterator<'a> {
         let filter_func =
@@ -385,6 +385,8 @@ pub fn contains(projection_matrix: &Matrix4<f64>, point: &Point3<f64>) -> bool {
     let clip_v = projection_matrix * v;
     clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z && clip_v.z < clip_v.w
 }
+
+#[derive(Debug, Clone)]
 struct Frustum {
     pub matrix: Matrix4<f64>,
     pub frustum: collision::Frustum<f64>,
@@ -412,7 +414,7 @@ impl PointCulling<f64> for Frustum {
         }
     }
 
-    fn transform(&self, isometry: Isometry3<f64>) -> Box<Self> {
+    fn transform(&self, isometry: &Isometry3<f64>) -> Box<PointCulling<f64>> {
         let matrix = Matrix4::from(Decomposed {
             scale: 1.0,
             rot: isometry.rotation,

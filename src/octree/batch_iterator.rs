@@ -1,17 +1,15 @@
 use crate::errors::*;
-use crate::math::{Isometry3, Obb, OrientedBeam, PointCulling};
-use crate::octree::node::NodeId;
-use crate::octree::{self, Octree, FilteredPointsIterator};
+use crate::math::{Isometry3, PointCulling};
+use crate::octree::{self, FilteredPointsIterator, Octree};
 use crate::{LayerData, Point, PointData};
-use cgmath::{Decomposed, Matrix4, Point3, Vector3, Vector4};
-use collision::Aabb3;
+use cgmath::{Vector3, Vector4};
 use fnv::FnvHashMap;
 
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
 pub struct PointLocation {
-    pub culling : Box<(PointCulling<f64>)>,
+    pub culling: Box<PointCulling<f64>>,
     // If set, culling and the returned points are interpreted to be in local coordinates.
     pub global_from_local: Option<Isometry3<f64>>,
 }
@@ -88,7 +86,7 @@ where
         (self.func)(point_data)
     }
 
-    fn push_node_and_callback(&mut self, node_iterator: FilteredPointsIterator) -> Result<()> {
+    fn push_node_and_callback(&mut self, mut node_iterator: FilteredPointsIterator) -> Result<()> {
         let mut current_num_points = 0;
         let max_points = self.position.capacity();
         loop {
@@ -110,15 +108,15 @@ where
 /// Iterator on point batches
 pub struct BatchIterator<'a> {
     octree: &'a Octree,
-    culling: &'a Box<(PointCulling<f64> + 'a)>,
+    culling: Box<PointCulling<f64>>,
     local_from_global: Option<Isometry3<f64>>,
     batch_size: usize,
 }
 
 impl<'a> BatchIterator<'a> {
     pub fn new(octree: &'a octree::Octree, location: &'a PointLocation, batch_size: usize) -> Self {
-        let culling = match &location.global_from_local {
-            Some(global_from_local) => location.culling.transform(global_from_local),
+        let culling: Box<PointCulling<f64>> = match &location.global_from_local {
+            Some(global_from_local) => location.culling.transform(&global_from_local),
             None => location.culling.clone(),
         };
         let local_from_global = location.global_from_local.clone().map(|t| t.inverse());
@@ -138,11 +136,15 @@ impl<'a> BatchIterator<'a> {
         //todo (catevita) mutable function parallelization
         let mut point_stream =
             PointStream::new(self.batch_size, self.local_from_global.clone(), &mut func);
-        let mut iterator =
-            Box::new(self.octree.nodes_in_location(&self.culling));
-        iterator.par_iter().map(|id| {
-            point_stream.push_node_and_callback(self.octree.points_in_node(&self.culling, id))
-        });
+        // nodes iterator: retrieve nodes
+        let mut iterator = Box::new(self.octree.nodes_in_location(&self.culling));
+        // operate on nodes
+        while let Some(id) = iterator.next() {
+            point_stream.push_node_and_callback(self.octree.points_in_node(&self.culling, id));
+        }
+        // todo return point data through mpsc channel
+        // todo apply mut function to received data
+
         Ok(())
     }
 }
