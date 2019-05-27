@@ -99,7 +99,9 @@ where
             }
             if current_num_points >= max_points {
                 current_num_points = 0;
-                self.callback();
+                if let Err(err) = self.callback() {
+                    return Err(err);
+                }
             }
         }
     }
@@ -137,10 +139,14 @@ impl<'a> BatchIterator<'a> {
         let mut point_stream =
             PointStream::new(self.batch_size, self.local_from_global.clone(), &mut func);
         // nodes iterator: retrieve nodes
-        let mut iterator = Box::new(self.octree.nodes_in_location(&self.culling));
+        let iterator = Box::new(self.octree.nodes_in_location(&self.culling));
         // operate on nodes
-        while let Some(id) = iterator.next() {
-            point_stream.push_node_and_callback(self.octree.points_in_node(&self.culling, id));
+        for id in iterator {
+            if let Err(err) =
+                point_stream.push_node_and_callback(self.octree.points_in_node(&self.culling, id))
+            {
+                return Err(err);
+            }
         }
         // todo return point data through mpsc channel
         // todo apply mut function to received data

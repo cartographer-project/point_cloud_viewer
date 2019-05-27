@@ -71,6 +71,21 @@ impl<S: 'static + BaseFloat> PointCulling<S> for Aabb3<S> {
     }
 }
 
+/// Implementation of PointCulling to return all points
+#[derive(Clone, Debug)]
+pub struct AllPoints {}
+
+impl<S: BaseFloat> PointCulling<S> for AllPoints {
+    fn intersects(&self, _aabb: &Aabb3<S>) -> bool {
+        true
+    }
+    fn contains(&self, _p: &Point3<S>) -> bool {
+        true
+    }
+    fn transform(&self, _isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+        Box::new(AllPoints {})
+    }
+}
 #[derive(Debug, Clone)]
 pub struct Cube {
     min: Point3<f64>,
@@ -416,7 +431,7 @@ mod tests {
     // bpy.data.objects['Beam'].rotation_euler.to_quaternion() and
     // bpy.data.objects['Beam'].location.
 
-    fn some_beam() -> OrientedBeam {
+    fn some_beam() -> OrientedBeam<f64> {
         let quater = Quaternion::new(
             0.929_242_372_512_817_4,
             -0.267_741_590_738_296_5,
