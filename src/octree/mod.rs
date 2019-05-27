@@ -300,10 +300,7 @@ impl Octree {
         })
     }
 
-    pub fn nodes_in_location<'a>(
-        &'a self,
-        container: &'a Box<PointCulling<f64>>,
-    ) -> NodeIdIterator<'a> {
+    pub fn nodes_in_location<'a>(&'a self, container: &'a PointCulling<f64>) -> NodeIdIterator<'a> {
         let filter_func = Box::new(move |node_id: &NodeId, octree: &Octree| {
             let current = &octree.nodes[&node_id];
             container.intersects(&current.bounding_cube.to_aabb3())
@@ -314,7 +311,7 @@ impl Octree {
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
     pub fn points_in_node<'a>(
         &'a self,
-        container: &'a Box<PointCulling<f64>>,
+        container: &'a PointCulling<f64>,
         node_id: NodeId,
     ) -> FilteredPointsIterator<'a> {
         let filter_func =
@@ -387,7 +384,7 @@ pub fn contains(projection_matrix: &Matrix4<f64>, point: &Point3<f64>) -> bool {
 }
 
 #[derive(Debug, Clone)]
-struct Frustum {
+pub struct Frustum {
     pub matrix: Matrix4<f64>,
     pub frustum: collision::Frustum<f64>,
 }

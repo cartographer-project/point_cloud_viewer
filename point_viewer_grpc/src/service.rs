@@ -25,8 +25,8 @@ use grpcio::{
     UnarySink, WriteFlags,
 };
 use point_viewer::errors::*;
-use point_viewer::math::{Isometry3, OrientedBeam};
-use point_viewer::octree::{NodeId, Octree, OctreeFactory};
+use point_viewer::math::{AllPoints, Isometry3, OrientedBeam, PointCulling};
+use point_viewer::octree::{self, NodeId, Octree, OctreeFactory};
 use point_viewer::Point;
 use protobuf::Message;
 use std::collections::HashMap;
@@ -51,7 +51,7 @@ enum OctreeQuery {
     Frustum(Matrix4<f64>),
     Box(Aabb3<f64>),
     FullPointcloud,
-    OrientedBeam(Box<OrientedBeam>),
+    OrientedBeam(Box<OrientedBeam<f64>>),
 }
 
 fn send_fail_stream<T>(ctx: &RpcContext, sink: ServerStreamingSink<T>, err_str: String) {
@@ -302,21 +302,20 @@ impl OctreeService {
                         reply_size = 0;
                     }
                 };
-                match query {
-                    OctreeQuery::Box(bounding_box) => service_data
+                let culling: Box<PointCulling<f64>> = Box::new(match query {
+                    OctreeQuery::Box(bounding_box) => bounding_box,
+                    OctreeQuery::Frustum(frustum_matrix) => octree::Frustum(frustum_matrix),
+                    OctreeQuery::FullPointcloud => AllPoints {},
+                    OctreeQuery::OrientedBeam(beam) => beam,
+                });
+
+                //todo (catevita) to be parallelized
+                for id in service_data.octree.nodes_in_location(&*culling) {
+                    service_data
                         .octree
-                        .points_in_box(&bounding_box)
-                        .for_each(func),
-                    OctreeQuery::Frustum(frustum_matrix) => service_data
-                        .octree
-                        .points_in_frustum(&frustum_matrix)
-                        .for_each(func),
-                    OctreeQuery::FullPointcloud => service_data.octree.all_points().for_each(func),
-                    OctreeQuery::OrientedBeam(beam) => service_data
-                        .octree
-                        .points_in_oriented_beam(&beam)
-                        .for_each(func),
-                };
+                        .get_points_in_box(&*culling)
+                        .for_each(func);
+                }
             }
             tx.send((reply, WriteFlags::default())).unwrap();
         });

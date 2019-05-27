@@ -139,11 +139,11 @@ impl<'a> BatchIterator<'a> {
         let mut point_stream =
             PointStream::new(self.batch_size, self.local_from_global.clone(), &mut func);
         // nodes iterator: retrieve nodes
-        let iterator = Box::new(self.octree.nodes_in_location(&self.culling));
+        let iterator = self.octree.nodes_in_location(&*self.culling);
         // operate on nodes
         for id in iterator {
             if let Err(err) =
-                point_stream.push_node_and_callback(self.octree.points_in_node(&self.culling, id))
+                point_stream.push_node_and_callback(self.octree.points_in_node(&*self.culling, id))
             {
                 return Err(err);
             }

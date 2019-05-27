@@ -338,7 +338,7 @@ impl<S: 'static + BaseFloat> PointCulling<S> for Obb<S> {
     fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
         Box::new(Self::new(
             isometry * &self.isometry_inv.inverse(),
-            self.half_extent.clone(),
+            self.half_extent,
         ))
     }
 }
