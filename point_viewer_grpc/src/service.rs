@@ -26,9 +26,8 @@ use grpcio::{
 };
 use point_viewer::errors::*;
 use point_viewer::math::{AllPoints, Isometry3, OrientedBeam};
-use point_viewer::octree::{
-    self, BatchIterator, NodeId, Octree, OctreeFactory, PointData, PointLocation,
-};
+use point_viewer::octree::{self, BatchIterator, NodeId, Octree, OctreeFactory, PointLocation};
+use point_viewer::{LayerData, PointData};
 use protobuf::Message;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -138,12 +137,11 @@ impl proto_grpc::Octree for OctreeService {
             disp: translation,
         };
         let frustum_matrix = projection_matrix.concat(&view_transform.into());
-        self.stream_points_back_to_sink(
-            &octree::Frustum::new(frustum_matrix),
-            &req.octree_id,
-            &ctx,
-            resp,
-        )
+        let point_location = PointLocation {
+            culling: Arc::new(Box::new(octree::Frustum::new(frustum_matrix))),
+            global_from_local: None,
+        };
+        self.stream_points_back_to_sink(&point_location, &req.octree_id, &ctx, resp)
     }
 
     fn get_points_in_box(
@@ -162,7 +160,7 @@ impl proto_grpc::Octree for OctreeService {
             )
         };
         let point_location = PointLocation {
-            culling: bounding_box,
+            culling: Arc::new(Box::new(bounding_box)),
             global_from_local: None,
         };
         self.stream_points_back_to_sink(&point_location, &req.octree_id, &ctx, resp)
@@ -175,7 +173,7 @@ impl proto_grpc::Octree for OctreeService {
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
         let point_location = PointLocation {
-            culling: AllPoints {},
+            culling: Arc::new(Box::new(AllPoints {})),
             global_from_local: None,
         };
         self.stream_points_back_to_sink(&point_location, &req.octree_id, &ctx, resp)
@@ -204,7 +202,7 @@ impl proto_grpc::Octree for OctreeService {
 
         let beam = OrientedBeam::new(Isometry3::new(rotation, translation), half_extent);
         let point_location = PointLocation {
-            culling: beam,
+            culling: Arc::new(Box::new(beam)),
             global_from_local: None,
         };
         self.stream_points_back_to_sink(&point_location, &req.octree_id, &ctx, resp)
@@ -266,22 +264,61 @@ impl OctreeService {
 
             // Proto message must be below 4 MB.
             let max_message_size = 4 * 1024 * 1024;
-            let mut num_points_per_batch = (max_message_size / bytes_per_point).floor();
+            let mut num_points_per_batch: usize = max_message_size / bytes_per_point as usize;
 
             {
                 // Extra scope to make sure that 'func' does not outlive 'reply'.
+                // this function is currently not efficiently implemented
                 let func = |p_data: PointData| {
-                    reply.positions = protobuf::repeated::RepeatedField<point_viewer_proto_rust::proto::Vector3d>::from_vec(p_data.position);
-                    reply.colors = protobuf::repeated::RepeatedField<point_viewer_proto_rust::proto::Vector3d>::from_vec(p_data.color);
+                    reply.positions = p_data
+                        .position
+                        .iter()
+                        .map(|p| {
+                            let mut v = point_viewer::proto::Vector3d::new();
+                            v.set_x(p.x);
+                            v.set_y(p.y);
+                            v.set_z(p.z);
+                            v
+                        })
+                        .collect();
 
-                    if !p_data.intensity.empty() {
-                        reply.intensities =protobuf::repeated::RepeatedField<point_viewer_proto_rust::proto::Vector3d>::from_vec(p_data.intensity);
-                    }
+                    reply.colors = match p_data.layers.get(&"color".to_string()) {
+                        Some(LayerData::U8Vec4(data)) => data
+                            .iter()
+                            .map(|p| {
+                                let mut v = point_viewer::proto::Color::new();
+                                v.set_red(f32::from(p.x) / 255.);
+                                v.set_green(f32::from(p.y) / 255.);
+                                v.set_blue(f32::from(p.z) / 255.);
+                                v.set_alpha(f32::from(p.w) / 255.);
+                                v
+                            })
+                            .collect(),
+                        None => {
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                format!("Color format is not u8"),
+                            )
+                            .into());
+                        }
+                    };
+
+                    reply.intensities = match p_data.layers.get(&"intensity".to_string()) {
+                        Some(LayerData::F32(data)) => *data,
+                        None => {
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                format!("Intensity format is not f32"),
+                            )
+                            .into());
+                        }
+                    };
 
                     tx.send((reply.clone(), WriteFlags::default())).unwrap();
                     reply.mut_positions().clear();
                     reply.mut_colors().clear();
                     reply.mut_intensities().clear();
+                    Ok(())
                 };
 
                 let batch_iterator =

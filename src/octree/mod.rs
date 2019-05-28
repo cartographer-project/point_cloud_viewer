@@ -23,6 +23,7 @@ use num::clamp;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
+use std::sync::Arc;
 
 mod node;
 pub use self::node::{
@@ -300,7 +301,10 @@ impl Octree {
         })
     }
 
-    pub fn nodes_in_location<'a>(&'a self, container: &'a PointCulling<f64>) -> NodeIdIterator<'a> {
+    pub fn nodes_in_location<'a>(
+        &'a self,
+        container: Arc<Box<PointCulling<f64>>>,
+    ) -> NodeIdIterator<'a> {
         let filter_func = Box::new(move |node_id: &NodeId, octree: &Octree| {
             let current = &octree.nodes[&node_id];
             container.intersects(&current.bounding_cube.to_aabb3())
@@ -311,7 +315,7 @@ impl Octree {
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
     pub fn points_in_node<'a>(
         &'a self,
-        container: &'a PointCulling<f64>,
+        container: Arc<Box<PointCulling<f64>>>,
         node_id: NodeId,
     ) -> FilteredPointsIterator<'a> {
         let filter_func =

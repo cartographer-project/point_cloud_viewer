@@ -8,6 +8,7 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use num::clamp;
+use point_viewer::math::PointCulling;
 use point_viewer::{color::Color, octree, Point};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
@@ -18,7 +19,7 @@ use std::error::Error;
 use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc};
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
@@ -381,9 +382,10 @@ pub fn xray_from_points(
     tile_background_color: Color<u8>,
 ) -> bool {
     let mut seen_any_points = false;
-    let node_iterator = octree.nodes_in_location(bbox);
+    let container: Arc<Box<PointCulling<f64>>> = Arc::new(Box::new(bbox));
+    let node_iterator = octree.nodes_in_location(container);
     for node_id in node_iterator {
-        octree.points_in_node(bbox, node_id).for_each(|p| {
+        octree.points_in_node(container, node_id).for_each(|p| {
             seen_any_points = true;
             // We want a right handed coordinate system with the x-axis of world and images aligning.
             // This means that the y-axis aligns too, but the origin of the image space must be at the
