@@ -139,20 +139,6 @@ impl Cube {
     }
 }
 
-// impl PointCulling<f64> for Cube {
-//     fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
-//         let aabb_cube = self.to_aabb3();
-//         aabb_cube.intersects(aabb)
-//     }
-
-//     fn contains(&self, p: &Point3<f64>) -> bool {
-//         let aabb_cube = self.to_aabb3();
-//         aabb_cube.contains(p);
-//     }
-
-//     fn transform(&self, Isometry3<S>)
-// }
-
 // This guards against the separating axes being NaN, which may happen when the orientation aligns with the unit axes.
 fn is_finite<S: BaseFloat>(vec: &Vector3<S>) -> bool {
     vec.x.is_finite() && vec.y.is_finite() && vec.z.is_finite()
