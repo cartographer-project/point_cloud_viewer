@@ -5,8 +5,9 @@ use cgmath::Point3;
 use collision::Aabb3;
 use point_cloud_client::PointCloudClient;
 use point_viewer::errors::*;
-use point_viewer::octree::{OctreeFactory, PointCulling, PointLocation};
+use point_viewer::octree::{OctreeFactory, PointLocation};
 use point_viewer::PointData;
+use std::sync::Arc;
 use structopt::StructOpt;
 
 fn point3f64_from_str(s: &str) -> std::result::Result<Point3<f64>, &'static str> {
@@ -55,7 +56,7 @@ fn main() {
     let point_cloud_client = PointCloudClient::new(&args.locations, OctreeFactory::new())
         .expect("Couldn't create octree client.");
     let point_location = PointLocation {
-        culling: PointCulling::Aabb(Aabb3::new(args.min, args.max)),
+        culling: Arc::new(Box::new(Aabb3::new(args.min, args.max))),
         global_from_local: None,
     };
     let mut point_count: usize = 0;

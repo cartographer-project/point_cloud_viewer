@@ -297,7 +297,7 @@ impl OctreeService {
                         _ => {
                             return Err(std::io::Error::new(
                                 std::io::ErrorKind::InvalidData,
-                                format!("Color format is not u8"),
+                                "Color format is not u8",
                             )
                             .into());
                         }
@@ -308,7 +308,7 @@ impl OctreeService {
                         _ => {
                             return Err(std::io::Error::new(
                                 std::io::ErrorKind::InvalidData,
-                                format!("Intensity format is not f32"),
+                                "Intensity format is not f32",
                             )
                             .into());
                         }
@@ -323,7 +323,8 @@ impl OctreeService {
 
                 let mut batch_iterator =
                     BatchIterator::new(&service_data.octree, &query, num_points_per_batch);
-                batch_iterator.try_for_each_batch(func); // todo (catevita) do some test
+                // todo (catevita) missing error handling for the thread
+                let _result = batch_iterator.try_for_each_batch(func);
             }
             tx.send((reply, WriteFlags::default())).unwrap();
         });

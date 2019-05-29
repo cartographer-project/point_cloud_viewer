@@ -20,8 +20,8 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use point_viewer::octree::{octree_from_directory, OctreeFactory};
-use point_viewer::Point;
+use point_viewer::math::AllPoints;
+use point_viewer::octree::{octree_from_directory, BatchIterator, OctreeFactory, PointLocation};
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
 use point_viewer_grpc_proto_rust::proto;
@@ -71,14 +71,20 @@ fn server_benchmark(octree_directory: &Path, num_points: u64) {
         )
     });
     let mut counter: u64 = 0;
-    octree.all_points().for_each(|_p: Point| {
-        if counter % 1_000_000 == 0 {
-            println!("Streamed {}M points", counter / 1_000_000);
-        }
-        counter += 1;
-        if counter == num_points {
+    let all_points = PointLocation {
+        culling: Arc::new(Box::new(AllPoints {})),
+        global_from_local: None,
+    };
+    let mut batch_iterator = BatchIterator::new(&octree, &all_points, 1_000_000);
+    let mut num_batches = 0;
+    let _result = batch_iterator.try_for_each_batch(move |_| {
+        num_batches += 1;
+        counter = num_batches * 1_000_000;
+        if counter >= num_points {
             std::process::exit(0)
         }
+        println!("Streamed {}M points", num_batches);
+        Ok(())
     });
 }
 
