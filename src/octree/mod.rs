@@ -16,7 +16,7 @@ use crate::errors::*;
 use crate::math::{Cube, Isometry3, PointCulling};
 use crate::proto;
 use crate::Point;
-use cgmath::{Decomposed, EuclideanSpace, Matrix4, Point3, Vector4};
+use cgmath::{BaseFloat, Decomposed, EuclideanSpace, Matrix4, Point3, Vector4};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
@@ -381,20 +381,23 @@ fn maybe_push_node(
 }
 
 // TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
-pub fn contains(projection_matrix: &Matrix4<f64>, point: &Point3<f64>) -> bool {
-    let v = Vector4::new(point.x, point.y, point.z, 1.);
+pub fn contains<S: BaseFloat>(projection_matrix: &Matrix4<S>, point: &Point3<S>) -> bool {
+    let v = Vector4::new(point.x, point.y, point.z, S::one());
     let clip_v = projection_matrix * v;
-    clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z && clip_v.z < clip_v.w
+    clip_v.x.abs() < clip_v.w
+        && clip_v.y.abs() < clip_v.w
+        && S::zero() < clip_v.z
+        && clip_v.z < clip_v.w
 }
 
 #[derive(Debug, Clone)]
-pub struct Frustum {
-    pub matrix: Matrix4<f64>,
-    pub frustum: collision::Frustum<f64>,
+pub struct Frustum<S: BaseFloat> {
+    pub matrix: Matrix4<S>,
+    pub frustum: collision::Frustum<S>,
 }
 
-impl Frustum {
-    pub fn new(matrix: Matrix4<f64>) -> Self {
+impl<S: BaseFloat> Frustum<S> {
+    pub fn new(matrix: Matrix4<S>) -> Self {
         Frustum {
             matrix,
             frustum: collision::Frustum::from_matrix4(matrix).unwrap(),
@@ -402,12 +405,15 @@ impl Frustum {
     }
 }
 
-impl PointCulling<f64> for Frustum {
-    fn contains(&self, point: &Point3<f64>) -> bool {
+impl<S> PointCulling<S> for Frustum<S>
+where
+    S: BaseFloat + 'static + Sync + Send,
+{
+    fn contains(&self, point: &Point3<S>) -> bool {
         contains(&self.matrix, point)
     }
 
-    fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
+    fn intersects(&self, aabb: &Aabb3<S>) -> bool {
         match self.frustum.contains(aabb) {
             Relation::Cross => true,
             Relation::In => true,
@@ -415,9 +421,9 @@ impl PointCulling<f64> for Frustum {
         }
     }
 
-    fn transform(&self, isometry: &Isometry3<f64>) -> Box<PointCulling<f64>> {
+    fn transform(&self, isometry: Isometry3<S>) -> Box<PointCulling<S>> {
         let matrix = Matrix4::from(Decomposed {
-            scale: 1.0,
+            scale: S::one(),
             rot: isometry.rotation,
             disp: isometry.translation,
         }) * self.matrix;

@@ -9,6 +9,7 @@ use std::sync::Arc;
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
+#[derive(Clone, Debug)]
 pub struct PointLocation {
     pub culling: Arc<Box<PointCulling<f64>>>,
     // If set, culling and the returned points are interpreted to be in local coordinates.
@@ -119,7 +120,7 @@ pub struct BatchIterator<'a> {
 impl<'a> BatchIterator<'a> {
     pub fn new(octree: &'a octree::Octree, location: &'a PointLocation, batch_size: usize) -> Self {
         let culling: Arc<Box<PointCulling<f64>>> = match &location.global_from_local {
-            Some(global_from_local) => Arc::from(location.culling.transform(&global_from_local)),
+            Some(global_from_local) => Arc::from(location.culling.transform(*global_from_local)),
             None => location.culling.clone(),
         };
         let local_from_global = location.global_from_local.clone().map(|t| t.inverse());

@@ -382,22 +382,24 @@ pub fn xray_from_points(
     tile_background_color: Color<u8>,
 ) -> bool {
     let mut seen_any_points = false;
-    let container: Arc<Box<PointCulling<f64>>> = Arc::new(Box::new(bbox));
-    let node_iterator = octree.nodes_in_location(container);
+    let container: Arc<Box<PointCulling<f64>>> = Arc::new(Box::from(*bbox));
+    let node_iterator = octree.nodes_in_location(Arc::clone(&container));
     for node_id in node_iterator {
-        octree.points_in_node(container, node_id).for_each(|p| {
-            seen_any_points = true;
-            // We want a right handed coordinate system with the x-axis of world and images aligning.
-            // This means that the y-axis aligns too, but the origin of the image space must be at the
-            // bottom left. Since images have their origin at the top left, we need actually have to
-            // invert y and go from the bottom of the image.
-            let x =
-                (((p.position.x - bbox.min().x) / bbox.dim().x) * f64::from(image_width)) as u32;
-            let y = ((1. - ((p.position.y - bbox.min().y) / bbox.dim().y))
-                * f64::from(image_height)) as u32;
-            let z = (((p.position.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
-            coloring_strategy.process_discretized_point(&p, x, y, z);
-        })
+        octree
+            .points_in_node(Arc::clone(&container), node_id)
+            .for_each(|p| {
+                seen_any_points = true;
+                // We want a right handed coordinate system with the x-axis of world and images aligning.
+                // This means that the y-axis aligns too, but the origin of the image space must be at the
+                // bottom left. Since images have their origin at the top left, we need actually have to
+                // invert y and go from the bottom of the image.
+                let x = (((p.position.x - bbox.min().x) / bbox.dim().x) * f64::from(image_width))
+                    as u32;
+                let y = ((1. - ((p.position.y - bbox.min().y) / bbox.dim().y))
+                    * f64::from(image_height)) as u32;
+                let z = (((p.position.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
+                coloring_strategy.process_discretized_point(&p, x, y, z);
+            })
     }
 
     if !seen_any_points {

@@ -141,7 +141,7 @@ impl proto_grpc::Octree for OctreeService {
             culling: Arc::new(Box::new(octree::Frustum::new(frustum_matrix))),
             global_from_local: None,
         };
-        self.stream_points_back_to_sink(&point_location, &req.octree_id, &ctx, resp)
+        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
     }
 
     fn get_points_in_box(
@@ -163,7 +163,7 @@ impl proto_grpc::Octree for OctreeService {
             culling: Arc::new(Box::new(bounding_box)),
             global_from_local: None,
         };
-        self.stream_points_back_to_sink(&point_location, &req.octree_id, &ctx, resp)
+        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
     }
 
     fn get_all_points(
@@ -176,7 +176,7 @@ impl proto_grpc::Octree for OctreeService {
             culling: Arc::new(Box::new(AllPoints {})),
             global_from_local: None,
         };
-        self.stream_points_back_to_sink(&point_location, &req.octree_id, &ctx, resp)
+        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
     }
 
     fn get_points_in_oriented_beam(
@@ -205,14 +205,14 @@ impl proto_grpc::Octree for OctreeService {
             culling: Arc::new(Box::new(beam)),
             global_from_local: None,
         };
-        self.stream_points_back_to_sink(&point_location, &req.octree_id, &ctx, resp)
+        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
     }
 }
 
 impl OctreeService {
     fn stream_points_back_to_sink(
         &self,
-        query: &PointLocation,
+        query: PointLocation,
         octree_id: &str,
         ctx: &RpcContext,
         resp: ServerStreamingSink<proto::PointsReply>,
@@ -264,7 +264,7 @@ impl OctreeService {
 
             // Proto message must be below 4 MB.
             let max_message_size = 4 * 1024 * 1024;
-            let mut num_points_per_batch: usize = max_message_size / bytes_per_point as usize;
+            let num_points_per_batch: usize = max_message_size / bytes_per_point as usize;
 
             {
                 // Extra scope to make sure that 'func' does not outlive 'reply'.
@@ -294,7 +294,7 @@ impl OctreeService {
                                 v
                             })
                             .collect(),
-                        None => {
+                        _ => {
                             return Err(std::io::Error::new(
                                 std::io::ErrorKind::InvalidData,
                                 format!("Color format is not u8"),
@@ -304,8 +304,8 @@ impl OctreeService {
                     };
 
                     reply.intensities = match p_data.layers.get(&"intensity".to_string()) {
-                        Some(LayerData::F32(data)) => *data,
-                        None => {
+                        Some(LayerData::F32(data)) => data.clone(),
+                        _ => {
                             return Err(std::io::Error::new(
                                 std::io::ErrorKind::InvalidData,
                                 format!("Intensity format is not f32"),
@@ -321,8 +321,8 @@ impl OctreeService {
                     Ok(())
                 };
 
-                let batch_iterator =
-                    BatchIterator::new(&service_data.octree, query, num_points_per_batch);
+                let mut batch_iterator =
+                    BatchIterator::new(&service_data.octree, &query, num_points_per_batch);
                 batch_iterator.try_for_each_batch(func); // todo (catevita) do some test
             }
             tx.send((reply, WriteFlags::default())).unwrap();

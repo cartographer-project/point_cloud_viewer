@@ -18,15 +18,16 @@ use cgmath::{
 use collision::{Aabb, Aabb3, Contains};
 use num_traits::identities::One;
 use num_traits::Float;
+use std::fmt::Debug;
 use std::ops::Mul;
 
-pub trait PointCulling<S>: PointCullingClone<S>
+pub trait PointCulling<S>: PointCullingClone<S> + Debug + Sync + Send
 where
-    S: BaseFloat + Sync,
+    S: BaseFloat + Sync + Send,
 {
     fn contains(&self, point: &Point3<S>) -> bool;
     fn intersects(&self, aabb: &Aabb3<S>) -> bool;
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>>;
+    fn transform(&self, isometry: Isometry3<S>) -> Box<PointCulling<S>>;
 }
 
 // Splitting PointCullingClone into its own trait allows us to provide a blanket
@@ -40,8 +41,8 @@ pub trait PointCullingClone<S: BaseFloat> {
 
 impl<T, S> PointCullingClone<S> for T
 where
-    S: BaseFloat + Sync,
-    T: 'static + PointCulling<S> + Clone,
+    S: BaseFloat + Sync + Send,
+    T: PointCulling<S> + Clone,
 {
     fn clone_box(&self) -> Box<PointCulling<S>> {
         Box::new(self.clone())
@@ -56,7 +57,10 @@ impl<S: BaseFloat> Clone for Box<PointCulling<S>> {
 }
 
 // PointCulling for Aabb3
-impl<S: 'static + BaseFloat + Sync> PointCulling<S> for Aabb3<S> {
+impl<S> PointCulling<S> for Aabb3<S>
+where
+    S: 'static + BaseFloat + Sync + Send,
+{
     fn intersects(&self, aabb: &Aabb3<S>) -> bool {
         let separating_axes = &[Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
         intersects(&self.to_corners(), separating_axes, aabb)
@@ -66,7 +70,7 @@ impl<S: 'static + BaseFloat + Sync> PointCulling<S> for Aabb3<S> {
         Contains::contains(self, p)
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+    fn transform(&self, isometry: Isometry3<S>) -> Box<PointCulling<S>> {
         Obb::from(*self).transform(isometry)
     }
 }
@@ -75,14 +79,17 @@ impl<S: 'static + BaseFloat + Sync> PointCulling<S> for Aabb3<S> {
 #[derive(Clone, Debug)]
 pub struct AllPoints {}
 
-impl<S: BaseFloat + Sync> PointCulling<S> for AllPoints {
+impl<S> PointCulling<S> for AllPoints
+where
+    S: BaseFloat + Sync + Send,
+{
     fn intersects(&self, _aabb: &Aabb3<S>) -> bool {
         true
     }
     fn contains(&self, _p: &Point3<S>) -> bool {
         true
     }
-    fn transform(&self, _isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+    fn transform(&self, _isometry: Isometry3<S>) -> Box<PointCulling<S>> {
         Box::new(AllPoints {})
     }
 }
@@ -308,7 +315,10 @@ impl<S: BaseFloat> Obb<S> {
     }
 }
 
-impl<S: 'static + BaseFloat + Sync> PointCulling<S> for Obb<S> {
+impl<S> PointCulling<S> for Obb<S>
+where
+    S: BaseFloat + Sync + Send,
+{
     fn intersects(&self, aabb: &Aabb3<S>) -> bool {
         intersects(&self.corners, &self.separating_axes, aabb)
     }
@@ -321,9 +331,9 @@ impl<S: 'static + BaseFloat + Sync> PointCulling<S> for Obb<S> {
             && z.abs() <= self.half_extent.z
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+    fn transform(&self, isometry: Isometry3<S>) -> Box<PointCulling<S>> {
         Box::new(Self::new(
-            isometry * &self.isometry_inv.inverse(),
+            isometry * self.isometry_inv.inverse(),
             self.half_extent,
         ))
     }
@@ -387,7 +397,10 @@ impl<S: BaseFloat> OrientedBeam<S> {
     }
 }
 
-impl<S: 'static + BaseFloat + Sync> PointCulling<S> for OrientedBeam<S> {
+impl<S> PointCulling<S> for OrientedBeam<S>
+where
+    S: BaseFloat + Sync + Send,
+{
     fn intersects(&self, aabb: &Aabb3<S>) -> bool {
         intersects(&self.corners, &self.separating_axes, aabb)
     }
@@ -399,9 +412,9 @@ impl<S: 'static + BaseFloat + Sync> PointCulling<S> for OrientedBeam<S> {
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+    fn transform(&self, isometry: Isometry3<S>) -> Box<PointCulling<S>> {
         Box::new(Self::new(
-            isometry * &self.isometry_inv.inverse(),
+            isometry * self.isometry_inv.inverse(),
             self.half_extent,
         ))
     }
