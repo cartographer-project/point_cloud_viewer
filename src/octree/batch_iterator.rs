@@ -120,7 +120,7 @@ pub struct BatchIterator<'a> {
 impl<'a> BatchIterator<'a> {
     pub fn new(octree: &'a octree::Octree, location: &'a PointLocation, batch_size: usize) -> Self {
         let culling: Arc<Box<PointCulling<f64>>> = match &location.global_from_local {
-            Some(global_from_local) => Arc::from(location.culling.transform(*global_from_local)),
+            Some(global_from_local) => Arc::from(location.culling.transform(&global_from_local)),
             None => location.culling.clone(),
         };
         let local_from_global = location.global_from_local.clone().map(|t| t.inverse());

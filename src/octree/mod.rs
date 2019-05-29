@@ -421,7 +421,7 @@ where
         }
     }
 
-    fn transform(&self, isometry: Isometry3<S>) -> Box<PointCulling<S>> {
+    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
         let matrix = Matrix4::from(Decomposed {
             scale: S::one(),
             rot: isometry.rotation,
