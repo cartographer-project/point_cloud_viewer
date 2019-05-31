@@ -2,12 +2,10 @@
 #![allow(clippy::redundant_closure)]
 
 use cgmath::Point3;
-use collision::Aabb3;
 use point_cloud_client::PointCloudClient;
 use point_viewer::errors::{ErrorKind, Result};
-use point_viewer::octree::{OctreeFactory, PointLocation};
+use point_viewer::octree::{GeoFence, OctreeFactory, PointLocation};
 use point_viewer::PointData;
-use std::sync::Arc;
 use structopt::StructOpt;
 
 fn point3f64_from_str(s: &str) -> std::result::Result<Point3<f64>, &'static str> {
@@ -35,7 +33,7 @@ struct CommandlineArguments {
         default_value = "-500.0 -500.0 -500.0",
         parse(try_from_str = "point3f64_from_str")
     )]
-    min: Point3<f64>,
+    _min: Point3<f64>,
 
     /// The maximum value of the bounding box to be queried.
     #[structopt(
@@ -43,7 +41,7 @@ struct CommandlineArguments {
         default_value = "500.0 500.0 500.0",
         parse(try_from_str = "point3f64_from_str")
     )]
-    max: Point3<f64>,
+    _max: Point3<f64>,
 
     /// The maximum number of points to return.
     #[structopt(long = "num-points", default_value = "50000000")]
@@ -56,7 +54,7 @@ fn main() {
     let point_cloud_client = PointCloudClient::new(&args.locations, OctreeFactory::new())
         .expect("Couldn't create octree client.");
     let point_location = PointLocation {
-        culling: Arc::new(Box::new(Aabb3::new(args.min, args.max))),
+        geo_fence: GeoFence::AllPoints(),
         global_from_local: None,
     };
     let mut point_count: usize = 0;

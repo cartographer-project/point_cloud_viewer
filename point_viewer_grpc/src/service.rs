@@ -25,7 +25,7 @@ use grpcio::{
     UnarySink, WriteFlags,
 };
 use point_viewer::errors::*;
-use point_viewer::math::{AllPoints, Isometry3, OrientedBeam};
+use point_viewer::math::{Isometry3, OrientedBeam};
 use point_viewer::octree::{self, BatchIterator, NodeId, Octree, OctreeFactory, PointLocation};
 use point_viewer::{LayerData, PointData};
 use protobuf::Message;
@@ -138,7 +138,7 @@ impl proto_grpc::Octree for OctreeService {
         };
         let frustum_matrix = projection_matrix.concat(&view_transform.into());
         let point_location = PointLocation {
-            culling: Arc::new(Box::new(octree::Frustum::new(frustum_matrix))),
+            geo_fence: octree::GeoFence::Frustum(frustum_matrix),
             global_from_local: None,
         };
         self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
@@ -160,7 +160,7 @@ impl proto_grpc::Octree for OctreeService {
             )
         };
         let point_location = PointLocation {
-            culling: Arc::new(Box::new(bounding_box)),
+            geo_fence: octree::GeoFence::Aabb(bounding_box),
             global_from_local: None,
         };
         self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
@@ -173,7 +173,7 @@ impl proto_grpc::Octree for OctreeService {
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
         let point_location = PointLocation {
-            culling: Arc::new(Box::new(AllPoints {})),
+            geo_fence: octree::GeoFence::AllPoints(),
             global_from_local: None,
         };
         self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
@@ -202,7 +202,7 @@ impl proto_grpc::Octree for OctreeService {
 
         let beam = OrientedBeam::new(Isometry3::new(rotation, translation), half_extent);
         let point_location = PointLocation {
-            culling: Arc::new(Box::new(beam)),
+            geo_fence: octree::GeoFence::OrientedBeam(beam),
             global_from_local: None,
         };
         self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)

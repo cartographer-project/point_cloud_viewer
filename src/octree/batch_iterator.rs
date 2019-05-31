@@ -1,7 +1,7 @@
 use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Isometry3, Obb, OrientedBeam};
-use crate::octree::{self, FilteredPointsIterator, Frustum, Octree};
+use crate::octree::{self, FilteredPointsIterator, Octree};
 use crate::{LayerData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
@@ -12,11 +12,11 @@ pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
 #[derive(Debug, Clone)]
 pub enum GeoFence {
-    Aabb(Aabb3<f64>),
-    Obb(Obb<f64>),
-    Frustum(Matrix4<f64>),
-    OrientedBeam(OrientedBeam<f64>),
     AllPoints(),
+    Aabb(Aabb3<f64>),
+    Frustum(Matrix4<f64>),
+    Obb(Obb<f64>),
+    OrientedBeam(OrientedBeam<f64>),
 }
 
 #[derive(Clone, Debug)]
@@ -28,17 +28,17 @@ pub struct PointLocation {
 
 impl PointLocation {
     pub fn get_point_culling(&self) -> Box<PointCulling<f64>> {
-        let culling: PointCulling<f64> = match self.geo_fence {
-            Geofence::Aabb(aabb) => aabb,
-            Geofence::Obb(obb) => obb,
-            Geofence::OrientedBeam(beam) => beam,
-            Geofence::Frustum(matrix) => octree::Frustum::new(matrix),
-            Geofence::AllPoints() => AllPoints {},
+        let culling: Box<PointCulling<f64>> = match &self.geo_fence {
+            GeoFence::AllPoints() => return Box::new(AllPoints {}),
+            GeoFence::Aabb(aabb) => Box::new(*aabb),
+            GeoFence::Frustum(matrix) => Box::new(octree::Frustum::new(*matrix)),
+            GeoFence::Obb(obb) => Box::new(obb.clone()),
+            GeoFence::OrientedBeam(beam) => Box::new(beam.clone()),
         };
-        match self.global_from_local {
+        match &self.global_from_local {
             Some(global_from_local) => culling.transform(&global_from_local),
-            None => Box::new(culling),
-        };
+            None => culling,
+        }
     }
 }
 

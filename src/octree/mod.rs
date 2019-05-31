@@ -23,7 +23,6 @@ use num::clamp;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
-use std::sync::Arc;
 
 mod node;
 pub use self::node::{
@@ -46,7 +45,7 @@ mod octree_iterator;
 pub use self::octree_iterator::{FilteredPointsIterator, NodeIdIterator};
 
 mod batch_iterator;
-pub use self::batch_iterator::{BatchIterator, PointLocation, NUM_POINTS_PER_BATCH};
+pub use self::batch_iterator::{BatchIterator, GeoFence, PointLocation, NUM_POINTS_PER_BATCH};
 
 #[cfg(test)]
 mod octree_test;
@@ -301,10 +300,8 @@ impl Octree {
         })
     }
 
-    pub fn nodes_in_location<'a>(
-        &'a self,
-        container: &PointLocation,
-    ) -> NodeIdIterator<'a> {
+    pub fn nodes_in_location<'a>(&'a self, location: &PointLocation) -> NodeIdIterator<'a> {
+        let container = location.get_point_culling();
         let filter_func = Box::new(move |node_id: &NodeId, octree: &Octree| {
             let current = &octree.nodes[&node_id];
             container.intersects(&current.bounding_cube.to_aabb3())
@@ -315,9 +312,10 @@ impl Octree {
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
     pub fn points_in_node<'a>(
         &'a self,
-        container: &PointLocation,
+        location: &PointLocation,
         node_id: NodeId,
     ) -> FilteredPointsIterator<'a> {
+        let container = location.get_point_culling();
         let filter_func =
             Box::new(move |p: &Point| container.contains(&Point3::from_vec(p.position)));
         FilteredPointsIterator::new(&self, node_id, filter_func)

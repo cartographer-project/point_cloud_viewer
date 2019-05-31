@@ -20,8 +20,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use point_viewer::math::AllPoints;
-use point_viewer::octree::{octree_from_directory, BatchIterator, OctreeFactory, PointLocation};
+use point_viewer::octree::{
+    octree_from_directory, BatchIterator, GeoFence, OctreeFactory, PointLocation,
+};
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
 use point_viewer_grpc_proto_rust::proto;
@@ -72,7 +73,7 @@ fn server_benchmark(octree_directory: &Path, num_points: u64) {
     });
     let mut counter: u64 = 0;
     let all_points = PointLocation {
-        culling: Arc::new(Box::new(AllPoints {})),
+        geo_fence: GeoFence::AllPoints(),
         global_from_local: None,
     };
     let mut batch_iterator = BatchIterator::new(&octree, &all_points, 1_000_000);
