@@ -37,13 +37,12 @@ impl<'a> Iterator for FilteredPointsIterator<'a> {
     type Item = Point;
 
     fn next(&mut self) -> Option<Point> {
-        loop {
-            while let Some(point) = self.node_iterator.next() {
-                if (self.filter_func)(&point) {
-                    return Some(point);
-                }
+        while let Some(point) = self.node_iterator.next() {
+            if (self.filter_func)(&point) {
+                return Some(point);
             }
         }
+        None
     }
 }
 

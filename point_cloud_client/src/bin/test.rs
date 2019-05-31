@@ -4,7 +4,7 @@
 use cgmath::Point3;
 use collision::Aabb3;
 use point_cloud_client::PointCloudClient;
-use point_viewer::errors::*;
+use point_viewer::errors::{ErrorKind, Result};
 use point_viewer::octree::{OctreeFactory, PointLocation};
 use point_viewer::PointData;
 use std::sync::Arc;
