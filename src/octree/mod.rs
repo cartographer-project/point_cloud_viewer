@@ -303,7 +303,7 @@ impl Octree {
 
     pub fn nodes_in_location<'a>(
         &'a self,
-        container: Arc<Box<PointCulling<f64>>>,
+        container: &PointLocation,
     ) -> NodeIdIterator<'a> {
         let filter_func = Box::new(move |node_id: &NodeId, octree: &Octree| {
             let current = &octree.nodes[&node_id];
@@ -315,7 +315,7 @@ impl Octree {
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
     pub fn points_in_node<'a>(
         &'a self,
-        container: Arc<Box<PointCulling<f64>>>,
+        container: &PointLocation,
         node_id: NodeId,
     ) -> FilteredPointsIterator<'a> {
         let filter_func =

@@ -1,19 +1,45 @@
 use crate::errors::*;
-use crate::math::{Isometry3, PointCulling};
-use crate::octree::{self, FilteredPointsIterator, Octree};
+use crate::math::PointCulling;
+use crate::math::{AllPoints, Isometry3, Obb, OrientedBeam};
+use crate::octree::{self, FilteredPointsIterator, Frustum, Octree};
 use crate::{LayerData, Point, PointData};
-use cgmath::{Vector3, Vector4};
+use cgmath::{Matrix4, Vector3, Vector4};
+use collision::Aabb3;
 use fnv::FnvHashMap;
-use std::sync::Arc;
 
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
+#[derive(Debug, Clone)]
+pub enum GeoFence {
+    Aabb(Aabb3<f64>),
+    Obb(Obb<f64>),
+    Frustum(Matrix4<f64>),
+    OrientedBeam(OrientedBeam<f64>),
+    AllPoints(),
+}
+
 #[derive(Clone, Debug)]
 pub struct PointLocation {
-    pub culling: Arc<Box<PointCulling<f64>>>,
+    pub geo_fence: GeoFence,
     // If set, culling and the returned points are interpreted to be in local coordinates.
     pub global_from_local: Option<Isometry3<f64>>,
+}
+
+impl PointLocation {
+    pub fn get_point_culling(&self) -> Box<PointCulling<f64>> {
+        let culling: PointCulling<f64> = match self.geo_fence {
+            Geofence::Aabb(aabb) => aabb,
+            Geofence::Obb(obb) => obb,
+            Geofence::OrientedBeam(beam) => beam,
+            Geofence::Frustum(matrix) => octree::Frustum::new(matrix),
+            Geofence::AllPoints() => AllPoints {},
+        };
+        match self.global_from_local {
+            Some(global_from_local) => culling.transform(&global_from_local),
+            None => Box::new(culling),
+        };
+    }
 }
 
 /// current implementation of the stream of points used in BatchIterator
@@ -112,22 +138,19 @@ where
 /// Iterator on point batches
 pub struct BatchIterator<'a> {
     octree: &'a Octree,
-    culling: Arc<Box<PointCulling<f64>>>,
-    local_from_global: Option<Isometry3<f64>>,
+    point_location: &'a PointLocation,
     batch_size: usize,
 }
 
 impl<'a> BatchIterator<'a> {
-    pub fn new(octree: &'a octree::Octree, location: &'a PointLocation, batch_size: usize) -> Self {
-        let culling: Arc<Box<PointCulling<f64>>> = match &location.global_from_local {
-            Some(global_from_local) => Arc::from(location.culling.transform(&global_from_local)),
-            None => location.culling.clone(),
-        };
-        let local_from_global = location.global_from_local.clone().map(|t| t.inverse());
+    pub fn new(
+        octree: &'a octree::Octree,
+        point_location: &'a PointLocation,
+        batch_size: usize,
+    ) -> Self {
         BatchIterator {
             octree,
-            culling,
-            local_from_global,
+            point_location,
             batch_size,
         }
     }
@@ -138,14 +161,18 @@ impl<'a> BatchIterator<'a> {
         F: FnMut(PointData) -> Result<()>,
     {
         //todo (catevita) mutable function parallelization
-        let mut point_stream =
-            PointStream::new(self.batch_size, self.local_from_global.clone(), &mut func);
+        let local_from_global = self
+            .point_location
+            .global_from_local
+            .clone()
+            .map(|t| t.inverse());
+        let mut point_stream = PointStream::new(self.batch_size, local_from_global, &mut func);
         // nodes iterator: retrieve nodes
-        let iterator = self.octree.nodes_in_location(Arc::clone(&self.culling));
+        let iterator = self.octree.nodes_in_location(self.point_location);
         // operate on nodes
         for id in iterator {
             if let Err(err) = point_stream
-                .push_node_and_callback(self.octree.points_in_node(Arc::clone(&self.culling), id))
+                .push_node_and_callback(self.octree.points_in_node(self.point_location, id))
             {
                 return Err(err);
             }

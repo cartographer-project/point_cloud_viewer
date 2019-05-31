@@ -29,6 +29,8 @@ impl PointCloudClient {
     where
         F: FnMut(PointData) -> Result<()>,
     {
+        // todo (catevita) to ensure thread safety the mutable function should be
+        // either invoked from within the thread
         for octree in &self.octrees {
             let mut batch_iterator =
                 BatchIterator::new(octree, point_location, self.num_points_per_batch);
