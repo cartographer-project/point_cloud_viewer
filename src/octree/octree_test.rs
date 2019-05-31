@@ -3,10 +3,9 @@ mod tests {
     use crate::color::Color;
     use crate::errors::Result;
     use crate::generation::build_octree;
-    use crate::math::Isometry3;
     use crate::octree::{self, BatchIterator, PointCulling, PointLocation, NUM_POINTS_PER_BATCH};
     use crate::{Point, PointData};
-    use cgmath::{Matrix3, Point3, Quaternion, Vector3, Zero};
+    use cgmath::{Point3, Vector3};
     use collision::Aabb3;
     use tempdir::TempDir;
 
