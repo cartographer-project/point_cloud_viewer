@@ -37,24 +37,33 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_batch_iterator() {
         let batch_size = NUM_POINTS_PER_BATCH / 10;
         // define function
-        let mut point_count: usize = 0;
-        let mut print_count: usize = 1;
-        let num_points = 25 * batch_size / 10;
+        let mut point_count: i64 = 0;
+        let mut print_count: i64 = 1;
+        let num_points: i64 = 25 * batch_size as i64 / 10;
+        let mut last_batch_size: i64 = 0;
         println!("batch_size= {} ,  num_points= {}", batch_size, num_points);
         let callback_func = |point_data: PointData| -> Result<()> {
-            point_count += point_data.position.len();
-            if point_count >= print_count * 2 * batch_size {
+            last_batch_size = point_data.position.len() as i64;
+            point_count += last_batch_size;
+            if point_count >= print_count * 2 * batch_size as i64 {
                 print_count += 1;
                 println!("Streamed {} points", point_count);
             }
             if point_count >= num_points {
+                println!(
+                    "Maximum number of {} points reached with last batch of {} points.",
+                    num_points, last_batch_size,
+                );
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Interrupted,
-                    format!("Maximum number of {} points reached.", num_points),
+                    format!(
+                        "Maximum number of {} points reached with last batch of {} points.",
+                        num_points, last_batch_size,
+                    ),
                 )
                 .into());
             }
@@ -73,7 +82,8 @@ mod tests {
             .try_for_each_batch(callback_func)
             .expect_err("Test error");
 
-        assert_eq!(3 * batch_size, point_count);
+        assert!(point_count - num_points >= 0);
+        assert!(point_count - last_batch_size - num_points <= 0);
         assert_eq!(2, print_count);
     }
 
