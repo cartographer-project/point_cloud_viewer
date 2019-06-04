@@ -10,6 +10,7 @@ use fnv::FnvHashMap;
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum GeoFence {
     AllPoints(),
