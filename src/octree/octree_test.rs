@@ -35,7 +35,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    //#[ignore]
     fn test_batch_iterator() {
         let batch_size = NUM_POINTS_PER_BATCH / 10;
         // define function

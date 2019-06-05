@@ -43,7 +43,7 @@ pub use self::factory::OctreeFactory;
 
 mod octree_iterator;
 pub use self::octree_iterator::{
-    contains, intersecting_node_ids, AllPointsIterator, FilteredPointsIterator, NodeIdIterator,
+    contains, intersecting_node_ids, AllPointsIterator, FilteredPointsIterator, NodeIdsIterator,
 };
 
 mod batch_iterator;
