@@ -59,7 +59,6 @@ mod tests {
     }
 
     #[test]
-    //#[ignore]
     fn test_batch_iterator() {
         let batch_size = 5000;
         // define function
