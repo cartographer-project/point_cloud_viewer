@@ -43,11 +43,14 @@ pub use self::factory::OctreeFactory;
 
 mod octree_iterator;
 pub use self::octree_iterator::{
-    contains, intersecting_node_ids, AllPointsIterator, FilteredPointsIterator,
+    contains, intersecting_node_ids, AllPointsIterator, FilteredPointsIterator, NodeIdsIterator,
 };
 
 mod batch_iterator;
 pub use self::batch_iterator::{BatchIterator, PointCulling, PointLocation, NUM_POINTS_PER_BATCH};
+
+#[cfg(test)]
+mod octree_test;
 
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
 // (u64). We are able to convert the proto on read, so the tools can still read version 9.
@@ -338,11 +341,11 @@ impl Octree {
         AllPointsIterator::new(&self)
     }
 
+    /// return the bounding box saved in meta
     pub fn bounding_box(&self) -> &Aabb3<f64> {
         &self.meta.bounding_box
     }
 }
-
 struct OpenNode {
     node: Node,
     relation: Relation,
