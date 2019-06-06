@@ -131,14 +131,20 @@ pub fn intersecting_node_ids(
     node_ids
 }
 
-pub struct NodeIdsIterator<'a> {
+pub struct NodeIdsIterator<'a, F>
+where
+    F: Fn(&NodeId, &Octree) -> bool + 'a,
+{
     octree: &'a Octree,
-    filter_func: Box<Fn(&NodeId, &Octree) -> bool + 'a>,
+    filter_func: F,
     node_ids: VecDeque<NodeId>,
 }
 
-impl<'a> NodeIdsIterator<'a> {
-    pub fn new(octree: &'a Octree, filter_func: Box<Fn(&NodeId, &Octree) -> bool + 'a>) -> Self {
+impl<'a, F> NodeIdsIterator<'a, F>
+where
+    F: Fn(&NodeId, &Octree) -> bool + 'a,
+{
+    pub fn new(octree: &'a Octree, filter_func: F) -> Self {
         NodeIdsIterator {
             octree,
             node_ids: vec![NodeId::from_level_index(0, 0)].into(),
@@ -147,7 +153,10 @@ impl<'a> NodeIdsIterator<'a> {
     }
 }
 
-impl<'a> Iterator for NodeIdsIterator<'a> {
+impl<'a, F> Iterator for NodeIdsIterator<'a, F>
+where
+    F: Fn(&NodeId, &Octree) -> bool + 'a,
+{
     type Item = NodeId;
 
     fn next(&mut self) -> Option<NodeId> {
