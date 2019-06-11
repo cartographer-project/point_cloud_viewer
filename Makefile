@@ -8,4 +8,4 @@ protobuf_build/protoc:
 	  -DCMAKE_BUILD_TYPE=Release \
 	  -Dprotobuf_BUILD_TESTS=OFF \
 	  ../third_party/protobuf/cmake
-	ninja
+	cd protobuf_build && ninja
