@@ -5,4 +5,4 @@
 /target
 /xray/client/build
 /xray/client/node_modules
-
+/protobuf_build
