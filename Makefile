@@ -7,5 +7,5 @@ protobuf_build/protoc:
 	  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
 	  -DCMAKE_BUILD_TYPE=Release \
 	  -Dprotobuf_BUILD_TESTS=OFF \
-	  third_party/protobuf/cmake
+	  ../third_party/protobuf/cmake
 	ninja
