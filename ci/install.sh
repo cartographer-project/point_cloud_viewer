@@ -20,8 +20,7 @@ install_javascript_stuff() {
 main() {
     install_javascript_stuff
 
-    make protoc
-    export PATH="$PATH:$HOME/bin"
+    make protobuf
 
     cargo install --force grpcio-compiler
 }

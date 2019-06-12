@@ -10,7 +10,7 @@ It was build to serve the needs of the [Cartographer](https://github.com/googlec
 The project consist of a root crate that can build and read octrees on disk and viewer binaries to visualize the data. For Mac OS X, we assume below that you've installed [Homebrew](https://brew.sh).
 
 - Install Rust: `curl https://sh.rustup.rs -sSf | sh`. See <https://rustup.rs> for details.
-- Install protobuf > 3.0. See the [`protobuf` Makefile target](https://github.com/googlecartographer/point_cloud_viewer/blob/master/Makefile) for Linux or run `brew install protobuf` on Mac OS X.
+- Install `protoc` > 3.0 in `target/protobuf/bin`. The [`protobuf` Makefile target](https://github.com/googlecartographer/point_cloud_viewer/blob/master/Makefile) will compile `protoc` from source and place it there. Alternatively, you can symlink to a `protoc` installed on your system, e.g. from `brew install protobuf` on Mac OS X.
 - Install the rust gRPC protobuf plugin: `cargo install grpcio-compiler` and
   make sure it is in your `$PATH`. This has more dependencies, it requires cmake
   and go. On mac: `brew install cmake go`.
