@@ -27,6 +27,7 @@ pub mod math;
 pub mod octree;
 pub mod ply;
 pub mod pts;
+pub mod s2;
 
 use cgmath::{Vector3, Vector4};
 use fnv::FnvHashMap;
