@@ -20,7 +20,8 @@ install_javascript_stuff() {
 main() {
     install_javascript_stuff
 
-    make protobuf
+    bash ci/install_proto3.sh
+    export PATH="$PATH:$HOME/bin"
 
     cargo install --force grpcio-compiler
 }
