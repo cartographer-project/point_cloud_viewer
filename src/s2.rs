@@ -23,7 +23,7 @@ fn lat_lng_from_point3(point: Point3<f64>) -> LatLng {
 }
 
 pub fn cell_id(ecef: ECEF<f64>, level: u8) -> CellID {
-    CellID::from(lat_lng_from_ecef(ecef)).parent(level as u64)
+    CellID::from(lat_lng_from_ecef(ecef)).parent(u64::from(level))
 }
 
 pub fn cell_ids(
