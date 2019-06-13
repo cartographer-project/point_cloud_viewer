@@ -69,6 +69,7 @@ mod tests {
 
     #[test]
     fn test_cell_id() {
+        // Hofbräuhaus Munich.
         let ecef = ECEF::new(4_177_536., 855_997., 4_727_102.);
         assert_eq!(
             "479e758bb8ddeb63",
