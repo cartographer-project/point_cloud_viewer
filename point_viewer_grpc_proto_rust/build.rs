@@ -56,7 +56,6 @@ fn main() {
         &out_dir,
     )
     .expect("Failed to compile gRPC definitions!");
-
     env::set_var("PATH", old_path.unwrap_or("".to_string()));
 
     inplace_modify_file(&Path::new(&out_dir).join("proto.rs"), |c| {
