@@ -23,18 +23,16 @@ PROTOBUF_DIR=${ROOT_DIR}/target/protobuf
 TMPDIR="$( mktemp -d )"
 
 # Build and install proto3.
-git clone https://github.com/google/protobuf.git ${TMPDIR}
-git clone https://github.com/google/protobuf.git
-cd ${TMPDIR}
+git clone https://github.com/google/protobuf.git ${TMPDIR}/protobuf
+cd ${TMPDIR}/protobuf
 git checkout tags/${VERSION}
-mkdir build
-cd build
+cd ${TMPDIR}
 cmake -G Ninja \
   -DCMAKE_INSTALL_PREFIX=${PROTOBUF_DIR} \
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -Dprotobuf_BUILD_TESTS=OFF \
-  ../cmake
+  protobuf/cmake
 ninja
 ninja install
 rm -rf ${TMPDIR}
