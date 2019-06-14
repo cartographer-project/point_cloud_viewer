@@ -7,15 +7,13 @@ use s2::point::Point;
 use s2::rect::Rect;
 use s2::region::RegionCoverer;
 use s2::s1::angle::{Angle, Rad};
-
-use std::f64::consts::PI;
 use std::vec::Vec;
 
 const LEVEL_MOD: u8 = 1;
-const EARTH_CIRCUMFERENCE_M: f64 = 40_075_017.0;
+const EARTH_RADIUS_M: f64 = 6_371_010.0;
 
-fn earth_m_to_rad(meters: f64) -> f64 {
-    2.0 * PI * meters / EARTH_CIRCUMFERENCE_M
+fn earth_tangent_m_to_rad(meters: f64) -> f64 {
+    2.0 * (0.5 * meters / EARTH_RADIUS_M).atan()
 }
 
 fn lat_lng_from_ecef(ecef: ECEF<f64>) -> LatLng {
@@ -30,19 +28,19 @@ pub fn cell_id(ecef: ECEF<f64>, level: u8) -> CellID {
 }
 
 pub fn cell_ids_rect(
-    ecef: ECEF<f64>,
+    ecef_m: ECEF<f64>,
     extent_m: Vector2<f64>,
     level: u8,
     max_cells: usize,
 ) -> Vec<CellID> {
-    let wgs = WGS84::from(ecef);
+    let wgs = WGS84::from(ecef_m);
     let center = LatLng::new(
         Angle::from(Rad(wgs.latitude())),
         Angle::from(Rad(wgs.longitude())),
     );
     let size = LatLng::new(
-        Angle::from(Rad(earth_m_to_rad(extent_m.x))),
-        Angle::from(Rad(earth_m_to_rad(extent_m.y))),
+        Angle::from(Rad(earth_tangent_m_to_rad(extent_m.x))),
+        Angle::from(Rad(earth_tangent_m_to_rad(extent_m.y))),
     );
     let rect = Rect::from_center_size(center, size);
     let cov = RegionCoverer {
@@ -55,13 +53,18 @@ pub fn cell_ids_rect(
     cu.0
 }
 
-pub fn cell_ids_radius(ecef: ECEF<f64>, radius_m: f64, level: u8, max_cells: usize) -> Vec<CellID> {
-    let wgs = WGS84::from(ecef);
+pub fn cell_ids_radius(
+    ecef_m: ECEF<f64>,
+    radius_m: f64,
+    level: u8,
+    max_cells: usize,
+) -> Vec<CellID> {
+    let wgs = WGS84::from(ecef_m);
     let center = LatLng::new(
         Angle::from(Rad(wgs.latitude())),
         Angle::from(Rad(wgs.longitude())),
     );
-    let radius_rad = earth_m_to_rad(radius_m);
+    let radius_rad = earth_tangent_m_to_rad(radius_m);
     let height = radius_rad * radius_rad / 2.0;
     let cap = Cap::from_center_height(&Point::from(center), height);
     let cov = RegionCoverer {
