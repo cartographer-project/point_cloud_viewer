@@ -266,14 +266,6 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
-name = "build_proto"
-version = "0.1.0"
-dependencies = [
- "protoc-grpcio 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "protoc-rust 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "byteorder"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1576,6 +1568,7 @@ dependencies = [
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "grpcio 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "point_viewer 0.1.0",
+ "proto_helper 0.1.0",
  "protobuf 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "protoc-grpcio 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "protoc-rust 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1585,8 +1578,8 @@ dependencies = [
 name = "point_viewer_proto_rust"
 version = "0.1.0"
 dependencies = [
+ "proto_helper 0.1.0",
  "protobuf 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "protoc-rust 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1595,6 +1588,14 @@ version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "unicode-xid 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "proto_helper"
+version = "0.1.0"
+dependencies = [
+ "protoc-grpcio 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protoc-rust 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

@@ -2,48 +2,71 @@ pub mod build_script {
 
     use std::fs::File;
     use std::io::{Read, Write};
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
-    pub struct ProtoBuilder<'a> {
-        protoc_search_path: Option<&'a Path>,
-        files: Vec<&'a Path>,
+    pub struct ProtoBuilder {
+        protoc_search_path: Option<PathBuf>,
+        files: Vec<PathBuf>,
+        import_paths: Vec<PathBuf>,
         generate_grpc: bool,
     }
 
-    impl<'a> ProtoBuilder<'a> {
-        // The given path to protoc can be relative to the build script.
-        pub fn new(protoc_search_path: Option<&'a Path>) -> Self {
+    impl ProtoBuilder {
+        // The path can be relative to the build script.
+        pub fn new() -> Self {
             Self {
-                protoc_search_path,
+                protoc_search_path: None,
                 files: vec![],
+                import_paths: vec![],
                 generate_grpc: false,
             }
         }
 
-        // Register a file for compilation. The path must be relative to the build script.
-        pub fn file(&mut self, file_path: &'a Path) -> &mut Self {
-            self.files.push(file_path);
+        // The path to the directory where protoc is located. If this is not set, PATH is used.
+        pub fn protoc_search_path<P: AsRef<Path>>(&mut self, protoc_search_path: P) -> &mut Self {
+            self.protoc_search_path = Some(protoc_search_path.as_ref().to_owned());
             self
         }
 
-        pub fn run(self) {
+        // Register a file for compilation. The path must be relative to the build script.
+        pub fn add_file<P: AsRef<Path>>(&mut self, file_path: P) -> &mut Self {
+            self.files.push(file_path.as_ref().to_owned());
+            self
+        }
+
+        pub fn add_import_path<P: AsRef<Path>>(&mut self, import_path: P) -> &mut Self {
+            self.import_paths.push(import_path.as_ref().to_owned());
+            self
+        }
+
+        pub fn grpc(&mut self, generate_grpc: bool) -> &mut Self {
+            self.generate_grpc = generate_grpc;
+            self
+        }
+
+        pub fn run(&mut self) {
             let old_path = std::env::var("PATH");
-            if let Some(search_path) = self.protoc_search_path {
+            if let Some(search_path) = &self.protoc_search_path {
                 std::env::set_var("PATH", search_path);
+            }
+            for imp in self.import_paths.iter_mut() {
+                std::mem::replace(imp, std::fs::canonicalize(&imp).unwrap());
             }
             self.files.iter().for_each(|file| {
                 println!("cargo:rerun-if-changed={}", file.display());
-                compile_proto(file, self.generate_grpc);
+                compile_proto(&file, &self.import_paths, self.generate_grpc);
             });
             std::env::set_var("PATH", old_path.unwrap_or("".to_string()));
         }
     }
 
     // Compile a protobuf. The filepath is relative to the crate root.
-    fn compile_proto(protobuf_file: &Path, generate_grpc: bool) {
+    fn compile_proto(protobuf_file: &Path, import_paths: &Vec<PathBuf>, generate_grpc: bool) {
         // Create parent directories
         let in_dir = protobuf_file.parent().unwrap();
-        std::fs::create_dir_all(in_dir).expect("Could not create dir");
+        let out_dir: String = std::env::var("OUT_DIR").unwrap();
+        let out_dir: &Path = &Path::new(&out_dir).join(in_dir);
+        std::fs::create_dir_all(out_dir).expect("Could not create dir");
 
         // There are different options here:
         // protoc-rust (recommended): Invokes protoc programmatically
@@ -53,29 +76,28 @@ pub mod build_script {
         // protoc-rust-grpc (in the protoc-grpc-rust repo): Also invokes protoc programmatically
         // protoc-grpcio (in the protoc-grpcio repo)
 
-        let out_dir: String = std::env::var("OUT_DIR").unwrap();
-        let out_dir: &Path = Path::new(&out_dir);
         let protobuf_name: &Path = protobuf_file.file_stem().unwrap().as_ref();
-        let includes: &[&str] = &[];
+        println!("cargo:warning=out_dir is {}", out_dir.display());
+        let includes: Vec<&str> = import_paths.iter().map(|p| p.to_str().unwrap()).collect();
 
         if generate_grpc {
             // This generates both protobuf and grpc definitions
-            protoc_grpcio::compile_grpc_protos(&[protobuf_file], includes, out_dir)
+            protoc_grpcio::compile_grpc_protos(&[protobuf_file], includes.as_slice(), out_dir)
                 .expect("Error running protoc (with grpc)");
-            let out_path = out_dir.with_file_name(format!("{}_grpc.rs", protobuf_name.display()));
+            let out_path = out_dir.join(format!("{}_grpc.rs", protobuf_name.display()));
             inplace_modify_file(&out_path, |code| wrap_in_module(code, "grpc"));
         } else {
             let args = protoc_rust::Args {
                 out_dir: out_dir.to_str().unwrap(),
-                includes: includes,
+                includes: includes.as_slice(),
                 input: &[protobuf_file.to_str().unwrap()],
                 ..Default::default()
             };
             protoc_rust::run(args).expect("Error running protoc");
-            let out_path = out_dir.with_file_name(format!("{}.rs", protobuf_name.display()));
+            let out_path = out_dir.join(format!("{}.rs", protobuf_name.display()));
             inplace_modify_file(&out_path, |code| {
-            	let code = replace_clippy(code);
-            	wrap_in_module(code, "proto")
+                let code = replace_clippy(code);
+                wrap_in_module(code, "proto")
             });
         }
     }
@@ -98,7 +120,7 @@ pub mod build_script {
     fn inplace_modify_file<F: FnOnce(String) -> String>(path: &Path, func: F) {
         let mut contents = String::new();
         File::open(&path)
-            .unwrap()
+            .expect(&format!("Could not open {}", path.display()))
             .read_to_string(&mut contents)
             .unwrap();
         let new_contents = func(contents);
