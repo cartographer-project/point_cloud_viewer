@@ -266,6 +266,14 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "build_proto"
+version = "0.1.0"
+dependencies = [
+ "protoc-grpcio 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protoc-rust 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "byteorder"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

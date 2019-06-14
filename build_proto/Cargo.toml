@@ -1,0 +1,11 @@
+[package]
+name = "build_proto"
+version = "0.1.0"
+authors = ["Nikolai Morin <nmorin@lyft.com>"]
+edition = "2018"
+
+[dependencies]
+protoc-rust = "2.0.0"
+protoc-grpcio = "0.2.1"
+
+[build-dependencies]
