@@ -85,7 +85,10 @@ pub mod build_script {
             protoc_grpcio::compile_grpc_protos(&[protobuf_file], includes.as_slice(), out_dir)
                 .expect("Error running protoc (with grpc)");
             let out_path = out_dir.join(format!("{}_grpc.rs", protobuf_name.display()));
-            inplace_modify_file(&out_path, |code| wrap_in_module(code, "grpc"));
+            inplace_modify_file(&out_path, |code| {
+                let code = replace_clippy(code);
+                wrap_in_module(code, "proto_grpc")
+            });
         } else {
             let args = protoc_rust::Args {
                 out_dir: out_dir.to_str().unwrap(),
