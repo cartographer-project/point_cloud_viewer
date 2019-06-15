@@ -65,8 +65,11 @@ pub fn cell_ids_radius(
         Angle::from(Rad(wgs.longitude())),
     );
     let radius_rad = earth_tangent_m_to_rad(radius_m);
-    let height = radius_rad * radius_rad / 2.0;
-    let cap = Cap::from_center_height(&Point::from(center), height);
+    let length2 = radius_rad * radius_rad;
+    let cap = Cap::from_center_chordangle(
+        &Point::from(center),
+        &ChordAngle::from_squared_length(length2),
+    );
     let cov = RegionCoverer {
         min_level: level,
         max_level: level,
