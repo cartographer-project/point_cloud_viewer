@@ -6,7 +6,7 @@ use s2::latlng::LatLng;
 use s2::point::Point;
 use s2::rect::Rect;
 use s2::region::RegionCoverer;
-use s2::s1::angle::{Angle, Rad};
+use s2::s1::angle::{Angle, ChordAngle, Rad};
 use std::vec::Vec;
 
 const LEVEL_MOD: u8 = 1;
