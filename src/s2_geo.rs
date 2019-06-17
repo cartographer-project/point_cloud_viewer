@@ -24,7 +24,9 @@ fn radius_at(lat_rad: f64) -> f64 {
     SEMI_MAJOR_AXIS * (1.0 - FLATTENING * lat_rad_sin * lat_rad_sin)
 }
 
-fn tangent_m_to_rad(meters: f64, lat_rad: f64) -> f64 {
+// TODO(feuerste): This approximates the angle for a point lying on the surface of the earth.
+// The tangent is assumed to be tangential to a sphere, not an ellipsoid.
+fn tangent_m_to_rad_approx(meters: f64, lat_rad: f64) -> f64 {
     2.0 * (0.5 * meters / radius_at(lat_rad)).atan()
 }
 
@@ -53,7 +55,7 @@ pub fn cell_id(ecef: ECEF<f64>, level: u8) -> CellID {
     CellID::from(LatLngExt::from(ecef)).parent(u64::from(level))
 }
 
-pub fn cell_ids_rect(
+pub fn cell_ids_rect_approx(
     ecef_m: ECEF<f64>,
     extent_m: Vector2<f64>,
     level: u8,
@@ -61,8 +63,8 @@ pub fn cell_ids_rect(
 ) -> Vec<CellID> {
     let center = LatLngExt::from(ecef_m);
     let size = LatLngExt::from((
-        tangent_m_to_rad(extent_m.x, center.lat.rad()),
-        tangent_m_to_rad(extent_m.y, center.lat.rad()),
+        tangent_m_to_rad_approx(extent_m.x, center.lat.rad()),
+        tangent_m_to_rad_approx(extent_m.y, center.lat.rad()),
     ));
     let rect = Rect::from_center_size(center, size);
     let cov = RegionCoverer {
@@ -75,14 +77,14 @@ pub fn cell_ids_rect(
     cu.0
 }
 
-pub fn cell_ids_radius(
+pub fn cell_ids_radius_approx(
     ecef_m: ECEF<f64>,
     radius_m: f64,
     level: u8,
     max_num_cells: usize,
 ) -> Vec<CellID> {
     let center = LatLngExt::from(ecef_m);
-    let radius_rad = tangent_m_to_rad(radius_m, center.lat.rad());
+    let radius_rad = tangent_m_to_rad_approx(radius_m, center.lat.rad());
     let length2 = radius_rad * radius_rad;
     let cap = Cap::from_center_chordangle(
         &Point::from(center),
@@ -131,13 +133,13 @@ mod tests {
 
         let tokens_ground_truth = vec!["808fba97497", "808fba97499"];
 
-        let tokens_rect: Vec<String> = cell_ids_rect(ecef_pao, extent, 20, 1000)
+        let tokens_rect: Vec<String> = cell_ids_rect_approx(ecef_pao, extent, 20, 1000)
             .into_iter()
             .map(|cell_id| cell_id.to_token())
             .collect();
         assert_eq!(tokens_ground_truth, tokens_rect);
 
-        let tokens_radius: Vec<String> = cell_ids_radius(ecef_pao, 0.5 * length, 20, 1000)
+        let tokens_radius: Vec<String> = cell_ids_radius_approx(ecef_pao, 0.5 * length, 20, 1000)
             .into_iter()
             .map(|cell_id| cell_id.to_token())
             .collect();
