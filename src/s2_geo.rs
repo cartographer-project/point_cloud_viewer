@@ -22,10 +22,9 @@ trait LatLngExt {
 }
 impl LatLngExt for (f64, f64) {
     fn from(lat_lng_rad: Self) -> LatLng {
-        LatLng::new(
-            Angle::from(Rad(lat_lng_rad.0)),
-            Angle::from(Rad(lat_lng_rad.1)),
-        )
+        let lat = Angle::from(Rad(lat_lng_rad.0));
+        let lng = Angle::from(Rad(lat_lng_rad.1));
+        LatLng::new(lat, lng)
     }
 }
 impl LatLngExt for WGS84<f64> {
