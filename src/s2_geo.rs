@@ -11,10 +11,20 @@ use s2::s1::chordangle::ChordAngle;
 use std::vec::Vec;
 
 const LEVEL_MOD: u8 = 1;
-const EARTH_RADIUS_M: f64 = 6_371_010.0;
 
-fn earth_tangent_m_to_rad(meters: f64) -> f64 {
-    2.0 * (0.5 * meters / EARTH_RADIUS_M).atan()
+// These consts are publicly defined in https://github.com/nordmoen/nav-types/blob/master/src/wgs84.rs,
+// but unfortunately not exposed via the lib.
+const INVERSE_FLATTENING: f64 = 298.257_223_563;
+const FLATTENING: f64 = 1.0 / INVERSE_FLATTENING;
+const SEMI_MAJOR_AXIS: f64 = 6_378_137.0;
+
+fn radius_at(lat_rad: f64) -> f64 {
+    let lat_rad_sin = lat_rad.sin();
+    SEMI_MAJOR_AXIS * (1.0 - FLATTENING * lat_rad_sin * lat_rad_sin)
+}
+
+fn tangent_m_to_rad(meters: f64, lat_rad: f64) -> f64 {
+    2.0 * (0.5 * meters / radius_at(lat_rad)).atan()
 }
 
 trait LatLngExt {
@@ -50,8 +60,8 @@ pub fn cell_ids_rect(
 ) -> Vec<CellID> {
     let center = LatLngExt::from(ecef_m);
     let size = LatLngExt::from((
-        earth_tangent_m_to_rad(extent_m.x),
-        earth_tangent_m_to_rad(extent_m.y),
+        tangent_m_to_rad(extent_m.x, center.lat.rad()),
+        tangent_m_to_rad(extent_m.y, center.lat.rad()),
     ));
     let rect = Rect::from_center_size(center, size);
     let cov = RegionCoverer {
@@ -71,7 +81,7 @@ pub fn cell_ids_radius(
     max_num_cells: usize,
 ) -> Vec<CellID> {
     let center = LatLngExt::from(ecef_m);
-    let radius_rad = earth_tangent_m_to_rad(radius_m);
+    let radius_rad = tangent_m_to_rad(radius_m, center.lat.rad());
     let length2 = radius_rad * radius_rad;
     let cap = Cap::from_center_chordangle(
         &Point::from(center),
@@ -91,6 +101,15 @@ pub fn cell_ids_radius(
 mod tests {
     use super::*;
     use s2::cellid::MAX_LEVEL;
+
+    #[test]
+    fn test_radius() {
+        assert_eq!(SEMI_MAJOR_AXIS, radius_at(0.0));
+        assert_eq!(
+            SEMI_MAJOR_AXIS * (1.0 - FLATTENING),
+            radius_at(std::f64::consts::FRAC_PI_2)
+        );
+    }
 
     #[test]
     fn test_cell_id() {
