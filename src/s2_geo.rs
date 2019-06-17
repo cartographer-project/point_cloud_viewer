@@ -18,6 +18,7 @@ const INVERSE_FLATTENING: f64 = 298.257_223_563;
 const FLATTENING: f64 = 1.0 / INVERSE_FLATTENING;
 const SEMI_MAJOR_AXIS: f64 = 6_378_137.0;
 
+// See https://www.eoas.ubc.ca/~mjelline/Planetary%20class/14gravity1_2.pdf for the formulas.
 fn radius_at(lat_rad: f64) -> f64 {
     let lat_rad_sin = lat_rad.sin();
     SEMI_MAJOR_AXIS * (1.0 - FLATTENING * lat_rad_sin * lat_rad_sin)
