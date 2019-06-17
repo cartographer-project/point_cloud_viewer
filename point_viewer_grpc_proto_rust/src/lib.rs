@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-include!(concat!(env!("OUT_DIR"), "/proto.rs"));
-include!(concat!(env!("OUT_DIR"), "/proto_grpc.rs"));
+include!(concat!(env!("OUT_DIR"), "/src/proto.rs"));
+include!(concat!(env!("OUT_DIR"), "/src/proto_grpc.rs"));

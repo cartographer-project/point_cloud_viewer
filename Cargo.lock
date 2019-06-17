@@ -2935,8 +2935,8 @@ dependencies = [
 name = "xray_proto_rust"
 version = "0.1.0"
 dependencies = [
+ "proto_helper 0.1.0",
  "protobuf 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "protoc-rust 2.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [metadata]
