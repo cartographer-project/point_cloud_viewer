@@ -17,38 +17,49 @@ fn earth_tangent_m_to_rad(meters: f64) -> f64 {
     2.0 * (0.5 * meters / EARTH_RADIUS_M).atan()
 }
 
-fn lat_lng_from_ecef(ecef: ECEF<f64>) -> LatLng {
-    let wgs = WGS84::from(ecef);
-    let lat = Angle::from(Rad(wgs.latitude()));
-    let lng = Angle::from(Rad(wgs.longitude()));
-    LatLng { lat, lng }
+trait LatLngExt {
+    fn from(_: Self) -> LatLng;
+}
+impl LatLngExt for (f64, f64) {
+    fn from(lat_lng_rad: Self) -> LatLng {
+        LatLng::new(
+            Angle::from(Rad(lat_lng_rad.0)),
+            Angle::from(Rad(lat_lng_rad.1)),
+        )
+    }
+}
+impl LatLngExt for WGS84<f64> {
+    fn from(wgs: Self) -> LatLng {
+        LatLngExt::from((wgs.latitude(), wgs.longitude()))
+    }
+}
+impl LatLngExt for ECEF<f64> {
+    fn from(ecef: Self) -> LatLng {
+        LatLngExt::from(std::convert::Into::<WGS84<f64>>::into(ecef))
+    }
 }
 
 pub fn cell_id(ecef: ECEF<f64>, level: u8) -> CellID {
-    CellID::from(lat_lng_from_ecef(ecef)).parent(u64::from(level))
+    CellID::from(LatLngExt::from(ecef)).parent(u64::from(level))
 }
 
 pub fn cell_ids_rect(
     ecef_m: ECEF<f64>,
     extent_m: Vector2<f64>,
     level: u8,
-    max_cells: usize,
+    max_num_cells: usize,
 ) -> Vec<CellID> {
-    let wgs = WGS84::from(ecef_m);
-    let center = LatLng::new(
-        Angle::from(Rad(wgs.latitude())),
-        Angle::from(Rad(wgs.longitude())),
-    );
-    let size = LatLng::new(
-        Angle::from(Rad(earth_tangent_m_to_rad(extent_m.x))),
-        Angle::from(Rad(earth_tangent_m_to_rad(extent_m.y))),
-    );
+    let center = LatLngExt::from(ecef_m);
+    let size = LatLngExt::from((
+        earth_tangent_m_to_rad(extent_m.x),
+        earth_tangent_m_to_rad(extent_m.y),
+    ));
     let rect = Rect::from_center_size(center, size);
     let cov = RegionCoverer {
         min_level: level,
         max_level: level,
         level_mod: LEVEL_MOD,
-        max_cells,
+        max_cells: max_num_cells,
     };
     let cu = cov.covering(&rect);
     cu.0
@@ -58,13 +69,9 @@ pub fn cell_ids_radius(
     ecef_m: ECEF<f64>,
     radius_m: f64,
     level: u8,
-    max_cells: usize,
+    max_num_cells: usize,
 ) -> Vec<CellID> {
-    let wgs = WGS84::from(ecef_m);
-    let center = LatLng::new(
-        Angle::from(Rad(wgs.latitude())),
-        Angle::from(Rad(wgs.longitude())),
-    );
+    let center = LatLngExt::from(ecef_m);
     let radius_rad = earth_tangent_m_to_rad(radius_m);
     let length2 = radius_rad * radius_rad;
     let cap = Cap::from_center_chordangle(
@@ -75,7 +82,7 @@ pub fn cell_ids_radius(
         min_level: level,
         max_level: level,
         level_mod: LEVEL_MOD,
-        max_cells,
+        max_cells: max_num_cells,
     };
     let cu = cov.covering(&cap);
     cu.0
