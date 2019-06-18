@@ -63,7 +63,7 @@ pub fn cell_ids_rect(
     cu.0
 }
 
-pub fn cell_ids_radius_approx(
+pub fn cell_ids_radius_upper_bound(
     ecef_m: ECEF<f64>,
     radius_m: f64,
     level: u8,
@@ -121,7 +121,7 @@ mod tests {
             .collect();
         assert_eq!(tokens_ground_truth, tokens_rect);
 
-        let tokens_radius: Vec<String> = cell_ids_radius_approx(ecef_pao, radius, 20, 1000)
+        let tokens_radius: Vec<String> = cell_ids_radius_upper_bound(ecef_pao, radius, 20, 1000)
             .into_iter()
             .map(|cell_id| cell_id.to_token())
             .collect();
