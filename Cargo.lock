@@ -1227,8 +1227,8 @@ dependencies = [
 
 [[package]]
 name = "nav-types"
-version = "0.3.0"
-source = "git+https://github.com/kjetilkjeka/nav-types#cf8d591f1f6165277e6e1d562ceb97b0f4e6270d"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "nalgebra 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.1.43 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1560,7 +1560,7 @@ dependencies = [
  "error-chain 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.54 (registry+https://github.com/rust-lang/crates.io-index)",
- "nav-types 0.3.0 (git+https://github.com/kjetilkjeka/nav-types)",
+ "nav-types 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "num 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.1.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "pbr 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3105,7 +3105,7 @@ dependencies = [
 "checksum modifier 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "41f5c9112cb662acd3b204077e0de5bc66305fa8df65c8019d5adb10e9ab6e58"
 "checksum nalgebra 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f754f64bd1a5f5899285c2e182df7ddebcecf466369663be2277ca01b6da5d5d"
 "checksum native-tls 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "f74dbadc8b43df7864539cedb7bc91345e532fdd913cfdc23ad94f4d2d40fbc0"
-"checksum nav-types 0.3.0 (git+https://github.com/kjetilkjeka/nav-types)" = "<none>"
+"checksum nav-types 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "cbb1b32e46836f4dfc4ad40048ed3e6f5a6c8537f606afd9d7ad232bfce7be89"
 "checksum net2 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)" = "42550d9fb7b6684a6d404d9fa7250c2eb2646df731d1c06afc06dcee9e1bcf88"
 "checksum nix 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)" = "46f0f3210768d796e8fa79ec70ee6af172dacbe7147f5e69be5240a47778302b"
 "checksum nodrop 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)" = "9a2228dca57108069a5262f2ed8bd2e82496d2e074a06d1ccc7ce1687b6ae0a2"
