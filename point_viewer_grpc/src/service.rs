@@ -14,6 +14,7 @@
 
 use crate::proto;
 use crate::proto_grpc;
+use crate::Color;
 use cgmath::{
     Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector2, Vector3,
 };
@@ -26,8 +27,8 @@ use grpcio::{
 };
 use point_viewer::errors::*;
 use point_viewer::math::{Isometry3, OrientedBeam};
-use point_viewer::octree::{NodeId, Octree, OctreeFactory};
-use point_viewer::Point;
+use point_viewer::octree::{self, BatchIterator, NodeId, Octree, OctreeFactory, PointQuery};
+use point_viewer::{LayerData, PointData};
 use protobuf::Message;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -44,14 +45,6 @@ struct OctreeService {
     location: PathBuf,
     data_cache: Arc<RwLock<HashMap<String, Arc<OctreeServiceData>>>>,
     factory: OctreeFactory,
-}
-
-#[derive(Debug)]
-enum OctreeQuery {
-    Frustum(Matrix4<f64>),
-    Box(Aabb3<f64>),
-    FullPointcloud,
-    OrientedBeam(Box<OrientedBeam>),
 }
 
 fn send_fail_stream<T>(ctx: &RpcContext, sink: ServerStreamingSink<T>, err_str: String) {
@@ -145,12 +138,11 @@ impl proto_grpc::Octree for OctreeService {
             disp: translation,
         };
         let frustum_matrix = projection_matrix.concat(&view_transform.into());
-        self.stream_points_back_to_sink(
-            OctreeQuery::Frustum(frustum_matrix),
-            &req.octree_id,
-            &ctx,
-            resp,
-        )
+        let point_location = PointQuery {
+            location: octree::PointLocation::Frustum(frustum_matrix),
+            global_from_local: None,
+        };
+        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
     }
 
     fn get_points_in_box(
@@ -168,7 +160,11 @@ impl proto_grpc::Octree for OctreeService {
                 Point3::new(max.x, max.y, max.z),
             )
         };
-        self.stream_points_back_to_sink(OctreeQuery::Box(bounding_box), &req.octree_id, &ctx, resp)
+        let point_location = PointQuery {
+            location: octree::PointLocation::Aabb(bounding_box),
+            global_from_local: None,
+        };
+        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
     }
 
     fn get_all_points(
@@ -177,7 +173,11 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetAllPointsRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        self.stream_points_back_to_sink(OctreeQuery::FullPointcloud, &req.octree_id, &ctx, resp)
+        let point_location = PointQuery {
+            location: octree::PointLocation::AllPoints(),
+            global_from_local: None,
+        };
+        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
     }
 
     fn get_points_in_oriented_beam(
@@ -202,19 +202,18 @@ impl proto_grpc::Octree for OctreeService {
         };
 
         let beam = OrientedBeam::new(Isometry3::new(rotation, translation), half_extent);
-        self.stream_points_back_to_sink(
-            OctreeQuery::OrientedBeam(Box::new(beam)),
-            &req.octree_id,
-            &ctx,
-            resp,
-        )
+        let point_location = PointQuery {
+            location: octree::PointLocation::OrientedBeam(beam),
+            global_from_local: None,
+        };
+        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
     }
 }
 
 impl OctreeService {
     fn stream_points_back_to_sink(
         &self,
-        query: OctreeQuery,
+        query: PointQuery,
         octree_id: &str,
         ctx: &RpcContext,
         resp: ServerStreamingSink<proto::PointsReply>,
@@ -266,57 +265,74 @@ impl OctreeService {
 
             // Proto message must be below 4 MB.
             let max_message_size = 4 * 1024 * 1024;
-            let mut reply_size = 0;
+            let num_points_per_batch: usize = max_message_size / bytes_per_point as usize;
 
             {
                 // Extra scope to make sure that 'func' does not outlive 'reply'.
-                let func = |p: Point| {
-                    {
-                        let mut v = point_viewer::proto::Vector3d::new();
-                        v.set_x(p.position.x);
-                        v.set_y(p.position.y);
-                        v.set_z(p.position.z);
-                        reply.mut_positions().push(v);
-                    }
+                // this function is currently not efficiently implemented
+                let func = |p_data: PointData| {
+                    reply.positions = p_data
+                        .position
+                        .iter()
+                        .map(|p| {
+                            let mut v = point_viewer::proto::Vector3d::new();
+                            v.set_x(p.x);
+                            v.set_y(p.y);
+                            v.set_z(p.z);
+                            v
+                        })
+                        .collect();
 
-                    {
-                        let mut v = point_viewer::proto::Color::new();
-                        let clr = p.color.to_f32();
-                        v.set_red(clr.red);
-                        v.set_green(clr.green);
-                        v.set_blue(clr.blue);
-                        v.set_alpha(clr.alpha);
-                        reply.mut_colors().push(v);
-                    }
+                    reply.colors = match p_data.layers.get(&"color".to_string()) {
+                        Some(LayerData::U8Vec4(data)) => data
+                            .iter()
+                            .map(|p| {
+                                let rgb8: Color<u8> = crate::Color {
+                                    red: p.x,
+                                    green: p.y,
+                                    blue: p.z,
+                                    alpha: p.w,
+                                };
+                                let rgb32: Color<f32> = crate::Color::to_f32(rgb8);
+                                let mut v = point_viewer::proto::Color::new();
+                                v.set_red(rgb32.red);
+                                v.set_green(rgb32.green);
+                                v.set_blue(rgb32.blue);
+                                v.set_alpha(rgb32.alpha);
+                                v
+                            })
+                            .collect(),
+                        _ => {
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "Color format is not u8",
+                            )
+                            .into());
+                        }
+                    };
 
-                    if let Some(i) = p.intensity {
-                        reply.mut_intensities().push(i);
-                    }
+                    reply.intensities = match p_data.layers.get(&"intensity".to_string()) {
+                        Some(LayerData::F32(data)) => data.clone(),
+                        _ => {
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "Intensity format is not f32",
+                            )
+                            .into());
+                        }
+                    };
 
-                    reply_size += bytes_per_point;
-                    if reply_size > max_message_size - bytes_per_point {
-                        tx.send((reply.clone(), WriteFlags::default())).unwrap();
-                        reply.mut_positions().clear();
-                        reply.mut_colors().clear();
-                        reply.mut_intensities().clear();
-                        reply_size = 0;
-                    }
+                    tx.send((reply.clone(), WriteFlags::default())).unwrap();
+                    reply.mut_positions().clear();
+                    reply.mut_colors().clear();
+                    reply.mut_intensities().clear();
+                    Ok(())
                 };
-                match query {
-                    OctreeQuery::Box(bounding_box) => service_data
-                        .octree
-                        .points_in_box(&bounding_box)
-                        .for_each(func),
-                    OctreeQuery::Frustum(frustum_matrix) => service_data
-                        .octree
-                        .points_in_frustum(&frustum_matrix)
-                        .for_each(func),
-                    OctreeQuery::FullPointcloud => service_data.octree.all_points().for_each(func),
-                    OctreeQuery::OrientedBeam(beam) => service_data
-                        .octree
-                        .points_in_oriented_beam(&beam)
-                        .for_each(func),
-                };
+
+                let mut batch_iterator =
+                    BatchIterator::new(&service_data.octree, &query, num_points_per_batch);
+                // TODO(catevita): missing error handling for the thread
+                let _result = batch_iterator.try_for_each_batch(func);
             }
             tx.send((reply, WriteFlags::default())).unwrap();
         });

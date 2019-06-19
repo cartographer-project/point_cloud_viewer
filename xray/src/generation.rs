@@ -9,7 +9,7 @@ use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
-use point_viewer::octree::{PointCulling, PointLocation};
+use point_viewer::octree::{PointLocation, PointQuery};
 use point_viewer::{color::Color, math::Isometry3, LayerData, PointData};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
@@ -463,8 +463,8 @@ pub fn xray_from_points(
     tile_background_color: Color<u8>,
 ) -> bool {
     let mut seen_any_points = false;
-    let point_location = PointLocation {
-        culling: PointCulling::Aabb(*bbox),
+    let point_location = PointQuery {
+        location: PointLocation::Aabb(*bbox),
         global_from_local: global_from_local.clone(),
     };
     let _ = point_cloud_client.for_each_point_data(&point_location, |point_data| {

@@ -13,11 +13,11 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::{Cube, Obb, OrientedBeam};
+use crate::math::{Cube, Frustum};
 use crate::proto;
 use crate::Point;
 use cgmath::{EuclideanSpace, Matrix4, Point3};
-use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
+use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
 use std::cmp::Ordering;
@@ -42,12 +42,10 @@ mod factory;
 pub use self::factory::OctreeFactory;
 
 mod octree_iterator;
-pub use self::octree_iterator::{
-    contains, intersecting_node_ids, AllPointsIterator, FilteredPointsIterator, NodeIdsIterator,
-};
+pub use self::octree_iterator::{FilteredPointsIterator, NodeIdsIterator};
 
 mod batch_iterator;
-pub use self::batch_iterator::{BatchIterator, PointCulling, PointLocation, NUM_POINTS_PER_BATCH};
+pub use self::batch_iterator::{BatchIterator, PointLocation, PointQuery, NUM_POINTS_PER_BATCH};
 
 #[cfg(test)]
 mod octree_test;
@@ -225,7 +223,7 @@ impl Octree {
     }
 
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
-        let frustum = Frustum::from_matrix4(*projection_matrix).unwrap();
+        let frustum = collision::Frustum::from_matrix4(*projection_matrix).unwrap();
         let mut open = BinaryHeap::new();
         maybe_push_node(
             &mut open,
@@ -302,43 +300,27 @@ impl Octree {
         })
     }
 
+    pub fn nodes_in_location<'a>(
+        &'a self,
+        location: &PointQuery,
+    ) -> NodeIdsIterator<'a, impl Fn(&NodeId, &'a Octree) -> bool> {
+        let container = location.get_point_culling();
+        let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
+            let current = &octree.nodes[&node_id];
+            container.intersects(&current.bounding_cube.to_aabb3())
+        };
+        NodeIdsIterator::new(&self, filter_func)
+    }
+
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
-    pub fn points_in_box<'a>(&'a self, bbox: &'a Aabb3<f64>) -> FilteredPointsIterator<'a> {
-        let intersects = |aabb: &Aabb3<f64>| bbox.intersects(aabb);
-        let node_ids = intersecting_node_ids(self, &intersects);
-        let filter_func = Box::new(move |p: &Point| bbox.contains(&Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids, filter_func)
-    }
-
-    pub fn points_in_obb<'a>(&'a self, obb: &'a Obb<f64>) -> FilteredPointsIterator<'a> {
-        let intersects = |aabb: &Aabb3<f64>| obb.intersects(aabb);
-        let node_ids = intersecting_node_ids(self, &intersects);
-        let filter_func = Box::new(move |p: &Point| obb.contains(&Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids, filter_func)
-    }
-
-    pub fn points_in_oriented_beam<'a>(
+    pub fn points_in_node<'a>(
         &'a self,
-        beam: &'a OrientedBeam,
-    ) -> FilteredPointsIterator<'a> {
-        let intersects = |aabb: &Aabb3<f64>| beam.intersects(aabb);
-        let node_ids = intersecting_node_ids(self, &intersects);
-        let filter_func = Box::new(move |p: &Point| beam.contains(&Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids, filter_func)
-    }
-
-    pub fn points_in_frustum<'a>(
-        &'a self,
-        frustum_matrix: &'a Matrix4<f64>,
-    ) -> FilteredPointsIterator<'a> {
-        let node_ids = self.get_visible_nodes(frustum_matrix);
-        let filter_func =
-            Box::new(move |p: &Point| contains(frustum_matrix, &Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids.into(), filter_func)
-    }
-
-    pub fn all_points(&self) -> AllPointsIterator {
-        AllPointsIterator::new(&self)
+        location: &PointQuery,
+        node_id: NodeId,
+    ) -> FilteredPointsIterator<impl Fn(&Point) -> bool> {
+        let container = location.get_point_culling();
+        let filter_func = move |p: &Point| container.contains(&Point3::from_vec(p.position));
+        FilteredPointsIterator::new(&self, node_id, filter_func)
     }
 
     /// return the bounding box saved in meta
@@ -346,6 +328,7 @@ impl Octree {
         &self.meta.bounding_box
     }
 }
+
 struct OpenNode {
     node: Node,
     relation: Relation,
