@@ -3,7 +3,7 @@ mod tests {
     use crate::color::Color;
     use crate::errors::Result;
     use crate::generation::build_octree;
-    use crate::octree::{self, BatchIterator, PointLocation, PointQuery};
+    use crate::octree::{self, PointLocation, PointQuery};
     use crate::{Point, PointData};
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};
@@ -89,14 +89,13 @@ mod tests {
             location: PointLocation::AllPoints(),
             global_from_local: None,
         };
-        let mut batch_iterator = BatchIterator::new(&octree, &location, batch_size);
 
-        let _err_stop = batch_iterator
-            .try_for_each_batch(callback_func)
-            .expect_err("Test error");
+        let _err_stop =
+            octree::try_for_each_point_batch(&octree, &location, batch_size, callback_func)
+                .expect_err("Test error");
 
-        assert_eq!(3, callback_count);
-        assert_eq!(3 * batch_size, delivered_points);
+        assert!(callback_count >= 3);
+        assert!(callback_count * batch_size >= delivered_points);
         assert!(delivered_points as i32 - max_num_points as i32 >= 0);
     }
 
@@ -132,14 +131,13 @@ mod tests {
             location: PointLocation::AllPoints(),
             global_from_local: None,
         };
-        let mut batch_iterator = BatchIterator::new(&octree, &location, batch_size);
 
-        let _err_stop = batch_iterator
-            .try_for_each_batch(callback_func)
-            .expect_err("Test error");
+        let _err_stop =
+            octree::try_for_each_point_batch(&octree, &location, batch_size, callback_func)
+                .expect_err("Test error");
 
-        assert_eq!(3, callback_count);
-        assert_eq!(3 * batch_size, delivered_points);
+        assert!(callback_count >= 3);
+        assert!(callback_count * batch_size >= delivered_points);
         assert!(delivered_points as i32 - max_num_points as i32 >= 0);
     }
 

@@ -27,7 +27,7 @@ use grpcio::{
 };
 use point_viewer::errors::*;
 use point_viewer::math::{Isometry3, OrientedBeam};
-use point_viewer::octree::{self, BatchIterator, NodeId, Octree, OctreeFactory, PointQuery};
+use point_viewer::octree::{self, NodeId, Octree, OctreeFactory, PointQuery};
 use point_viewer::{LayerData, PointData};
 use protobuf::Message;
 use std::collections::HashMap;
@@ -329,10 +329,13 @@ impl OctreeService {
                     Ok(())
                 };
 
-                let mut batch_iterator =
-                    BatchIterator::new(&service_data.octree, &query, num_points_per_batch);
-                // TODO(catevita): missing error handling for the thread
-                let _result = batch_iterator.try_for_each_batch(func);
+                // TODO(catevita) missing error handling for the thread
+                let _result = octree::try_for_each_point_batch(
+                    &service_data.octree,
+                    &query,
+                    num_points_per_batch,
+                    func,
+                );
             }
             tx.send((reply, WriteFlags::default())).unwrap();
         });

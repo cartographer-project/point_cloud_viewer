@@ -20,13 +20,10 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use point_viewer::octree::{
-    octree_from_directory, BatchIterator, OctreeFactory, PointLocation, PointQuery,
-};
+use point_viewer::octree::{self, octree_from_directory, OctreeFactory, PointLocation, PointQuery};
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
 use point_viewer_grpc_proto_rust::proto;
-
 // size for batch
 const BATCH_SIZE: usize = 1_000_000;
 fn main() {
@@ -78,16 +75,15 @@ fn server_benchmark(octree_directory: &Path, num_points: usize) {
         location: PointLocation::AllPoints(),
         global_from_local: None,
     };
-    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE);
-
-    let _result = batch_iterator.try_for_each_batch(move |point_data| {
-        counter += point_data.position.len();
-        if counter >= num_points {
-            std::process::exit(0)
-        }
-        println!("Streamed {}M points", counter / BATCH_SIZE);
-        Ok(())
-    });
+    let _result =
+        octree::try_for_each_point_batch(&octree, &all_points, BATCH_SIZE, move |point_data| {
+            counter += point_data.position.len();
+            if counter >= num_points {
+                std::process::exit(0)
+            }
+            println!("Streamed {}M points", counter / BATCH_SIZE);
+            Ok(())
+        });
 }
 
 fn full_benchmark(octree_directory: &Path, num_points: usize, port: u16) {

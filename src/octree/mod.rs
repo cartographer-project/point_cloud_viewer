@@ -45,7 +45,10 @@ mod octree_iterator;
 pub use self::octree_iterator::{FilteredPointsIterator, NodeIdsIterator};
 
 mod batch_iterator;
-pub use self::batch_iterator::{BatchIterator, PointLocation, PointQuery, NUM_POINTS_PER_BATCH};
+pub use self::batch_iterator::{
+    get_point_data_iterator, try_for_each_point_batch, BatchIterator, PointLocation, PointQuery,
+    NUM_POINTS_PER_BATCH,
+};
 
 #[cfg(test)]
 mod octree_test;

@@ -1,11 +1,12 @@
-use crate::errors::*;
+use crate::errors::Result;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Isometry3, Obb, OrientedBeam};
-use crate::octree::{self, Octree};
+use crate::octree::{self, FilteredPointsIterator};
 use crate::{LayerData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
 use fnv::FnvHashMap;
+use std::collections::VecDeque;
 
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
@@ -42,33 +43,28 @@ impl PointQuery {
         }
     }
 }
-/// current implementation of the stream of points used in BatchIterator
-struct PointStream<'a, F>
-where
-    F: FnMut(PointData) -> Result<()>,
-{
+
+/// current implementation of the points stored in BatchIterator
+pub struct BatchIterator<F> {
     position: Vec<Vector3<f64>>,
     color: Vec<Vector4<u8>>,
     intensity: Vec<f32>,
     local_from_global: Option<Isometry3<f64>>,
-    func: &'a mut F,
+    point_iterator: FilteredPointsIterator<F>,
 }
 
-impl<'a, F> PointStream<'a, F>
-where
-    F: FnMut(PointData) -> Result<()>,
-{
+impl<F> BatchIterator<F> {
     fn new(
         num_points_per_batch: usize,
         local_from_global: Option<Isometry3<f64>>,
-        func: &'a mut F,
+        point_iterator: FilteredPointsIterator<F>,
     ) -> Self {
-        PointStream {
+        BatchIterator {
             position: Vec::with_capacity(num_points_per_batch),
             color: Vec::with_capacity(num_points_per_batch),
             intensity: Vec::with_capacity(num_points_per_batch),
             local_from_global,
-            func,
+            point_iterator,
         }
     }
 
@@ -90,10 +86,10 @@ where
         };
     }
 
-    /// execute function on batch of points
-    fn callback(&mut self) -> Result<()> {
+    /// copy into pointdata
+    fn extract_pointdata(&mut self) -> Option<PointData> {
         if self.position.is_empty() {
-            return Ok(());
+            return None;
         }
 
         let mut layers = FnvHashMap::default();
@@ -107,66 +103,71 @@ where
                 LayerData::F32(self.intensity.split_off(0)),
             );
         }
-        let point_data = PointData {
+        Some(PointData {
             position: self.position.split_off(0),
             layers,
-        };
-        (self.func)(point_data)
-    }
-
-    fn push_point_and_callback(&mut self, point: Point) -> Result<()> {
-        self.push_point(point);
-        if self.position.len() == self.position.capacity() {
-            return self.callback();
-        }
-        Ok(())
+        })
     }
 }
 
-/// Iterator on point batches
-pub struct BatchIterator<'a> {
-    octree: &'a Octree,
-    point_location: &'a PointQuery,
-    batch_size: usize,
-}
-
-impl<'a> BatchIterator<'a> {
-    pub fn new(
-        octree: &'a octree::Octree,
-        point_location: &'a PointQuery,
-        batch_size: usize,
-    ) -> Self {
-        BatchIterator {
-            octree,
-            point_location,
-            batch_size,
-        }
-    }
-
-    /// compute a function while iterating on a batch of points
-    pub fn try_for_each_batch<F>(&mut self, mut func: F) -> Result<()>
-    where
-        F: FnMut(PointData) -> Result<()>,
-    {
-        //TODO(catevita): mutable function parallelization
-        let local_from_global = self
-            .point_location
-            .global_from_local
-            .clone()
-            .map(|t| t.inverse());
-        let mut point_stream = PointStream::new(self.batch_size, local_from_global, &mut func);
-        // nodes iterator: retrieve nodes
-        let node_id_iterator = self.octree.nodes_in_location(self.point_location);
-        // operate on nodes
-        for node_id in node_id_iterator {
-            let point_iterator = self.octree.points_in_node(self.point_location, node_id);
-            for point in point_iterator {
-                point_stream.push_point_and_callback(point)?;
+impl<F> Iterator for BatchIterator<F>
+where
+    F: Fn(&Point) -> bool,
+{
+    type Item = PointData;
+    fn next(&mut self) -> Option<Self::Item> {
+        let max_points = self.position.capacity();
+        for _num_point in 0..max_points {
+            match self.point_iterator.next() {
+                Some(point) => {
+                    self.push_point(point);
+                }
+                None => return self.extract_pointdata(),
             }
         }
-        // TODO(catevita): return point data through mpsc channel
-        // TODO(catevita): apply mut function to received data
-
-        Ok(())
+        self.extract_pointdata()
     }
+}
+
+/// compute a function while iterating on a batch of points
+pub fn try_for_each_point_batch<'a, G>(
+    octree: &'a octree::Octree,
+    point_query: &'a PointQuery,
+    batch_size: usize,
+    mut func: G,
+) -> Result<()>
+where
+    G: FnMut(PointData) -> Result<()>,
+{
+    let mut point_batch_vec = get_point_data_iterator(octree, point_query, batch_size);
+    // operate on nodes
+    while let Some(mut point_batch) = point_batch_vec.pop_front() {
+        while let Some(pointdata) = point_batch.next() {
+            if let Err(err) = func(pointdata) {
+                return Err(err);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn get_point_data_iterator<'a>(
+    octree: &'a octree::Octree,
+    point_query: &'a PointQuery,
+    batch_size: usize,
+) -> VecDeque<Box<BatchIterator<impl Fn(&Point) -> bool>>> {
+    let local_from_global = point_query.global_from_local.clone().map(|t| t.inverse());
+    // nodes iterator: retrieve nodes
+    let point_batch_vec: VecDeque<Box<BatchIterator<_>>> = octree
+        .nodes_in_location(point_query)
+        .map(|id| {
+            Box::new(BatchIterator::new(
+                batch_size,
+                local_from_global.clone(),
+                octree.points_in_node(point_query, id),
+            ))
+        })
+        .collect();
+    point_batch_vec
 }
