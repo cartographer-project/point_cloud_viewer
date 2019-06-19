@@ -3,7 +3,7 @@ mod tests {
     use crate::color::Color;
     use crate::errors::Result;
     use crate::generation::build_octree;
-    use crate::octree::{self, BatchIterator, PointCulling, PointLocation};
+    use crate::octree::{self, BatchIterator, PointLocation, PointQuery};
     use crate::{Point, PointData};
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};
@@ -85,8 +85,8 @@ mod tests {
 
         // octree and iterator
         let octree = build_test_octree();
-        let location = PointLocation {
-            culling: PointCulling::Any(),
+        let location = PointQuery {
+            location: PointLocation::AllPoints(),
             global_from_local: None,
         };
         let mut batch_iterator = BatchIterator::new(&octree, &location, batch_size);
@@ -128,8 +128,8 @@ mod tests {
 
         // octree and iterator
         let octree = build_big_test_octree();
-        let location = PointLocation {
-            culling: PointCulling::Any(),
+        let location = PointQuery {
+            location: PointLocation::AllPoints(),
             global_from_local: None,
         };
         let mut batch_iterator = BatchIterator::new(&octree, &location, batch_size);

@@ -67,7 +67,7 @@ impl OctreeDataProvider for OnDiskOctreeDataProvider {
     }
 }
 
-//  TODO (catevita) refactor function for octree factory
+//  TODO(catevita): refactor function for octree factory
 pub fn octree_from_directory(directory: impl Into<PathBuf>) -> Result<Box<Octree>> {
     let data_provider = OnDiskOctreeDataProvider {
         directory: directory.into(),

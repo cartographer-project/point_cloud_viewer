@@ -20,12 +20,15 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use point_viewer::octree::{octree_from_directory, OctreeFactory};
-use point_viewer::Point;
+use point_viewer::octree::{
+    octree_from_directory, BatchIterator, OctreeFactory, PointLocation, PointQuery,
+};
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
 use point_viewer_grpc_proto_rust::proto;
 
+// size for batch
+const BATCH_SIZE: usize = 1_000_000;
 fn main() {
     let matches = clap::App::new("octree_benchmark")
         .args(&[
@@ -53,7 +56,7 @@ fn main() {
             .value_of("octree_directory")
             .expect("octree_directory not given"),
     );
-    let num_points = u64::from_str(matches.value_of("num-points").unwrap_or("50000000"))
+    let num_points = usize::from_str(matches.value_of("num-points").unwrap_or("50000000"))
         .expect("num-points needs to be a number");
     if matches.is_present("no-client") {
         server_benchmark(&octree_directory, num_points)
@@ -63,26 +66,31 @@ fn main() {
     }
 }
 
-fn server_benchmark(octree_directory: &Path, num_points: u64) {
+fn server_benchmark(octree_directory: &Path, num_points: usize) {
     let octree = octree_from_directory(octree_directory).unwrap_or_else(|_| {
         panic!(
             "Could not create octree from '{}'",
             octree_directory.display()
         )
     });
-    let mut counter: u64 = 0;
-    octree.all_points().for_each(|_p: Point| {
-        if counter % 1_000_000 == 0 {
-            println!("Streamed {}M points", counter / 1_000_000);
-        }
-        counter += 1;
-        if counter == num_points {
+    let mut counter: usize = 0;
+    let all_points = PointQuery {
+        location: PointLocation::AllPoints(),
+        global_from_local: None,
+    };
+    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE);
+
+    let _result = batch_iterator.try_for_each_batch(move |point_data| {
+        counter += point_data.position.len();
+        if counter >= num_points {
             std::process::exit(0)
         }
+        println!("Streamed {}M points", counter / BATCH_SIZE);
+        Ok(())
     });
 }
 
-fn full_benchmark(octree_directory: &Path, num_points: u64, port: u16) {
+fn full_benchmark(octree_directory: &Path, num_points: usize, port: u16) {
     let octree_factory = OctreeFactory::new();
     let mut server = start_grpc_server("0.0.0.0", port, octree_directory, octree_factory);
     server.start();
@@ -94,12 +102,12 @@ fn full_benchmark(octree_directory: &Path, num_points: u64, port: u16) {
     let req = proto::GetAllPointsRequest::new();
     let receiver = client.get_all_points(&req).unwrap();
 
-    let mut counter: u64 = 0;
+    let mut counter: usize = 0;
 
     'outer: for rep in receiver.wait() {
         for _pos in rep.expect("Stream error").get_positions().iter() {
-            if counter % 1_000_000 == 0 {
-                println!("Streamed {}M points", counter / 1_000_000);
+            if counter % BATCH_SIZE == 0 {
+                println!("Streamed {}M points", counter / BATCH_SIZE);
             }
             counter += 1;
             if counter == num_points {

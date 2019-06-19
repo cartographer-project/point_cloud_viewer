@@ -1,31 +1,47 @@
 use crate::errors::*;
-use crate::math::{Isometry3, Obb, OrientedBeam};
+use crate::math::PointCulling;
+use crate::math::{AllPoints, Isometry3, Obb, OrientedBeam};
 use crate::octree::{self, Octree};
 use crate::{LayerData, Point, PointData};
-use cgmath::{Decomposed, Matrix4, Vector3, Vector4};
+use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
 use fnv::FnvHashMap;
 
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
-///possible kind of iterators that can be evaluated in batch of points in BatchIterator
 #[allow(clippy::large_enum_variant)]
-#[derive(Clone)]
-pub enum PointCulling {
-    Any(),
+#[derive(Debug, Clone)]
+pub enum PointLocation {
+    AllPoints(),
     Aabb(Aabb3<f64>),
-    Obb(Obb<f64>),
     Frustum(Matrix4<f64>),
-    OrientedBeam(OrientedBeam),
+    Obb(Obb<f64>),
+    OrientedBeam(OrientedBeam<f64>),
 }
 
-pub struct PointLocation {
-    pub culling: PointCulling,
+#[derive(Clone, Debug)]
+pub struct PointQuery {
+    pub location: PointLocation,
     // If set, culling and the returned points are interpreted to be in local coordinates.
     pub global_from_local: Option<Isometry3<f64>>,
 }
 
+impl PointQuery {
+    pub fn get_point_culling(&self) -> Box<PointCulling<f64>> {
+        let culling: Box<PointCulling<f64>> = match &self.location {
+            PointLocation::AllPoints() => return Box::new(AllPoints {}),
+            PointLocation::Aabb(aabb) => Box::new(*aabb),
+            PointLocation::Frustum(matrix) => Box::new(octree::Frustum::new(*matrix)),
+            PointLocation::Obb(obb) => Box::new(obb.clone()),
+            PointLocation::OrientedBeam(beam) => Box::new(beam.clone()),
+        };
+        match &self.global_from_local {
+            Some(global_from_local) => culling.transform(&global_from_local),
+            None => culling,
+        }
+    }
+}
 /// current implementation of the stream of points used in BatchIterator
 struct PointStream<'a, F>
 where
@@ -110,38 +126,19 @@ where
 /// Iterator on point batches
 pub struct BatchIterator<'a> {
     octree: &'a Octree,
-    culling: PointCulling,
-    local_from_global: Option<Isometry3<f64>>,
+    point_location: &'a PointQuery,
     batch_size: usize,
 }
 
 impl<'a> BatchIterator<'a> {
-    pub fn new(octree: &'a octree::Octree, location: &'a PointLocation, batch_size: usize) -> Self {
-        let culling = match &location.global_from_local {
-            Some(global_from_local) => match &location.culling {
-                PointCulling::Any() => PointCulling::Any(),
-                PointCulling::Aabb(aabb) => {
-                    PointCulling::Obb(Obb::from(*aabb).transform(global_from_local))
-                }
-                PointCulling::Obb(obb) => PointCulling::Obb(obb.transform(global_from_local)),
-                PointCulling::Frustum(frustum) => PointCulling::Frustum(
-                    Matrix4::from(Decomposed {
-                        scale: 1.0,
-                        rot: global_from_local.rotation,
-                        disp: global_from_local.translation,
-                    }) * frustum,
-                ),
-                PointCulling::OrientedBeam(beam) => {
-                    PointCulling::OrientedBeam(beam.transform(global_from_local))
-                }
-            },
-            None => location.culling.clone(),
-        };
-        let local_from_global = location.global_from_local.as_ref().map(Isometry3::inverse);
+    pub fn new(
+        octree: &'a octree::Octree,
+        point_location: &'a PointQuery,
+        batch_size: usize,
+    ) -> Self {
         BatchIterator {
             octree,
-            culling,
-            local_from_global,
+            point_location,
             batch_size,
         }
     }
@@ -151,16 +148,25 @@ impl<'a> BatchIterator<'a> {
     where
         F: FnMut(PointData) -> Result<()>,
     {
-        let mut point_stream =
-            PointStream::new(self.batch_size, self.local_from_global.clone(), &mut func);
-        let mut iterator: Box<Iterator<Item = Point>> = match &self.culling {
-            PointCulling::Any() => Box::new(self.octree.all_points()),
-            PointCulling::Aabb(aabb) => Box::new(self.octree.points_in_box(aabb)),
-            PointCulling::Obb(obb) => Box::new(self.octree.points_in_obb(obb)),
-            PointCulling::Frustum(frustum) => Box::new(self.octree.points_in_frustum(frustum)),
-            PointCulling::OrientedBeam(beam) => Box::new(self.octree.points_in_oriented_beam(beam)),
-        };
-        iterator.try_for_each(|point: Point| point_stream.push_point_and_callback(point))?;
-        point_stream.callback()
+        //TODO(catevita): mutable function parallelization
+        let local_from_global = self
+            .point_location
+            .global_from_local
+            .clone()
+            .map(|t| t.inverse());
+        let mut point_stream = PointStream::new(self.batch_size, local_from_global, &mut func);
+        // nodes iterator: retrieve nodes
+        let node_id_iterator = self.octree.nodes_in_location(self.point_location);
+        // operate on nodes
+        for node_id in node_id_iterator {
+            let point_iterator = self.octree.points_in_node(self.point_location, node_id);
+            for point in point_iterator {
+                point_stream.push_point_and_callback(point)?;
+            }
+        }
+        // TODO(catevita): return point data through mpsc channel
+        // TODO(catevita): apply mut function to received data
+
+        Ok(())
     }
 }

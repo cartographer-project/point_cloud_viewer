@@ -13,14 +13,61 @@
 // limitations under the License.
 
 use cgmath::{
-    BaseFloat, Decomposed, EuclideanSpace, InnerSpace, Point3, Quaternion, Rotation, Vector2,
-    Vector3,
+    BaseFloat, Decomposed, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rotation,
+    Vector2, Vector3, Vector4,
 };
-use collision::{Aabb, Aabb3};
+use collision::{Aabb, Aabb3, Contains, Relation};
 use num_traits::identities::One;
 use num_traits::Float;
+use std::fmt::Debug;
 use std::ops::Mul;
 
+pub trait PointCulling<S>: objekt::Clone + Debug + Sync + Send
+where
+    S: BaseFloat + Sync + Send,
+{
+    fn contains(&self, point: &Point3<S>) -> bool;
+    // TODO(catevita): return Relation
+    fn intersects(&self, aabb: &Aabb3<S>) -> bool;
+    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>>;
+}
+
+impl<S> PointCulling<S> for Aabb3<S>
+where
+    S: 'static + BaseFloat + Sync + Send,
+{
+    fn intersects(&self, aabb: &Aabb3<S>) -> bool {
+        let separating_axes = &[Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
+        intersects(&self.to_corners(), separating_axes, aabb)
+    }
+
+    fn contains(&self, p: &Point3<S>) -> bool {
+        Contains::contains(self, p)
+    }
+
+    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+        Obb::from(*self).transform(isometry)
+    }
+}
+
+/// Implementation of PointCulling to return all points
+#[derive(Clone, Debug)]
+pub struct AllPoints {}
+
+impl<S> PointCulling<S> for AllPoints
+where
+    S: BaseFloat + Sync + Send,
+{
+    fn intersects(&self, _aabb: &Aabb3<S>) -> bool {
+        true
+    }
+    fn contains(&self, _p: &Point3<S>) -> bool {
+        true
+    }
+    fn transform(&self, _isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+        Box::new(AllPoints {})
+    }
+}
 #[derive(Debug, Clone)]
 pub struct Cube {
     min: Point3<f64>,
@@ -190,6 +237,15 @@ pub struct Obb<S> {
     separating_axes: Vec<Vector3<S>>,
 }
 
+impl<S: BaseFloat> From<&Aabb3<S>> for Obb<S> {
+    fn from(aabb: &Aabb3<S>) -> Self {
+        Obb::new(
+            Isometry3::new(Quaternion::one(), EuclideanSpace::to_vec(aabb.center())),
+            aabb.dim() / (S::one() + S::one()),
+        )
+    }
+}
+
 impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
     fn from(aabb: Aabb3<S>) -> Self {
         Obb::new(
@@ -209,26 +265,9 @@ impl<S: BaseFloat> Obb<S> {
         }
     }
 
-    pub fn intersects(&self, aabb: &Aabb3<S>) -> bool {
-        intersects(&self.corners, &self.separating_axes, aabb)
-    }
-
-    pub fn contains(&self, p: &Point3<S>) -> bool {
-        let Point3 { x, y, z } =
-            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
-        x.abs() <= self.half_extent.x
-            && y.abs() <= self.half_extent.y
-            && z.abs() <= self.half_extent.z
-    }
-
-    pub fn transform(&self, isometry: &Isometry3<S>) -> Self {
-        Self::new(isometry * &self.isometry_inv.inverse(), self.half_extent)
-    }
-
     fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector3<S>) -> [Point3<S>; 8] {
-        let corner_from = |x: S, y: S, z: S| {
-            isometry.rotation.rotate_point(Point3::new(x, y, z)) + isometry.translation
-        };
+        let corner_from =
+            |x, y, z| isometry.rotation.rotate_point(Point3::new(x, y, z)) + isometry.translation;
         [
             corner_from(-half_extent.x, -half_extent.y, -half_extent.z),
             corner_from(half_extent.x, -half_extent.y, -half_extent.z),
@@ -276,19 +315,43 @@ impl<S: BaseFloat> Obb<S> {
     }
 }
 
+impl<S> PointCulling<S> for Obb<S>
+where
+    S: 'static + BaseFloat + Sync + Send,
+{
+    fn intersects(&self, aabb: &Aabb3<S>) -> bool {
+        intersects(&self.corners, &self.separating_axes, aabb)
+    }
+
+    fn contains(&self, p: &Point3<S>) -> bool {
+        let Point3 { x, y, z } =
+            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
+        x.abs() <= self.half_extent.x
+            && y.abs() <= self.half_extent.y
+            && z.abs() <= self.half_extent.z
+    }
+
+    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+        Box::new(Self::new(
+            isometry * &self.isometry_inv.inverse(),
+            self.half_extent,
+        ))
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct OrientedBeam {
+pub struct OrientedBeam<S> {
     // The members here are an implementation detail and differ from the
     // minimal representation in the gRPC message to speed up operations.
     // Isometry_inv is the transform from world coordinates into "beam coordinates".
-    isometry_inv: Isometry3<f64>,
-    half_extent: Vector2<f64>,
-    corners: [Point3<f64>; 4],
-    separating_axes: Vec<Vector3<f64>>,
+    isometry_inv: Isometry3<S>,
+    half_extent: Vector2<S>,
+    corners: [Point3<S>; 4],
+    separating_axes: Vec<Vector3<S>>,
 }
 
-impl OrientedBeam {
-    pub fn new(isometry: Isometry3<f64>, half_extent: Vector2<f64>) -> Self {
+impl<S: BaseFloat> OrientedBeam<S> {
+    pub fn new(isometry: Isometry3<S>, half_extent: Vector2<S>) -> Self {
         OrientedBeam {
             isometry_inv: isometry.inverse(),
             half_extent,
@@ -297,27 +360,9 @@ impl OrientedBeam {
         }
     }
 
-    pub fn intersects(&self, aabb: &Aabb3<f64>) -> bool {
-        intersects(&self.corners, &self.separating_axes, aabb)
-    }
-
-    pub fn contains(&self, p: &Point3<f64>) -> bool {
-        // What is the point in beam coordinates?
-        let Point3 { x, y, .. } =
-            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
-        x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
-    }
-
-    pub fn transform(&self, isometry: &Isometry3<f64>) -> Self {
-        Self::new(isometry * &self.isometry_inv.inverse(), self.half_extent)
-    }
-
-    fn precompute_corners(
-        isometry: &Isometry3<f64>,
-        half_extent: &Vector2<f64>,
-    ) -> [Point3<f64>; 4] {
-        let corner_from = |x: f64, y: f64| {
-            isometry.rotation.rotate_point(Point3::new(x, y, 0.0)) + isometry.translation
+    fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector2<S>) -> [Point3<S>; 4] {
+        let corner_from = |x, y| {
+            isometry.rotation.rotate_point(Point3::new(x, y, S::zero())) + isometry.translation
         };
         [
             corner_from(half_extent.x, half_extent.y),
@@ -331,7 +376,7 @@ impl OrientedBeam {
     // Currently we have a beam which is infinite in both directions.
     // If we defined a beam on one side of the earth pointing towards the sky,
     // it will also collect points on the other side of the earth, which is undesired.
-    fn precompute_separating_axes(rotation: &Quaternion<f64>) -> Vec<Vector3<f64>> {
+    fn precompute_separating_axes(rotation: &Quaternion<S>) -> Vec<Vector3<S>> {
         // The separating axis needs to be perpendicular to the beam's main
         // axis, i.e. the possible axes are the cross product of the three unit
         // vectors with the beam's main axis and the beam's face normals.
@@ -349,6 +394,29 @@ impl OrientedBeam {
     }
 }
 
+impl<S> PointCulling<S> for OrientedBeam<S>
+where
+    S: 'static + BaseFloat + Sync + Send,
+{
+    fn intersects(&self, aabb: &Aabb3<S>) -> bool {
+        intersects(&self.corners, &self.separating_axes, aabb)
+    }
+
+    fn contains(&self, p: &Point3<S>) -> bool {
+        // What is the point in beam coordinates?
+        let Point3 { x, y, .. } =
+            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
+        x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
+    }
+
+    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+        Box::new(Self::new(
+            isometry * &self.isometry_inv.inverse(),
+            self.half_extent,
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -359,12 +427,12 @@ mod tests {
     // bpy.data.objects['Beam'].rotation_euler.to_quaternion() and
     // bpy.data.objects['Beam'].location.
 
-    fn some_beam() -> OrientedBeam {
+    fn some_beam() -> OrientedBeam<f64> {
         let quater = Quaternion::new(
-            0.9292423725128174,
-            -0.2677415907382965,
-            -0.20863021910190582,
-            -0.14593297243118286,
+            0.929_242_372_512_817_4,
+            -0.267_741_590_738_296_5,
+            -0.208_630_219_101_905_82,
+            -0.145_932_972_431_182_86,
         );
         let translation = Vector3::new(1.0, 2.0, 0.0);
         let half_extent = Vector2::new(1.0, 1.0);
@@ -426,5 +494,51 @@ mod tests {
         assert_eq!(fourty_five_deg_obb.separating_axes.len(), 5);
         assert_eq!(fourty_five_deg_obb.intersects(&bbox), false);
         assert_eq!(arbitrary_obb.separating_axes.len(), 15);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Frustum<S: BaseFloat> {
+    matrix: Matrix4<S>,
+    frustum: collision::Frustum<S>,
+}
+
+impl<S: BaseFloat> Frustum<S> {
+    pub fn new(matrix: Matrix4<S>) -> Self {
+        Frustum {
+            matrix,
+            frustum: collision::Frustum::from_matrix4(matrix).unwrap(),
+        }
+    }
+}
+
+impl<S> PointCulling<S> for Frustum<S>
+where
+    S: 'static + BaseFloat + Sync + Send,
+{
+    fn contains(&self, point: &Point3<S>) -> bool {
+        // TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
+        let v = Vector4::new(point.x, point.y, point.z, S::one());
+        let clip_v = self.matrix * v;
+        clip_v.x.abs() < clip_v.w
+            && clip_v.y.abs() < clip_v.w
+            && S::zero() < clip_v.z
+            && clip_v.z < clip_v.w
+    }
+
+    fn intersects(&self, aabb: &Aabb3<S>) -> bool {
+        match self.frustum.contains(aabb) {
+            Relation::Cross => true,
+            Relation::In => true,
+            Relation::Out => false,
+        }
+    }
+
+    fn transform(&self, isometry: &Isometry3<S>) -> Box<PointCulling<S>> {
+        let isometry = isometry.clone();
+        let matrix: Matrix4<S> = Matrix4::from(
+            Into::<Decomposed<Vector3<S>, Quaternion<S>>>::into(isometry),
+        ) * self.matrix;
+        Box::new(Frustum::new(matrix))
     }
 }
