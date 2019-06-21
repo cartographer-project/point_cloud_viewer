@@ -157,7 +157,7 @@ pub fn get_point_data_iterator<'a>(
     point_query: &'a PointQuery,
     batch_size: usize,
 ) -> VecDeque<Box<BatchIterator<impl Fn(&Point) -> bool>>> {
-    let local_from_global = point_query.global_from_local.clone().map(|t| t.inverse());
+    let local_from_global = point_query.global_from_local.as_ref().map(|t| t.inverse());
     // nodes iterator: retrieve nodes
     let point_batch_vec: VecDeque<Box<BatchIterator<_>>> = octree
         .nodes_in_location(point_query)
