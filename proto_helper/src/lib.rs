@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+#[derive(Default)]
 pub struct ProtoBuilder {
     protoc_search_path: Option<PathBuf>,
     files: Vec<PathBuf>,
@@ -74,17 +75,17 @@ impl ProtoBuilder {
                 &self.grpc_transformations,
             );
         });
-        std::env::set_var("PATH", old_path.unwrap_or("".to_string()));
+        let _ = old_path.map(|pth| std::env::set_var("PATH", pth));
     }
 }
 
 // Compile a protobuf. The filepath is relative to the crate root.
 fn compile_proto(
     protobuf_file: &Path,
-    import_paths: &Vec<PathBuf>,
+    import_paths: &[PathBuf],
     generate_grpc: bool,
-    transformations: &Vec<Box<Fn(String) -> String>>,
-    grpc_transformations: &Vec<Box<Fn(String) -> String>>,
+    transformations: &[Box<Fn(String) -> String>],
+    grpc_transformations: &[Box<Fn(String) -> String>],
 ) {
     // Create parent directories
     let in_dir = protobuf_file.parent().unwrap();
@@ -116,7 +117,6 @@ fn compile_proto(
         inplace_modify_file(&grpc_out_path, |code| {
             let code = replace_clippy(code);
             grpc_transformations.iter().fold(code, |code, tr| tr(code))
-
         });
     } else {
         let args = protoc_rust::Args {
@@ -152,7 +152,7 @@ fn replace_clippy(contents: String) -> String {
 fn inplace_modify_file<F: FnOnce(String) -> String>(path: &Path, func: F) {
     let mut contents = String::new();
     File::open(&path)
-        .expect(&format!("Could not open {}", path.display()))
+        .unwrap_or_else(|_| panic!("Could not open {}", path.display()))
         .read_to_string(&mut contents)
         .unwrap();
     let new_contents = func(contents);
