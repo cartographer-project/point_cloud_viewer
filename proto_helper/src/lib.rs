@@ -2,7 +2,6 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-#[derive(Default)]
 pub struct ProtoBuilder {
     protoc_search_path: Option<PathBuf>,
     files: Vec<PathBuf>,
@@ -12,17 +11,23 @@ pub struct ProtoBuilder {
     grpc_transformations: Vec<Box<Fn(String) -> String>>,
 }
 
-impl ProtoBuilder {
-    // The path can be relative to the build script.
-    pub fn new() -> Self {
-        Self {
+impl Default for ProtoBuilder {
+    fn default() -> ProtoBuilder {
+        ProtoBuilder {
             protoc_search_path: None,
             files: vec![],
             import_paths: vec![],
             generate_grpc: false,
-            transformations: vec![],
-            grpc_transformations: vec![],
+            transformations: vec![Box::new(replace_clippy)],
+            grpc_transformations: vec![Box::new(replace_clippy)],
         }
+    }
+}
+
+impl ProtoBuilder {
+    // The path can be relative to the build script.
+    pub fn new() -> Self {
+        Default::default()
     }
 
     // The path to the directory where protoc is located. If this is not set, PATH is used.
@@ -38,7 +43,8 @@ impl ProtoBuilder {
     }
 
     pub fn add_import_path<P: AsRef<Path>>(&mut self, import_path: P) -> &mut Self {
-        self.import_paths.push(import_path.as_ref().to_owned());
+        let import_path = import_path.as_ref().to_owned().canonicalize().unwrap();
+        self.import_paths.push(import_path);
         self
     }
 
@@ -47,6 +53,7 @@ impl ProtoBuilder {
         self
     }
 
+    // Register and function that transforms the contents of the generated file.
     pub fn add_transformation(&mut self, f: Box<Fn(String) -> String>) -> &mut Self {
         self.transformations.push(f);
         self
@@ -57,24 +64,21 @@ impl ProtoBuilder {
         self
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&self) {
         let old_path = std::env::var("PATH");
         if let Some(search_path) = &self.protoc_search_path {
             std::env::set_var("PATH", search_path);
         }
-        for imp in self.import_paths.iter_mut() {
-            std::mem::replace(imp, std::fs::canonicalize(&imp).unwrap());
-        }
-        self.files.iter().for_each(|file| {
+        for file in &self.files {
             println!("cargo:rerun-if-changed={}", file.display());
             compile_proto(
-                &file,
+                file,
                 &self.import_paths,
                 self.generate_grpc,
                 &self.transformations,
                 &self.grpc_transformations,
             );
-        });
+        }
         let _ = old_path.map(|pth| std::env::set_var("PATH", pth));
     }
 }
@@ -110,12 +114,10 @@ fn compile_proto(
             .expect("Error running protoc (with grpc)");
         let out_path = out_dir.join(format!("{}.rs", protobuf_name.display()));
         inplace_modify_file(&out_path, |code| {
-            let code = replace_clippy(code);
             transformations.iter().fold(code, |code, tr| tr(code))
         });
         let grpc_out_path = out_dir.join(format!("{}_grpc.rs", protobuf_name.display()));
         inplace_modify_file(&grpc_out_path, |code| {
-            let code = replace_clippy(code);
             grpc_transformations.iter().fold(code, |code, tr| tr(code))
         });
     } else {
@@ -125,6 +127,7 @@ fn compile_proto(
             input: &[protobuf_file.to_str().unwrap()],
             ..Default::default()
         };
+
         protoc_rust::run(args).expect("Error running protoc");
         let out_path = out_dir.join(format!("{}.rs", protobuf_name.display()));
         inplace_modify_file(&out_path, |code| {
@@ -157,7 +160,7 @@ fn inplace_modify_file<F: FnOnce(String) -> String>(path: &Path, func: F) {
         .unwrap();
     let new_contents = func(contents);
     File::create(&path)
-        .unwrap()
+        .unwrap_or_else(|_| panic!("Could not create {}", path.display()))
         .write_all(new_contents.as_bytes())
         .unwrap();
 }
