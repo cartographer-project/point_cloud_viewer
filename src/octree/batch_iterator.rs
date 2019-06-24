@@ -43,32 +43,20 @@ impl PointQuery {
     }
 }
 /// current implementation of the stream of points used in BatchIterator
-struct PointStream<'a, F>
-where
-    F: FnMut(PointData) -> Result<()>,
-{
+struct PointStream {
     position: Vec<Vector3<f64>>,
     color: Vec<Vector4<u8>>,
     intensity: Vec<f32>,
     local_from_global: Option<Isometry3<f64>>,
-    func: &'a mut F,
 }
 
-impl<'a, F> PointStream<'a, F>
-where
-    F: FnMut(PointData) -> Result<()>,
-{
-    fn new(
-        num_points_per_batch: usize,
-        local_from_global: Option<Isometry3<f64>>,
-        func: &'a mut F,
-    ) -> Self {
+impl PointStream {
+    fn new(num_points_per_batch: usize, local_from_global: Option<Isometry3<f64>>) -> Self {
         PointStream {
             position: Vec::with_capacity(num_points_per_batch),
             color: Vec::with_capacity(num_points_per_batch),
             intensity: Vec::with_capacity(num_points_per_batch),
             local_from_global,
-            func,
         }
     }
 
@@ -91,9 +79,9 @@ where
     }
 
     /// execute function on batch of points
-    fn callback(&mut self) -> Result<()> {
+    fn callback(&mut self) -> Option<PointData> {
         if self.position.is_empty() {
-            return Ok(());
+            return None;
         }
 
         let mut layers = FnvHashMap::default();
@@ -107,19 +95,19 @@ where
                 LayerData::F32(self.intensity.split_off(0)),
             );
         }
-        let point_data = PointData {
+        Some(PointData {
             position: self.position.split_off(0),
             layers,
-        };
-        (self.func)(point_data)
+        })
     }
 
-    fn push_point_and_callback(&mut self, point: Point) -> Result<()> {
+    fn push_point_and_callback(&mut self, point: Point) -> Option<PointData> {
         self.push_point(point);
         if self.position.len() == self.position.capacity() {
-            return self.callback();
+            self.callback()
+        } else {
+            None // TODO
         }
-        Ok(())
     }
 }
 
@@ -154,14 +142,20 @@ impl<'a> BatchIterator<'a> {
             .global_from_local
             .clone()
             .map(|t| t.inverse());
-        let mut point_stream = PointStream::new(self.batch_size, local_from_global, &mut func);
+        let mut point_stream = PointStream::new(self.batch_size, local_from_global);
         // nodes iterator: retrieve nodes
         let node_id_iterator = self.octree.nodes_in_location(self.point_location);
         // operate on nodes
         for node_id in node_id_iterator {
             let point_iterator = self.octree.points_in_node(self.point_location, node_id);
             for point in point_iterator {
-                point_stream.push_point_and_callback(point)?;
+                if let Some(pointdata) = point_stream.push_point_and_callback(point) {
+                    //here it could be retuned none, even if the buffer still works on the node. how can be this improved?
+                    func(pointdata)?;
+                }
+            } //last iteration
+            if let Some(pointdata) = point_stream.callback() {
+                func(pointdata)?;
             }
         }
         // TODO(catevita): return point data through mpsc channel
