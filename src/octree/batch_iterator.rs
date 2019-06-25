@@ -45,23 +45,23 @@ impl PointQuery {
 /// current implementation of the stream of points used in BatchIterator
 struct PointStream<'a, F>
 where
-    F: FnMut(PointData) -> Result<()>,
+    F: Fn(PointData) -> Result<()>,
 {
     position: Vec<Vector3<f64>>,
     color: Vec<Vector4<u8>>,
     intensity: Vec<f32>,
     local_from_global: Option<Isometry3<f64>>,
-    func: &'a mut F,
+    func: &'a F,
 }
 
 impl<'a, F> PointStream<'a, F>
 where
-    F: FnMut(PointData) -> Result<()>,
+    F: Fn(PointData) -> Result<()>,
 {
     fn new(
         num_points_per_batch: usize,
         local_from_global: Option<Isometry3<f64>>,
-        func: &'a mut F,
+        func: &'a F,
     ) -> Self {
         PointStream {
             position: Vec::with_capacity(num_points_per_batch),
@@ -167,7 +167,7 @@ impl<'a> BatchIterator<'a> {
         for node_id in node_id_iterator {
             // TODO(catevita): uncomment following lines in multithreading PR
             //let tx = tx.clone()
-            let mut send_func = |batch: PointData| {
+            let send_func = |batch: PointData| {
                 //std::thread::sleep(std::time::Duration::from_secs(1));
                 Ok(tx.send(batch).expect("Send error"))
             };
@@ -177,8 +177,7 @@ impl<'a> BatchIterator<'a> {
                 .clone()
                 .map(|t| t.inverse());
             let point_iterator = self.octree.points_in_node(self.point_location, node_id);
-            let mut point_stream =
-                PointStream::new(self.batch_size, local_from_global, &mut send_func);
+            let mut point_stream = PointStream::new(self.batch_size, local_from_global, &send_func);
             point_stream.push_point_and_callback(point_iterator)?;
         }
 
