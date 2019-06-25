@@ -1,7 +1,7 @@
 use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Isometry3, Obb, OrientedBeam};
-use crate::octree::{self, Octree};
+use crate::octree::{self, FilteredPointsIterator, Octree};
 use crate::{LayerData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
@@ -114,10 +114,18 @@ where
         (self.func)(point_data)
     }
 
-    fn push_point_and_callback(&mut self, point: Point) -> Result<()> {
-        self.push_point(point);
-        if self.position.len() == self.position.capacity() {
-            return self.callback();
+    fn push_point_and_callback<F2>(
+        &mut self,
+        point_iterator: FilteredPointsIterator<F2>,
+    ) -> Result<()>
+    where
+        F2: Fn(&Point) -> bool,
+    {
+        for point in point_iterator {
+            self.push_point(point);
+            if self.position.len() == self.position.capacity() {
+                return self.callback();
+            }
         }
         Ok(())
     }
@@ -144,29 +152,38 @@ impl<'a> BatchIterator<'a> {
     }
 
     /// compute a function while iterating on a batch of points
-    pub fn try_for_each_batch<F>(&mut self, mut func: F) -> Result<()>
+    pub fn try_for_each_batch<F>(&mut self, func: F) -> Result<()>
     where
         F: FnMut(PointData) -> Result<()>,
     {
         //TODO(catevita): mutable function parallelization
-        let local_from_global = self
-            .point_location
-            .global_from_local
-            .clone()
-            .map(|t| t.inverse());
-        let mut point_stream = PointStream::new(self.batch_size, local_from_global, &mut func);
+
         // nodes iterator: retrieve nodes
         let node_id_iterator = self.octree.nodes_in_location(self.point_location);
+
+        //channel
+        let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
         // operate on nodes
         for node_id in node_id_iterator {
+            // TODO(catevita): uncomment following lines in multithreading PR
+            //let tx = tx.clone()
+            let mut send_func = |batch: PointData| {
+                //std::thread::sleep(std::time::Duration::from_secs(1));
+                Ok(tx.send(batch).expect("Send error"))
+            };
+            let local_from_global = self
+                .point_location
+                .global_from_local
+                .clone()
+                .map(|t| t.inverse());
             let point_iterator = self.octree.points_in_node(self.point_location, node_id);
-            for point in point_iterator {
-                point_stream.push_point_and_callback(point)?;
-            }
+            let mut point_stream =
+                PointStream::new(self.batch_size, local_from_global, &mut send_func);
+            point_stream.push_point_and_callback(point_iterator)?;
         }
-        // TODO(catevita): return point data through mpsc channel
-        // TODO(catevita): apply mut function to received data
 
+        rx.iter().try_for_each(func)?;
+        //receiving pointdata
         Ok(())
     }
 }
