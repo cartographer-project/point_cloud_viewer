@@ -152,25 +152,25 @@ impl<'a> BatchIterator<'a> {
     }
 
     /// compute a function while iterating on a batch of points
-    pub fn try_for_each_batch<F>(&mut self, func: F) -> Result<()>
+    pub fn try_for_each_batch<F>(&mut self, mut func: F) -> Result<()>
     where
         F: FnMut(PointData) -> Result<()>,
     {
         let octree = self.octree;
+        let mut result = Ok(());
         // nodes iterator: retrieve nodes
         let node_id_iterator = octree.nodes_in_location(self.point_location);
 
         //channel
-        let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
+        let (tx, rx) = crossbeam::channel::unbounded(); //bounded::<PointData>(2);
         let local_from_global = self
             .point_location
             .global_from_local
             .clone()
             .map(|t| t.inverse());
         // operate on nodes
-        crossbeam::scope(|s| {
+        let scope = crossbeam::scope(|s| {
             for node_id in node_id_iterator {
-                // TODO(catevita): uncomment following lines in multithreading PR
                 let tx = tx.clone();
                 let local_from_global = local_from_global.clone();
                 //  let octree = octree.clone();
@@ -178,7 +178,7 @@ impl<'a> BatchIterator<'a> {
                 let batch_size = self.batch_size;
                 s.spawn(move |_| {
                     let send_func = |batch: PointData| {
-                        //std::thread::sleep(std::time::Duration::from_secs(1));
+                        std::thread::sleep(std::time::Duration::from_secs(1));
                         match tx.send(batch) {
                             Ok(_) => Ok(()),
                             Err(e) => Err(ErrorKind::Channel(format!(
@@ -195,18 +195,27 @@ impl<'a> BatchIterator<'a> {
                     point_stream
                         .push_point_and_callback(point_iterator)
                         .expect("channel error: send");
-                    point_stream.callback().unwrap();
+                    point_stream.callback().expect("channel error: send");
                 });
             }
 
             println!("receiving...");
-            rx.iter().try_for_each(func).unwrap();
-        })
-        .map_err(|e| {
-            println!("Map_err");
-            e
-        })
-        .expect("Point iterator thread panicked");
-        Ok(())
+            // while let Ok(received) = rx.recv() {
+            for received in rx {
+                println!("evaluating func");
+                if let Err(e) = func(received) {
+                    println!("/err0r received");
+                    result = Err(e);
+                    //drop(tx);
+                    break;
+                }
+            }
+            result
+        });
+
+        match scope.unwrap() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 }
