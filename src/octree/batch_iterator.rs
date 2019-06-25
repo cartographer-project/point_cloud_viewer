@@ -126,10 +126,10 @@ where
             self.push_point(point);
             if self.position.len() == self.position.capacity() {
                 println!("internal callback starting to send");
-                self.callback();
+                self.callback()?;
             }
         }
-        self.callback();
+        self.callback()?;
         Ok(())
     }
 }
@@ -160,7 +160,7 @@ impl<'a> BatchIterator<'a> {
         F: FnMut(PointData) -> Result<()>,
     {
         let octree = self.octree;
-        //let mut result = Ok(());
+        let mut result = Ok(());
         // nodes iterator: retrieve nodes
         let node_id_iterator = octree.nodes_in_location(self.point_location);
 
@@ -174,49 +174,42 @@ impl<'a> BatchIterator<'a> {
         crossbeam::scope(|s| {
             //channel
             let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
-            //let (tx_done, rx_done) = crossbeam::channel::bounded::(2);
             for node_id in node_id_iterator {
                 let tx = tx.clone();
                 let local_from_global = local_from_global.clone();
                 //  let octree = octree.clone();
                 let point_location = self.point_location.clone();
                 let batch_size = self.batch_size;
-                //let rx_done = rx_done.clone();
                 s.spawn(move |_| {
-                    let send_func = |batch: PointData| {
-                        std::thread::sleep(std::time::Duration::from_secs(1));
-                        match tx.send(batch) {
-                            Ok(_) => Ok(()),
-                            Err(e) => Err(ErrorKind::Channel(format!(
-                                "sending operation failed {:?}",
-                                e,
-                            ))
-                            .into()),
-                        }
+                    let send_func = |batch: PointData| match tx.send(batch) {
+                        Ok(_) => Ok(()),
+                        Err(e) => Err(ErrorKind::Channel(format!(
+                            "sending operation failed, nothing more to do {:?}",
+                            e,
+                        ))
+                        .into()),
                     };
 
                     let point_iterator = octree.points_in_node(&point_location, node_id);
                     let mut point_stream =
                         PointStream::new(batch_size, local_from_global, &send_func);
-                    point_stream
-                        .push_point_and_callback(point_iterator)
-                        .expect("channel error: send");
+                    let _ = point_stream.push_point_and_callback(point_iterator);
                 });
             }
 
             println!("receiving...");
-            rx.iter().try_for_each(func)
+            //rx.iter().try_for_each(func)
             // // while let Ok(received) = rx.recv() {
-            // for received in rx {
-            //     println!("evaluating func");
-            //     if let Err(e) = func(received) {
-            //         println!("/err0r received");
-            //         result = Err(e);
-            //         //drop(tx);
-            //         break;
-            //     }
-            // }
-            // result
+            for received in rx {
+                println!("evaluating func");
+                if let Err(e) = func(received) {
+                    println!("/err0r received");
+                    result = Err(e);
+                    drop(tx);
+                    break;
+                }
+            }
+            result
         })
         .expect("child thread panic")
 
