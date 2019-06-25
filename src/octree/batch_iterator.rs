@@ -125,7 +125,6 @@ where
         for point in point_iterator {
             self.push_point(point);
             if self.position.len() == self.position.capacity() {
-                println!("internal callback starting to send");
                 self.callback()?;
             }
         }
@@ -155,12 +154,11 @@ impl<'a> BatchIterator<'a> {
     }
 
     /// compute a function while iterating on a batch of points
-    pub fn try_for_each_batch<F>(&mut self, mut func: F) -> Result<()>
+    pub fn try_for_each_batch<F>(&mut self, func: F) -> Result<()>
     where
         F: FnMut(PointData) -> Result<()>,
     {
         let octree = self.octree;
-        let mut result = Ok(());
         // nodes iterator: retrieve nodes
         let node_id_iterator = octree.nodes_in_location(self.point_location);
 
@@ -169,17 +167,15 @@ impl<'a> BatchIterator<'a> {
             .global_from_local
             .clone()
             .map(|t| t.inverse());
-        // operate on nodes
-        //let scope =
+        // operate on nodes: one thread for each node
         crossbeam::scope(|s| {
-            //channel
             let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
             for node_id in node_id_iterator {
                 let tx = tx.clone();
                 let local_from_global = local_from_global.clone();
-                //  let octree = octree.clone();
                 let point_location = self.point_location.clone();
                 let batch_size = self.batch_size;
+
                 s.spawn(move |_| {
                     let send_func = |batch: PointData| match tx.send(batch) {
                         Ok(_) => Ok(()),
@@ -189,7 +185,6 @@ impl<'a> BatchIterator<'a> {
                         ))
                         .into()),
                     };
-
                     let point_iterator = octree.points_in_node(&point_location, node_id);
                     let mut point_stream =
                         PointStream::new(batch_size, local_from_global, &send_func);
@@ -197,25 +192,8 @@ impl<'a> BatchIterator<'a> {
                 });
             }
 
-            println!("receiving...");
-            //rx.iter().try_for_each(func)
-            // // while let Ok(received) = rx.recv() {
-            for received in rx {
-                println!("evaluating func");
-                if let Err(e) = func(received) {
-                    println!("/err0r received");
-                    result = Err(e);
-                    drop(tx);
-                    break;
-                }
-            }
-            result
+            rx.iter().try_for_each(func)
         })
         .expect("child thread panic")
-
-        // match scope.expect("child thread panic") {
-        //     Ok(result) => result,
-        //     Err(e) => Err(e),
-        // }
     }
 }

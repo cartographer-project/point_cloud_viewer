@@ -77,7 +77,7 @@ mod tests {
                 callback_count, delivered_points
             );
             if delivered_points >= max_num_points {
-                println!("Max Points reached!");
+                println!("Callback: Max Points reached!");
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Interrupted,
                     format!("Maximum number of {} points reached.", max_num_points),
@@ -105,21 +105,24 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    //#[ignore]
     fn test_batch_iterator_big_octree() {
         let batch_size = 5000;
         // define function
-        let mut callback_count: usize = 0;
+        let mut callback_count: u64 = 0;
         let max_num_points = 13_000; // 2*batch size + 3000
-        let mut delivered_points = 0;
+        let mut delivered_points: u64 = 0;
         println!(
             "batch_size= {} ,  num_points= {}",
             batch_size, max_num_points
         );
         let callback_func = |point_data: PointData| -> Result<()> {
             callback_count += 1;
-            delivered_points += point_data.position.len();
-
+            delivered_points += point_data.position.len() as u64;
+            println!(
+                "Callback_count {:}, delivered points {:}",
+                callback_count, delivered_points
+            );
             if delivered_points >= max_num_points {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Interrupted,
@@ -142,8 +145,8 @@ mod tests {
             .try_for_each_batch(callback_func)
             .expect_err("Test error");
 
-        assert_eq!(3, callback_count);
-        assert_eq!(3 * batch_size, delivered_points);
+        assert!(callback_count >= 3);
+        assert!(callback_count * batch_size as u64 >= delivered_points);
         assert!(delivered_points as i32 - max_num_points as i32 >= 0);
     }
 
