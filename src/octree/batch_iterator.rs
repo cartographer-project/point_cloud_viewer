@@ -5,6 +5,7 @@ use crate::octree::{self, FilteredPointsIterator, Octree};
 use crate::{LayerData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
+use crossbeam_deque::{Steal, Worker, Injector};
 use fnv::FnvHashMap;
 
 /// size for batch
@@ -135,14 +136,14 @@ where
 
 /// Iterator on point batches
 pub struct BatchIterator<'a> {
-    octree: &'a Octree, // Vec<&'a octree::Octree>,
+    octrees: Vec<&'a octree::Octree>,
     point_location: &'a PointQuery,
     batch_size: usize,
 }
 
 impl<'a> BatchIterator<'a> {
     pub fn new(
-        octree: &'a Octree, // Vec<&'a octree::Octree>,
+        octrees: Vec<&'a octree::Octree>,
         point_location: &'a PointQuery,
         batch_size: usize,
     ) -> Self {
@@ -158,10 +159,19 @@ impl<'a> BatchIterator<'a> {
     where
         F: FnMut(PointData) -> Result<()>,
     {
-        let octree = self.octree;
-        // nodes iterator: retrieve nodes
-        let node_id_iterator = octree.nodes_in_location(self.point_location);
+        // number of threads
+        let num_threads = 10;
+        // get thread safe fifo
+        let jobs = Worker::<(NodeId, &Octree)>::new_fifo();
+       self.octrees.iter().flat_map(|&octree| {
+                octree
+                    .nodes_in_location(self.point_location)
+                    .zip(std::iter::repeat(octree))
+            }).for_each(|tuple| jobs.push(tuple));
 
+
+        let stealer = jobs.stealer();
+        
         let local_from_global = self
             .point_location
             .global_from_local
@@ -170,7 +180,7 @@ impl<'a> BatchIterator<'a> {
         // operate on nodes: one thread for each node
         crossbeam::scope(|s| {
             let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
-            for node_id in node_id_iterator {
+            for _ in 0.. num_threads {
                 let tx = tx.clone();
                 let local_from_global = local_from_global.clone();
                 let point_location = self.point_location.clone();
@@ -185,6 +195,8 @@ impl<'a> BatchIterator<'a> {
                         ))
                         .into()),
                     };
+                    while let Some(node_id, octree) = stealer.pop() { 
+                        let () = task;
                     let point_iterator = octree.points_in_node(&point_location, node_id);
                     let mut point_stream =
                         PointStream::new(batch_size, local_from_global, &send_func);
