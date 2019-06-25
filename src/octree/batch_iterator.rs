@@ -169,8 +169,12 @@ impl<'a> BatchIterator<'a> {
             //let tx = tx.clone()
             let send_func = |batch: PointData| {
                 //std::thread::sleep(std::time::Duration::from_secs(1));
-                //tx.send(batch)
-                Ok(tx.send(batch).expect("Send error"))
+                match tx.send(batch) {
+                    Ok(_) => Ok(()),
+                    Err(e) => {
+                        Err(ErrorKind::Channel(format!("sending operation failed {:?}", e,)).into())
+                    }
+                }
             };
             let local_from_global = self
                 .point_location
