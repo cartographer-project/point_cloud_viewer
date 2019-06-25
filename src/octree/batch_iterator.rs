@@ -133,14 +133,14 @@ where
 
 /// Iterator on point batches
 pub struct BatchIterator<'a> {
-    octree: &'a Octree,
+    octree: &'a Octree, // Vec<&'a octree::Octree>,
     point_location: &'a PointQuery,
     batch_size: usize,
 }
 
 impl<'a> BatchIterator<'a> {
     pub fn new(
-        octree: &'a octree::Octree,
+        octree: &'a Octree, // Vec<&'a octree::Octree>,
         point_location: &'a PointQuery,
         batch_size: usize,
     ) -> Self {
@@ -156,17 +156,27 @@ impl<'a> BatchIterator<'a> {
     where
         F: FnMut(PointData) -> Result<()>,
     {
-        //TODO(catevita): mutable function parallelization
-
+        let octree = self.octree;
         // nodes iterator: retrieve nodes
-        let node_id_iterator = self.octree.nodes_in_location(self.point_location);
+        let node_id_iterator = octree.nodes_in_location(self.point_location);
 
         //channel
         let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
+        let local_from_global = self
+            .point_location
+            .global_from_local
+            .clone()
+            .map(|t| t.inverse());
         // operate on nodes
+        //crossbeam::scope(|s| {
         for node_id in node_id_iterator {
             // TODO(catevita): uncomment following lines in multithreading PR
-            //let tx = tx.clone()
+            let tx = tx.clone();
+            let local_from_global = local_from_global.clone();
+            //  let octree = octree.clone();
+            let point_location = self.point_location.clone();
+            let batch_size = self.batch_size;
+            //s.spawn(move |_| {
             let send_func = |batch: PointData| {
                 //std::thread::sleep(std::time::Duration::from_secs(1));
                 match tx.send(batch) {
@@ -176,18 +186,24 @@ impl<'a> BatchIterator<'a> {
                     }
                 }
             };
-            let local_from_global = self
-                .point_location
-                .global_from_local
-                .clone()
-                .map(|t| t.inverse());
-            let point_iterator = self.octree.points_in_node(self.point_location, node_id);
-            let mut point_stream = PointStream::new(self.batch_size, local_from_global, &send_func);
-            point_stream.push_point_and_callback(point_iterator)?;
+
+            let point_iterator = octree.points_in_node(&point_location, node_id);
+            let mut point_stream = PointStream::new(batch_size, local_from_global, &send_func);
+            point_stream
+                .push_point_and_callback(point_iterator)
+                .expect("channel error: send");
+            point_stream.callback().unwrap();
+            //});
         }
 
-        rx.iter().try_for_each(func)?;
-        //receiving pointdata
+        rx.iter().try_for_each(func).unwrap();
+        drop(tx);
+        //})
+        // .map_err(|e| {
+        //     println!("Map_err");
+        //     e
+        // })
+        // .expect("Point iterator thread panicked");
         Ok(())
     }
 }
