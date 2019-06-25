@@ -72,7 +72,10 @@ mod tests {
         let callback_func = |point_data: PointData| -> Result<()> {
             callback_count += 1;
             delivered_points += point_data.position.len();
-            println!("Callback_count {:}", callback_count);
+            println!(
+                "Callback_count {:}, delivered points {:}",
+                callback_count, delivered_points
+            );
             if delivered_points >= max_num_points {
                 println!("Max Points reached!");
                 return Err(std::io::Error::new(
@@ -92,8 +95,9 @@ mod tests {
         };
         let mut batch_iterator = BatchIterator::new(&octree, &location, batch_size);
 
-        let _err_stop = batch_iterator.try_for_each_batch(callback_func);
-        //.expect_err("Test error");
+        let _err_stop = batch_iterator
+            .try_for_each_batch(callback_func)
+            .expect_err("Test error");
 
         assert_eq!(3, callback_count);
         assert_eq!(3 * batch_size, delivered_points);

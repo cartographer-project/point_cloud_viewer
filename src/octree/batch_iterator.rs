@@ -111,6 +111,7 @@ where
             position: self.position.split_off(0),
             layers,
         };
+        //println!("internal callback sending last batch...");
         (self.func)(point_data)
     }
 
@@ -124,9 +125,11 @@ where
         for point in point_iterator {
             self.push_point(point);
             if self.position.len() == self.position.capacity() {
-                return self.callback();
+                println!("internal callback starting to send");
+                self.callback();
             }
         }
+        self.callback();
         Ok(())
     }
 }
@@ -157,25 +160,28 @@ impl<'a> BatchIterator<'a> {
         F: FnMut(PointData) -> Result<()>,
     {
         let octree = self.octree;
-        let mut result = Ok(());
+        //let mut result = Ok(());
         // nodes iterator: retrieve nodes
         let node_id_iterator = octree.nodes_in_location(self.point_location);
 
-        //channel
-        let (tx, rx) = crossbeam::channel::unbounded(); //bounded::<PointData>(2);
         let local_from_global = self
             .point_location
             .global_from_local
             .clone()
             .map(|t| t.inverse());
         // operate on nodes
-        let scope = crossbeam::scope(|s| {
+        //let scope =
+        crossbeam::scope(|s| {
+            //channel
+            let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
+            //let (tx_done, rx_done) = crossbeam::channel::bounded::(2);
             for node_id in node_id_iterator {
                 let tx = tx.clone();
                 let local_from_global = local_from_global.clone();
                 //  let octree = octree.clone();
                 let point_location = self.point_location.clone();
                 let batch_size = self.batch_size;
+                //let rx_done = rx_done.clone();
                 s.spawn(move |_| {
                     let send_func = |batch: PointData| {
                         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -195,27 +201,28 @@ impl<'a> BatchIterator<'a> {
                     point_stream
                         .push_point_and_callback(point_iterator)
                         .expect("channel error: send");
-                    point_stream.callback().expect("channel error: send");
                 });
             }
 
             println!("receiving...");
-            // while let Ok(received) = rx.recv() {
-            for received in rx {
-                println!("evaluating func");
-                if let Err(e) = func(received) {
-                    println!("/err0r received");
-                    result = Err(e);
-                    //drop(tx);
-                    break;
-                }
-            }
-            result
-        });
+            rx.iter().try_for_each(func)
+            // // while let Ok(received) = rx.recv() {
+            // for received in rx {
+            //     println!("evaluating func");
+            //     if let Err(e) = func(received) {
+            //         println!("/err0r received");
+            //         result = Err(e);
+            //         //drop(tx);
+            //         break;
+            //     }
+            // }
+            // result
+        })
+        .expect("child thread panic")
 
-        match scope.unwrap() {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        }
+        // match scope.expect("child thread panic") {
+        //     Ok(result) => result,
+        //     Err(e) => Err(e),
+        // }
     }
 }
