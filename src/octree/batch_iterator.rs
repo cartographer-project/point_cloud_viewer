@@ -115,12 +115,12 @@ where
         (self.func)(point_data)
     }
 
-    fn push_point_and_callback<F2>(
+    fn push_points_and_callback<Filter>(
         &mut self,
-        point_iterator: FilteredPointsIterator<F2>,
+        point_iterator: FilteredPointsIterator<Filter>,
     ) -> Result<()>
     where
-        F2: Fn(&Point) -> bool,
+        Filter: Fn(&Point) -> bool,
     {
         for point in point_iterator {
             self.push_point(point);
@@ -165,7 +165,7 @@ impl<'a> BatchIterator<'a> {
         let local_from_global = self
             .point_location
             .global_from_local
-            .clone()
+            .as_ref()
             .map(|t| t.inverse());
         // operate on nodes: one thread for each node
         crossbeam::scope(|s| {
@@ -173,7 +173,7 @@ impl<'a> BatchIterator<'a> {
             for node_id in node_id_iterator {
                 let tx = tx.clone();
                 let local_from_global = local_from_global.clone();
-                let point_location = self.point_location.clone();
+                let point_location = &self.point_location;
                 let batch_size = self.batch_size;
 
                 s.spawn(move |_| {
@@ -185,15 +185,15 @@ impl<'a> BatchIterator<'a> {
                         ))
                         .into()),
                     };
-                    let point_iterator = octree.points_in_node(&point_location, node_id);
+                    let point_iterator = octree.points_in_node(point_location, node_id);
                     let mut point_stream =
                         PointStream::new(batch_size, local_from_global, &send_func);
-                    let _ = point_stream.push_point_and_callback(point_iterator);
+                    let _ = point_stream.push_points_and_callback(point_iterator);
                 });
             }
 
             rx.iter().try_for_each(func)
         })
-        .expect("child thread panic")
+        .expect("BatchIterator: Panic in try_for_each_batch child thread")
     }
 }
