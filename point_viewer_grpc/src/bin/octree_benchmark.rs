@@ -21,7 +21,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use point_viewer::octree::{
-    octree_from_directory, BatchIterator, OctreeFactory, PointLocation, PointQuery,
+    octree_from_directory, BatchIterator, Octree, OctreeFactory, PointLocation, PointQuery,
 };
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
@@ -67,18 +67,20 @@ fn main() {
 }
 
 fn server_benchmark(octree_directory: &Path, num_points: usize) {
-    let octree = octree_from_directory(octree_directory).unwrap_or_else(|_| {
-        panic!(
-            "Could not create octree from '{}'",
-            octree_directory.display()
-        )
-    });
+    let octree: [Octree; 1] = [
+        *octree_from_directory(octree_directory).unwrap_or_else(|_| {
+            panic!(
+                "Could not create octree from '{}'",
+                octree_directory.display()
+            )
+        }),
+    ];
     let mut counter: usize = 0;
     let all_points = PointQuery {
         location: PointLocation::AllPoints(),
         global_from_local: None,
     };
-    let mut batch_iterator = BatchIterator::new(vec![&octree], &all_points, BATCH_SIZE);
+    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE);
 
     let _result = batch_iterator.try_for_each_batch(move |point_data| {
         counter += point_data.position.len();

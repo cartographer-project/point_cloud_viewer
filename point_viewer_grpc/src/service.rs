@@ -36,7 +36,7 @@ use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 struct OctreeServiceData {
-    octree: [Octree], // caveat: only one octree in this slice
+    octree: [Octree; 1], // caveat: only one octree in this slice
     meta: point_viewer::proto::Meta,
 }
 
@@ -349,11 +349,14 @@ impl OctreeService {
         if let Some(service_data) = self.data_cache.read().unwrap().get(octree_id) {
             return Ok(Arc::clone(service_data));
         };
-        let octree_slice: [Octree] = [*self
+        let octree_slice: [Octree; 1] = [*self
             .factory
             .generate_octree(self.location.join(&octree_id).to_string_lossy())?];
-        let meta = octree_vec[0].to_meta_proto();
-        let service_data = Arc::new(OctreeServiceData { octree_slice, meta });
+        let meta = octree_slice[0].to_meta_proto();
+        let service_data = Arc::new(OctreeServiceData {
+            octree: octree_slice,
+            meta,
+        });
         self.data_cache
             .write()
             .unwrap()
