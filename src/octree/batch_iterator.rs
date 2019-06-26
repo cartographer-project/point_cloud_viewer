@@ -202,6 +202,7 @@ impl<'a> BatchIterator<'a> {
                         ))
                         .into()),
                     };
+
                     // one pointstream per thread vs one per node allows to send more full point batches
                     let mut point_stream =
                         PointStream::new(batch_size, local_from_global, &send_func);

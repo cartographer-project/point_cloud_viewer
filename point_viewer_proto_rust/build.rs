@@ -12,6 +12,8 @@ fn main() {
     println!("cargo:rerun-if-changed=src/proto.proto");
 
     let out_dir = env::var("OUT_DIR").unwrap();
+    let old_path = env::var("PATH");
+    env::set_var("PATH", "../target/protobuf/bin");
     protoc_rust::run(protoc_rust::Args {
         out_dir: &out_dir,
         input: &["src/proto.proto"],
@@ -19,6 +21,7 @@ fn main() {
         ..Default::default()
     })
     .expect("protoc");
+    env::set_var("PATH", old_path.unwrap_or("".to_string()));
 
     // Work around
     // https://github.com/stepancheg/rust-protobuf/issues/117
