@@ -5,7 +5,7 @@ use crate::octree::{self, FilteredPointsIterator, Octree};
 use crate::{LayerData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
-use crossbeam::deque::{Injector, Steal};
+use crossbeam::deque::{Steal, Worker};
 use fnv::FnvHashMap;
 
 /// size for batch
@@ -116,12 +116,12 @@ where
         (self.func)(point_data)
     }
 
-    fn push_point_and_callback<F2>(
+    fn push_points_and_callback<Filter>(
         &mut self,
-        point_iterator: FilteredPointsIterator<F2>,
+        point_iterator: FilteredPointsIterator<Filter>,
     ) -> Result<()>
     where
-        F2: Fn(&Point) -> bool,
+        Filter: Fn(&Point) -> bool,
     {
         for point in point_iterator {
             self.push_point(point);
@@ -162,7 +162,7 @@ impl<'a> BatchIterator<'a> {
         // number of threads
         let num_threads = 10;
         // get thread safe fifo
-        let jobs = Injector::<(octree::NodeId, &Octree)>::new();
+        let jobs = Worker::<(octree::NodeId, &Octree)>::new_fifo();
         self.octrees
             .iter()
             .flat_map(|&octree| {
@@ -173,13 +173,12 @@ impl<'a> BatchIterator<'a> {
             .for_each(|(node_id, octree)| {
                 jobs.push((node_id, octree));
             });
-
         let local_from_global = self
             .point_location
             .global_from_local
             .as_ref()
             .map(|t| t.inverse());
-        // operate on nodes: one thread for each node
+        // operate on nodes with limited number of threads
         crossbeam::scope(|s| {
             let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
             for _ in 0..num_threads {
@@ -187,7 +186,7 @@ impl<'a> BatchIterator<'a> {
                 let local_from_global = local_from_global.clone();
                 let point_location = &self.point_location;
                 let batch_size = self.batch_size;
-                let jobs_queue = &jobs;
+                let next_task = jobs.stealer();
 
                 s.spawn(move |_| {
                     let send_func = |batch: PointData| match tx.send(batch) {
@@ -198,18 +197,26 @@ impl<'a> BatchIterator<'a> {
                         ))
                         .into()),
                     };
+                    // one pointstream per thread vs one per node allows to send more full point batches
                     let mut point_stream =
                         PointStream::new(batch_size, local_from_global, &send_func);
 
-                    while let Steal::Success((node_id, octree)) = jobs_queue.steal() {
-                        let point_iterator = octree.points_in_node(point_location, node_id);
-                        let _ = point_stream.push_point_and_callback(point_iterator);
+                    while let Steal::Success((node_id, octree)) = next_task.steal() {
+                        let point_iterator = octree.points_in_node(&point_location, node_id);
+                        //executing on the available next task if the fuction still requires it
+                        match point_stream.push_points_and_callback(point_iterator) {
+                            Ok(_) => continue,
+                            Err(ref e) => match e.kind() {
+                                ErrorKind::Channel(ref _s) => break, // done with the function computation
+                                _ => panic!("BatchIterator: Thread error {}", e), //some other error
+                            },
+                        }
                     }
                 });
             }
 
             rx.iter().try_for_each(func)
         })
-        .expect("child thread panic")
+        .expect("BatchIterator: Panic in try_for_each_batch child thread")
     }
 }

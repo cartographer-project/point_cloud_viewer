@@ -93,7 +93,7 @@ mod tests {
             location: PointLocation::AllPoints(),
             global_from_local: None,
         };
-        let mut batch_iterator = BatchIterator::new(&octree, &location, batch_size);
+        let mut batch_iterator = BatchIterator::new(vec![&octree], &location, batch_size);
 
         let _err_stop = batch_iterator
             .try_for_each_batch(callback_func)
@@ -139,7 +139,7 @@ mod tests {
             location: PointLocation::AllPoints(),
             global_from_local: None,
         };
-        let mut batch_iterator = BatchIterator::new(&octree, &location, batch_size);
+        let mut batch_iterator = BatchIterator::new(vec![&octree], &location, batch_size);
 
         let _err_stop = batch_iterator
             .try_for_each_batch(callback_func)

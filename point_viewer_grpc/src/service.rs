@@ -330,7 +330,7 @@ impl OctreeService {
                 };
 
                 let mut batch_iterator =
-                    BatchIterator::new(&service_data.octree, &query, num_points_per_batch);
+                    BatchIterator::new(vec![&service_data.octree], &query, num_points_per_batch);
                 // TODO(catevita): missing error handling for the thread
                 let _result = batch_iterator.try_for_each_batch(func);
             }

@@ -43,11 +43,9 @@ impl PointCloudClient {
     where
         F: FnMut(PointData) -> Result<()>,
     {
-        for octree in &self.octrees {
-            let mut batch_iterator =
-                BatchIterator::new(octree, point_location, self.num_points_per_batch);
-            batch_iterator.try_for_each_batch(&mut func)?;
-        }
+        let mut batch_iterator =
+            BatchIterator::new(self.octrees, point_location, self.num_points_per_batch);
+        batch_iterator.try_for_each_batch(&mut func)?;
         Ok(())
     }
 }
