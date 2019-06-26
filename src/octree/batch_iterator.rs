@@ -135,14 +135,14 @@ where
 
 /// Iterator on point batches
 pub struct BatchIterator<'a> {
-    octree: &'a Octree, // Vec<&'a octree::Octree>,
+    octree: &'a Octree,
     point_location: &'a PointQuery,
     batch_size: usize,
 }
 
 impl<'a> BatchIterator<'a> {
     pub fn new(
-        octree: &'a Octree, // Vec<&'a octree::Octree>,
+        octree: &'a octree::Octree,
         point_location: &'a PointQuery,
         batch_size: usize,
     ) -> Self {
