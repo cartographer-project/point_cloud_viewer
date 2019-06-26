@@ -136,14 +136,15 @@ where
 
 /// Iterator on point batches
 pub struct BatchIterator<'a> {
-    octrees: Vec<&'a octree::Octree>,
+    octrees: &'a [octree::Octree],
     point_location: &'a PointQuery,
     batch_size: usize,
+    thread_size: usize,
 }
 
 impl<'a> BatchIterator<'a> {
     pub fn new(
-        octrees: Vec<&'a octree::Octree>,
+        octrees: &'a [octree::Octree],
         point_location: &'a PointQuery,
         batch_size: usize,
     ) -> Self {
@@ -151,21 +152,25 @@ impl<'a> BatchIterator<'a> {
             octrees,
             point_location,
             batch_size,
+            thread_size: 10,
         }
     }
 
+    /// utility to customize the number of threads
+    /// set thread =1 to reproduce results
+    pub fn set_thread_size(&mut self, size: usize) {
+        self.thread_size = size;
+    }
     /// compute a function while iterating on a batch of points
     pub fn try_for_each_batch<F>(&mut self, func: F) -> Result<()>
     where
         F: FnMut(PointData) -> Result<()>,
     {
-        // number of threads
-        let num_threads = 10;
         // get thread safe fifo
         let jobs = Worker::<(octree::NodeId, &Octree)>::new_fifo();
         self.octrees
             .iter()
-            .flat_map(|&octree| {
+            .flat_map(|octree| {
                 octree
                     .nodes_in_location(self.point_location)
                     .zip(std::iter::repeat(octree))
@@ -181,7 +186,7 @@ impl<'a> BatchIterator<'a> {
         // operate on nodes with limited number of threads
         crossbeam::scope(|s| {
             let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
-            for _ in 0..num_threads {
+            for _ in 0..self.thread_size {
                 let tx = tx.clone();
                 let local_from_global = local_from_global.clone();
                 let point_location = &self.point_location;

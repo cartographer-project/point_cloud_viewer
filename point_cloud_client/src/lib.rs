@@ -44,7 +44,7 @@ impl PointCloudClient {
         F: FnMut(PointData) -> Result<()>,
     {
         let mut batch_iterator =
-            BatchIterator::new(self.octrees, point_location, self.num_points_per_batch);
+            BatchIterator::new(&self.octrees, point_location, self.num_points_per_batch);
         batch_iterator.try_for_each_batch(&mut func)?;
         Ok(())
     }

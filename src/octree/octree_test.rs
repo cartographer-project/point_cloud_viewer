@@ -3,7 +3,7 @@ mod tests {
     use crate::color::Color;
     use crate::errors::Result;
     use crate::generation::build_octree;
-    use crate::octree::{self, BatchIterator, PointLocation, PointQuery};
+    use crate::octree::{self, BatchIterator, Octree, PointLocation, PointQuery};
     use crate::{Point, PointData};
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};
@@ -88,12 +88,12 @@ mod tests {
         };
 
         // octree and iterator
-        let octree = build_test_octree();
+        let octree_vec: Vec<Octree> = vec![*build_test_octree()];
         let location = PointQuery {
             location: PointLocation::AllPoints(),
             global_from_local: None,
         };
-        let mut batch_iterator = BatchIterator::new(vec![&octree], &location, batch_size);
+        let mut batch_iterator = BatchIterator::new(&octree_vec, &location, batch_size);
 
         let _err_stop = batch_iterator
             .try_for_each_batch(callback_func)
@@ -134,12 +134,12 @@ mod tests {
         };
 
         // octree and iterator
-        let octree = build_big_test_octree();
+        let octree_vec: Vec<Octree> = vec![*build_big_test_octree()];
         let location = PointQuery {
             location: PointLocation::AllPoints(),
             global_from_local: None,
         };
-        let mut batch_iterator = BatchIterator::new(vec![&octree], &location, batch_size);
+        let mut batch_iterator = BatchIterator::new(&octree_vec, &location, batch_size);
 
         let _err_stop = batch_iterator
             .try_for_each_batch(callback_func)
