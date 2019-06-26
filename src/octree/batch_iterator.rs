@@ -170,7 +170,9 @@ impl<'a> BatchIterator<'a> {
                     .nodes_in_location(self.point_location)
                     .zip(std::iter::repeat(octree))
             })
-            .for_each(|(node_id, octree)| jobs.push((node_id, octree)));
+            .for_each(|(node_id, octree)| {
+                jobs.push((node_id, octree));
+            });
 
         let local_from_global = self
             .point_location
@@ -183,8 +185,9 @@ impl<'a> BatchIterator<'a> {
             for _ in 0..num_threads {
                 let tx = tx.clone();
                 let local_from_global = local_from_global.clone();
-                let point_location = self.point_location.clone();
+                let point_location = &self.point_location;
                 let batch_size = self.batch_size;
+                let jobs_queue = &jobs;
 
                 s.spawn(move |_| {
                     let send_func = |batch: PointData| match tx.send(batch) {
@@ -195,10 +198,11 @@ impl<'a> BatchIterator<'a> {
                         ))
                         .into()),
                     };
-                    while let Steal::Success((node_id, octree)) = jobs.steal() {
-                        let point_iterator = octree.points_in_node(&point_location, node_id);
-                        let mut point_stream =
-                            PointStream::new(batch_size, local_from_global, &send_func);
+                    let mut point_stream =
+                        PointStream::new(batch_size, local_from_global, &send_func);
+
+                    while let Steal::Success((node_id, octree)) = jobs_queue.steal() {
+                        let point_iterator = octree.points_in_node(point_location, node_id);
                         let _ = point_stream.push_point_and_callback(point_iterator);
                     }
                 });
