@@ -45,7 +45,7 @@ use point_viewer::color::YELLOW;
 use point_viewer::math::Isometry3;
 use point_viewer::octree::{self, Octree, OctreeFactory};
 use sdl2::event::{Event, WindowEvent};
-use sdl2::keyboard::{Scancode, LCTRLMOD, LSHIFTMOD, RCTRLMOD, RSHIFTMOD};
+use sdl2::keyboard::{Scancode, LCTRLMOD, LSHIFTMOD, NUMMOD, RCTRLMOD, RSHIFTMOD};
 use sdl2::video::GLProfile;
 use std::cmp;
 use std::io;
@@ -482,7 +482,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                     keymod,
                     ..
                 } => {
-                    if keymod.is_empty() {
+                    if keymod.is_empty() || keymod.bits() == NUMMOD.bits() {
                         match code {
                             Scancode::Escape => break 'outer_loop,
                             Scancode::W => camera.moving_forward = true,
