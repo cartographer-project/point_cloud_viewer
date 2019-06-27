@@ -5,7 +5,7 @@ use crate::octree::{self, FilteredPointsIterator, Octree};
 use crate::{LayerData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
-use crossbeam::deque::{Steal, Worker};
+use crossbeam::deque::{Injector, Steal, Worker};
 use fnv::FnvHashMap;
 
 /// size for batch
@@ -167,7 +167,7 @@ impl<'a> BatchIterator<'a> {
         F: FnMut(PointData) -> Result<()>,
     {
         // get thread safe fifo
-        let jobs = Worker::<(octree::NodeId, &Octree)>::new_fifo();
+        let jobs = Injector::<(octree::NodeId, &Octree)>::new();
         self.octrees
             .iter()
             .flat_map(|octree| {
@@ -191,7 +191,8 @@ impl<'a> BatchIterator<'a> {
                 let local_from_global = local_from_global.clone();
                 let point_location = &self.point_location;
                 let batch_size = self.batch_size;
-                let next_task = jobs.stealer();
+                let worker = Worker::new_fifo();
+                let jobs = &jobs;
 
                 s.spawn(move |_| {
                     let send_func = |batch: PointData| match tx.send(batch) {
@@ -202,12 +203,18 @@ impl<'a> BatchIterator<'a> {
                         ))
                         .into()),
                     };
-
                     // one pointstream per thread vs one per node allows to send more full point batches
                     let mut point_stream =
                         PointStream::new(batch_size, local_from_global, &send_func);
 
-                    while let Steal::Success((node_id, octree)) = next_task.steal() {
+                    loop{
+                        if worker.is_empty()
+                        {
+                            let mut retry : Steal<_> = Steal::Retry;
+                            while retry.is_retry(){ retry = jobs.steal_batch(&worker);}
+                            if retry.is_empty(){ break; } //first implementation: stop the worker if the local queue is done and so the global one
+                        }
+                        if let Some((node_id, octree)) = worker.pop() {
                         let point_iterator = octree.points_in_node(&point_location, node_id);
                         //executing on the available next task if the fuction still requires it
                         match point_stream.push_points_and_callback(point_iterator) {
@@ -216,6 +223,7 @@ impl<'a> BatchIterator<'a> {
                                 ErrorKind::Channel(ref _s) => break, // done with the function computation
                                 _ => panic!("BatchIterator: Thread error {}", e), //some other error
                             },
+                        }
                         }
                     }
                 });
