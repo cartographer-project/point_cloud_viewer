@@ -210,23 +210,26 @@ impl<'a> BatchIterator<'a> {
                     let mut point_stream =
                         PointStream::new(batch_size, local_from_global, &send_func);
 
-                    loop{
-                        if worker.is_empty()
-                        {
-                            let mut retry : Steal<_> = Steal::Retry;
-                            while retry.is_retry(){ retry = jobs.steal_batch(&worker);}
-                            if retry.is_empty(){ break; } //first implementation: stop the worker if the local queue is done and so the global one
+                    loop {
+                        if worker.is_empty() {
+                            let mut retry: Steal<_> = Steal::Retry;
+                            while retry.is_retry() {
+                                retry = jobs.steal_batch(&worker);
+                            }
+                            if retry.is_empty() {
+                                break;
+                            } //first implementation: stop the worker if the local queue is done and so the global one
                         }
                         if let Some((node_id, octree)) = worker.pop() {
-                        let point_iterator = octree.points_in_node(&point_location, node_id);
-                        //executing on the available next task if the fuction still requires it
-                        match point_stream.push_points_and_callback(point_iterator) {
-                            Ok(_) => continue,
-                            Err(ref e) => match e.kind() {
-                                ErrorKind::Channel(ref _s) => break, // done with the function computation
-                                _ => panic!("BatchIterator: Thread error {}", e), //some other error
-                            },
-                        }
+                            let point_iterator = octree.points_in_node(&point_location, node_id);
+                            //executing on the available next task if the fuction still requires it
+                            match point_stream.push_points_and_callback(point_iterator) {
+                                Ok(_) => continue,
+                                Err(ref e) => match e.kind() {
+                                    ErrorKind::Channel(ref _s) => break, // done with the function computation
+                                    _ => panic!("BatchIterator: Thread error {}", e), //some other error
+                                },
+                            }
                         }
                     }
                 });
