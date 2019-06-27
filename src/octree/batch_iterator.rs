@@ -112,7 +112,6 @@ where
             position: self.position.split_off(0),
             layers,
         };
-        //println!("internal callback sending last batch...");
         (self.func)(point_data)
     }
 
