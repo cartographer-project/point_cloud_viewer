@@ -1,7 +1,7 @@
 use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Isometry3, Obb, OrientedBeam};
-use crate::octree::{self, Octree};
+use crate::octree::{self, FilteredPointsIterator, Octree};
 use crate::{LayerData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
@@ -45,23 +45,23 @@ impl PointQuery {
 /// current implementation of the stream of points used in BatchIterator
 struct PointStream<'a, F>
 where
-    F: FnMut(PointData) -> Result<()>,
+    F: Fn(PointData) -> Result<()>,
 {
     position: Vec<Vector3<f64>>,
     color: Vec<Vector4<u8>>,
     intensity: Vec<f32>,
     local_from_global: Option<Isometry3<f64>>,
-    func: &'a mut F,
+    func: &'a F,
 }
 
 impl<'a, F> PointStream<'a, F>
 where
-    F: FnMut(PointData) -> Result<()>,
+    F: Fn(PointData) -> Result<()>,
 {
     fn new(
         num_points_per_batch: usize,
         local_from_global: Option<Isometry3<f64>>,
-        func: &'a mut F,
+        func: &'a F,
     ) -> Self {
         PointStream {
             position: Vec::with_capacity(num_points_per_batch),
@@ -111,14 +111,24 @@ where
             position: self.position.split_off(0),
             layers,
         };
+        //println!("internal callback sending last batch...");
         (self.func)(point_data)
     }
 
-    fn push_point_and_callback(&mut self, point: Point) -> Result<()> {
-        self.push_point(point);
-        if self.position.len() == self.position.capacity() {
-            return self.callback();
+    fn push_points_and_callback<Filter>(
+        &mut self,
+        point_iterator: FilteredPointsIterator<Filter>,
+    ) -> Result<()>
+    where
+        Filter: Fn(&Point) -> bool,
+    {
+        for point in point_iterator {
+            self.push_point(point);
+            if self.position.len() == self.position.capacity() {
+                self.callback()?;
+            }
         }
+        self.callback()?;
         Ok(())
     }
 }
@@ -144,29 +154,46 @@ impl<'a> BatchIterator<'a> {
     }
 
     /// compute a function while iterating on a batch of points
-    pub fn try_for_each_batch<F>(&mut self, mut func: F) -> Result<()>
+    pub fn try_for_each_batch<F>(&mut self, func: F) -> Result<()>
     where
         F: FnMut(PointData) -> Result<()>,
     {
-        //TODO(catevita): mutable function parallelization
+        let octree = self.octree;
+        // nodes iterator: retrieve nodes
+        let node_id_iterator = octree.nodes_in_location(self.point_location);
+
         let local_from_global = self
             .point_location
             .global_from_local
-            .clone()
+            .as_ref()
             .map(|t| t.inverse());
-        let mut point_stream = PointStream::new(self.batch_size, local_from_global, &mut func);
-        // nodes iterator: retrieve nodes
-        let node_id_iterator = self.octree.nodes_in_location(self.point_location);
-        // operate on nodes
-        for node_id in node_id_iterator {
-            let point_iterator = self.octree.points_in_node(self.point_location, node_id);
-            for point in point_iterator {
-                point_stream.push_point_and_callback(point)?;
-            }
-        }
-        // TODO(catevita): return point data through mpsc channel
-        // TODO(catevita): apply mut function to received data
+        // operate on nodes: one thread for each node
+        crossbeam::scope(|s| {
+            let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
+            for node_id in node_id_iterator {
+                let tx = tx.clone();
+                let local_from_global = local_from_global.clone();
+                let point_location = &self.point_location;
+                let batch_size = self.batch_size;
 
-        Ok(())
+                s.spawn(move |_| {
+                    let send_func = |batch: PointData| match tx.send(batch) {
+                        Ok(_) => Ok(()),
+                        Err(e) => Err(ErrorKind::Channel(format!(
+                            "sending operation failed, nothing more to do {:?}",
+                            e,
+                        ))
+                        .into()),
+                    };
+                    let point_iterator = octree.points_in_node(point_location, node_id);
+                    let mut point_stream =
+                        PointStream::new(batch_size, local_from_global, &send_func);
+                    let _ = point_stream.push_points_and_callback(point_iterator);
+                });
+            }
+
+            rx.iter().try_for_each(func)
+        })
+        .expect("BatchIterator: Panic in try_for_each_batch child thread")
     }
 }
