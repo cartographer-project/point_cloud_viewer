@@ -112,6 +112,7 @@ where
             position: self.position.split_off(0),
             layers,
         };
+        //println!("internal callback sending last batch...");
         (self.func)(point_data)
     }
 
@@ -177,11 +178,13 @@ impl<'a> BatchIterator<'a> {
             .for_each(|(node_id, octree)| {
                 jobs.push((node_id, octree));
             });
+
         let local_from_global = self
             .point_location
             .global_from_local
             .as_ref()
             .map(|t| t.inverse());
+
         // operate on nodes with limited number of threads
         crossbeam::scope(|s| {
             let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
@@ -202,6 +205,7 @@ impl<'a> BatchIterator<'a> {
                         ))
                         .into()),
                     };
+
                     // one pointstream per thread vs one per node allows to send more full point batches
                     let mut point_stream =
                         PointStream::new(batch_size, local_from_global, &send_func);
