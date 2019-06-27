@@ -88,7 +88,7 @@ mod tests {
         };
 
         // octree and iterator
-        let octree_vec: [Octree] = [*build_test_octree()];
+        let octree_vec: [Octree; 1] = [*build_test_octree()];
         let location = PointQuery {
             location: PointLocation::AllPoints(),
             global_from_local: None,
@@ -134,7 +134,7 @@ mod tests {
         };
 
         // octree and iterator
-        let octree_vec: [Octree] = [*build_big_test_octree()];
+        let octree_vec: [Octree; 1] = [*build_big_test_octree()];
         let location = PointQuery {
             location: PointLocation::AllPoints(),
             global_from_local: None,
