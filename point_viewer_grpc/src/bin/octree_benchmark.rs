@@ -62,9 +62,10 @@ fn main() {
     );
     let num_points = usize::from_str(matches.value_of("num-points").unwrap_or("50000000"))
         .expect("num-points needs to be a number");
-    let num_threads = match matches.value_of("num-threads"){
+    let num_threads = match matches.value_of("num-threads") {
         Some(thr_string) => usize::from_str(thr_string).expect("num-points needs to be a number"),
-        None => num_cpus::get() -1};
+        None => num_cpus::get() - 1,
+    };
     if matches.is_present("no-client") {
         server_benchmark(&octree_directory, num_points, num_threads)
     } else {
@@ -88,16 +89,17 @@ fn server_benchmark(octree_directory: &Path, num_points: usize, num_threads: usi
         location: PointLocation::AllPoints(),
         global_from_local: None,
     };
-    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_threads );
+    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_threads);
     println!("Server benchmark:");
     let _result = batch_iterator.try_for_each_batch(move |point_data| {
         counter += point_data.position.len();
         if counter >= num_points {
             std::process::exit(0)
         }
-        if points_streamed_m < counter/BATCH_SIZE{
-        points_streamed_m = counter/BATCH_SIZE;
-        println!("Streamed {}M points", points_streamed_m)};
+        if points_streamed_m < counter / BATCH_SIZE {
+            points_streamed_m = counter / BATCH_SIZE;
+            println!("Streamed {}M points", points_streamed_m)
+        };
         Ok(())
     });
 }

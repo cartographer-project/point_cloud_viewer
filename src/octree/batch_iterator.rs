@@ -206,10 +206,10 @@ impl<'a> BatchIterator<'a> {
                         PointStream::new(batch_size, &local_from_global, &send_func);
 
                     while let Some((octree, node_id)) = worker.pop().or_else(|| {
-    std::iter::repeat_with(|| jobs.steal_batch_and_pop(&worker))
-        .find(|task| !task.is_retry())
-        .and_then(|task| task.success())
-}) {
+                        std::iter::repeat_with(|| jobs.steal_batch_and_pop(&worker))
+                            .find(|task| !task.is_retry())
+                            .and_then(|task| task.success())
+                    }) {
                             let point_iterator = octree.points_in_node(&point_location, node_id);
                             // executing on the available next task if the fucntion still requires it
                             match point_stream.push_points_and_callback(point_iterator) {
