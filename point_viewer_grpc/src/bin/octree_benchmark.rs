@@ -65,7 +65,7 @@ fn main() {
     let num_threads = match matches.value_of("num-threads"){
         Some(thr_string) => usize::from_str(thr_string).expect("num-points needs to be a number"),
         None => num_cpus::get() -1};
-    println!("Batch size: {}, Threads: {}", Batch_size, num_threads);
+    println!("Batch size: {}, Threads: {}", BATCH_SIZE, num_threads);
     if matches.is_present("no-client") {
         server_benchmark(&octree_directory, num_points, num_threads)
     } else {
