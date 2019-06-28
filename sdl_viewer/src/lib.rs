@@ -482,7 +482,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                     keymod,
                     ..
                 } => {
-                    if keymod.is_empty() || keymod.bits() == NUMMOD.bits() {
+                    if keymod.is_empty() || keymod == NUMMOD {
                         match code {
                             Scancode::Escape => break 'outer_loop,
                             Scancode::W => camera.moving_forward = true,
