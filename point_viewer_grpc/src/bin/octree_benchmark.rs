@@ -44,6 +44,10 @@ fn main() {
                 .help("Number of points to stream. [50000000]")
                 .long("num-points")
                 .takes_value(true),
+            clap::Arg::with_name("num-threads")
+                .help("Number of threads, 4 by default")
+                .long("num-threads")
+                .takes_value(true),
             clap::Arg::with_name("octree_directory")
                 .help("Input directory of the octree directory to serve.")
                 .index(1)
@@ -58,15 +62,18 @@ fn main() {
     );
     let num_points = usize::from_str(matches.value_of("num-points").unwrap_or("50000000"))
         .expect("num-points needs to be a number");
+    let num_threads = match matches.value_of("num-threads"){
+        Some(thr_string) => usize::from_str(thr_string).expect("num-points needs to be a number"),
+        None => num_cpus::get() -1};
     if matches.is_present("no-client") {
-        server_benchmark(&octree_directory, num_points)
+        server_benchmark(&octree_directory, num_points, num_threads)
     } else {
         let port = value_t!(matches, "port", u16).unwrap_or(50051);
         full_benchmark(&octree_directory, num_points, port)
     }
 }
 
-fn server_benchmark(octree_directory: &Path, num_points: usize) {
+fn server_benchmark(octree_directory: &Path, num_points: usize, num_threads: usize) {
     let octree: [Octree; 1] = [
         *octree_from_directory(octree_directory).unwrap_or_else(|_| {
             panic!(
@@ -80,7 +87,7 @@ fn server_benchmark(octree_directory: &Path, num_points: usize) {
         location: PointLocation::AllPoints(),
         global_from_local: None,
     };
-    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_cpus::get() -1 );
+    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_threads );
 
     let _result = batch_iterator.try_for_each_batch(move |point_data| {
         counter += point_data.position.len();
