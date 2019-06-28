@@ -25,6 +25,7 @@ use grpcio::{
     Environment, RpcContext, RpcStatus, RpcStatusCode, Server, ServerBuilder, ServerStreamingSink,
     UnarySink, WriteFlags,
 };
+use num_cpus;
 use point_viewer::errors::*;
 use point_viewer::math::{Isometry3, OrientedBeam};
 use point_viewer::octree::{self, BatchIterator, NodeId, Octree, OctreeFactory, PointQuery};
@@ -330,7 +331,7 @@ impl OctreeService {
                 };
 
                 let mut batch_iterator =
-                    BatchIterator::new(&service_data.octree, &query, num_points_per_batch);
+                    BatchIterator::new(&service_data.octree, &query, num_points_per_batch, num_cpus::get()-1);
                 // TODO(catevita): missing error handling for the thread
                 let _result = batch_iterator.try_for_each_batch(func);
             }

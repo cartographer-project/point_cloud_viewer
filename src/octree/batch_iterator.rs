@@ -5,7 +5,7 @@ use crate::octree::{self, FilteredPointsIterator, Octree};
 use crate::{LayerData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
-use crossbeam::deque::{Injector, Steal, Worker};
+use crossbeam::deque::{Injector, Worker};
 use fnv::FnvHashMap;
 
 /// size for batch
@@ -51,7 +51,7 @@ where
     position: Vec<Vector3<f64>>,
     color: Vec<Vector4<u8>>,
     intensity: Vec<f32>,
-    local_from_global: Option<Isometry3<f64>>,
+    local_from_global: &'a Option<Isometry3<f64>>,
     func: &'a F,
 }
 
@@ -61,7 +61,7 @@ where
 {
     fn new(
         num_points_per_batch: usize,
-        local_from_global: Option<Isometry3<f64>>,
+        local_from_global: &'a Option<Isometry3<f64>>,
         func: &'a F,
     ) -> Self {
         PointStream {
@@ -139,7 +139,7 @@ pub struct BatchIterator<'a> {
     octrees: &'a [octree::Octree],
     point_location: &'a PointQuery,
     batch_size: usize,
-    thread_size: usize,
+    num_threads: usize,
 }
 
 impl<'a> BatchIterator<'a> {
@@ -147,33 +147,28 @@ impl<'a> BatchIterator<'a> {
         octrees: &'a [octree::Octree],
         point_location: &'a PointQuery,
         batch_size: usize,
+        num_threads: usize,
     ) -> Self {
         BatchIterator {
             octrees,
             point_location,
             batch_size,
-            thread_size: 10,
+            num_threads,
         }
     }
 
-    /// utility to customize the number of threads
-    /// set thread =1 to reproduce results
-    pub fn set_thread_size(&mut self, size: usize) {
-        self.thread_size = size;
-    }
     /// compute a function while iterating on a batch of points
     pub fn try_for_each_batch<F>(&mut self, func: F) -> Result<()>
     where
         F: FnMut(PointData) -> Result<()>,
     {
         // get thread safe fifo
-        let jobs = Injector::<(octree::NodeId, &Octree)>::new();
+        let jobs = Injector::<(&Octree, octree::NodeId)>::new();
         self.octrees
             .iter()
             .flat_map(|octree| {
-                octree
-                    .nodes_in_location(self.point_location)
-                    .zip(std::iter::repeat(octree))
+                std::iter::repeat(octree).zip(
+                    octree.nodes_in_location(self.point_location))
             })
             .for_each(|(node_id, octree)| {
                 jobs.push((node_id, octree));
@@ -188,9 +183,9 @@ impl<'a> BatchIterator<'a> {
         // operate on nodes with limited number of threads
         crossbeam::scope(|s| {
             let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
-            for _ in 0..self.thread_size {
+            for _ in 0..self.num_threads {
                 let tx = tx.clone();
-                let local_from_global = local_from_global.clone();
+                let local_from_global = &local_from_global;
                 let point_location = &self.point_location;
                 let batch_size = self.batch_size;
                 let worker = Worker::new_fifo();
@@ -208,21 +203,15 @@ impl<'a> BatchIterator<'a> {
 
                     // one pointstream per thread vs one per node allows to send more full point batches
                     let mut point_stream =
-                        PointStream::new(batch_size, local_from_global, &send_func);
+                        PointStream::new(batch_size, &local_from_global, &send_func);
 
-                    loop {
-                        if worker.is_empty() {
-                            let mut retry: Steal<_> = Steal::Retry;
-                            while retry.is_retry() {
-                                retry = jobs.steal_batch(&worker);
-                            }
-                            if retry.is_empty() {
-                                break;
-                            } //first implementation: stop the worker if the local queue is done and so the global one
-                        }
-                        if let Some((node_id, octree)) = worker.pop() {
+                    while let Some((octree, node_id)) = worker.pop().or_else(|| {
+    std::iter::repeat_with(|| jobs.steal_batch_and_pop(&worker))
+        .find(|task| !task.is_retry())
+        .and_then(|task| task.success())
+}) {
                             let point_iterator = octree.points_in_node(&point_location, node_id);
-                            //executing on the available next task if the fuction still requires it
+                            // executing on the available next task if the fucntion still requires it
                             match point_stream.push_points_and_callback(point_iterator) {
                                 Ok(_) => continue,
                                 Err(ref e) => match e.kind() {
@@ -231,7 +220,7 @@ impl<'a> BatchIterator<'a> {
                                 },
                             }
                         }
-                    }
+                    
                 });
             }
 

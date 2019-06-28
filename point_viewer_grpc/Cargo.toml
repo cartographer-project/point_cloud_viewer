@@ -26,6 +26,7 @@ crossbeam-channel = "0.3.8"
 ctrlc = "3.1.2"
 futures = "0.1.17"
 grpcio = "0.4"
+num_cpus ="1.10.1"
 protobuf = "2.0.0"
 scoped-pool = "^0.1"
 

@@ -9,6 +9,7 @@ pub struct PointCloudClient {
     octrees: Vec<Octree>,
     aabb: Aabb3<f64>,
     pub num_points_per_batch: usize,
+    pub num_threads : usize,
 }
 
 impl PointCloudClient {
@@ -32,6 +33,7 @@ impl PointCloudClient {
             octrees,
             aabb,
             num_points_per_batch: NUM_POINTS_PER_BATCH,
+            num_threads: num_cpus::get() -1
         })
     }
 
@@ -44,7 +46,7 @@ impl PointCloudClient {
         F: FnMut(PointData) -> Result<()>,
     {
         let mut batch_iterator =
-            BatchIterator::new(&self.octrees, point_location, self.num_points_per_batch);
+            BatchIterator::new(&self.octrees, point_location, self.num_points_per_batch, self.num_threads);
         batch_iterator.try_for_each_batch(&mut func)?;
         Ok(())
     }

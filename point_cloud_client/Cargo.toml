@@ -11,6 +11,7 @@ path = "src/bin/test.rs"
 cgmath = "0.16.0"
 collision = "0.18.0"
 fnv = "1.0.6"
+num_cpus ="1.10.1"
 point_viewer = { path = ".." }
 point_viewer_grpc = { path = "../point_viewer_grpc" }
 protobuf = "2.0.0"

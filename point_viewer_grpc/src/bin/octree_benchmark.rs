@@ -80,7 +80,7 @@ fn server_benchmark(octree_directory: &Path, num_points: usize) {
         location: PointLocation::AllPoints(),
         global_from_local: None,
     };
-    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE);
+    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_cpus::get() -1 );
 
     let _result = batch_iterator.try_for_each_batch(move |point_data| {
         counter += point_data.position.len();
