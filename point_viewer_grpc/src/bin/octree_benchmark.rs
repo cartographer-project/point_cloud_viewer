@@ -65,7 +65,6 @@ fn main() {
     let num_threads = match matches.value_of("num-threads"){
         Some(thr_string) => usize::from_str(thr_string).expect("num-points needs to be a number"),
         None => num_cpus::get() -1};
-    println!("Batch size: {}, Threads: {}", BATCH_SIZE, num_threads);
     if matches.is_present("no-client") {
         server_benchmark(&octree_directory, num_points, num_threads)
     } else {
@@ -84,22 +83,26 @@ fn server_benchmark(octree_directory: &Path, num_points: usize, num_threads: usi
         }),
     ];
     let mut counter: usize = 0;
+    let mut points_streamed_m = 0;
     let all_points = PointQuery {
         location: PointLocation::AllPoints(),
         global_from_local: None,
     };
     let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_threads );
-
+    println!("Server benchmark:");
     let _result = batch_iterator.try_for_each_batch(move |point_data| {
         counter += point_data.position.len();
         if counter >= num_points {
             std::process::exit(0)
         }
-        println!("Streamed {}M points", counter / BATCH_SIZE);
+        if points_streamed_m < counter/BATCH_SIZE{
+        points_streamed_m = counter/BATCH_SIZE;
+        println!("Streamed {}M points", points_streamed_m)};
         Ok(())
     });
 }
 
+// this test works with number of threads = num cpus -1 and batch size such that the proto is less than 4 MB
 fn full_benchmark(octree_directory: &Path, num_points: usize, port: u16) {
     let octree_factory = OctreeFactory::new();
     let mut server = start_grpc_server("0.0.0.0", port, octree_directory, octree_factory);
