@@ -56,7 +56,7 @@ struct CommandlineArguments {
     num_threads: usize,
 
     /// The maximum number of point sent through batch.
-    #[structopt(long = "batch-size", default_value = "500_000")]
+    #[structopt(long = "batch-size", default_value = "500000")]
     num_points_per_batch: usize,
 
 
