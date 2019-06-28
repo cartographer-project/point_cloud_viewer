@@ -93,13 +93,14 @@ fn server_benchmark(octree_directory: &Path, num_points: usize, num_threads: usi
     println!("Server benchmark:");
     let _result = batch_iterator.try_for_each_batch(move |point_data| {
         counter += point_data.position.len();
-        if counter >= num_points {
-            std::process::exit(0)
-        }
+
         if points_streamed_m < counter / BATCH_SIZE {
             points_streamed_m = counter / BATCH_SIZE;
             println!("Streamed {}M points", points_streamed_m)
         };
+        if counter >= num_points {
+            std::process::exit(0)
+        }
         Ok(())
     });
 }
