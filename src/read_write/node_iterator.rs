@@ -15,7 +15,8 @@ pub trait NodeReader {
 }
 
 pub struct CubeNodeReader {
-    readers: Vec<BufReader<Box<dyn Read>>>,
+    xyz_reader: BufReader<Box<dyn Read>>,
+    layer_readers: Vec<BufReader<Box<dyn Read>>>,
     position_encoding: PositionEncoding,
     bounding_cube: Cube,
 }
@@ -37,72 +38,72 @@ impl NodeReader for CubeNodeReader {
         match self.position_encoding {
             PositionEncoding::Uint8 => {
                 point.position.x =
-                    fixpoint_decode(self.readers[0].read_u8().unwrap(), min.x, edge_length);
+                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.x, edge_length);
                 point.position.y =
-                    fixpoint_decode(self.readers[0].read_u8().unwrap(), min.y, edge_length);
+                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.y, edge_length);
                 point.position.z =
-                    fixpoint_decode(self.readers[0].read_u8().unwrap(), min.z, edge_length);
+                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.z, edge_length);
             }
             PositionEncoding::Uint16 => {
                 point.position.x = fixpoint_decode(
-                    self.readers[0].read_u16::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
                     min.x,
                     edge_length,
                 );
                 point.position.y = fixpoint_decode(
-                    self.readers[0].read_u16::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
                     min.y,
                     edge_length,
                 );
                 point.position.z = fixpoint_decode(
-                    self.readers[0].read_u16::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
                     min.z,
                     edge_length,
                 );
             }
             PositionEncoding::Float32 => {
                 point.position.x = decode(
-                    self.readers[0].read_f32::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
                     min.x,
                     edge_length,
                 );
                 point.position.y = decode(
-                    self.readers[0].read_f32::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
                     min.y,
                     edge_length,
                 );
                 point.position.z = decode(
-                    self.readers[0].read_f32::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
                     min.z,
                     edge_length,
                 );
             }
             PositionEncoding::Float64 => {
                 point.position.x = decode(
-                    self.readers[0].read_f64::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f64::<LittleEndian>().unwrap(),
                     min.x,
                     edge_length,
                 );
                 point.position.y = decode(
-                    self.readers[0].read_f64::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f64::<LittleEndian>().unwrap(),
                     min.y,
                     edge_length,
                 );
                 point.position.z = decode(
-                    self.readers[0].read_f64::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f64::<LittleEndian>().unwrap(),
                     min.z,
                     edge_length,
                 );
             }
         }
 
-        point.color.red = self.readers[1].read_u8().unwrap();
-        point.color.green = self.readers[1].read_u8().unwrap();
-        point.color.blue = self.readers[1].read_u8().unwrap();
+        point.color.red = self.layer_readers[0].read_u8().unwrap();
+        point.color.green = self.layer_readers[0].read_u8().unwrap();
+        point.color.blue = self.layer_readers[0].read_u8().unwrap();
 
         point.intensity = self
-            .readers
-            .get_mut(2)
+            .layer_readers
+            .get_mut(1)
             .map(|ir| ir.read_f32::<LittleEndian>().unwrap());
 
         point
@@ -125,14 +126,15 @@ impl CubeNodeReader {
                 .remove(&NodeLayer::Color)
                 .ok_or_else(|| "No color reader available.")?,
         );
-        let mut readers = vec![xyz_reader, rgb_reader];
+        let mut layer_readers = vec![rgb_reader];
 
         if let Some(intensity_read) = layers.remove(&NodeLayer::Intensity) {
-            readers.push(BufReader::new(intensity_read));
+            layer_readers.push(BufReader::new(intensity_read));
         };
 
         Ok(Self {
-            readers,
+            xyz_reader,
+            layer_readers,
             position_encoding,
             bounding_cube,
         })
