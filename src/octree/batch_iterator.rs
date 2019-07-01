@@ -140,6 +140,7 @@ pub struct BatchIterator<'a> {
     point_location: &'a PointQuery,
     batch_size: usize,
     num_threads: usize,
+    buffer_size: usize,
 }
 
 impl<'a> BatchIterator<'a> {
@@ -148,12 +149,14 @@ impl<'a> BatchIterator<'a> {
         point_location: &'a PointQuery,
         batch_size: usize,
         num_threads: usize,
+        buffer_size: usize,
     ) -> Self {
         BatchIterator {
             octrees,
             point_location,
             batch_size,
             num_threads,
+            buffer_size,
         }
     }
 
@@ -182,7 +185,7 @@ impl<'a> BatchIterator<'a> {
 
         // operate on nodes with limited number of threads
         crossbeam::scope(|s| {
-            let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
+            let (tx, rx) = crossbeam::channel::bounded::<PointData>(self.buffer_size);
             for _ in 0..self.num_threads {
                 let tx = tx.clone();
                 let local_from_global = &local_from_global;
@@ -211,7 +214,7 @@ impl<'a> BatchIterator<'a> {
                             .and_then(|task| task.success())
                     }) {
                             let point_iterator = octree.points_in_node(&point_location, node_id);
-                            // executing on the available next task if the function still requires it
+                            // executing on the available next task if the funccargotion still requires it
                             match point_stream.push_points_and_callback(point_iterator) {
                                 Ok(_) => continue,
                                 Err(ref e) => match e.kind() {

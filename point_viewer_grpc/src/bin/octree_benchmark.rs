@@ -48,6 +48,10 @@ fn main() {
                 .help("Number of threads, num(cpus) - 1 by default")
                 .long("num-threads")
                 .takes_value(true),
+            clap::Arg::with_name("buffer-size")
+                .help("Buffer Capacity, 4 by default")
+                .long("buffer")
+                .takes_value(true),
             clap::Arg::with_name("octree_directory")
                 .help("Input directory of the octree directory to serve.")
                 .index(1)
@@ -64,15 +68,17 @@ fn main() {
         .expect("num-points needs to be a number");
     let num_threads =  usize::from_str(matches.value_of("num-threads").unwrap_or(&(num_cpus::get() - 1).to_string()))
         .expect("num-threads needs to be a number");
+    let buffer_size = usize::from_str(matches.value_of("buffer-size").unwrap_or("4"))
+        .expect("buffer-size needs to be a number");
     if matches.is_present("no-client") {
-        server_benchmark(&octree_directory, num_points, num_threads)
+        server_benchmark(&octree_directory, num_points, num_threads, buffer_size)
     } else {
         let port = value_t!(matches, "port", u16).unwrap_or(50051);
         full_benchmark(&octree_directory, num_points, port)
     }
 }
 
-fn server_benchmark(octree_directory: &Path, num_points: usize, num_threads: usize) {
+fn server_benchmark(octree_directory: &Path, num_points: usize, num_threads: usize, buffer_size : usize) {
     let octree: [Octree; 1] = [
         *octree_from_directory(octree_directory).unwrap_or_else(|_| {
             panic!(
@@ -87,7 +93,7 @@ fn server_benchmark(octree_directory: &Path, num_points: usize, num_threads: usi
         location: PointLocation::AllPoints(),
         global_from_local: None,
     };
-    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_threads);
+    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_threads, buffer_size);
     println!("Server benchmark:");
     let _result = batch_iterator.try_for_each_batch(move |point_data| {
         counter += point_data.position.len();

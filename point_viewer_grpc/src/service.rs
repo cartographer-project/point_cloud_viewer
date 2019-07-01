@@ -232,7 +232,8 @@ impl OctreeService {
         // We create a channel with a small buffer, which yields better performance than
         // fully blocking without requiring a ton of memory. This has not been carefully benchmarked
         // for best performance though.
-        let (tx, rx) = mpsc::channel(4);
+        let buffer_size = 4;
+        let (tx, rx) = mpsc::channel(buffer_size);
         thread::spawn(move || {
             // This is the secret sauce connecting an OS thread to a event-based receiver. Calling
             // wait() on this turns the event aware, i.e. async 'tx' into a blocking 'tx' that will
@@ -335,6 +336,7 @@ impl OctreeService {
                     &query,
                     num_points_per_batch,
                     num_cpus::get() - 1,
+                    buffer_size,
                 );
                 // TODO(catevita): missing error handling for the thread
                 let _result = batch_iterator.try_for_each_batch(func);
