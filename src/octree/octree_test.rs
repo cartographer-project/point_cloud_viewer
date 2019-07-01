@@ -98,6 +98,7 @@ mod tests {
             &location,
             batch_size,
             std::cmp::max(1, num_cpus::get() - 1),
+            4
         );
 
         let _err_stop = batch_iterator
@@ -149,6 +150,7 @@ mod tests {
             &location,
             batch_size,
             std::cmp::max(1, num_cpus::get() - 1),
+            4
         );
 
         let _err_stop = batch_iterator
