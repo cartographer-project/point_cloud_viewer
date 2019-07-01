@@ -35,7 +35,7 @@ impl PointCloudClient {
             aabb,
             num_points_per_batch: NUM_POINTS_PER_BATCH,
             num_threads: num_cpus::get() - 1,
-            buffer_size :4,
+            buffer_size: 4,
         })
     }
 
@@ -52,7 +52,7 @@ impl PointCloudClient {
             point_location,
             self.num_points_per_batch,
             self.num_threads,
-            self.buffer_size
+            self.buffer_size,
         );
         batch_iterator.try_for_each_batch(&mut func)?;
         Ok(())

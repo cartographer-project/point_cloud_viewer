@@ -66,8 +66,12 @@ fn main() {
     );
     let num_points = usize::from_str(matches.value_of("num-points").unwrap_or("50000000"))
         .expect("num-points needs to be a number");
-    let num_threads =  usize::from_str(matches.value_of("num-threads").unwrap_or(&(num_cpus::get() - 1).to_string()))
-        .expect("num-threads needs to be a number");
+    let num_threads = usize::from_str(
+        matches
+            .value_of("num-threads")
+            .unwrap_or(&(num_cpus::get() - 1).to_string()),
+    )
+    .expect("num-threads needs to be a number");
     let buffer_size = usize::from_str(matches.value_of("buffer-size").unwrap_or("4"))
         .expect("buffer-size needs to be a number");
     if matches.is_present("no-client") {
@@ -78,7 +82,12 @@ fn main() {
     }
 }
 
-fn server_benchmark(octree_directory: &Path, num_points: usize, num_threads: usize, buffer_size : usize) {
+fn server_benchmark(
+    octree_directory: &Path,
+    num_points: usize,
+    num_threads: usize,
+    buffer_size: usize,
+) {
     let octree: [Octree; 1] = [
         *octree_from_directory(octree_directory).unwrap_or_else(|_| {
             panic!(
@@ -93,7 +102,8 @@ fn server_benchmark(octree_directory: &Path, num_points: usize, num_threads: usi
         location: PointLocation::AllPoints(),
         global_from_local: None,
     };
-    let mut batch_iterator = BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_threads, buffer_size);
+    let mut batch_iterator =
+        BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_threads, buffer_size);
     println!("Server benchmark:");
     let _result = batch_iterator.try_for_each_batch(move |point_data| {
         counter += point_data.position.len();

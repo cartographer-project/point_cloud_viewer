@@ -170,8 +170,7 @@ impl<'a> BatchIterator<'a> {
         self.octrees
             .iter()
             .flat_map(|octree| {
-                std::iter::repeat(octree).zip(
-                    octree.nodes_in_location(self.point_location))
+                std::iter::repeat(octree).zip(octree.nodes_in_location(self.point_location))
             })
             .for_each(|(node_id, octree)| {
                 jobs.push((node_id, octree));
@@ -213,17 +212,16 @@ impl<'a> BatchIterator<'a> {
                             .find(|task| !task.is_retry())
                             .and_then(|task| task.success())
                     }) {
-                            let point_iterator = octree.points_in_node(&point_location, node_id);
-                            // executing on the available next task if the funccargotion still requires it
-                            match point_stream.push_points_and_callback(point_iterator) {
-                                Ok(_) => continue,
-                                Err(ref e) => match e.kind() {
-                                    ErrorKind::Channel(ref _s) => break, // done with the function computation
-                                    _ => panic!("BatchIterator: Thread error {}", e), //some other error
-                                },
-                            }
+                        let point_iterator = octree.points_in_node(&point_location, node_id);
+                        // executing on the available next task if the funccargotion still requires it
+                        match point_stream.push_points_and_callback(point_iterator) {
+                            Ok(_) => continue,
+                            Err(ref e) => match e.kind() {
+                                ErrorKind::Channel(ref _s) => break, // done with the function computation
+                                _ => panic!("BatchIterator: Thread error {}", e), //some other error
+                            },
                         }
-                    
+                    }
                 });
             }
 
