@@ -29,12 +29,6 @@ pub use self::node::{
     to_node_proto, ChildIndex, Node, NodeId, NodeLayer, NodeMeta, PositionEncoding,
 };
 
-mod node_iterator;
-pub use self::node_iterator::NodeIterator;
-
-mod node_writer;
-pub use self::node_writer::NodeWriter;
-
 mod on_disk;
 pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 
@@ -144,7 +138,7 @@ pub struct Octree {
 
 #[derive(Debug)]
 pub struct NodeData {
-    pub meta: node::NodeMeta,
+    pub meta: NodeMeta,
     pub position: Vec<u8>,
     pub color: Vec<u8>,
 }
