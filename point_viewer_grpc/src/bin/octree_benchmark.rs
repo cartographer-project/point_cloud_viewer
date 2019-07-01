@@ -45,7 +45,7 @@ fn main() {
                 .long("num-points")
                 .takes_value(true),
             clap::Arg::with_name("num-threads")
-                .help("Number of threads, 4 by default")
+                .help("Number of threads, num(cpus) - 1 by default")
                 .long("num-threads")
                 .takes_value(true),
             clap::Arg::with_name("octree_directory")
@@ -62,10 +62,8 @@ fn main() {
     );
     let num_points = usize::from_str(matches.value_of("num-points").unwrap_or("50000000"))
         .expect("num-points needs to be a number");
-    let num_threads = match matches.value_of("num-threads") {
-        Some(thr_string) => usize::from_str(thr_string).expect("num-points needs to be a number"),
-        None => num_cpus::get() - 1,
-    };
+    let num_threads =  usize::from_str(matches.value_of("num-threads").unwrap_or(&(num_cpus::get() - 1).to_string()))
+        .expect("num-threads needs to be a number");
     if matches.is_present("no-client") {
         server_benchmark(&octree_directory, num_points, num_threads)
     } else {

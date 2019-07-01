@@ -211,7 +211,7 @@ impl<'a> BatchIterator<'a> {
                             .and_then(|task| task.success())
                     }) {
                             let point_iterator = octree.points_in_node(&point_location, node_id);
-                            // executing on the available next task if the fucntion still requires it
+                            // executing on the available next task if the function still requires it
                             match point_stream.push_points_and_callback(point_iterator) {
                                 Ok(_) => continue,
                                 Err(ref e) => match e.kind() {
