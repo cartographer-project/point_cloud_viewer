@@ -39,7 +39,7 @@ const UPDATE_COUNT: i64 = 100_000;
 const MAX_POINTS_PER_NODE: i64 = 100_000;
 
 impl CubeNodeWriter {
-    pub fn from_data_provider(
+    fn from_data_provider(
         octree_data_provider: &OnDiskOctreeDataProvider,
         octree_meta: &OctreeMeta,
         node_id: &NodeId,
