@@ -64,7 +64,7 @@ fn send_fail<T>(ctx: &RpcContext, sink: UnarySink<T>, err_str: String) {
 
 impl proto_grpc::Octree for OctreeService {
     fn get_meta(
-        &self,
+        &mut self,
         ctx: RpcContext,
         req: proto::GetMetaRequest,
         sink: UnarySink<proto::GetMetaReply>,
@@ -82,7 +82,7 @@ impl proto_grpc::Octree for OctreeService {
     }
 
     fn get_node_data(
-        &self,
+        &mut self,
         ctx: RpcContext,
         req: proto::GetNodeDataRequest,
         sink: UnarySink<proto::GetNodeDataReply>,
@@ -112,7 +112,7 @@ impl proto_grpc::Octree for OctreeService {
     }
 
     fn get_points_in_frustum(
-        &self,
+        &mut self,
         ctx: RpcContext,
         req: proto::GetPointsInFrustumRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
@@ -147,7 +147,7 @@ impl proto_grpc::Octree for OctreeService {
     }
 
     fn get_points_in_box(
-        &self,
+        &mut self,
         ctx: RpcContext,
         req: proto::GetPointsInBoxRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
@@ -169,7 +169,7 @@ impl proto_grpc::Octree for OctreeService {
     }
 
     fn get_all_points(
-        &self,
+        &mut self,
         ctx: RpcContext,
         req: proto::GetAllPointsRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
@@ -182,7 +182,7 @@ impl proto_grpc::Octree for OctreeService {
     }
 
     fn get_points_in_oriented_beam(
-        &self,
+        &mut self,
         ctx: RpcContext,
         req: proto::GetPointsInOrientedBeamRequest,
         resp: ServerStreamingSink<proto::PointsReply>,

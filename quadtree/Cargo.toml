@@ -19,4 +19,4 @@ authors = ["Holger Rapp <hrapp@lyft.com>"]
 edition = "2018"
 
 [dependencies]
-cgmath = "0.16.0"
+cgmath = "0.17.0"

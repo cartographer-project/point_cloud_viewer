@@ -1,6 +1,12 @@
 language: rust
 
-cache: cargo
+# See https://levans.fr/rust_travis_cache.html
+cache:
+  directories:
+    - /home/travis/.cargo
+
+before_cache:
+  - rm -rf /home/travis/.cargo/registry
 
 matrix:
   fast_finish: true

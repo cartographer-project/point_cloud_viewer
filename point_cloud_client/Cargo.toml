@@ -8,11 +8,11 @@ name = "point_cloud_client_test"
 path = "src/bin/test.rs"
 
 [dependencies]
-cgmath = "0.16.0"
-collision = "0.18.0"
+cgmath = "0.17.0"
+collision = "0.20.1"
 fnv = "1.0.6"
 num_cpus ="1.10.1"
 point_viewer = { path = ".." }
 point_viewer_grpc = { path = "../point_viewer_grpc" }
-protobuf = "2.0.0"
-structopt = "0.2"
+protobuf = "2.7.0"
+structopt = "0.2.18"

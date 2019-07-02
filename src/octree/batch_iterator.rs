@@ -29,8 +29,8 @@ pub struct PointQuery {
 }
 
 impl PointQuery {
-    pub fn get_point_culling(&self) -> Box<PointCulling<f64>> {
-        let culling: Box<PointCulling<f64>> = match &self.location {
+    pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
+        let culling: Box<dyn PointCulling<f64>> = match &self.location {
             PointLocation::AllPoints() => return Box::new(AllPoints {}),
             PointLocation::Aabb(aabb) => Box::new(*aabb),
             PointLocation::Frustum(matrix) => Box::new(octree::Frustum::new(*matrix)),

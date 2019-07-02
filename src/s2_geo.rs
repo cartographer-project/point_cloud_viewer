@@ -79,7 +79,7 @@ mod tests {
         // Hofbräuhaus Munich.
         let ecef = ECEF::new(4_177_536., 855_997., 4_727_102.);
         assert_eq!(
-            "479e758bb8ddeb63",
+            "479e758bb8ddef5b",
             cell_id(ecef, MAX_LEVEL as u8).to_token()
         );
     }
