@@ -146,13 +146,16 @@ impl CubeNodeReader {
 }
 
 /// Streams points from our data provider representation.
-pub enum NodeIterator {
-    WithData(Box<dyn NodeReader>),
+pub enum NodeIterator<R> {
+    WithData(R),
     Empty,
 }
 
-impl NodeIterator {
-    pub fn new(reader: Box<dyn NodeReader>) -> Self {
+impl<R> NodeIterator<R>
+where
+    R: NodeReader,
+{
+    pub fn new(reader: R) -> Self {
         if reader.num_points() == 0 {
             return NodeIterator::Empty;
         }
@@ -161,7 +164,10 @@ impl NodeIterator {
     }
 }
 
-impl Iterator for NodeIterator {
+impl<R> Iterator for NodeIterator<R>
+where
+    R: NodeReader,
+{
     type Item = Point;
 
     fn size_hint(&self) -> (usize, Option<usize>) {

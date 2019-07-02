@@ -7,7 +7,7 @@ use crate::read_write::{CubeNodeReader, NodeIterator};
 use crate::Point;
 use std::collections::{HashMap, VecDeque};
 
-impl NodeIterator {
+impl NodeIterator<CubeNodeReader> {
     pub fn from_data_provider(
         octree_data_provider: &dyn OctreeDataProvider,
         octree_meta: &OctreeMeta,
@@ -47,17 +47,17 @@ impl NodeIterator {
             }
         };
 
-        Ok(Self::new(Box::new(CubeNodeReader::new(
+        Ok(Self::new(CubeNodeReader::new(
             layers,
             num_points,
             position_encoding,
             bounding_cube,
-        )?)))
+        )?))
     }
 }
 
 /// returns an Iterator over the points of the current node
-fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator {
+fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator<CubeNodeReader> {
     // TODO(sirver): This crashes on error. We should bubble up an error.
     NodeIterator::from_data_provider(
         &*octree.data_provider,
@@ -71,7 +71,7 @@ fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator {
 /// iterator over the points of a octree node that satisfy the condition expressed by a boolean function
 pub struct FilteredPointsIterator<F> {
     filter_func: F,
-    node_iterator: NodeIterator,
+    node_iterator: NodeIterator<CubeNodeReader>,
 }
 
 impl<F> FilteredPointsIterator<F>
