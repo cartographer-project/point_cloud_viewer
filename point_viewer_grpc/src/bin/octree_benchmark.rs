@@ -49,7 +49,7 @@ fn main() {
                 .long("num-threads")
                 .takes_value(true),
             clap::Arg::with_name("buffer-size")
-                .help("Buffer Capacity, 4 by default")
+                .help("Buffer capacity, 4 by default")
                 .long("buffer")
                 .takes_value(true),
             clap::Arg::with_name("octree_directory")
