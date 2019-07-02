@@ -2,8 +2,7 @@
 mod tests {
     use crate::color::Color;
     use crate::errors::Result;
-    use crate::generation::build_octree;
-    use crate::octree::{self, BatchIterator, PointLocation, PointQuery};
+    use crate::octree::{self, build_octree, BatchIterator, PointLocation, PointQuery};
     use crate::{Point, PointData};
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};

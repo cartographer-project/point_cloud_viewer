@@ -18,7 +18,7 @@ use collision::{Aabb, Aabb3};
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::color::Color;
-use point_viewer::generation::build_octree;
+use point_viewer::octree::build_octree;
 use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
 pub use point_viewer_grpc_proto_rust::proto_grpc;

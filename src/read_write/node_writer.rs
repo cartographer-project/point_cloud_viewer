@@ -1,7 +1,7 @@
-use crate::codec::{encode, fixpoint_encode};
 use crate::math::Cube;
-use crate::octree::{NodeLayer, PositionEncoding};
-use crate::Point;
+use crate::octree::PositionEncoding;
+use crate::read_write::{encode, fixpoint_encode};
+use crate::{NodeLayer, Point};
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::fs::{remove_file, File};
 use std::io::{BufWriter, Result, Write};

@@ -20,23 +20,6 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 use std::{fmt, result};
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum NodeLayer {
-    Position,
-    Color,
-    Intensity,
-}
-
-impl NodeLayer {
-    pub fn extension(&self) -> &str {
-        match self {
-            NodeLayer::Position => "xyz",
-            NodeLayer::Color => "rgb",
-            NodeLayer::Intensity => "intensity",
-        }
-    }
-}
-
 /// Represents a child of an octree Node.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct ChildIndex(u8);

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use point_viewer::generation::build_octree_from_file;
+use point_viewer::octree::build_octree_from_file;
 use std::path::PathBuf;
 use structopt::StructOpt;
 

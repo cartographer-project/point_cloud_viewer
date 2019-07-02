@@ -1,10 +1,8 @@
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::{
-    ChildIndex, NodeId, NodeLayer, Octree, OctreeDataProvider, OctreeMeta, PositionEncoding,
-};
+use crate::octree::{ChildIndex, NodeId, Octree, OctreeDataProvider, OctreeMeta, PositionEncoding};
 use crate::read_write::{CubeNodeReader, NodeIterator};
-use crate::Point;
+use crate::{NodeLayer, Point};
 use std::collections::{HashMap, VecDeque};
 
 impl NodeIterator<CubeNodeReader> {

@@ -37,11 +37,6 @@ fn wrap_in_module(contents: String, mod_name: &str) -> String {
     format!("pub mod {} {{\n{}\n}}", mod_name, contents)
 }
 
-// This is a workaround for https://github.com/stepancheg/rust-protobuf/issues/331
-fn replace_clippy(contents: String) -> String {
-    contents.replace("#![allow(clippy)]", "#![allow(clippy::all)]")
-}
-
 fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
 
@@ -54,6 +49,7 @@ fn main() {
         &["point_viewer_grpc_proto_rust/src/proto.proto"],
         &[git_repo_root.clone()],
         &out_dir,
+        None,
     )
     .expect("Failed to compile gRPC definitions!");
     env::set_var("PATH", old_path.unwrap_or("".to_string()));
@@ -64,9 +60,9 @@ fn main() {
         // point_viewer_grpc::proto and believes the two proto namespaces are the same. We fully
         // qualify the paths to avoid this issue.
         let new_content = c.replace("super::proto", "::point_viewer::proto");
-        wrap_in_module(replace_clippy(new_content), "proto")
+        wrap_in_module(new_content, "proto")
     });
     inplace_modify_file(&Path::new(&out_dir).join("proto_grpc.rs"), |c| {
-        wrap_in_module(replace_clippy(c), "proto_grpc")
+        wrap_in_module(c, "proto_grpc")
     });
 }
