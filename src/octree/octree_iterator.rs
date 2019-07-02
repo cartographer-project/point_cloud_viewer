@@ -47,14 +47,12 @@ impl NodeIterator {
             }
         };
 
-        Self::new(
-            Box::new(CubeNodeReader::new(
-                layers,
-                position_encoding,
-                bounding_cube,
-            )?),
+        Ok(Self::new(Box::new(CubeNodeReader::new(
+            layers,
             num_points,
-        )
+            position_encoding,
+            bounding_cube,
+        )?)))
     }
 }
 

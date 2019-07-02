@@ -12,11 +12,13 @@ use std::io::{self, BufReader, Read};
 
 pub trait NodeReader {
     fn read(&mut self) -> io::Result<Point>;
+    fn num_points(&self) -> usize;
 }
 
 pub struct CubeNodeReader {
     xyz_reader: BufReader<Box<dyn Read>>,
     layer_readers: Vec<BufReader<Box<dyn Read>>>,
+    num_points: usize,
     position_encoding: PositionEncoding,
     bounding_cube: Cube,
 }
@@ -104,11 +106,16 @@ impl NodeReader for CubeNodeReader {
 
         Ok(point)
     }
+
+    fn num_points(&self) -> usize {
+        self.num_points
+    }
 }
 
 impl CubeNodeReader {
     pub fn new(
         mut layers: HashMap<NodeLayer, Box<dyn Read>>,
+        num_points: usize,
         position_encoding: PositionEncoding,
         bounding_cube: Cube,
     ) -> Result<Self> {
@@ -131,6 +138,7 @@ impl CubeNodeReader {
         Ok(Self {
             xyz_reader,
             layer_readers,
+            num_points,
             position_encoding,
             bounding_cube,
         })
@@ -138,29 +146,18 @@ impl CubeNodeReader {
 }
 
 /// Streams points from our data provider representation.
-pub struct NodeIteratorWithData {
-    reader: Box<dyn NodeReader>,
-    num_points: usize,
-    point_count: usize,
-}
-
 pub enum NodeIterator {
-    WithData(NodeIteratorWithData),
+    WithData(Box<dyn NodeReader>),
     Empty,
 }
 
 impl NodeIterator {
-    pub fn new(reader: Box<dyn NodeReader>, num_points: usize) -> Result<Self> {
-        if num_points == 0 {
-            return Ok(NodeIterator::Empty);
+    pub fn new(reader: Box<dyn NodeReader>) -> Self {
+        if reader.num_points() == 0 {
+            return NodeIterator::Empty;
         }
 
-        let iter = NodeIteratorWithData {
-            reader,
-            num_points,
-            point_count: 0,
-        };
-        Ok(NodeIterator::WithData(iter))
+        NodeIterator::WithData(reader)
     }
 }
 
@@ -169,27 +166,16 @@ impl Iterator for NodeIterator {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         let num_points = match self {
-            NodeIterator::WithData(ref iter) => iter.num_points,
+            NodeIterator::WithData(ref reader) => reader.num_points(),
             NodeIterator::Empty => 0,
         };
         (num_points, Some(num_points))
     }
     fn next(&mut self) -> Option<Point> {
-        let mut iter = match self {
-            NodeIterator::WithData(iter) => iter,
+        let reader = match self {
+            NodeIterator::WithData(reader) => reader,
             NodeIterator::Empty => return None,
         };
-
-        if iter.point_count == iter.num_points {
-            return None;
-        }
-
-        match iter.reader.read() {
-            Ok(point) => {
-                iter.point_count += 1;
-                Some(point)
-            }
-            Err(_) => None,
-        }
+        reader.read().ok()
     }
 }
