@@ -1,15 +1,69 @@
-use crate::octree::{ChildIndex, NodeId, NodeIterator, Octree};
+use crate::errors::*;
+use crate::math::Cube;
+use crate::octree::{
+    ChildIndex, NodeId, NodeLayer, Octree, OctreeDataProvider, OctreeMeta, PositionEncoding,
+};
+use crate::read_write::{CubeNodeReader, NodeIterator};
 use crate::Point;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
+
+impl NodeIterator<CubeNodeReader> {
+    pub fn from_data_provider(
+        octree_data_provider: &dyn OctreeDataProvider,
+        octree_meta: &OctreeMeta,
+        id: &NodeId,
+        num_points: usize,
+    ) -> Result<Self> {
+        if num_points == 0 {
+            return Ok(NodeIterator::Empty);
+        }
+
+        let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
+        let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
+
+        let mut layers = HashMap::new();
+
+        let mut position_color_reads =
+            octree_data_provider.data(id, vec![NodeLayer::Position, NodeLayer::Color])?;
+        match position_color_reads.remove(&NodeLayer::Position) {
+            Some(position_data) => {
+                layers.insert(NodeLayer::Position, position_data);
+            }
+            None => return Err("No position reader available.".into()),
+        }
+        match position_color_reads.remove(&NodeLayer::Color) {
+            Some(color_data) => {
+                layers.insert(NodeLayer::Color, color_data);
+            }
+            None => return Err("No color reader available.".into()),
+        }
+
+        if let Ok(mut data_map) = octree_data_provider.data(id, vec![NodeLayer::Intensity]) {
+            match data_map.remove(&NodeLayer::Intensity) {
+                Some(intensity_data) => {
+                    layers.insert(NodeLayer::Intensity, intensity_data);
+                }
+                None => return Err("No intensity reader available.".into()),
+            }
+        };
+
+        Ok(Self::new(CubeNodeReader::new(
+            layers,
+            num_points,
+            position_encoding,
+            bounding_cube,
+        )?))
+    }
+}
 
 /// returns an Iterator over the points of the current node
-fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator {
+fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator<CubeNodeReader> {
     // TODO(sirver): This crashes on error. We should bubble up an error.
     NodeIterator::from_data_provider(
         &*octree.data_provider,
         &octree.meta,
         &node_id,
-        octree.nodes[&node_id].num_points,
+        octree.nodes[&node_id].num_points as usize,
     )
     .expect("Could not read node points")
 }
@@ -17,7 +71,7 @@ fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator {
 /// iterator over the points of a octree node that satisfy the condition expressed by a boolean function
 pub struct FilteredPointsIterator<F> {
     filter_func: F,
-    node_iterator: NodeIterator,
+    node_iterator: NodeIterator<CubeNodeReader>,
 }
 
 impl<F> FilteredPointsIterator<F>

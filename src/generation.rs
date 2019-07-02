@@ -14,10 +14,14 @@
 
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::{self, to_meta_proto, to_node_proto, OnDiskOctreeDataProvider};
+use crate::octree::{
+    self, to_meta_proto, to_node_proto, NodeId, OctreeMeta, OnDiskOctreeDataProvider,
+    PositionEncoding,
+};
 use crate::ply::PlyIterator;
 use crate::proto;
 use crate::pts::PtsIterator;
+use crate::read_write::{CubeNodeWriter, NodeIterator, NodeWriter};
 use crate::Point;
 use cgmath::{EuclideanSpace, Point3};
 use collision::{Aabb, Aabb3};
@@ -34,6 +38,19 @@ use std::sync::mpsc;
 const UPDATE_COUNT: i64 = 100_000;
 const MAX_POINTS_PER_NODE: i64 = 100_000;
 
+impl CubeNodeWriter {
+    fn from_data_provider(
+        octree_data_provider: &OnDiskOctreeDataProvider,
+        octree_meta: &OctreeMeta,
+        node_id: &NodeId,
+    ) -> Self {
+        let path = octree_data_provider.stem(node_id);
+        let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
+        let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
+        Self::new(path, position_encoding, bounding_cube)
+    }
+}
+
 // Return a list a leaf nodes and a list of nodes to be splitted further.
 fn split<P>(
     octree_data_provider: &OnDiskOctreeDataProvider,
@@ -44,7 +61,7 @@ fn split<P>(
 where
     P: Iterator<Item = Point>,
 {
-    let mut children: Vec<Option<octree::NodeWriter>> =
+    let mut children: Vec<Option<CubeNodeWriter>> =
         vec![None, None, None, None, None, None, None, None];
     match stream.size_hint() {
         (_, Some(size)) => println!(
@@ -64,7 +81,7 @@ where
         let child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &p.position);
         let array_index = child_index.as_u8() as usize;
         if children[array_index].is_none() {
-            children[array_index] = Some(octree::NodeWriter::new(
+            children[array_index] = Some(CubeNodeWriter::from_data_provider(
                 octree_data_provider,
                 octree_meta,
                 &node_id.get_child_id(child_index),
@@ -77,7 +94,7 @@ where
     // writing a point. This only saves some disk space during processing - all nodes will be
     // rewritten by subsampling the children in the second step anyways. We also ignore file
     // removing error. For example, we never write out the root, so it cannot be removed.
-    octree::NodeWriter::new(octree_data_provider, octree_meta, node_id);
+    CubeNodeWriter::from_data_provider(octree_data_provider, octree_meta, node_id);
 
     let mut leaf_nodes = Vec::new();
     let mut split_nodes = Vec::new();
@@ -135,11 +152,11 @@ fn split_node<'a, P>(
     for child_id in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
         scope.recurse(move |scope| {
-            let stream = octree::NodeIterator::from_data_provider(
+            let stream = NodeIterator::from_data_provider(
                 octree_data_provider,
                 octree_meta,
                 &child_id,
-                octree_data_provider.number_of_points(&child_id).unwrap(),
+                octree_data_provider.number_of_points(&child_id).unwrap() as usize,
             )
             .unwrap();
             split_node(
@@ -164,7 +181,8 @@ fn subsample_children_into(
     node_id: &octree::NodeId,
     nodes_sender: &mpsc::Sender<(octree::NodeId, i64)>,
 ) -> Result<()> {
-    let mut parent_writer = octree::NodeWriter::new(octree_data_provider, octree_meta, node_id);
+    let mut parent_writer =
+        CubeNodeWriter::from_data_provider(octree_data_provider, octree_meta, node_id);
     for i in 0..8 {
         let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(i));
         let num_points = match octree_data_provider.number_of_points(&child_id) {
@@ -172,11 +190,11 @@ fn subsample_children_into(
             Err(Error(ErrorKind::NodeNotFound, _)) => continue,
             Err(err) => return Err(err),
         };
-        let node_iterator = octree::NodeIterator::from_data_provider(
+        let node_iterator = NodeIterator::from_data_provider(
             octree_data_provider,
             octree_meta,
             &child_id,
-            num_points,
+            num_points as usize,
         )?;
 
         // We read all points into memory, because the new node writer will rewrite this child's
@@ -185,7 +203,7 @@ fn subsample_children_into(
         node_iterator.for_each(|p| points.push(p));
 
         let mut child_writer =
-            octree::NodeWriter::new(octree_data_provider, octree_meta, &child_id);
+            CubeNodeWriter::from_data_provider(octree_data_provider, octree_meta, &child_id);
         for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
                 parent_writer.write(&p);
