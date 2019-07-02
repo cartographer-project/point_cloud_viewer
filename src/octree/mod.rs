@@ -146,7 +146,7 @@ pub struct NodeData {
 
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
-    pub fn from_data_provider(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
+    pub fn from_data_provider(data_provider: Box<dyn OctreeDataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
         match meta_proto.version {
             9 | 10 => println!(

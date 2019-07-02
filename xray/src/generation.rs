@@ -107,7 +107,7 @@ pub enum ColoringStrategyKind {
     ColoredWithHeightStddev(f32),
 }
 impl ColoringStrategyKind {
-    pub fn new_strategy(&self) -> Box<ColoringStrategy> {
+    pub fn new_strategy(&self) -> Box<dyn ColoringStrategy> {
         match *self {
             ColoringStrategyKind::XRay => Box::new(XRayColoringStrategy::new()),
             ColoringStrategyKind::Colored => Box::new(PointColorColoringStrategy::default()),
@@ -459,7 +459,7 @@ pub fn xray_from_points(
     bbox: &Aabb3<f64>,
     png_file: &Path,
     image_size: Vector2<u32>,
-    mut coloring_strategy: Box<ColoringStrategy>,
+    mut coloring_strategy: Box<dyn ColoringStrategy>,
     tile_background_color: Color<u8>,
 ) -> bool {
     let mut seen_any_points = false;
@@ -521,7 +521,7 @@ pub fn build_xray_quadtree(
     tile: &Tile,
     coloring_strategy_kind: &ColoringStrategyKind,
     tile_background_color: Color<u8>,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<dyn Error>> {
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
@@ -551,7 +551,7 @@ pub fn build_xray_quadtree(
             if node.level() == deepest_level {
                 let parents_to_create_tx_clone = parents_to_create_tx.clone();
                 let all_nodes_tx_clone = all_nodes_tx.clone();
-                let strategy: Box<ColoringStrategy> = coloring_strategy_kind.new_strategy();
+                let strategy: Box<dyn ColoringStrategy> = coloring_strategy_kind.new_strategy();
                 scope.execute(move || {
                     let bbox = Aabb3::new(
                         Point3::new(

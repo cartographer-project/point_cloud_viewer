@@ -281,10 +281,10 @@ impl PositionEncoding {
     pub fn new(bounding_cube: &Cube, resolution: f64) -> PositionEncoding {
         let min_bits = (bounding_cube.edge_length() / resolution).log2() as u32 + 1;
         match min_bits {
-            0...8 => PositionEncoding::Uint8,
-            9...16 => PositionEncoding::Uint16,
+            0..=8 => PositionEncoding::Uint8,
+            9..=16 => PositionEncoding::Uint16,
             // Capping at 24 keeps the worst resolution at ~1 mm for an edge length of ~8389 km.
-            17...24 => PositionEncoding::Float32,
+            17..=24 => PositionEncoding::Float32,
             _ => PositionEncoding::Float64,
         }
     }
