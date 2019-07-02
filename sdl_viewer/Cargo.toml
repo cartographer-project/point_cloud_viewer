@@ -22,9 +22,9 @@ edition = "2018"
 gl_generator = "0.8.0"
 
 [dependencies]
-cgmath = "0.16.0"
+cgmath = "0.17.0"
 clap = "2.32.0"
-collision = "0.18.0"
+collision = "0.20.1"
 lru-cache = "^0.1.1"
 fnv = "1.0.6"
 rand = "0.3.15"

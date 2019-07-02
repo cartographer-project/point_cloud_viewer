@@ -97,7 +97,7 @@ fn run(
     coloring_strategy_kind: &ColoringStrategyKind,
     tile_background_color: Color<u8>,
     bbox2: &Aabb2<f64>,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<dyn Error>> {
     let octree_factory = OctreeFactory::new().register("grpc://", octree_from_grpc_address);
     let point_cloud_client = PointCloudClient::new(octree_locations, octree_factory)?;
     let bbox3 = point_cloud_client.bounding_box();

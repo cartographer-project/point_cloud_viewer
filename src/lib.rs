@@ -12,21 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO(sirver): Work around suppressing a warning until
-// https://github.com/rust-lang-nursery/error-chain/pull/246 is released.
-#![allow(renamed_and_removed_lints)]
-#![recursion_limit = "1024"]
-
-pub mod codec;
 pub mod color;
-// TODO(feuerste): Remove this, once https://github.com/rust-lang-nursery/error-chain/pull/255 is merged.
-#[allow(deprecated)]
 pub mod errors;
-pub mod generation;
 pub mod math;
 pub mod octree;
-pub mod ply;
-pub mod pts;
 pub mod read_write;
 pub mod s2_geo;
 
@@ -42,6 +31,24 @@ pub struct Point {
     // The intensity of the point if it exists. This value is usually handed through directly by a
     // sensor and has therefore no defined range - or even meaning.
     pub intensity: Option<f32>,
+}
+
+// TODO(feuerste): Unify NodeLayer and LayerData.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum NodeLayer {
+    Position,
+    Color,
+    Intensity,
+}
+
+impl NodeLayer {
+    pub fn extension(&self) -> &str {
+        match self {
+            NodeLayer::Position => "xyz",
+            NodeLayer::Color => "rgb",
+            NodeLayer::Intensity => "intensity",
+        }
+    }
 }
 
 /// general field to describe point features such as position, color, intensity..

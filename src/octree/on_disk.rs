@@ -1,6 +1,6 @@
 use crate::errors::*;
-use crate::octree::{NodeId, NodeLayer, Octree, OctreeDataProvider};
-use crate::proto;
+use crate::octree::{NodeId, Octree, OctreeDataProvider};
+use crate::{proto, NodeLayer};
 use protobuf;
 use std::collections::HashMap;
 use std::fs::{self, File};

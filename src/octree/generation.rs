@@ -18,10 +18,8 @@ use crate::octree::{
     self, to_meta_proto, to_node_proto, NodeId, OctreeMeta, OnDiskOctreeDataProvider,
     PositionEncoding,
 };
-use crate::ply::PlyIterator;
 use crate::proto;
-use crate::pts::PtsIterator;
-use crate::read_write::{CubeNodeWriter, NodeIterator, NodeWriter};
+use crate::read_write::{make_stream, CubeNodeWriter, InputFile, NodeIterator, NodeWriter};
 use crate::Point;
 use cgmath::{EuclideanSpace, Point3};
 use collision::{Aabb, Aabb3};
@@ -31,8 +29,8 @@ use protobuf::Message;
 use scoped_pool::{Pool, Scope};
 use std::cmp;
 use std::fs::{self, File};
-use std::io::{BufWriter, Stdout};
-use std::path::{Path, PathBuf};
+use std::io::BufWriter;
+use std::path::Path;
 use std::sync::mpsc;
 
 const UPDATE_COUNT: i64 = 100_000;
@@ -224,50 +222,6 @@ fn subsample_children_into(
             .unwrap();
     }
     Ok(())
-}
-
-#[derive(Debug)]
-enum InputFile {
-    Ply(PathBuf),
-    Pts(PathBuf),
-}
-
-enum InputFileIterator {
-    Ply(PlyIterator),
-    Pts(PtsIterator),
-}
-
-impl Iterator for InputFileIterator {
-    type Item = Point;
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        match *self {
-            InputFileIterator::Ply(ref p) => p.size_hint(),
-            InputFileIterator::Pts(ref p) => p.size_hint(),
-        }
-    }
-
-    fn next(&mut self) -> Option<Point> {
-        match self {
-            InputFileIterator::Ply(p) => p.next(),
-            InputFileIterator::Pts(p) => p.next(),
-        }
-    }
-}
-
-fn make_stream(input: &InputFile) -> (InputFileIterator, Option<ProgressBar<Stdout>>) {
-    let stream = match *input {
-        InputFile::Ply(ref filename) => {
-            InputFileIterator::Ply(PlyIterator::from_file(filename).unwrap())
-        }
-        InputFile::Pts(ref filename) => InputFileIterator::Pts(PtsIterator::from_file(filename)),
-    };
-
-    let progress_bar = match stream.size_hint() {
-        (_, Some(size)) => Some(ProgressBar::new(size as u64)),
-        (_, None) => None,
-    };
-    (stream, progress_bar)
 }
 
 /// Returns the bounding box containing all points

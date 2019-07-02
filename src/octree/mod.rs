@@ -15,7 +15,7 @@
 use crate::errors::*;
 use crate::math::{Cube, Frustum};
 use crate::proto;
-use crate::Point;
+use crate::{NodeLayer, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
@@ -24,22 +24,23 @@ use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
 
-mod node;
-pub use self::node::{
-    to_node_proto, ChildIndex, Node, NodeId, NodeLayer, NodeMeta, PositionEncoding,
-};
+mod batch_iterator;
+pub use self::batch_iterator::{BatchIterator, PointLocation, PointQuery, NUM_POINTS_PER_BATCH};
 
-mod on_disk;
-pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
+mod generation;
+pub use self::generation::{build_octree, build_octree_from_file};
 
 mod factory;
 pub use self::factory::OctreeFactory;
 
+mod node;
+pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta, PositionEncoding};
+
 mod octree_iterator;
 pub use self::octree_iterator::{FilteredPointsIterator, NodeIdsIterator};
 
-mod batch_iterator;
-pub use self::batch_iterator::{BatchIterator, PointLocation, PointQuery, NUM_POINTS_PER_BATCH};
+mod on_disk;
+pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 
 #[cfg(test)]
 mod octree_test;
@@ -145,7 +146,7 @@ pub struct NodeData {
 
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
-    pub fn from_data_provider(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
+    pub fn from_data_provider(data_provider: Box<dyn OctreeDataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
         match meta_proto.version {
             9 | 10 => println!(

@@ -1,9 +1,9 @@
-use crate::codec::{decode, fixpoint_decode};
 use crate::color;
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::{NodeLayer, PositionEncoding};
-use crate::Point;
+use crate::octree::PositionEncoding;
+use crate::read_write::{decode, fixpoint_decode};
+use crate::{NodeLayer, Point};
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
