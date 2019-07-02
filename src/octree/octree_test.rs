@@ -105,10 +105,10 @@ mod tests {
             .try_for_each_batch(callback_func)
             .expect_err("Test error");
 
-        assert!(3<=callback_count);
+        assert!(3 <= callback_count);
         assert!(3 * batch_size <= delivered_points);
         assert!(callback_count >= 3);
-        assert!( (3+1)* batch_size >= delivered_points);
+        assert!((3 + 1) * batch_size >= delivered_points);
         assert!(delivered_points as i32 - max_num_points as i32 >= 0);
     }
 
@@ -160,7 +160,7 @@ mod tests {
             .expect_err("Test error");
 
         assert!(callback_count >= 3);
-        assert!((3+1)* batch_size as u64 >= delivered_points);
+        assert!((3 + 1) * batch_size as u64 >= delivered_points);
         assert!(delivered_points as i32 - max_num_points as i32 >= 0);
         assert!(delivered_points as i32 - max_num_points as i32 <= batch_size as i32);
     }
