@@ -8,7 +8,7 @@ mod tests {
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};
     use tempdir::TempDir;
-
+    const NUM_POINTS: usize = 100_000;
     fn build_big_test_octree() -> Box<octree::Octree> {
         let default_point = Point {
             position: Vector3::new(-2_699_182.0, -4_294_938.0, 3_853_373.0), //ECEF parking lot porter dr
@@ -21,7 +21,7 @@ mod tests {
             intensity: None,
         };
 
-        let mut points = vec![default_point; 200_000];
+        let mut points = vec![default_point; 2 * NUM_POINTS];
         points[3].position = Vector3::new(-2_702_846.0, -4_291_151.0, 3_855_012.0); // ECEF STANFORD
 
         let p = Point3::new(6_400_000.0, 6_400_000.0, 6_400_000.0);
@@ -46,8 +46,8 @@ mod tests {
             intensity: None,
         };
 
-        let mut points = vec![default_point; 100_001];
-        points[100_000].position = Vector3::new(-200., -40., 30.);
+        let mut points = vec![default_point; NUM_POINTS + 1];
+        points[NUM_POINTS].position = Vector3::new(-200., -40., 30.);
 
         let bounding_box = Aabb3::zero().grow(Point3::from_vec(points[100_000].position));
 
@@ -105,6 +105,7 @@ mod tests {
             .try_for_each_batch(callback_func)
             .expect_err("Test error");
 
+        //  requiring and returning less points than the total
         assert!(3 <= callback_count);
         assert!(3 * batch_size <= delivered_points);
         assert!(callback_count >= 3);
@@ -113,12 +114,57 @@ mod tests {
     }
 
     #[test]
+    fn test_batch_iterator_more_points() {
+        let batch_size = NUM_POINTS / 2;
+        // define function
+
+        // requiring more points than in the octree
+        let mut callback_count = 0;
+        let mut delivered_points = 0;
+        let max_num_points = NUM_POINTS + 30_000;
+        println!(
+            "batch_size= {} ,  num_points= {}",
+            batch_size, max_num_points
+        );
+        let callback_func = |point_data: PointData| -> Result<()> {
+            callback_count += 1;
+            delivered_points += point_data.position.len();
+            println!(
+                "Callback_count {:}, delivered points {:}",
+                callback_count, delivered_points
+            );
+            if delivered_points >= max_num_points {
+                println!("Callback: Max Points reached!");
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Interrupted,
+                    format!("Maximum number of {} points reached.", max_num_points),
+                )
+                .into());
+            }
+            Ok(())
+        };
+        // octree and iterator
+        let octree_vec: [Octree; 1] = [*build_test_octree()];
+        let location = PointQuery {
+            location: PointLocation::AllPoints(),
+            global_from_local: None,
+        };
+
+        let mut batch_iterator = BatchIterator::new(&octree_vec, &location, batch_size, 2, 2);
+
+        let _err_stop = batch_iterator
+            .try_for_each_batch(callback_func)
+            .expect("Test OK");
+        assert!(delivered_points == NUM_POINTS + 1); // only delivers all the points in the octree
+    }
+
+    #[test]
     //#[ignore]
     fn test_batch_iterator_big_octree() {
         let batch_size = 5000;
         // define function
         let mut callback_count: u64 = 0;
-        let max_num_points = 13_000; // 2*batch size + 3000
+        let max_num_points = 13_001; // 2*batch size + 3000
         let mut delivered_points: u64 = 0;
         println!(
             "batch_size= {} ,  num_points= {}",

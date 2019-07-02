@@ -129,7 +129,6 @@ where
                 self.callback()?;
             }
         }
-        self.callback()?;
         Ok(())
     }
 }
@@ -167,6 +166,7 @@ impl<'a> BatchIterator<'a> {
     {
         // get thread safe fifo
         let jobs = Injector::<(&Octree, octree::NodeId)>::new();
+        let mut number_of_jobs = 0;
         self.octrees
             .iter()
             .flat_map(|octree| {
@@ -174,6 +174,7 @@ impl<'a> BatchIterator<'a> {
             })
             .for_each(|(node_id, octree)| {
                 jobs.push((node_id, octree));
+                number_of_jobs += 1;
             });
 
         let local_from_global = self
@@ -185,7 +186,7 @@ impl<'a> BatchIterator<'a> {
         // operate on nodes with limited number of threads
         crossbeam::scope(|s| {
             let (tx, rx) = crossbeam::channel::bounded::<PointData>(self.buffer_size);
-            for _ in 0..self.num_threads {
+            for curr_thread in 0..self.num_threads {
                 let tx = tx.clone();
                 let local_from_global = &local_from_global;
                 let point_location = &self.point_location;
@@ -197,8 +198,8 @@ impl<'a> BatchIterator<'a> {
                     let send_func = |batch: PointData| match tx.send(batch) {
                         Ok(_) => Ok(()),
                         Err(e) => Err(ErrorKind::Channel(format!(
-                            "sending operation failed, nothing more to do {:?}",
-                            e,
+                            "Thread {}: sending operation failed, nothing more to do {:?}",
+                            curr_thread, e,
                         ))
                         .into()),
                     };
@@ -213,18 +214,30 @@ impl<'a> BatchIterator<'a> {
                             .and_then(|task| task.success())
                     }) {
                         let point_iterator = octree.points_in_node(&point_location, node_id);
-                        // executing on the available next task if the funccargotion still requires it
+                        // executing on the available next task if the function still requires it
                         match point_stream.push_points_and_callback(point_iterator) {
                             Ok(_) => continue,
-                            Err(ref e) => match e.kind() {
-                                ErrorKind::Channel(ref _s) => break, // done with the function computation
-                                _ => panic!("BatchIterator: Thread error {}", e), //some other error
-                            },
+                            Err(ref e) => {
+                                match e.kind() {
+                                    ErrorKind::Channel(ref _s) => break, // done with the function computation
+                                    _ => panic!("BatchIterator: Thread error {}", e), //some other error
+                                }
+                            }
+                        }
+                    }
+                    // last batch of points: calling callback
+                    if let Err(ref e) = point_stream.callback() {
+                        match e.kind() {
+                            ErrorKind::Channel(ref _s) => (), // done with the function computation
+                            _ => panic!("BatchIterator: Thread error {}", e), //some other error
                         }
                     }
                 });
             }
+            // ensure to close the channel after the threads exit
+            drop(tx);
 
+            // receiver collects all the messages
             rx.iter().try_for_each(func)
         })
         .expect("BatchIterator: Panic in try_for_each_batch child thread")
