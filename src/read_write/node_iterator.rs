@@ -8,10 +8,10 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
 use std::collections::HashMap;
-use std::io::{BufReader, Read};
+use std::io::{self, BufReader, Read};
 
 pub trait NodeReader {
-    fn read(&mut self) -> Point;
+    fn read(&mut self) -> io::Result<Point>;
 }
 
 pub struct CubeNodeReader {
@@ -22,7 +22,7 @@ pub struct CubeNodeReader {
 }
 
 impl NodeReader for CubeNodeReader {
-    fn read(&mut self) -> Point {
+    fn read(&mut self) -> io::Result<Point> {
         let mut point = Point {
             position: Vector3::zero(),
             color: color::RED.to_u8(), // is overwritten
@@ -37,76 +37,72 @@ impl NodeReader for CubeNodeReader {
         // out to be marginally slower.
         match self.position_encoding {
             PositionEncoding::Uint8 => {
-                point.position.x =
-                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.x, edge_length);
-                point.position.y =
-                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.y, edge_length);
-                point.position.z =
-                    fixpoint_decode(self.xyz_reader.read_u8().unwrap(), min.z, edge_length);
+                point.position.x = fixpoint_decode(self.xyz_reader.read_u8()?, min.x, edge_length);
+                point.position.y = fixpoint_decode(self.xyz_reader.read_u8()?, min.y, edge_length);
+                point.position.z = fixpoint_decode(self.xyz_reader.read_u8()?, min.z, edge_length);
             }
             PositionEncoding::Uint16 => {
                 point.position.x = fixpoint_decode(
-                    self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_u16::<LittleEndian>()?,
                     min.x,
                     edge_length,
                 );
                 point.position.y = fixpoint_decode(
-                    self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_u16::<LittleEndian>()?,
                     min.y,
                     edge_length,
                 );
                 point.position.z = fixpoint_decode(
-                    self.xyz_reader.read_u16::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_u16::<LittleEndian>()?,
                     min.z,
                     edge_length,
                 );
             }
             PositionEncoding::Float32 => {
                 point.position.x = decode(
-                    self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f32::<LittleEndian>()?,
                     min.x,
                     edge_length,
                 );
                 point.position.y = decode(
-                    self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f32::<LittleEndian>()?,
                     min.y,
                     edge_length,
                 );
                 point.position.z = decode(
-                    self.xyz_reader.read_f32::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f32::<LittleEndian>()?,
                     min.z,
                     edge_length,
                 );
             }
             PositionEncoding::Float64 => {
                 point.position.x = decode(
-                    self.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f64::<LittleEndian>()?,
                     min.x,
                     edge_length,
                 );
                 point.position.y = decode(
-                    self.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f64::<LittleEndian>()?,
                     min.y,
                     edge_length,
                 );
                 point.position.z = decode(
-                    self.xyz_reader.read_f64::<LittleEndian>().unwrap(),
+                    self.xyz_reader.read_f64::<LittleEndian>()?,
                     min.z,
                     edge_length,
                 );
             }
         }
 
-        point.color.red = self.layer_readers[0].read_u8().unwrap();
-        point.color.green = self.layer_readers[0].read_u8().unwrap();
-        point.color.blue = self.layer_readers[0].read_u8().unwrap();
+        point.color.red = self.layer_readers[0].read_u8()?;
+        point.color.green = self.layer_readers[0].read_u8()?;
+        point.color.blue = self.layer_readers[0].read_u8()?;
 
-        point.intensity = self
-            .layer_readers
-            .get_mut(1)
-            .map(|ir| ir.read_f32::<LittleEndian>().unwrap());
+        if let Some(ir) = self.layer_readers.get_mut(1) {
+            point.intensity = Some(ir.read_f32::<LittleEndian>()?);
+        }
 
-        point
+        Ok(point)
     }
 }
 
@@ -188,10 +184,12 @@ impl Iterator for NodeIterator {
             return None;
         }
 
-        let point = iter.reader.read();
-
-        iter.point_count += 1;
-
-        Some(point)
+        match iter.reader.read() {
+            Ok(point) => {
+                iter.point_count += 1;
+                Some(point)
+            }
+            Err(_) => None,
+        }
     }
 }
