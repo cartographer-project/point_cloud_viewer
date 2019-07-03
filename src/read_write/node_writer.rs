@@ -1,10 +1,23 @@
-use crate::math::Cube;
-use crate::octree::PositionEncoding;
-use crate::read_write::{encode, fixpoint_encode};
-use crate::{NodeLayer, Point};
+// Copyright 2016 Google Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use crate::color::Color;
+use crate::Point;
 use byteorder::{LittleEndian, WriteBytesExt};
+use cgmath::Vector3;
 use std::fs::{remove_file, File};
-use std::io::{BufWriter, Result, Write};
+use std::io::{BufWriter, Result, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
 pub struct DataWriter {
@@ -14,7 +27,7 @@ pub struct DataWriter {
 }
 
 impl DataWriter {
-    fn new(path: impl Into<PathBuf>) -> Result<Self> {
+    pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
         File::create(&path).map(|w| DataWriter {
             inner: BufWriter::new(w),
@@ -23,7 +36,7 @@ impl DataWriter {
         })
     }
 
-    fn bytes_written(&self) -> usize {
+    pub fn bytes_written(&self) -> usize {
         self.bytes_written
     }
 }
@@ -42,6 +55,12 @@ impl Write for DataWriter {
     }
 }
 
+impl Seek for DataWriter {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.inner.seek(pos)
+    }
+}
+
 impl Drop for DataWriter {
     fn drop(&mut self) {
         // If we did not write anything into this node, it should not exist.
@@ -55,112 +74,32 @@ impl Drop for DataWriter {
     }
 }
 
+pub trait WriteLE {
+    fn write_le(self, writer: &mut DataWriter);
+}
+
+impl WriteLE for f32 {
+    fn write_le(self, writer: &mut DataWriter) {
+        writer.write_f32::<LittleEndian>(self).unwrap()
+    }
+}
+
+impl WriteLE for Vector3<f64> {
+    fn write_le(self, writer: &mut DataWriter) {
+        writer.write_f64::<LittleEndian>(self.x).unwrap();
+        writer.write_f64::<LittleEndian>(self.y).unwrap();
+        writer.write_f64::<LittleEndian>(self.z).unwrap();
+    }
+}
+
+impl WriteLE for Color<u8> {
+    fn write_le(self, writer: &mut DataWriter) {
+        writer.write_u8(self.red).unwrap();
+        writer.write_u8(self.green).unwrap();
+        writer.write_u8(self.blue).unwrap();
+    }
+}
+
 pub trait NodeWriter {
     fn write(&mut self, p: &Point);
-}
-
-pub struct CubeNodeWriter {
-    xyz_writer: DataWriter,
-    layer_writers: Vec<DataWriter>,
-    stem: PathBuf,
-    position_encoding: PositionEncoding,
-    bounding_cube: Cube,
-}
-
-impl NodeWriter for CubeNodeWriter {
-    fn write(&mut self, p: &Point) {
-        // Note that due to floating point rounding errors while calculating bounding boxes, it
-        // could be here that 'p' is not quite inside the bounding box of our node.
-        let edge_length = self.bounding_cube.edge_length();
-        let min = self.bounding_cube.min();
-        match self.position_encoding {
-            PositionEncoding::Uint8 => {
-                self.xyz_writer
-                    .write_u8(fixpoint_encode(p.position.x, min.x, edge_length))
-                    .unwrap();
-                self.xyz_writer
-                    .write_u8(fixpoint_encode(p.position.y, min.y, edge_length))
-                    .unwrap();
-                self.xyz_writer
-                    .write_u8(fixpoint_encode(p.position.z, min.z, edge_length))
-                    .unwrap();
-            }
-            PositionEncoding::Uint16 => {
-                self.xyz_writer
-                    .write_u16::<LittleEndian>(fixpoint_encode(p.position.x, min.x, edge_length))
-                    .unwrap();
-                self.xyz_writer
-                    .write_u16::<LittleEndian>(fixpoint_encode(p.position.y, min.y, edge_length))
-                    .unwrap();
-                self.xyz_writer
-                    .write_u16::<LittleEndian>(fixpoint_encode(p.position.z, min.z, edge_length))
-                    .unwrap();
-            }
-            PositionEncoding::Float32 => {
-                self.xyz_writer
-                    .write_f32::<LittleEndian>(encode(p.position.x, min.x, edge_length))
-                    .unwrap();
-                self.xyz_writer
-                    .write_f32::<LittleEndian>(encode(p.position.y, min.y, edge_length))
-                    .unwrap();
-                self.xyz_writer
-                    .write_f32::<LittleEndian>(encode(p.position.z, min.z, edge_length))
-                    .unwrap();
-            }
-            PositionEncoding::Float64 => {
-                self.xyz_writer
-                    .write_f64::<LittleEndian>(encode(p.position.x, min.x, edge_length))
-                    .unwrap();
-                self.xyz_writer
-                    .write_f64::<LittleEndian>(encode(p.position.y, min.y, edge_length))
-                    .unwrap();
-                self.xyz_writer
-                    .write_f64::<LittleEndian>(encode(p.position.z, min.z, edge_length))
-                    .unwrap();
-            }
-        }
-
-        self.layer_writers[0].write_u8(p.color.red).unwrap();
-        self.layer_writers[0].write_u8(p.color.green).unwrap();
-        self.layer_writers[0].write_u8(p.color.blue).unwrap();
-
-        // TODO(sirver): This is expensive. It would be preferable if we needn't branch on
-        // every point.
-        if let Some(intensity) = p.intensity {
-            if self.layer_writers.len() < 2 {
-                self.layer_writers.push(
-                    DataWriter::new(&self.stem.with_extension(NodeLayer::Intensity.extension()))
-                        .unwrap(),
-                );
-            }
-            self.layer_writers[1]
-                .write_f32::<LittleEndian>(intensity)
-                .unwrap();
-        }
-    }
-}
-
-impl CubeNodeWriter {
-    pub fn new(
-        path: impl Into<PathBuf>,
-        position_encoding: PositionEncoding,
-        bounding_cube: Cube,
-    ) -> Self {
-        let stem: PathBuf = path.into();
-        let xyz_writer =
-            DataWriter::new(&stem.with_extension(NodeLayer::Position.extension())).unwrap();
-        let layer_writers =
-            vec![DataWriter::new(&stem.with_extension(NodeLayer::Color.extension())).unwrap()];
-        Self {
-            xyz_writer,
-            layer_writers,
-            stem,
-            position_encoding,
-            bounding_cube,
-        }
-    }
-
-    pub fn num_written(&self) -> i64 {
-        self.layer_writers[0].bytes_written() as i64 / 3
-    }
 }

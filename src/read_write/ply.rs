@@ -14,15 +14,20 @@
 
 use crate::color;
 use crate::errors::*;
-use crate::Point;
+use crate::read_write::{DataWriter, NodeWriter, WriteLE};
+use crate::{NodeLayer, Point};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 use std::ops::Index;
 use std::path::Path;
 use std::str;
+
+const HEADER_START_TO_NUM_VERTICES: &[u8] =
+    b"ply\nformat binary_little_endian 1.0\nelement vertex ";
+const HEADER_NUM_VERTICES: &[u8] = b"00000000000000000000";
 
 #[derive(Debug)]
 struct Header {
@@ -427,9 +432,90 @@ impl Iterator for PlyIterator {
     }
 }
 
+pub struct PlyNodeWriter {
+    writer: DataWriter,
+    point_count: usize,
+}
+
+impl NodeWriter for PlyNodeWriter {
+    fn write(&mut self, p: &Point) {
+        if self.point_count == 0 {
+            let mut layers = vec![NodeLayer::Position, NodeLayer::Color];
+            if p.intensity.is_some() {
+                layers.push(NodeLayer::Intensity);
+            }
+            self.create_header(&layers);
+        }
+
+        p.position.write_le(&mut self.writer);
+        p.color.write_le(&mut self.writer);
+        if let Some(i) = p.intensity {
+            i.write_le(&mut self.writer);
+        };
+
+        self.point_count += 1;
+    }
+}
+
+impl Drop for PlyNodeWriter {
+    fn drop(&mut self) {
+        self.writer.write_all(b"\n").unwrap();
+        if self
+            .writer
+            .seek(SeekFrom::Start(HEADER_START_TO_NUM_VERTICES.len() as u64))
+            .is_ok()
+        {
+            let _res = write!(
+                &mut self.writer,
+                "{:0width$}",
+                self.point_count,
+                width = HEADER_NUM_VERTICES.len()
+            );
+        }
+    }
+}
+
+impl PlyNodeWriter {
+    pub fn new(filename: impl AsRef<Path>) -> Self {
+        let writer = DataWriter::new(filename.as_ref()).unwrap();
+        Self {
+            writer,
+            point_count: 0,
+        }
+    }
+
+    fn create_header(&mut self, layers: &[NodeLayer]) {
+        self.writer.write_all(HEADER_START_TO_NUM_VERTICES).unwrap();
+        self.writer.write_all(HEADER_NUM_VERTICES).unwrap();
+        self.writer.write_all(b"\n").unwrap();
+        for layer in layers {
+            match layer {
+                NodeLayer::Position => {
+                    self.writer.write_all(b"property double x\n").unwrap();
+                    self.writer.write_all(b"property double y\n").unwrap();
+                    self.writer.write_all(b"property double z\n").unwrap();
+                }
+                NodeLayer::Color => {
+                    self.writer.write_all(b"property uchar red\n").unwrap();
+                    self.writer.write_all(b"property uchar green\n").unwrap();
+                    self.writer.write_all(b"property uchar blue\n").unwrap();
+                }
+                NodeLayer::Intensity => {
+                    self.writer
+                        .write_all(b"property float intensity\n")
+                        .unwrap();
+                }
+            }
+        }
+        self.writer.write_all(b"end_header\n").unwrap();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::read_write::PlyIterator;
+    use tempdir::TempDir;
 
     fn points_from_file<P: AsRef<Path>>(path: P) -> Vec<Point> {
         let iterator = PlyIterator::from_file(path).unwrap();
@@ -471,5 +557,26 @@ mod tests {
         assert!(points[7].intensity.is_some());
         assert_eq!(points[0].color.red, 255);
         assert_eq!(points[7].color.red, 234);
+    }
+
+    #[test]
+    fn test_ply_read_write() {
+        let tmp_dir = TempDir::new("test_ply_read_write").unwrap();
+        let file_path_test = tmp_dir.path().join("out.ply");
+        let file_path_gt = "src/test_data/xyz_f32_rgb_u8_intensity_f32.ply";
+        {
+            let mut ply_writer = PlyNodeWriter::new(&file_path_test);
+            PlyIterator::from_file(file_path_gt).unwrap().for_each(|p| {
+                ply_writer.write(&p);
+            });
+        }
+        let ply_gt = PlyIterator::from_file(file_path_gt).unwrap();
+        let ply_test = PlyIterator::from_file(&file_path_test).unwrap();
+        ply_gt.zip(ply_test).for_each(|(gt, test)| {
+            assert_eq!(gt.position, test.position);
+            assert_eq!(gt.color, test.color);
+            // All intensities in this file are NaN, but set.
+            assert_eq!(gt.intensity.is_some(), test.intensity.is_some());
+        });
     }
 }
