@@ -7,7 +7,7 @@ mod tests {
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};
     use tempdir::TempDir;
-    const NUM_POINTS: usize = 100_000;
+    const NUM_POINTS: usize = 100_001;
     fn build_big_test_octree() -> Box<octree::Octree> {
         let default_point = Point {
             position: Vector3::new(-2_699_182.0, -4_294_938.0, 3_853_373.0), //ECEF parking lot porter dr
@@ -45,8 +45,8 @@ mod tests {
             intensity: None,
         };
 
-        let mut points = vec![default_point; NUM_POINTS + 1];
-        points[NUM_POINTS].position = Vector3::new(-200., -40., 30.);
+        let mut points = vec![default_point; NUM_POINTS];
+        points[NUM_POINTS - 1].position = Vector3::new(-200., -40., 30.);
 
         let bounding_box = Aabb3::zero().grow(Point3::from_vec(points[100_000].position));
 
@@ -154,7 +154,7 @@ mod tests {
         let _err_stop = batch_iterator
             .try_for_each_batch(callback_func)
             .expect("Test OK");
-        assert!(delivered_points == NUM_POINTS + 1); // only delivers all the points in the octree
+        assert!(delivered_points == NUM_POINTS); // only delivers all the points in the octree
     }
 
     #[test]
