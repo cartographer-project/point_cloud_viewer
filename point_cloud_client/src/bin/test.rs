@@ -50,13 +50,24 @@ struct CommandlineArguments {
     /// The maximum number of points to return.
     #[structopt(long = "num-points", default_value = "50000000")]
     num_points: usize,
+
+    /// The maximum number of threads to be running.
+    #[structopt(long = "num-threads", default_value = "30")]
+    num_threads: usize,
+
+    /// The maximum number of points sent through batch.
+    #[structopt(long = "batch-size", default_value = "500000")]
+    num_points_per_batch: usize,
 }
 
 fn main() {
     let args = CommandlineArguments::from_args();
     let num_points = args.num_points;
-    let point_cloud_client = PointCloudClient::new(&args.locations, OctreeFactory::new())
+    let mut point_cloud_client = PointCloudClient::new(&args.locations, OctreeFactory::new())
         .expect("Couldn't create octree client.");
+    point_cloud_client.num_threads = args.num_threads;
+    point_cloud_client.num_points_per_batch = args.num_points_per_batch;
+
     let point_location = PointQuery {
         location: PointLocation::Aabb(Aabb3::new(args.min, args.max)),
         global_from_local: None,
