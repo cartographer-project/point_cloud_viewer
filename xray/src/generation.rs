@@ -3,7 +3,7 @@
 use crate::proto;
 use crate::CURRENT_VERSION;
 use cgmath::{Decomposed, Point2, Point3, Quaternion, Vector2, Vector3};
-use clap::{_clap_count_args, arg_enum};
+use clap::{_clap_count_exprs, arg_enum};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
