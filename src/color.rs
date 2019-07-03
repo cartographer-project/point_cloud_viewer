@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Entries follow GL semantics: they are in [0.; 1.] with 1. being fully saturated.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Color<T> {
     pub red: T,
     pub green: T,
