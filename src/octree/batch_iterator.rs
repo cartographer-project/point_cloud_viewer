@@ -5,6 +5,7 @@ use crate::octree::{self, FilteredPointsIterator, Octree};
 use crate::{LayerData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
+use crossbeam::deque::{Injector, Worker};
 use fnv::FnvHashMap;
 
 /// size for batch
@@ -50,7 +51,7 @@ where
     position: Vec<Vector3<f64>>,
     color: Vec<Vector4<u8>>,
     intensity: Vec<f32>,
-    local_from_global: Option<Isometry3<f64>>,
+    local_from_global: &'a Option<Isometry3<f64>>,
     func: &'a F,
 }
 
@@ -60,7 +61,7 @@ where
 {
     fn new(
         num_points_per_batch: usize,
-        local_from_global: Option<Isometry3<f64>>,
+        local_from_global: &'a Option<Isometry3<f64>>,
         func: &'a F,
     ) -> Self {
         PointStream {
@@ -128,28 +129,33 @@ where
                 self.callback()?;
             }
         }
-        self.callback()?;
         Ok(())
     }
 }
 
 /// Iterator on point batches
 pub struct BatchIterator<'a> {
-    octree: &'a Octree,
+    octrees: &'a [octree::Octree],
     point_location: &'a PointQuery,
     batch_size: usize,
+    num_threads: usize,
+    buffer_size: usize,
 }
 
 impl<'a> BatchIterator<'a> {
     pub fn new(
-        octree: &'a octree::Octree,
+        octrees: &'a [octree::Octree],
         point_location: &'a PointQuery,
         batch_size: usize,
+        num_threads: usize,
+        buffer_size: usize,
     ) -> Self {
         BatchIterator {
-            octree,
+            octrees,
             point_location,
             batch_size,
+            num_threads,
+            buffer_size,
         }
     }
 
@@ -158,40 +164,80 @@ impl<'a> BatchIterator<'a> {
     where
         F: FnMut(PointData) -> Result<()>,
     {
-        let octree = self.octree;
-        // nodes iterator: retrieve nodes
-        let node_id_iterator = octree.nodes_in_location(self.point_location);
+        // get thread safe fifo
+        let jobs = Injector::<(&Octree, octree::NodeId)>::new();
+        let mut number_of_jobs = 0;
+        self.octrees
+            .iter()
+            .flat_map(|octree| {
+                std::iter::repeat(octree).zip(octree.nodes_in_location(self.point_location))
+            })
+            .for_each(|(node_id, octree)| {
+                jobs.push((node_id, octree));
+                number_of_jobs += 1;
+            });
 
         let local_from_global = self
             .point_location
             .global_from_local
             .as_ref()
             .map(|t| t.inverse());
-        // operate on nodes: one thread for each node
+
+        // operate on nodes with limited number of threads
         crossbeam::scope(|s| {
-            let (tx, rx) = crossbeam::channel::bounded::<PointData>(2);
-            for node_id in node_id_iterator {
+            let (tx, rx) = crossbeam::channel::bounded::<PointData>(self.buffer_size);
+            for curr_thread in 0..self.num_threads {
                 let tx = tx.clone();
-                let local_from_global = local_from_global.clone();
+                let local_from_global = &local_from_global;
                 let point_location = &self.point_location;
                 let batch_size = self.batch_size;
+                let worker = Worker::new_fifo();
+                let jobs = &jobs;
 
                 s.spawn(move |_| {
                     let send_func = |batch: PointData| match tx.send(batch) {
                         Ok(_) => Ok(()),
                         Err(e) => Err(ErrorKind::Channel(format!(
-                            "sending operation failed, nothing more to do {:?}",
-                            e,
+                            "Thread {}: sending operation failed, nothing more to do {:?}",
+                            curr_thread, e,
                         ))
                         .into()),
                     };
-                    let point_iterator = octree.points_in_node(point_location, node_id);
+
+                    // one pointstream per thread vs one per node allows to send more full point batches
                     let mut point_stream =
-                        PointStream::new(batch_size, local_from_global, &send_func);
-                    let _ = point_stream.push_points_and_callback(point_iterator);
+                        PointStream::new(batch_size, &local_from_global, &send_func);
+
+                    while let Some((octree, node_id)) = worker.pop().or_else(|| {
+                        std::iter::repeat_with(|| jobs.steal_batch_and_pop(&worker))
+                            .find(|task| !task.is_retry())
+                            .and_then(|task| task.success())
+                    }) {
+                        let point_iterator = octree.points_in_node(&point_location, node_id);
+                        // executing on the available next task if the function still requires it
+                        match point_stream.push_points_and_callback(point_iterator) {
+                            Ok(_) => continue,
+                            Err(ref e) => {
+                                match e.kind() {
+                                    ErrorKind::Channel(ref _s) => break, // done with the function computation
+                                    _ => panic!("BatchIterator: Thread error {}", e), //some other error
+                                }
+                            }
+                        }
+                    }
+                    // last batch of points: calling callback
+                    if let Err(ref e) = point_stream.callback() {
+                        match e.kind() {
+                            ErrorKind::Channel(ref _s) => (), // done with the function computation
+                            _ => panic!("BatchIterator: Thread error {}", e), //some other error
+                        }
+                    }
                 });
             }
+            // ensure to close the channel after the threads exit
+            drop(tx);
 
+            // receiver collects all the messages
             rx.iter().try_for_each(func)
         })
         .expect("BatchIterator: Panic in try_for_each_batch child thread")

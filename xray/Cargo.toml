@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 cgmath = "0.17.0"
-clap = "2.32.0"
+clap = "2.33.0"
 collision = "0.20.1"
 fnv = "1.0.6"
 image = "0.20.0"

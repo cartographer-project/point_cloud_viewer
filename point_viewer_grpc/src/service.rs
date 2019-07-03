@@ -25,6 +25,7 @@ use grpcio::{
     Environment, RpcContext, RpcStatus, RpcStatusCode, Server, ServerBuilder, ServerStreamingSink,
     UnarySink, WriteFlags,
 };
+use num_cpus;
 use point_viewer::errors::*;
 use point_viewer::math::{Isometry3, OrientedBeam};
 use point_viewer::octree::{self, BatchIterator, NodeId, Octree, OctreeFactory, PointQuery};
@@ -36,7 +37,7 @@ use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 struct OctreeServiceData {
-    octree: Box<Octree>,
+    octree: [Octree; 1], // caveat: only one octree in this slice
     meta: point_viewer::proto::Meta,
 }
 
@@ -94,7 +95,7 @@ impl proto_grpc::Octree for OctreeService {
             Ok(node_id) => node_id,
             Err(e) => return send_fail(&ctx, sink, e.to_string()),
         };
-        let node_data = match service_data.octree.get_node_data(&node_id) {
+        let node_data = match service_data.octree[0].get_node_data(&node_id) {
             Ok(data) => data,
             Err(e) => return send_fail(&ctx, sink, e.to_string()),
         };
@@ -231,7 +232,8 @@ impl OctreeService {
         // We create a channel with a small buffer, which yields better performance than
         // fully blocking without requiring a ton of memory. This has not been carefully benchmarked
         // for best performance though.
-        let (tx, rx) = mpsc::channel(4);
+        let buffer_size = 4;
+        let (tx, rx) = mpsc::channel(buffer_size);
         thread::spawn(move || {
             // This is the secret sauce connecting an OS thread to a event-based receiver. Calling
             // wait() on this turns the event aware, i.e. async 'tx' into a blocking 'tx' that will
@@ -329,8 +331,13 @@ impl OctreeService {
                     Ok(())
                 };
 
-                let mut batch_iterator =
-                    BatchIterator::new(&service_data.octree, &query, num_points_per_batch);
+                let mut batch_iterator = BatchIterator::new(
+                    &service_data.octree,
+                    &query,
+                    num_points_per_batch,
+                    num_cpus::get() - 1,
+                    buffer_size,
+                );
                 // TODO(catevita): missing error handling for the thread
                 let _result = batch_iterator.try_for_each_batch(func);
             }
@@ -349,11 +356,14 @@ impl OctreeService {
         if let Some(service_data) = self.data_cache.read().unwrap().get(octree_id) {
             return Ok(Arc::clone(service_data));
         };
-        let octree = self
+        let octree_slice: [Octree; 1] = [*self
             .factory
-            .generate_octree(self.location.join(&octree_id).to_string_lossy())?;
-        let meta = octree.to_meta_proto();
-        let service_data = Arc::new(OctreeServiceData { octree, meta });
+            .generate_octree(self.location.join(&octree_id).to_string_lossy())?];
+        let meta = octree_slice[0].to_meta_proto();
+        let service_data = Arc::new(OctreeServiceData {
+            octree: octree_slice,
+            meta,
+        });
         self.data_cache
             .write()
             .unwrap()
