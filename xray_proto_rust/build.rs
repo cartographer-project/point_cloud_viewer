@@ -3,15 +3,12 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 
-// This is a workaround for https://github.com/stepancheg/rust-protobuf/issues/331
-fn replace_clippy(contents: String) -> String {
-    contents.replace("#![allow(clippy)]", "#![allow(clippy::all)]")
-}
-
 fn main() {
     println!("cargo:rerun-if-changed=src/proto.proto");
 
     let out_dir = env::var("OUT_DIR").unwrap();
+    let old_path = env::var("PATH");
+    env::set_var("PATH", "../target/protobuf/bin");
     protoc_rust::run(protoc_rust::Args {
         out_dir: &out_dir,
         input: &["src/proto.proto"],
@@ -19,6 +16,7 @@ fn main() {
         ..Default::default()
     })
     .expect("protoc");
+    env::set_var("PATH", old_path.unwrap_or("".to_string()));
 
     // Work around
     // https://github.com/stepancheg/rust-protobuf/issues/117
@@ -31,7 +29,7 @@ fn main() {
         .unwrap()
         .read_to_string(&mut contents)
         .unwrap();
-    let new_contents = format!("pub mod proto {{\n{}\n}}", replace_clippy(contents));
+    let new_contents = format!("pub mod proto {{\n{}\n}}", contents);
 
     File::create(&proto_path)
         .unwrap()

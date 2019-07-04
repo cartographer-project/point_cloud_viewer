@@ -13,41 +13,37 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::{Cube, Obb, OrientedBeam};
+use crate::math::{Cube, Frustum};
 use crate::proto;
-use crate::Point;
+use crate::{NodeLayer, Point};
 use cgmath::{EuclideanSpace, Matrix4, Point3};
-use collision::{Aabb, Aabb3, Contains, Discrete, Frustum, Relation};
+use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
 
-mod node;
-pub use self::node::{
-    to_node_proto, ChildIndex, Node, NodeId, NodeLayer, NodeMeta, PositionEncoding,
-};
+mod batch_iterator;
+pub use self::batch_iterator::{BatchIterator, PointLocation, PointQuery, NUM_POINTS_PER_BATCH};
 
-mod node_iterator;
-pub use self::node_iterator::NodeIterator;
-
-mod node_writer;
-pub use self::node_writer::NodeWriter;
-
-mod on_disk;
-pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
+mod generation;
+pub use self::generation::{build_octree, build_octree_from_file};
 
 mod factory;
 pub use self::factory::OctreeFactory;
 
-mod octree_iterator;
-pub use self::octree_iterator::{
-    contains, intersecting_node_ids, AllPointsIterator, FilteredPointsIterator,
-};
+mod node;
+pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta, PositionEncoding};
 
-mod batch_iterator;
-pub use self::batch_iterator::{BatchIterator, PointCulling, PointLocation, NUM_POINTS_PER_BATCH};
+mod octree_iterator;
+pub use self::octree_iterator::{FilteredPointsIterator, NodeIdsIterator};
+
+mod on_disk;
+pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
+
+#[cfg(test)]
+mod octree_test;
 
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
 // (u64). We are able to convert the proto on read, so the tools can still read version 9.
@@ -143,14 +139,14 @@ pub struct Octree {
 
 #[derive(Debug)]
 pub struct NodeData {
-    pub meta: node::NodeMeta,
+    pub meta: NodeMeta,
     pub position: Vec<u8>,
     pub color: Vec<u8>,
 }
 
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
-    pub fn from_data_provider(data_provider: Box<OctreeDataProvider>) -> Result<Self> {
+    pub fn from_data_provider(data_provider: Box<dyn OctreeDataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
         match meta_proto.version {
             9 | 10 => println!(
@@ -222,7 +218,7 @@ impl Octree {
     }
 
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
-        let frustum = Frustum::from_matrix4(*projection_matrix).unwrap();
+        let frustum = collision::Frustum::from_matrix4(*projection_matrix).unwrap();
         let mut open = BinaryHeap::new();
         maybe_push_node(
             &mut open,
@@ -299,45 +295,30 @@ impl Octree {
         })
     }
 
+    pub fn nodes_in_location<'a>(
+        &'a self,
+        location: &PointQuery,
+    ) -> NodeIdsIterator<'a, impl Fn(&NodeId, &'a Octree) -> bool> {
+        let container = location.get_point_culling();
+        let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
+            let current = &octree.nodes[&node_id];
+            container.intersects(&current.bounding_cube.to_aabb3())
+        };
+        NodeIdsIterator::new(&self, filter_func)
+    }
+
     /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
-    pub fn points_in_box<'a>(&'a self, bbox: &'a Aabb3<f64>) -> FilteredPointsIterator<'a> {
-        let intersects = |aabb: &Aabb3<f64>| bbox.intersects(aabb);
-        let node_ids = intersecting_node_ids(self, &intersects);
-        let filter_func = Box::new(move |p: &Point| bbox.contains(&Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids, filter_func)
-    }
-
-    pub fn points_in_obb<'a>(&'a self, obb: &'a Obb<f64>) -> FilteredPointsIterator<'a> {
-        let intersects = |aabb: &Aabb3<f64>| obb.intersects(aabb);
-        let node_ids = intersecting_node_ids(self, &intersects);
-        let filter_func = Box::new(move |p: &Point| obb.contains(&Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids, filter_func)
-    }
-
-    pub fn points_in_oriented_beam<'a>(
+    pub fn points_in_node<'a>(
         &'a self,
-        beam: &'a OrientedBeam,
-    ) -> FilteredPointsIterator<'a> {
-        let intersects = |aabb: &Aabb3<f64>| beam.intersects(aabb);
-        let node_ids = intersecting_node_ids(self, &intersects);
-        let filter_func = Box::new(move |p: &Point| beam.contains(&Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids, filter_func)
+        location: &PointQuery,
+        node_id: NodeId,
+    ) -> FilteredPointsIterator<impl Fn(&Point) -> bool> {
+        let container = location.get_point_culling();
+        let filter_func = move |p: &Point| container.contains(&Point3::from_vec(p.position));
+        FilteredPointsIterator::new(&self, node_id, filter_func)
     }
 
-    pub fn points_in_frustum<'a>(
-        &'a self,
-        frustum_matrix: &'a Matrix4<f64>,
-    ) -> FilteredPointsIterator<'a> {
-        let node_ids = self.get_visible_nodes(frustum_matrix);
-        let filter_func =
-            Box::new(move |p: &Point| contains(frustum_matrix, &Point3::from_vec(p.position)));
-        FilteredPointsIterator::new(&self, node_ids.into(), filter_func)
-    }
-
-    pub fn all_points(&self) -> AllPointsIterator {
-        AllPointsIterator::new(&self)
-    }
-
+    /// return the bounding box saved in meta
     pub fn bounding_box(&self) -> &Aabb3<f64> {
         &self.meta.bounding_box
     }

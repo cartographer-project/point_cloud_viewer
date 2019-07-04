@@ -17,19 +17,22 @@
 set -o errexit
 set -o verbose
 
-VERSION="v3.4.1"
+VERSION="v3.6.1"
+ROOT_DIR="$( cd "$( dirname "$( dirname "$0" )" )" >/dev/null 2>&1 && pwd )"
+PROTOBUF_DIR=${ROOT_DIR}/target/protobuf
+TMPDIR="$( mktemp -d )"
 
 # Build and install proto3.
-git clone https://github.com/google/protobuf.git
-cd protobuf
+git clone https://github.com/google/protobuf.git ${TMPDIR}/protobuf
+cd ${TMPDIR}/protobuf
 git checkout tags/${VERSION}
-mkdir build
-cd build
+cd ${TMPDIR}
 cmake -G Ninja \
-  -DCMAKE_INSTALL_PREFIX=$HOME \
+  -DCMAKE_INSTALL_PREFIX=${PROTOBUF_DIR} \
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -Dprotobuf_BUILD_TESTS=OFF \
-  ../cmake
+  protobuf/cmake
 ninja
 ninja install
+rm -rf ${TMPDIR}

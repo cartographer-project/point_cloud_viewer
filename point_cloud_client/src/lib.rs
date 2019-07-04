@@ -1,7 +1,7 @@
 use collision::{Aabb, Aabb3, Union};
 use point_viewer::errors::*;
 use point_viewer::octree::{
-    BatchIterator, Octree, OctreeFactory, PointLocation, NUM_POINTS_PER_BATCH,
+    BatchIterator, Octree, OctreeFactory, PointQuery, NUM_POINTS_PER_BATCH,
 };
 use point_viewer::PointData;
 
@@ -9,6 +9,8 @@ pub struct PointCloudClient {
     octrees: Vec<Octree>,
     aabb: Aabb3<f64>,
     pub num_points_per_batch: usize,
+    pub num_threads: usize,
+    pub buffer_size: usize,
 }
 
 impl PointCloudClient {
@@ -32,6 +34,8 @@ impl PointCloudClient {
             octrees,
             aabb,
             num_points_per_batch: NUM_POINTS_PER_BATCH,
+            num_threads: num_cpus::get() - 1,
+            buffer_size: 4,
         })
     }
 
@@ -39,15 +43,18 @@ impl PointCloudClient {
         &self.aabb
     }
 
-    pub fn for_each_point_data<F>(&self, point_location: &PointLocation, mut func: F) -> Result<()>
+    pub fn for_each_point_data<F>(&self, point_location: &PointQuery, mut func: F) -> Result<()>
     where
         F: FnMut(PointData) -> Result<()>,
     {
-        for octree in &self.octrees {
-            let mut batch_iterator =
-                BatchIterator::new(octree, point_location, self.num_points_per_batch);
-            batch_iterator.try_for_each_batch(&mut func)?;
-        }
+        let mut batch_iterator = BatchIterator::new(
+            &self.octrees,
+            point_location,
+            self.num_points_per_batch,
+            self.num_threads,
+            self.buffer_size,
+        );
+        batch_iterator.try_for_each_batch(&mut func)?;
         Ok(())
     }
 }

@@ -1,132 +1,142 @@
+use crate::errors::*;
 use crate::math::Cube;
+use crate::octree::{ChildIndex, NodeId, Octree, OctreeDataProvider, OctreeMeta, PositionEncoding};
+use crate::read_write::{CubeNodeReader, NodeIterator};
+use crate::{NodeLayer, Point};
+use std::collections::{HashMap, VecDeque};
 
-use crate::octree::{ChildIndex, Node, NodeId, NodeIterator, Octree};
-use crate::Point;
-use cgmath::{Matrix4, Point3, Vector4};
-use collision::Aabb3;
-use std::collections::VecDeque;
+impl NodeIterator<CubeNodeReader> {
+    pub fn from_data_provider(
+        octree_data_provider: &dyn OctreeDataProvider,
+        octree_meta: &OctreeMeta,
+        id: &NodeId,
+        num_points: usize,
+    ) -> Result<Self> {
+        if num_points == 0 {
+            return Ok(NodeIterator::Empty);
+        }
+
+        let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
+        let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
+
+        let mut layers = HashMap::new();
+
+        let mut position_color_reads =
+            octree_data_provider.data(id, vec![NodeLayer::Position, NodeLayer::Color])?;
+        match position_color_reads.remove(&NodeLayer::Position) {
+            Some(position_data) => {
+                layers.insert(NodeLayer::Position, position_data);
+            }
+            None => return Err("No position reader available.".into()),
+        }
+        match position_color_reads.remove(&NodeLayer::Color) {
+            Some(color_data) => {
+                layers.insert(NodeLayer::Color, color_data);
+            }
+            None => return Err("No color reader available.".into()),
+        }
+
+        if let Ok(mut data_map) = octree_data_provider.data(id, vec![NodeLayer::Intensity]) {
+            match data_map.remove(&NodeLayer::Intensity) {
+                Some(intensity_data) => {
+                    layers.insert(NodeLayer::Intensity, intensity_data);
+                }
+                None => return Err("No intensity reader available.".into()),
+            }
+        };
+
+        Ok(Self::new(CubeNodeReader::new(
+            layers,
+            num_points,
+            position_encoding,
+            bounding_cube,
+        )?))
+    }
+}
 
 /// returns an Iterator over the points of the current node
-fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator {
+fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator<CubeNodeReader> {
     // TODO(sirver): This crashes on error. We should bubble up an error.
     NodeIterator::from_data_provider(
         &*octree.data_provider,
         &octree.meta,
         &node_id,
-        octree.nodes[&node_id].num_points,
+        octree.nodes[&node_id].num_points as usize,
     )
     .expect("Could not read node points")
 }
 
-/// iterator over the points of the octree that satisfy the condition expressed by a boolean function
-pub struct FilteredPointsIterator<'a> {
-    octree: &'a Octree,
-    filter_func: Box<Fn(&Point) -> bool + 'a>,
-    node_ids: VecDeque<NodeId>,
-    node_iterator: NodeIterator,
+/// iterator over the points of a octree node that satisfy the condition expressed by a boolean function
+pub struct FilteredPointsIterator<F> {
+    filter_func: F,
+    node_iterator: NodeIterator<CubeNodeReader>,
 }
 
-impl<'a> FilteredPointsIterator<'a> {
-    pub fn new(
-        octree: &'a Octree,
-        node_ids: VecDeque<NodeId>,
-        filter_func: Box<Fn(&Point) -> bool + 'a>,
-    ) -> Self {
+impl<F> FilteredPointsIterator<F>
+where
+    F: Fn(&Point) -> bool,
+{
+    pub fn new(octree: &Octree, node_id: NodeId, filter_func: F) -> FilteredPointsIterator<F> {
         FilteredPointsIterator {
-            octree,
             filter_func,
-            node_ids,
-            node_iterator: NodeIterator::Empty,
+            node_iterator: get_node_iterator(octree, &node_id),
         }
     }
 }
 
-impl<'a> Iterator for FilteredPointsIterator<'a> {
+impl<F> Iterator for FilteredPointsIterator<F>
+where
+    F: Fn(&Point) -> bool,
+{
     type Item = Point;
 
     fn next(&mut self) -> Option<Point> {
-        loop {
-            while let Some(point) = self.node_iterator.next() {
-                if (self.filter_func)(&point) {
-                    return Some(point);
-                }
-            }
-            self.node_iterator = match self.node_ids.pop_front() {
-                Some(node_id) => get_node_iterator(self.octree, &node_id),
-                None => return None,
-            };
-        }
-    }
-}
-///iterator for all points in an octree
-pub struct AllPointsIterator<'a> {
-    octree: &'a Octree,
-    node_iterator: NodeIterator,
-    open_list: VecDeque<NodeId>,
-}
-
-impl<'a> AllPointsIterator<'a> {
-    pub fn new(octree: &'a Octree) -> Self {
-        AllPointsIterator {
-            octree,
-            node_iterator: NodeIterator::Empty,
-            open_list: vec![NodeId::from_level_index(0, 0)].into(),
-        }
-    }
-}
-
-impl<'a> Iterator for AllPointsIterator<'a> {
-    type Item = Point;
-
-    fn next(&mut self) -> Option<Point> {
-        loop {
-            if let Some(point) = self.node_iterator.next() {
+        while let Some(point) = self.node_iterator.next() {
+            if (self.filter_func)(&point) {
                 return Some(point);
             }
-            match self.open_list.pop_front() {
-                Some(current) => {
-                    for child_index in 0..8 {
-                        let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
-                        if self.octree.nodes.contains_key(&child_id) {
-                            self.open_list.push_back(child_id);
-                        }
+        }
+        None
+    }
+}
+
+pub struct NodeIdsIterator<'a, F> {
+    octree: &'a Octree,
+    filter_func: F,
+    node_ids: VecDeque<NodeId>,
+}
+
+impl<'a, F> NodeIdsIterator<'a, F>
+where
+    F: Fn(&NodeId, &Octree) -> bool,
+{
+    pub fn new(octree: &'a Octree, filter_func: F) -> NodeIdsIterator<'a, F> {
+        NodeIdsIterator {
+            octree,
+            node_ids: vec![NodeId::from_level_index(0, 0)].into(),
+            filter_func,
+        }
+    }
+}
+
+impl<'a, F> Iterator for NodeIdsIterator<'a, F>
+where
+    F: Fn(&NodeId, &'a Octree) -> bool,
+{
+    type Item = NodeId;
+
+    fn next(&mut self) -> Option<NodeId> {
+        while let Some(current) = self.node_ids.pop_front() {
+            if (self.filter_func)(&current, &self.octree) {
+                for child_index in 0..8 {
+                    let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
+                    if self.octree.nodes.contains_key(&child_id) {
+                        self.node_ids.push_back(child_id);
                     }
-                    self.node_iterator = get_node_iterator(self.octree, &current);
                 }
-                None => return None,
+                return Some(current);
             }
         }
+        None
     }
-}
-
-// TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
-pub fn contains(projection_matrix: &Matrix4<f64>, point: &Point3<f64>) -> bool {
-    let v = Vector4::new(point.x, point.y, point.z, 1.);
-    let clip_v = projection_matrix * v;
-    clip_v.x.abs() < clip_v.w && clip_v.y.abs() < clip_v.w && 0. < clip_v.z && clip_v.z < clip_v.w
-}
-
-pub fn intersecting_node_ids(
-    octree: &Octree,
-    intersects: &Fn(&Aabb3<f64>) -> bool,
-) -> VecDeque<NodeId> {
-    let mut node_ids = VecDeque::new();
-    let mut open_list: VecDeque<Node> = vec![Node::root_with_bounding_cube(Cube::bounding(
-        &octree.meta.bounding_box,
-    ))]
-    .into();
-    while !open_list.is_empty() {
-        let current = open_list.pop_front().unwrap();
-        if !intersects(&current.bounding_cube.to_aabb3()) {
-            continue;
-        }
-        node_ids.push_back(current.id);
-        for child_index in 0..8 {
-            let child = current.get_child(ChildIndex::from_u8(child_index));
-            if octree.nodes.contains_key(&child.id) {
-                open_list.push_back(child);
-            }
-        }
-    }
-    node_ids
 }

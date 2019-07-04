@@ -41,6 +41,6 @@ impl Extension for NullExtension {
 
 fn main() {
     let octree_factory = OctreeFactory::new().register("grpc://", octree_from_grpc_address);
-    // TODO (catevita) hide octree factory details, simplify the run method interface
+    // TODO(catevita): hide octree factory details, simplify the run method interface
     run::<NullExtension>(octree_factory);
 }

@@ -1,6 +1,6 @@
 use crate::errors::*;
-use crate::octree::{NodeId, NodeLayer, Octree, OctreeDataProvider};
-use crate::proto;
+use crate::octree::{NodeId, Octree, OctreeDataProvider};
+use crate::{proto, NodeLayer};
 use protobuf;
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -67,7 +67,7 @@ impl OctreeDataProvider for OnDiskOctreeDataProvider {
     }
 }
 
-//  TODO (catevita) refactor function for octree factory
+//  TODO(catevita): refactor function for octree factory
 pub fn octree_from_directory(directory: impl Into<PathBuf>) -> Result<Box<Octree>> {
     let data_provider = OnDiskOctreeDataProvider {
         directory: directory.into(),

@@ -4,10 +4,13 @@
 use cgmath::Point3;
 use collision::Aabb3;
 use point_cloud_client::PointCloudClient;
-use point_viewer::errors::*;
-use point_viewer::octree::{OctreeFactory, PointCulling, PointLocation};
+use point_viewer::errors::{ErrorKind, Result};
+use point_viewer::octree::{OctreeFactory, PointLocation, PointQuery};
 use point_viewer::PointData;
 use structopt::StructOpt;
+
+// size for batch
+const BATCH_SIZE: usize = 1_000_000;
 
 fn point3f64_from_str(s: &str) -> std::result::Result<Point3<f64>, &'static str> {
     let coords: std::result::Result<Vec<f64>, &'static str> = s
@@ -47,24 +50,35 @@ struct CommandlineArguments {
     /// The maximum number of points to return.
     #[structopt(long = "num-points", default_value = "50000000")]
     num_points: usize,
+
+    /// The maximum number of threads to be running.
+    #[structopt(long = "num-threads", default_value = "30")]
+    num_threads: usize,
+
+    /// The maximum number of points sent through batch.
+    #[structopt(long = "batch-size", default_value = "500000")]
+    num_points_per_batch: usize,
 }
 
 fn main() {
     let args = CommandlineArguments::from_args();
     let num_points = args.num_points;
-    let point_cloud_client = PointCloudClient::new(&args.locations, OctreeFactory::new())
+    let mut point_cloud_client = PointCloudClient::new(&args.locations, OctreeFactory::new())
         .expect("Couldn't create octree client.");
-    let point_location = PointLocation {
-        culling: PointCulling::Aabb(Aabb3::new(args.min, args.max)),
+    point_cloud_client.num_threads = args.num_threads;
+    point_cloud_client.num_points_per_batch = args.num_points_per_batch;
+
+    let point_location = PointQuery {
+        location: PointLocation::Aabb(Aabb3::new(args.min, args.max)),
         global_from_local: None,
     };
     let mut point_count: usize = 0;
     let mut print_count: usize = 1;
     let callback_func = |point_data: PointData| -> Result<()> {
         point_count += point_data.position.len();
-        if point_count >= print_count * 1_000_000 {
+        if point_count >= print_count * BATCH_SIZE {
             print_count += 1;
-            println!("Streamed {}M points", point_count / 1_000_000);
+            println!("Streamed {}M points", point_count / BATCH_SIZE);
         }
         if point_count >= num_points {
             return Err(std::io::Error::new(

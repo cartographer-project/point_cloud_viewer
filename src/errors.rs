@@ -43,5 +43,11 @@ error_chain! {
         Grpc {
             description("Grpc request failed")
         }
+
+        Channel(msg: String) {
+            description("The current channel failed an operation")
+            display("{}", msg)
+        }
+
     }
 }
