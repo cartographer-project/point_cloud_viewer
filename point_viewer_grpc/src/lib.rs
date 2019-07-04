@@ -21,7 +21,7 @@ use point_viewer::color::Color;
 use point_viewer::errors::*;
 use point_viewer::octree::{NodeId, Octree, OctreeDataProvider};
 use point_viewer::proto::Meta;
-use point_viewer::{NodeLayer, Point};
+use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
 use std::collections::HashMap;
@@ -122,8 +122,8 @@ impl OctreeDataProvider for GrpcOctreeDataProvider {
     fn data(
         &self,
         node_id: &NodeId,
-        node_layers: Vec<NodeLayer>,
-    ) -> Result<HashMap<NodeLayer, Box<dyn Read>>> {
+        node_attributes: &[&str],
+    ) -> Result<HashMap<String, Box<dyn Read>>> {
         let mut req = proto::GetNodeDataRequest::new();
         req.set_octree_id(self.octree_id.clone());
         req.set_id(node_id.to_string());
@@ -131,16 +131,16 @@ impl OctreeDataProvider for GrpcOctreeDataProvider {
             .client
             .get_node_data(&req)
             .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
-        let mut readers = HashMap::<NodeLayer, Box<dyn Read>>::new();
-        for node_layer in node_layers {
-            let reader: Box<dyn Read> = match node_layer {
-                NodeLayer::Position => Box::new(Cursor::new(reply.position.clone())),
-                NodeLayer::Color => Box::new(Cursor::new(reply.color.clone())),
+        let mut readers = HashMap::<String, Box<dyn Read>>::new();
+        for node_attribute in node_attributes {
+            let reader: Box<dyn Read> = match *node_attribute {
+                "position" => Box::new(Cursor::new(reply.position.clone())),
+                "color" => Box::new(Cursor::new(reply.color.clone())),
                 _ => {
                     return Err("Unsupported node extension.".into());
                 }
             };
-            readers.insert(node_layer.to_owned(), reader);
+            readers.insert(node_attribute.to_string(), reader);
         }
         Ok(readers)
     }

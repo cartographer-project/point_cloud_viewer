@@ -2,7 +2,7 @@ use crate::errors::*;
 use crate::math::Cube;
 use crate::octree::{ChildIndex, NodeId, Octree, OctreeDataProvider, OctreeMeta, PositionEncoding};
 use crate::read_write::{CubeNodeReader, NodeIterator};
-use crate::{NodeLayer, Point};
+use crate::Point;
 use std::collections::{HashMap, VecDeque};
 
 impl NodeIterator<CubeNodeReader> {
@@ -19,34 +19,33 @@ impl NodeIterator<CubeNodeReader> {
         let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
         let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
 
-        let mut layers = HashMap::new();
+        let mut attributes = HashMap::new();
 
-        let mut position_color_reads =
-            octree_data_provider.data(id, vec![NodeLayer::Position, NodeLayer::Color])?;
-        match position_color_reads.remove(&NodeLayer::Position) {
+        let mut position_color_reads = octree_data_provider.data(id, &["position", "color"])?;
+        match position_color_reads.remove("position") {
             Some(position_data) => {
-                layers.insert(NodeLayer::Position, position_data);
+                attributes.insert("position".to_string(), position_data);
             }
             None => return Err("No position reader available.".into()),
         }
-        match position_color_reads.remove(&NodeLayer::Color) {
+        match position_color_reads.remove("color") {
             Some(color_data) => {
-                layers.insert(NodeLayer::Color, color_data);
+                attributes.insert("color".to_string(), color_data);
             }
             None => return Err("No color reader available.".into()),
         }
 
-        if let Ok(mut data_map) = octree_data_provider.data(id, vec![NodeLayer::Intensity]) {
-            match data_map.remove(&NodeLayer::Intensity) {
+        if let Ok(mut data_map) = octree_data_provider.data(id, &["intensity"]) {
+            match data_map.remove("position") {
                 Some(intensity_data) => {
-                    layers.insert(NodeLayer::Intensity, intensity_data);
+                    attributes.insert("intensity".to_string(), intensity_data);
                 }
                 None => return Err("No intensity reader available.".into()),
             }
         };
 
         Ok(Self::new(CubeNodeReader::new(
-            layers,
+            attributes,
             num_points,
             position_encoding,
             bounding_cube,

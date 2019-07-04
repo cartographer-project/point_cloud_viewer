@@ -2,7 +2,7 @@ use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Isometry3, Obb, OrientedBeam};
 use crate::octree::{self, FilteredPointsIterator, Octree};
-use crate::{LayerData, Point, PointData};
+use crate::{AttributeData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Worker};
@@ -97,20 +97,20 @@ where
             return Ok(());
         }
 
-        let mut layers = FnvHashMap::default();
-        layers.insert(
+        let mut attributes = FnvHashMap::default();
+        attributes.insert(
             "color".to_string(),
-            LayerData::U8Vec4(self.color.split_off(0)),
+            AttributeData::U8Vec4(self.color.split_off(0)),
         );
         if !self.intensity.is_empty() {
-            layers.insert(
+            attributes.insert(
                 "intensity".to_string(),
-                LayerData::F32(self.intensity.split_off(0)),
+                AttributeData::F32(self.intensity.split_off(0)),
             );
         }
         let point_data = PointData {
             position: self.position.split_off(0),
-            layers,
+            attributes,
         };
         //println!("internal callback sending last batch...");
         (self.func)(point_data)

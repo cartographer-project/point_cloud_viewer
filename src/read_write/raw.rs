@@ -13,27 +13,27 @@
 // limitations under the License.
 
 use crate::read_write::{DataWriter, NodeWriter, WriteLE};
-use crate::{NodeLayer, Point};
+use crate::{attribute_extension, Point};
 use std::path::PathBuf;
 
 pub struct RawNodeWriter {
     xyz_writer: DataWriter,
-    layer_writers: Vec<DataWriter>,
+    attribute_writers: Vec<DataWriter>,
     stem: PathBuf,
 }
 
 impl NodeWriter for RawNodeWriter {
     fn write(&mut self, p: &Point) {
         p.position.write_le(&mut self.xyz_writer);
-        p.color.write_le(&mut self.layer_writers[0]);
+        p.color.write_le(&mut self.attribute_writers[0]);
         if let Some(i) = p.intensity {
-            if self.layer_writers.len() < 2 {
-                self.layer_writers.push(
-                    DataWriter::new(&self.stem.with_extension(NodeLayer::Intensity.extension()))
+            if self.attribute_writers.len() < 2 {
+                self.attribute_writers.push(
+                    DataWriter::new(&self.stem.with_extension(attribute_extension("intensity")))
                         .unwrap(),
                 );
             }
-            i.write_le(&mut self.layer_writers[1]);
+            i.write_le(&mut self.attribute_writers[1]);
         };
     }
 }
@@ -42,12 +42,12 @@ impl RawNodeWriter {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         let stem: PathBuf = path.into();
         let xyz_writer =
-            DataWriter::new(&stem.with_extension(NodeLayer::Position.extension())).unwrap();
-        let layer_writers =
-            vec![DataWriter::new(&stem.with_extension(NodeLayer::Color.extension())).unwrap()];
+            DataWriter::new(&stem.with_extension(attribute_extension("position"))).unwrap();
+        let attribute_writers =
+            vec![DataWriter::new(&stem.with_extension(attribute_extension("color"))).unwrap()];
         Self {
             xyz_writer,
-            layer_writers,
+            attribute_writers,
             stem,
         }
     }

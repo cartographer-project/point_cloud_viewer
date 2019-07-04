@@ -19,7 +19,7 @@ use crate::octree::PositionEncoding;
 use crate::read_write::{
     decode, encode, fixpoint_decode, fixpoint_encode, DataWriter, NodeReader, NodeWriter, WriteLE,
 };
-use crate::{NodeLayer, Point};
+use crate::{attribute_extension, Point};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
@@ -29,7 +29,7 @@ use std::path::PathBuf;
 
 pub struct CubeNodeReader {
     xyz_reader: BufReader<Box<dyn Read>>,
-    layer_readers: Vec<BufReader<Box<dyn Read>>>,
+    attribute_readers: Vec<BufReader<Box<dyn Read>>>,
     num_points: usize,
     position_encoding: PositionEncoding,
     bounding_cube: Cube,
@@ -108,11 +108,11 @@ impl NodeReader for CubeNodeReader {
             }
         }
 
-        point.color.red = self.layer_readers[0].read_u8()?;
-        point.color.green = self.layer_readers[0].read_u8()?;
-        point.color.blue = self.layer_readers[0].read_u8()?;
+        point.color.red = self.attribute_readers[0].read_u8()?;
+        point.color.green = self.attribute_readers[0].read_u8()?;
+        point.color.blue = self.attribute_readers[0].read_u8()?;
 
-        if let Some(ir) = self.layer_readers.get_mut(1) {
+        if let Some(ir) = self.attribute_readers.get_mut(1) {
             point.intensity = Some(ir.read_f32::<LittleEndian>()?);
         }
 
@@ -126,30 +126,30 @@ impl NodeReader for CubeNodeReader {
 
 impl CubeNodeReader {
     pub fn new(
-        mut layers: HashMap<NodeLayer, Box<dyn Read>>,
+        mut attributes: HashMap<String, Box<dyn Read>>,
         num_points: usize,
         position_encoding: PositionEncoding,
         bounding_cube: Cube,
     ) -> Result<Self> {
         let xyz_reader = BufReader::new(
-            layers
-                .remove(&NodeLayer::Position)
+            attributes
+                .remove("position")
                 .ok_or_else(|| "No position reader available.")?,
         );
         let rgb_reader = BufReader::new(
-            layers
-                .remove(&NodeLayer::Color)
+            attributes
+                .remove("color")
                 .ok_or_else(|| "No color reader available.")?,
         );
-        let mut layer_readers = vec![rgb_reader];
+        let mut attribute_readers = vec![rgb_reader];
 
-        if let Some(intensity_read) = layers.remove(&NodeLayer::Intensity) {
-            layer_readers.push(BufReader::new(intensity_read));
+        if let Some(intensity_read) = attributes.remove("intensity") {
+            attribute_readers.push(BufReader::new(intensity_read));
         };
 
         Ok(Self {
             xyz_reader,
-            layer_readers,
+            attribute_readers,
             num_points,
             position_encoding,
             bounding_cube,
@@ -159,7 +159,7 @@ impl CubeNodeReader {
 
 pub struct CubeNodeWriter {
     xyz_writer: DataWriter,
-    layer_writers: Vec<DataWriter>,
+    attribute_writers: Vec<DataWriter>,
     stem: PathBuf,
     position_encoding: PositionEncoding,
     bounding_cube: Cube,
@@ -218,15 +218,15 @@ impl NodeWriter for CubeNodeWriter {
             }
         }
 
-        p.color.write_le(&mut self.layer_writers[0]);
+        p.color.write_le(&mut self.attribute_writers[0]);
         if let Some(i) = p.intensity {
-            if self.layer_writers.len() < 2 {
-                self.layer_writers.push(
-                    DataWriter::new(&self.stem.with_extension(NodeLayer::Intensity.extension()))
+            if self.attribute_writers.len() < 2 {
+                self.attribute_writers.push(
+                    DataWriter::new(&self.stem.with_extension(attribute_extension("intensity")))
                         .unwrap(),
                 );
             }
-            i.write_le(&mut self.layer_writers[1]);
+            i.write_le(&mut self.attribute_writers[1]);
         };
     }
 }
@@ -239,12 +239,12 @@ impl CubeNodeWriter {
     ) -> Self {
         let stem: PathBuf = path.into();
         let xyz_writer =
-            DataWriter::new(&stem.with_extension(NodeLayer::Position.extension())).unwrap();
-        let layer_writers =
-            vec![DataWriter::new(&stem.with_extension(NodeLayer::Color.extension())).unwrap()];
+            DataWriter::new(&stem.with_extension(attribute_extension("position"))).unwrap();
+        let attribute_writers =
+            vec![DataWriter::new(&stem.with_extension(attribute_extension("color"))).unwrap()];
         Self {
             xyz_writer,
-            layer_writers,
+            attribute_writers,
             stem,
             position_encoding,
             bounding_cube,
@@ -252,6 +252,6 @@ impl CubeNodeWriter {
     }
 
     pub fn num_written(&self) -> i64 {
-        self.layer_writers[0].bytes_written() as i64 / 3
+        self.attribute_writers[0].bytes_written() as i64 / 3
     }
 }
