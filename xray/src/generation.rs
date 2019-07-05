@@ -10,7 +10,7 @@ use image::{self, GenericImage};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::octree::{PointLocation, PointQuery};
-use point_viewer::{color::Color, math::Isometry3, LayerData, PointData};
+use point_viewer::{color::Color, math::Isometry3, AttributeData, PointData};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -233,11 +233,11 @@ impl ColoringStrategy for IntensityColoringStrategy {
         point_data: &PointData,
         discretized_locations: Vec<Point3<u32>>,
     ) {
-        let intensity_layer = point_data
-            .layers
+        let intensity_attribute = point_data
+            .attributes
             .get("intensity")
             .expect("Coloring by intensity was requested, but point data without intensity found.");
-        if let LayerData::F32(intensity_vec) = intensity_layer {
+        if let AttributeData::F32(intensity_vec) = intensity_attribute {
             for i in 0..intensity_vec.len() {
                 let intensity = intensity_vec[i];
                 if intensity < 0. {
@@ -299,11 +299,11 @@ impl ColoringStrategy for PointColorColoringStrategy {
         point_data: &PointData,
         discretized_locations: Vec<Point3<u32>>,
     ) {
-        let color_layer = point_data
-            .layers
+        let color_attribute = point_data
+            .attributes
             .get("color")
             .expect("Coloring was requested, but point data without color found.");
-        if let LayerData::U8Vec4(color_vec) = color_layer {
+        if let AttributeData::U8Vec4(color_vec) = color_attribute {
             for i in 0..color_vec.len() {
                 let clr = Color::<u8> {
                     red: color_vec[i][0],

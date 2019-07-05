@@ -29,7 +29,7 @@ use num_cpus;
 use point_viewer::errors::*;
 use point_viewer::math::{Isometry3, OrientedBeam};
 use point_viewer::octree::{self, BatchIterator, NodeId, Octree, OctreeFactory, PointQuery};
-use point_viewer::{LayerData, PointData};
+use point_viewer::{AttributeData, PointData};
 use protobuf::Message;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -285,8 +285,8 @@ impl OctreeService {
                         })
                         .collect();
 
-                    reply.colors = match p_data.layers.get(&"color".to_string()) {
-                        Some(LayerData::U8Vec4(data)) => data
+                    reply.colors = match p_data.attributes.get(&"color".to_string()) {
+                        Some(AttributeData::U8Vec4(data)) => data
                             .iter()
                             .map(|p| {
                                 let rgb8: Color<u8> = crate::Color {
@@ -313,8 +313,8 @@ impl OctreeService {
                         }
                     };
 
-                    reply.intensities = match p_data.layers.get(&"intensity".to_string()) {
-                        Some(LayerData::F32(data)) => data.clone(),
+                    reply.intensities = match p_data.attributes.get(&"intensity".to_string()) {
+                        Some(AttributeData::F32(data)) => data.clone(),
                         _ => {
                             return Err(std::io::Error::new(
                                 std::io::ErrorKind::InvalidData,

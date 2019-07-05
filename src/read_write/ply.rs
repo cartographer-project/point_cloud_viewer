@@ -15,7 +15,7 @@
 use crate::color;
 use crate::errors::*;
 use crate::read_write::{DataWriter, NodeWriter, WriteLE};
-use crate::{NodeLayer, Point};
+use crate::Point;
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
@@ -440,11 +440,11 @@ pub struct PlyNodeWriter {
 impl NodeWriter for PlyNodeWriter {
     fn write(&mut self, p: &Point) {
         if self.point_count == 0 {
-            let mut layers = vec![NodeLayer::Position, NodeLayer::Color];
+            let mut attributes = vec!["position", "color"];
             if p.intensity.is_some() {
-                layers.push(NodeLayer::Intensity);
+                attributes.push("intensity");
             }
-            self.create_header(&layers);
+            self.create_header(&attributes);
         }
 
         p.position.write_le(&mut self.writer);
@@ -484,27 +484,28 @@ impl PlyNodeWriter {
         }
     }
 
-    fn create_header(&mut self, layers: &[NodeLayer]) {
+    fn create_header(&mut self, attributes: &[&str]) {
         self.writer.write_all(HEADER_START_TO_NUM_VERTICES).unwrap();
         self.writer.write_all(HEADER_NUM_VERTICES).unwrap();
         self.writer.write_all(b"\n").unwrap();
-        for layer in layers {
-            match layer {
-                NodeLayer::Position => {
+        for attribute in attributes {
+            match *attribute {
+                "position" => {
                     self.writer.write_all(b"property double x\n").unwrap();
                     self.writer.write_all(b"property double y\n").unwrap();
                     self.writer.write_all(b"property double z\n").unwrap();
                 }
-                NodeLayer::Color => {
+                "color" => {
                     self.writer.write_all(b"property uchar red\n").unwrap();
                     self.writer.write_all(b"property uchar green\n").unwrap();
                     self.writer.write_all(b"property uchar blue\n").unwrap();
                 }
-                NodeLayer::Intensity => {
+                "intensity" => {
                     self.writer
                         .write_all(b"property float intensity\n")
                         .unwrap();
                 }
+                _ => panic!("Attribute not supported for ply writing."),
             }
         }
         self.writer.write_all(b"end_header\n").unwrap();

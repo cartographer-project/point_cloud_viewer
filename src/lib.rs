@@ -33,37 +33,27 @@ pub struct Point {
     pub intensity: Option<f32>,
 }
 
-// TODO(feuerste): Unify NodeLayer and LayerData.
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum NodeLayer {
-    Position,
-    Color,
-    Intensity,
-}
-
-impl NodeLayer {
-    pub fn extension(&self) -> &str {
-        match self {
-            NodeLayer::Position => "xyz",
-            NodeLayer::Color => "rgb",
-            NodeLayer::Intensity => "intensity",
-        }
+pub fn attribute_extension(attribute: &str) -> &str {
+    match attribute {
+        "position" => "xyz",
+        "color" => "rgb",
+        _ => attribute,
     }
 }
 
-/// general field to describe point features such as position, color, intensity..
-pub enum LayerData {
+/// General field to describe point feature attributes such as color, intensity, ...
+pub enum AttributeData {
     F32(Vec<f32>),
     F64Vec3(Vec<Vector3<f64>>),
     U8Vec4(Vec<Vector4<u8>>),
 }
 
-impl LayerData {
+impl AttributeData {
     pub fn len(&self) -> usize {
         match self {
-            LayerData::F32(data) => data.len(),
-            LayerData::F64Vec3(data) => data.len(),
-            LayerData::U8Vec4(data) => data.len(),
+            AttributeData::F32(data) => data.len(),
+            AttributeData::F64Vec3(data) => data.len(),
+            AttributeData::U8Vec4(data) => data.len(),
         }
     }
     pub fn is_empty(&self) -> bool {
@@ -71,17 +61,17 @@ impl LayerData {
     }
     pub fn dim(&self) -> usize {
         match self {
-            LayerData::F32(_) => 1,
-            LayerData::F64Vec3(_) => 3,
-            LayerData::U8Vec4(_) => 4,
+            AttributeData::F32(_) => 1,
+            AttributeData::F64Vec3(_) => 3,
+            AttributeData::U8Vec4(_) => 4,
         }
     }
 }
 
-/// general structure that contains points and attached feature layers
+/// General structure that contains points and attached feature attributes.
 pub struct PointData {
     pub position: Vec<Vector3<f64>>,
-    pub layers: FnvHashMap<String, LayerData>,
+    pub attributes: FnvHashMap<String, AttributeData>,
 }
 
 pub use point_viewer_proto_rust::proto;

@@ -15,7 +15,7 @@
 use crate::errors::*;
 use crate::math::{Cube, Frustum};
 use crate::proto;
-use crate::{NodeLayer, Point};
+use crate::Point;
 use cgmath::{EuclideanSpace, Matrix4, Point3};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
@@ -127,8 +127,8 @@ pub trait OctreeDataProvider: Send + Sync {
     fn data(
         &self,
         node_id: &NodeId,
-        node_layers: Vec<NodeLayer>,
-    ) -> Result<HashMap<NodeLayer, Box<dyn Read>>>;
+        node_attributes: &[&str],
+    ) -> Result<HashMap<String, Box<dyn Read>>>;
 }
 
 pub struct Octree {
@@ -274,19 +274,20 @@ impl Octree {
     pub fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData> {
         // TODO(hrapp): If we'd randomize the points while writing, we could just read the
         // first N points instead of reading everything and skipping over a few.
-        let mut position_color_reads = self
-            .data_provider
-            .data(node_id, vec![NodeLayer::Position, NodeLayer::Color])?;
+        let mut position_color_reads = self.data_provider.data(node_id, &["position", "color"])?;
 
-        let mut get_data = |node_layer: &NodeLayer, err: &str| -> Result<Vec<u8>> {
-            let mut reader =
-                BufReader::new(position_color_reads.remove(node_layer).ok_or_else(|| err)?);
+        let mut get_data = |node_attribute: &str, err: &str| -> Result<Vec<u8>> {
+            let mut reader = BufReader::new(
+                position_color_reads
+                    .remove(node_attribute)
+                    .ok_or_else(|| err)?,
+            );
             let mut all_data = Vec::new();
             reader.read_to_end(&mut all_data).chain_err(|| err)?;
             Ok(all_data)
         };
-        let position = get_data(&NodeLayer::Position, "Could not read position")?;
-        let color = get_data(&NodeLayer::Color, "Could not read color")?;
+        let position = get_data("position", "Could not read position")?;
+        let color = get_data("color", "Could not read color")?;
 
         Ok(NodeData {
             position,

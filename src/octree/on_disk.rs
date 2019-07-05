@@ -1,6 +1,7 @@
+use crate::attribute_extension;
 use crate::errors::*;
 use crate::octree::{NodeId, Octree, OctreeDataProvider};
-use crate::{proto, NodeLayer};
+use crate::proto;
 use protobuf;
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -21,7 +22,7 @@ impl OnDiskOctreeDataProvider {
     // Color data is required and always present.
     pub fn number_of_points(&self, node_id: &NodeId) -> Result<i64> {
         let stem = self.stem(node_id);
-        let file_meta_data_opt = fs::metadata(stem.with_extension(NodeLayer::Color.extension()));
+        let file_meta_data_opt = fs::metadata(stem.with_extension(attribute_extension("color")));
         if file_meta_data_opt.is_err() {
             return Err(ErrorKind::NodeNotFound.into());
         }
@@ -50,18 +51,18 @@ impl OctreeDataProvider for OnDiskOctreeDataProvider {
     fn data(
         &self,
         node_id: &NodeId,
-        node_layers: Vec<NodeLayer>,
-    ) -> Result<HashMap<NodeLayer, Box<dyn Read>>> {
+        node_attributes: &[&str],
+    ) -> Result<HashMap<String, Box<dyn Read>>> {
         let stem = self.stem(node_id);
-        let mut readers = HashMap::<NodeLayer, Box<dyn Read>>::new();
-        for node_layer in node_layers {
-            let file = match File::open(&stem.with_extension(node_layer.extension())) {
+        let mut readers = HashMap::<String, Box<dyn Read>>::new();
+        for node_attribute in node_attributes {
+            let file = match File::open(&stem.with_extension(attribute_extension(node_attribute))) {
                 Err(ref err) if err.kind() == ::std::io::ErrorKind::NotFound => {
                     return Err(ErrorKind::NodeNotFound.into());
                 }
                 e => e,
             }?;
-            readers.insert(node_layer.to_owned(), Box::new(file));
+            readers.insert(node_attribute.to_string(), Box::new(file));
         }
         Ok(readers)
     }
