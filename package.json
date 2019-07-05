@@ -1,0 +1,15 @@
+{
+    "private": true,
+    "workspaces": [
+        "octree_web_viewer/client",
+        "xray/client"
+    ],
+    "scripts": {
+        "build_all": "yarn install --silent --ignore-engines && yarn wsrun build",
+        "test": "yarn wsrun --exclude-missing test"
+    },
+    "devDependencies": {
+        "typescript": "^3.3.3",
+        "wsrun": "^3.3.3"
+    }
+}
