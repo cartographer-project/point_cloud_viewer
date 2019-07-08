@@ -78,9 +78,27 @@ pub trait WriteLE {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()>;
 }
 
+impl WriteLE for i64 {
+    fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
+        writer.write_i64::<LittleEndian>(*self)
+    }
+}
+
+impl WriteLE for u64 {
+    fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
+        writer.write_u64::<LittleEndian>(*self)
+    }
+}
+
 impl WriteLE for f32 {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         writer.write_f32::<LittleEndian>(*self)
+    }
+}
+
+impl WriteLE for f64 {
+    fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
+        writer.write_f64::<LittleEndian>(*self)
     }
 }
 
@@ -129,24 +147,7 @@ impl WriteLE for Color<u8> {
     }
 }
 
-impl WriteLE for Vec<f32> {
-    fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
-        let mut bytes = vec![0; 4 * self.len()];
-        LittleEndian::write_f32_into(self, &mut bytes);
-        writer.write_all(&bytes)
-    }
-}
-
-impl WriteLE for Vec<Vector3<f64>> {
-    fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
-        for elem in self {
-            elem.write_le(writer)?;
-        }
-        Ok(())
-    }
-}
-
-impl WriteLE for Vec<Vector4<u8>> {
+impl<T: WriteLE> WriteLE for Vec<T> {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         for elem in self {
             elem.write_le(writer)?;
@@ -158,7 +159,10 @@ impl WriteLE for Vec<Vector4<u8>> {
 impl WriteLE for AttributeData {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         match self {
+            AttributeData::I64(data) => data.write_le(writer),
+            AttributeData::U64(data) => data.write_le(writer),
             AttributeData::F32(data) => data.write_le(writer),
+            AttributeData::F64(data) => data.write_le(writer),
             AttributeData::F64Vec3(data) => data.write_le(writer),
             AttributeData::U8Vec4(data) => data.write_le(writer),
         }
@@ -172,7 +176,10 @@ pub trait WriteLEPos {
 impl WriteLEPos for AttributeData {
     fn write_le_pos(&self, pos: usize, writer: &mut DataWriter) -> Result<()> {
         match self {
+            AttributeData::I64(data) => data[pos].write_le(writer),
+            AttributeData::U64(data) => data[pos].write_le(writer),
             AttributeData::F32(data) => data[pos].write_le(writer),
+            AttributeData::F64(data) => data[pos].write_le(writer),
             AttributeData::F64Vec3(data) => data[pos].write_le(writer),
             AttributeData::U8Vec4(data) => data[pos].write_le(writer),
         }

@@ -454,7 +454,10 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
                         (
                             &k[..],
                             match data {
+                                AttributeData::I64(_) => panic!("Can't write i64 attribute to PLY"),
+                                AttributeData::U64(_) => panic!("Can't write u64 attribute to PLY"),
                                 AttributeData::F32(_) => "float",
+                                AttributeData::F64(_) => "double",
                                 AttributeData::F64Vec3(_) => "double",
                                 AttributeData::U8Vec4(_) => "uchar",
                             },
