@@ -14,13 +14,13 @@
 
 use crate::color;
 use crate::errors::*;
-use crate::read_write::{DataWriter, NodeWriter, WriteLE};
-use crate::Point;
+use crate::read_write::{DataWriter, NodeWriter, WriteLE, WriteLEPos};
+use crate::{AttributeData, Point, PointData};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
+use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
 use std::ops::Index;
 use std::path::Path;
 use std::str;
@@ -437,23 +437,59 @@ pub struct PlyNodeWriter {
     point_count: usize,
 }
 
-impl NodeWriter for PlyNodeWriter {
-    fn write(&mut self, p: &Point) {
+impl NodeWriter<PointData> for PlyNodeWriter {
+    fn write(&mut self, p: &PointData) -> io::Result<()> {
         if self.point_count == 0 {
-            let mut attributes = vec!["position", "color"];
+            self.create_header(
+                &p.attributes
+                    .iter()
+                    .map(|(k, data)| {
+                        (
+                            &k[..],
+                            match data {
+                                AttributeData::F32(_) => "float",
+                                AttributeData::F64Vec3(_) => "double",
+                                AttributeData::U8Vec4(_) => "uchar",
+                            },
+                            data.dim(),
+                        )
+                    })
+                    .collect::<Vec<_>>()[..],
+            );
+        }
+
+        for (i, pos) in p.position.iter().enumerate() {
+            pos.write_le(&mut self.writer)?;
+            for data in p.attributes.values() {
+                data.write_le_pos(i, &mut self.writer)?;
+            }
+        }
+
+        self.point_count += p.position.len();
+
+        Ok(())
+    }
+}
+
+impl NodeWriter<Point> for PlyNodeWriter {
+    fn write(&mut self, p: &Point) -> io::Result<()> {
+        if self.point_count == 0 {
+            let mut attributes = vec![("color", "uchar", 4)];
             if p.intensity.is_some() {
-                attributes.push("intensity");
+                attributes.push(("intensity", "float", 1));
             }
             self.create_header(&attributes);
         }
 
-        p.position.write_le(&mut self.writer);
-        p.color.write_le(&mut self.writer);
+        p.position.write_le(&mut self.writer)?;
+        p.color.write_le(&mut self.writer)?;
         if let Some(i) = p.intensity {
-            i.write_le(&mut self.writer);
-        };
+            i.write_le(&mut self.writer)?;
+        }
 
         self.point_count += 1;
+
+        Ok(())
     }
 }
 
@@ -484,28 +520,33 @@ impl PlyNodeWriter {
         }
     }
 
-    fn create_header(&mut self, attributes: &[&str]) {
+    fn create_header(&mut self, elements: &[(&str, &str, usize)]) {
         self.writer.write_all(HEADER_START_TO_NUM_VERTICES).unwrap();
         self.writer.write_all(HEADER_NUM_VERTICES).unwrap();
         self.writer.write_all(b"\n").unwrap();
-        for attribute in attributes {
-            match *attribute {
-                "position" => {
-                    self.writer.write_all(b"property double x\n").unwrap();
-                    self.writer.write_all(b"property double y\n").unwrap();
-                    self.writer.write_all(b"property double z\n").unwrap();
-                }
+        self.writer.write_all(b"property double x\n").unwrap();
+        self.writer.write_all(b"property double y\n").unwrap();
+        self.writer.write_all(b"property double z\n").unwrap();
+        for (name, data_str, num_properties) in elements {
+            match &name[..] {
                 "color" => {
-                    self.writer.write_all(b"property uchar red\n").unwrap();
-                    self.writer.write_all(b"property uchar green\n").unwrap();
-                    self.writer.write_all(b"property uchar blue\n").unwrap();
+                    let colors = ["red", "green", "blue", "alpha"];
+                    for color in colors.iter().take(*num_properties) {
+                        let prop = &["property", " ", data_str, " ", color, "\n"].concat();
+                        self.writer.write_all(&prop.as_bytes()).unwrap();
+                    }
                 }
-                "intensity" => {
-                    self.writer
-                        .write_all(b"property float intensity\n")
-                        .unwrap();
+                _ if *num_properties > 1 => {
+                    for i in 0..*num_properties {
+                        let prop =
+                            &["property", " ", data_str, " ", name, &i.to_string(), "\n"].concat();
+                        self.writer.write_all(&prop.as_bytes()).unwrap();
+                    }
                 }
-                _ => panic!("Attribute not supported for ply writing."),
+                _ => {
+                    let prop = &["property", " ", data_str, " ", name, "\n"].concat();
+                    self.writer.write_all(&prop.as_bytes()).unwrap();
+                }
             }
         }
         self.writer.write_all(b"end_header\n").unwrap();
@@ -568,7 +609,7 @@ mod tests {
         {
             let mut ply_writer = PlyNodeWriter::new(&file_path_test);
             PlyIterator::from_file(file_path_gt).unwrap().for_each(|p| {
-                ply_writer.write(&p);
+                ply_writer.write(&p).unwrap();
             });
         }
         let ply_gt = PlyIterator::from_file(file_path_gt).unwrap();

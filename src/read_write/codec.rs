@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::math;
+use cgmath::{BaseFloat, Vector3, Zero};
 use num::clamp;
 
 pub fn fixpoint_encode<T>(value: f64, min: f64, edge_length: f64) -> T
@@ -28,6 +30,35 @@ where
     T: num_traits::NumCast,
 {
     num::cast(clamp((value - min) / edge_length, 0., 1.)).unwrap()
+}
+
+pub fn vec3_fixpoint_encode<T>(
+    value: &Vector3<f64>,
+    min: &Vector3<f64>,
+    edge_length: f64,
+) -> Vector3<T>
+where
+    T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
+{
+    let value = math::clamp(
+        (value - min) / edge_length,
+        Vector3::zero(),
+        Vector3::new(1.0, 1.0, 1.0),
+    ) * num::cast::<T, f64>(T::max_value()).unwrap();
+    value.cast::<T>().unwrap()
+}
+
+pub fn vec3_encode<T>(value: &Vector3<f64>, min: &Vector3<f64>, edge_length: f64) -> Vector3<T>
+where
+    T: BaseFloat,
+{
+    math::clamp(
+        (value - min) / edge_length,
+        Vector3::zero(),
+        Vector3::new(1.0, 1.0, 1.0),
+    )
+    .cast::<T>()
+    .unwrap()
 }
 
 pub fn fixpoint_decode<T>(value: T, min: f64, edge_length: f64) -> f64

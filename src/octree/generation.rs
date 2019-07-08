@@ -85,7 +85,7 @@ where
                 &node_id.get_child_id(child_index),
             ));
         }
-        children[array_index].as_mut().unwrap().write(&p);
+        children[array_index].as_mut().unwrap().write(&p).unwrap();
     });
 
     // Remove the node file on disk by reopening the node and immediately dropping it again without
@@ -204,11 +204,12 @@ fn subsample_children_into(
             CubeNodeWriter::from_data_provider(octree_data_provider, octree_meta, &child_id);
         for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
-                parent_writer.write(&p);
+                parent_writer.write(&p)?;
             } else {
-                child_writer.write(&p);
+                child_writer.write(&p)?;
             }
         }
+
         // Update child.
         nodes_sender
             .send((child_id, child_writer.num_written()))

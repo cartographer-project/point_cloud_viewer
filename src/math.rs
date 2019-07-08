@@ -13,14 +13,29 @@
 // limitations under the License.
 
 use cgmath::{
-    BaseFloat, Decomposed, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rotation,
-    Vector2, Vector3, Vector4,
+    BaseFloat, BaseNum, Decomposed, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion,
+    Rotation, Vector2, Vector3, Vector4,
 };
 use collision::{Aabb, Aabb3, Contains, Relation};
 use num_traits::identities::One;
 use num_traits::Float;
 use std::fmt::Debug;
 use std::ops::Mul;
+
+pub fn clamp<T>(value: Vector3<T>, low: Vector3<T>, high: Vector3<T>) -> Vector3<T>
+where
+    T: BaseNum,
+{
+    let mut clamped = value;
+    for i in 0..3 {
+        if value[i] < high[i] {
+            clamped[i] = if value[i] < low[i] { low[i] } else { value[i] }
+        } else {
+            clamped[i] = high[i]
+        }
+    }
+    clamped
+}
 
 pub trait PointCulling<S>: objekt::Clone + Debug + Sync + Send
 where

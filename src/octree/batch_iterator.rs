@@ -6,10 +6,7 @@ use crate::{AttributeData, Point, PointData};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Worker};
-use fnv::FnvHashMap;
-
-/// size for batch
-pub const NUM_POINTS_PER_BATCH: usize = 500_000;
+use std::collections::BTreeMap;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
@@ -97,7 +94,7 @@ where
             return Ok(());
         }
 
-        let mut attributes = FnvHashMap::default();
+        let mut attributes = BTreeMap::default();
         attributes.insert(
             "color".to_string(),
             AttributeData::U8Vec4(self.color.split_off(0)),

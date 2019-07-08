@@ -20,7 +20,7 @@ pub mod read_write;
 pub mod s2_geo;
 
 use cgmath::{Vector3, Vector4};
-use fnv::FnvHashMap;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
 pub struct Point {
@@ -42,6 +42,7 @@ pub fn attribute_extension(attribute: &str) -> &str {
 }
 
 /// General field to describe point feature attributes such as color, intensity, ...
+#[derive(Debug, Clone)]
 pub enum AttributeData {
     F32(Vec<f32>),
     F64Vec3(Vec<Vector3<f64>>),
@@ -71,7 +72,10 @@ impl AttributeData {
 /// General structure that contains points and attached feature attributes.
 pub struct PointData {
     pub position: Vec<Vector3<f64>>,
-    pub attributes: FnvHashMap<String, AttributeData>,
+    pub attributes: BTreeMap<String, AttributeData>,
 }
 
 pub use point_viewer_proto_rust::proto;
+
+/// size for batch
+pub const NUM_POINTS_PER_BATCH: usize = 500_000;
