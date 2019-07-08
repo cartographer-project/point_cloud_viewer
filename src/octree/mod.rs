@@ -25,7 +25,7 @@ use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
 
 mod batch_iterator;
-pub use self::batch_iterator::{BatchIterator, PointLocation, PointQuery, NUM_POINTS_PER_BATCH};
+pub use self::batch_iterator::{BatchIterator, PointLocation, PointQuery};
 
 mod generation;
 pub use self::generation::{build_octree, build_octree_from_file};

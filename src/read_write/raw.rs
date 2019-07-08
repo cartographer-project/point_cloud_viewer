@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use crate::read_write::{DataWriter, NodeWriter, WriteLE};
-use crate::{attribute_extension, Point};
+use crate::{attribute_extension, Point, PointsBatch};
+use std::io::Result;
 use std::path::PathBuf;
 
 pub struct RawNodeWriter {
@@ -22,19 +23,46 @@ pub struct RawNodeWriter {
     stem: PathBuf,
 }
 
-impl NodeWriter for RawNodeWriter {
-    fn write(&mut self, p: &Point) {
-        p.position.write_le(&mut self.xyz_writer);
-        p.color.write_le(&mut self.attribute_writers[0]);
-        if let Some(i) = p.intensity {
-            if self.attribute_writers.len() < 2 {
+impl NodeWriter<PointsBatch> for RawNodeWriter {
+    fn write(&mut self, p: &PointsBatch) -> Result<()> {
+        p.position.write_le(&mut self.xyz_writer)?;
+
+        if self.attribute_writers.is_empty() {
+            for name in p.attributes.keys() {
+                self.attribute_writers.push(
+                    DataWriter::new(&self.stem.with_extension(attribute_extension(&name))).unwrap(),
+                )
+            }
+        }
+        for (i, data) in p.attributes.values().enumerate() {
+            data.write_le(&mut self.attribute_writers[i])?;
+        }
+
+        Ok(())
+    }
+}
+
+impl NodeWriter<Point> for RawNodeWriter {
+    fn write(&mut self, p: &Point) -> Result<()> {
+        p.position.write_le(&mut self.xyz_writer)?;
+
+        if self.attribute_writers.is_empty() {
+            self.attribute_writers.push(
+                DataWriter::new(&self.stem.with_extension(attribute_extension("color"))).unwrap(),
+            );
+            if p.intensity.is_some() {
                 self.attribute_writers.push(
                     DataWriter::new(&self.stem.with_extension(attribute_extension("intensity")))
                         .unwrap(),
                 );
             }
-            i.write_le(&mut self.attribute_writers[1]);
-        };
+        }
+        p.color.write_le(&mut self.attribute_writers[0])?;
+        if let Some(i) = p.intensity {
+            i.write_le(&mut self.attribute_writers[1])?;
+        }
+
+        Ok(())
     }
 }
 
@@ -43,8 +71,7 @@ impl RawNodeWriter {
         let stem: PathBuf = path.into();
         let xyz_writer =
             DataWriter::new(&stem.with_extension(attribute_extension("position"))).unwrap();
-        let attribute_writers =
-            vec![DataWriter::new(&stem.with_extension(attribute_extension("color"))).unwrap()];
+        let attribute_writers = Vec::new();
         Self {
             xyz_writer,
             attribute_writers,

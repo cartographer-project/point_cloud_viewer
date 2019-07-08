@@ -29,7 +29,7 @@ use num_cpus;
 use point_viewer::errors::*;
 use point_viewer::math::{Isometry3, OrientedBeam};
 use point_viewer::octree::{self, BatchIterator, NodeId, Octree, OctreeFactory, PointQuery};
-use point_viewer::{AttributeData, PointData};
+use point_viewer::{AttributeData, PointsBatch};
 use protobuf::Message;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -272,7 +272,7 @@ impl OctreeService {
             {
                 // Extra scope to make sure that 'func' does not outlive 'reply'.
                 // this function is currently not efficiently implemented
-                let func = |p_data: PointData| {
+                let func = |p_data: PointsBatch| {
                     reply.positions = p_data
                         .position
                         .iter()

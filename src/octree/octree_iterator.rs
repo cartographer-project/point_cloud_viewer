@@ -36,7 +36,7 @@ impl NodeIterator<CubeNodeReader> {
         }
 
         if let Ok(mut data_map) = octree_data_provider.data(id, &["intensity"]) {
-            match data_map.remove("position") {
+            match data_map.remove("intensity") {
                 Some(intensity_data) => {
                     attributes.insert("intensity".to_string(), intensity_data);
                 }

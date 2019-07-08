@@ -13,7 +13,9 @@
 // limitations under the License.
 
 mod codec;
-pub use self::codec::{decode, encode, fixpoint_decode, fixpoint_encode};
+pub use self::codec::{
+    decode, encode, fixpoint_decode, fixpoint_encode, vec3_encode, vec3_fixpoint_encode,
+};
 
 mod cube;
 pub use self::cube::{CubeNodeReader, CubeNodeWriter};
@@ -25,7 +27,7 @@ mod node_iterator;
 pub use self::node_iterator::{NodeIterator, NodeReader};
 
 mod node_writer;
-pub use self::node_writer::{DataWriter, NodeWriter, WriteLE};
+pub use self::node_writer::{DataWriter, NodeWriter, WriteLE, WriteLEPos};
 
 mod ply;
 pub use self::ply::{PlyIterator, PlyNodeWriter};

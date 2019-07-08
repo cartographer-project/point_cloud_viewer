@@ -105,8 +105,8 @@ fn server_benchmark(
     let mut batch_iterator =
         BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_threads, buffer_size);
     println!("Server benchmark:");
-    let _result = batch_iterator.try_for_each_batch(move |point_data| {
-        counter += point_data.position.len();
+    let _result = batch_iterator.try_for_each_batch(move |points_batch| {
+        counter += points_batch.position.len();
 
         if points_streamed_m < counter / 1_000_000 {
             points_streamed_m = counter / 1_000_000;
