@@ -28,11 +28,7 @@ where
 {
     let mut clamped = value;
     for i in 0..3 {
-        if value[i] < high[i] {
-            clamped[i] = if value[i] < low[i] { low[i] } else { value[i] }
-        } else {
-            clamped[i] = high[i]
-        }
+        clamped[i] = num::clamp(value[i], low[i], high[i]);
     }
     clamped
 }
