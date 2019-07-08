@@ -455,7 +455,7 @@ impl NodeWriter<PointData> for PlyNodeWriter {
                         )
                     })
                     .collect::<Vec<_>>()[..],
-            );
+            )?;
         }
 
         for (i, pos) in p.position.iter().enumerate() {
@@ -478,7 +478,7 @@ impl NodeWriter<Point> for PlyNodeWriter {
             if p.intensity.is_some() {
                 attributes.push(("intensity", "float", 1));
             }
-            self.create_header(&attributes);
+            self.create_header(&attributes)?;
         }
 
         p.position.write_le(&mut self.writer)?;
@@ -520,36 +520,36 @@ impl PlyNodeWriter {
         }
     }
 
-    fn create_header(&mut self, elements: &[(&str, &str, usize)]) {
-        self.writer.write_all(HEADER_START_TO_NUM_VERTICES).unwrap();
-        self.writer.write_all(HEADER_NUM_VERTICES).unwrap();
-        self.writer.write_all(b"\n").unwrap();
-        self.writer.write_all(b"property double x\n").unwrap();
-        self.writer.write_all(b"property double y\n").unwrap();
-        self.writer.write_all(b"property double z\n").unwrap();
+    fn create_header(&mut self, elements: &[(&str, &str, usize)]) -> io::Result<()> {
+        self.writer.write_all(HEADER_START_TO_NUM_VERTICES)?;
+        self.writer.write_all(HEADER_NUM_VERTICES)?;
+        self.writer.write_all(b"\n")?;
+        self.writer.write_all(b"property double x\n")?;
+        self.writer.write_all(b"property double y\n")?;
+        self.writer.write_all(b"property double z\n")?;
         for (name, data_str, num_properties) in elements {
             match &name[..] {
                 "color" => {
                     let colors = ["red", "green", "blue", "alpha"];
                     for color in colors.iter().take(*num_properties) {
                         let prop = &["property", " ", data_str, " ", color, "\n"].concat();
-                        self.writer.write_all(&prop.as_bytes()).unwrap();
+                        self.writer.write_all(&prop.as_bytes())?;
                     }
                 }
                 _ if *num_properties > 1 => {
                     for i in 0..*num_properties {
                         let prop =
                             &["property", " ", data_str, " ", name, &i.to_string(), "\n"].concat();
-                        self.writer.write_all(&prop.as_bytes()).unwrap();
+                        self.writer.write_all(&prop.as_bytes())?;
                     }
                 }
                 _ => {
                     let prop = &["property", " ", data_str, " ", name, "\n"].concat();
-                    self.writer.write_all(&prop.as_bytes()).unwrap();
+                    self.writer.write_all(&prop.as_bytes())?;
                 }
             }
         }
-        self.writer.write_all(b"end_header\n").unwrap();
+        self.writer.write_all(b"end_header\n")
     }
 }
 
