@@ -353,6 +353,13 @@ impl PlyIterator {
                         &mut num_bytes_per_point
                     ));
                 }
+                "a" | "alpha" => {
+                    readers.push(read_casted_property!(
+                        prop.data_type,
+                        |p: &mut Point, val: u8| p.color.alpha = val,
+                        &mut num_bytes_per_point
+                    ));
+                }
                 "intensity" => {
                     readers.push(read_casted_property!(
                         prop.data_type,
