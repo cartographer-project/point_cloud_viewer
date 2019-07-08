@@ -20,7 +20,7 @@ use crate::read_write::{
     decode, fixpoint_decode, vec3_encode, vec3_fixpoint_encode, DataWriter, NodeReader, NodeWriter,
     WriteLE,
 };
-use crate::{attribute_extension, Point, PointData};
+use crate::{attribute_extension, Point, PointsBatch};
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
@@ -167,8 +167,8 @@ pub struct CubeNodeWriter {
     point_count: usize,
 }
 
-impl NodeWriter<PointData> for CubeNodeWriter {
-    fn write(&mut self, p: &PointData) -> io::Result<()> {
+impl NodeWriter<PointsBatch> for CubeNodeWriter {
+    fn write(&mut self, p: &PointsBatch) -> io::Result<()> {
         // Note that due to floating point rounding errors while calculating bounding boxes, it
         // could be here that 'p' is not quite inside the bounding box of our node.
         let edge_length = self.bounding_cube.edge_length();

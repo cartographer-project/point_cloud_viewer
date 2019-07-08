@@ -3,7 +3,7 @@ mod tests {
     use crate::color::Color;
     use crate::errors::Result;
     use crate::octree::{self, build_octree, BatchIterator, Octree, PointLocation, PointQuery};
-    use crate::{Point, PointData};
+    use crate::{Point, PointsBatch};
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};
     use tempdir::TempDir;
@@ -68,9 +68,9 @@ mod tests {
             "batch_size= {} ,  num_points= {}",
             batch_size, max_num_points
         );
-        let callback_func = |point_data: PointData| -> Result<()> {
+        let callback_func = |points_batch: PointsBatch| -> Result<()> {
             callback_count += 1;
-            delivered_points += point_data.position.len();
+            delivered_points += points_batch.position.len();
             println!(
                 "Callback_count {:}, delivered points {:}",
                 callback_count, delivered_points
@@ -125,9 +125,9 @@ mod tests {
             "batch_size= {} ,  num_points= {}",
             batch_size, max_num_points
         );
-        let callback_func = |point_data: PointData| -> Result<()> {
+        let callback_func = |points_batch: PointsBatch| -> Result<()> {
             callback_count += 1;
-            delivered_points += point_data.position.len();
+            delivered_points += points_batch.position.len();
             println!(
                 "Callback_count {:}, delivered points {:}",
                 callback_count, delivered_points
@@ -169,9 +169,9 @@ mod tests {
             "batch_size= {} ,  num_points= {}",
             batch_size, max_num_points
         );
-        let callback_func = |point_data: PointData| -> Result<()> {
+        let callback_func = |points_batch: PointsBatch| -> Result<()> {
             callback_count += 1;
-            delivered_points += point_data.position.len() as u64;
+            delivered_points += points_batch.position.len() as u64;
             println!(
                 "Callback_count {:}, delivered points {:}",
                 callback_count, delivered_points

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::read_write::{DataWriter, NodeWriter, WriteLE};
-use crate::{attribute_extension, Point, PointData};
+use crate::{attribute_extension, Point, PointsBatch};
 use std::io::Result;
 use std::path::PathBuf;
 
@@ -24,8 +24,8 @@ pub struct RawNodeWriter {
     point_count: usize,
 }
 
-impl NodeWriter<PointData> for RawNodeWriter {
-    fn write(&mut self, p: &PointData) -> Result<()> {
+impl NodeWriter<PointsBatch> for RawNodeWriter {
+    fn write(&mut self, p: &PointsBatch) -> Result<()> {
         p.position.write_le(&mut self.xyz_writer)?;
 
         if self.point_count == 0 {

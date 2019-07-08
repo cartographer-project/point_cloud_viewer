@@ -10,7 +10,7 @@ use image::{self, GenericImage};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::octree::{PointLocation, PointQuery};
-use point_viewer::{color::Color, math::Isometry3, AttributeData, PointData};
+use point_viewer::{color::Color, math::Isometry3, AttributeData, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -126,18 +126,18 @@ pub trait ColoringStrategy: Send {
     // to NUM_Z_BUCKETS.
     fn process_discretized_point_data(
         &mut self,
-        point_data: &PointData,
+        points_batch: &PointsBatch,
         discretized_locations: Vec<Point3<u32>>,
     );
 
     fn process_point_data(
         &mut self,
-        point_data: &PointData,
+        points_batch: &PointsBatch,
         bbox: &Aabb3<f64>,
         image_size: Vector2<u32>,
     ) {
-        let mut discretized_locations = Vec::with_capacity(point_data.position.len());
-        for pos in &point_data.position {
+        let mut discretized_locations = Vec::with_capacity(points_batch.position.len());
+        for pos in &points_batch.position {
             // We want a right handed coordinate system with the x-axis of world and images aligning.
             // This means that the y-axis aligns too, but the origin of the image space must be at the
             // bottom left. Since images have their origin at the top left, we need actually have to
@@ -148,7 +148,7 @@ pub trait ColoringStrategy: Send {
             let z = (((pos.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
             discretized_locations.push(Point3::new(x, y, z));
         }
-        self.process_discretized_point_data(point_data, discretized_locations)
+        self.process_discretized_point_data(points_batch, discretized_locations)
     }
 
     // After all points are processed, this is used to query the color that should be assigned to
@@ -174,7 +174,7 @@ impl XRayColoringStrategy {
 impl ColoringStrategy for XRayColoringStrategy {
     fn process_discretized_point_data(
         &mut self,
-        _: &PointData,
+        _: &PointsBatch,
         discretized_locations: Vec<Point3<u32>>,
     ) {
         for d_loc in discretized_locations {
@@ -230,10 +230,10 @@ impl IntensityColoringStrategy {
 impl ColoringStrategy for IntensityColoringStrategy {
     fn process_discretized_point_data(
         &mut self,
-        point_data: &PointData,
+        points_batch: &PointsBatch,
         discretized_locations: Vec<Point3<u32>>,
     ) {
-        let intensity_attribute = point_data
+        let intensity_attribute = points_batch
             .attributes
             .get("intensity")
             .expect("Coloring by intensity was requested, but point data without intensity found.");
@@ -296,10 +296,10 @@ struct PointColorColoringStrategy {
 impl ColoringStrategy for PointColorColoringStrategy {
     fn process_discretized_point_data(
         &mut self,
-        point_data: &PointData,
+        points_batch: &PointsBatch,
         discretized_locations: Vec<Point3<u32>>,
     ) {
-        let color_attribute = point_data
+        let color_attribute = points_batch
             .attributes
             .get("color")
             .expect("Coloring was requested, but point data without color found.");
@@ -423,7 +423,7 @@ pub fn build_parent(
 impl ColoringStrategy for HeightStddevColoringStrategy {
     fn process_discretized_point_data(
         &mut self,
-        point_data: &PointData,
+        points_batch: &PointsBatch,
         discretized_locations: Vec<Point3<u32>>,
     ) {
         for (i, d_loc) in discretized_locations
@@ -434,7 +434,7 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
             self.per_column_data
                 .entry((d_loc.x, d_loc.y))
                 .or_insert_with(OnlineStats::new)
-                .add(point_data.position[i].z);
+                .add(points_batch.position[i].z);
         }
     }
 
@@ -467,9 +467,9 @@ pub fn xray_from_points(
         location: PointLocation::Aabb(*bbox),
         global_from_local: global_from_local.clone(),
     };
-    let _ = point_cloud_client.for_each_point_data(&point_location, |point_data| {
+    let _ = point_cloud_client.for_each_point_data(&point_location, |points_batch| {
         seen_any_points = true;
-        coloring_strategy.process_point_data(&point_data, bbox, image_size);
+        coloring_strategy.process_point_data(&points_batch, bbox, image_size);
         Ok(())
     });
 

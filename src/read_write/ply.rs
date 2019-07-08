@@ -15,7 +15,7 @@
 use crate::color;
 use crate::errors::*;
 use crate::read_write::{DataWriter, NodeWriter, WriteLE, WriteLEPos};
-use crate::{AttributeData, Point, PointData};
+use crate::{AttributeData, Point, PointsBatch};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
@@ -437,8 +437,8 @@ pub struct PlyNodeWriter {
     point_count: usize,
 }
 
-impl NodeWriter<PointData> for PlyNodeWriter {
-    fn write(&mut self, p: &PointData) -> io::Result<()> {
+impl NodeWriter<PointsBatch> for PlyNodeWriter {
+    fn write(&mut self, p: &PointsBatch) -> io::Result<()> {
         if self.point_count == 0 {
             self.create_header(
                 &p.attributes

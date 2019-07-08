@@ -1,7 +1,7 @@
 use collision::{Aabb, Aabb3, Union};
 use point_viewer::errors::*;
 use point_viewer::octree::{BatchIterator, Octree, OctreeFactory, PointQuery};
-use point_viewer::{PointData, NUM_POINTS_PER_BATCH};
+use point_viewer::{PointsBatch, NUM_POINTS_PER_BATCH};
 
 pub struct PointCloudClient {
     octrees: Vec<Octree>,
@@ -43,7 +43,7 @@ impl PointCloudClient {
 
     pub fn for_each_point_data<F>(&self, point_location: &PointQuery, mut func: F) -> Result<()>
     where
-        F: FnMut(PointData) -> Result<()>,
+        F: FnMut(PointsBatch) -> Result<()>,
     {
         let mut batch_iterator = BatchIterator::new(
             &self.octrees,

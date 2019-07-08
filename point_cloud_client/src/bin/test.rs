@@ -6,7 +6,7 @@ use collision::Aabb3;
 use point_cloud_client::PointCloudClient;
 use point_viewer::errors::{ErrorKind, Result};
 use point_viewer::octree::{OctreeFactory, PointLocation, PointQuery};
-use point_viewer::PointData;
+use point_viewer::PointsBatch;
 use structopt::StructOpt;
 
 // size for batch
@@ -74,8 +74,8 @@ fn main() {
     };
     let mut point_count: usize = 0;
     let mut print_count: usize = 1;
-    let callback_func = |point_data: PointData| -> Result<()> {
-        point_count += point_data.position.len();
+    let callback_func = |points_batch: PointsBatch| -> Result<()> {
+        point_count += points_batch.position.len();
         if point_count >= print_count * BATCH_SIZE {
             print_count += 1;
             println!("Streamed {}M points", point_count / BATCH_SIZE);

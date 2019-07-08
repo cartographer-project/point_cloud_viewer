@@ -2,7 +2,7 @@ use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Isometry3, Obb, OrientedBeam};
 use crate::octree::{self, FilteredPointsIterator, Octree};
-use crate::{AttributeData, Point, PointData};
+use crate::{AttributeData, Point, PointsBatch};
 use cgmath::{Matrix4, Vector3, Vector4};
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Worker};
@@ -43,7 +43,7 @@ impl PointQuery {
 /// current implementation of the stream of points used in BatchIterator
 struct PointStream<'a, F>
 where
-    F: Fn(PointData) -> Result<()>,
+    F: Fn(PointsBatch) -> Result<()>,
 {
     position: Vec<Vector3<f64>>,
     color: Vec<Vector4<u8>>,
@@ -54,7 +54,7 @@ where
 
 impl<'a, F> PointStream<'a, F>
 where
-    F: Fn(PointData) -> Result<()>,
+    F: Fn(PointsBatch) -> Result<()>,
 {
     fn new(
         num_points_per_batch: usize,
@@ -105,12 +105,12 @@ where
                 AttributeData::F32(self.intensity.split_off(0)),
             );
         }
-        let point_data = PointData {
+        let points_batch = PointsBatch {
             position: self.position.split_off(0),
             attributes,
         };
         //println!("internal callback sending last batch...");
-        (self.func)(point_data)
+        (self.func)(points_batch)
     }
 
     fn push_points_and_callback<Filter>(
@@ -159,7 +159,7 @@ impl<'a> BatchIterator<'a> {
     /// compute a function while iterating on a batch of points
     pub fn try_for_each_batch<F>(&mut self, func: F) -> Result<()>
     where
-        F: FnMut(PointData) -> Result<()>,
+        F: FnMut(PointsBatch) -> Result<()>,
     {
         // get thread safe fifo
         let jobs = Injector::<(&Octree, octree::NodeId)>::new();
@@ -182,7 +182,7 @@ impl<'a> BatchIterator<'a> {
 
         // operate on nodes with limited number of threads
         crossbeam::scope(|s| {
-            let (tx, rx) = crossbeam::channel::bounded::<PointData>(self.buffer_size);
+            let (tx, rx) = crossbeam::channel::bounded::<PointsBatch>(self.buffer_size);
             for curr_thread in 0..self.num_threads {
                 let tx = tx.clone();
                 let local_from_global = &local_from_global;
@@ -192,7 +192,7 @@ impl<'a> BatchIterator<'a> {
                 let jobs = &jobs;
 
                 s.spawn(move |_| {
-                    let send_func = |batch: PointData| match tx.send(batch) {
+                    let send_func = |batch: PointsBatch| match tx.send(batch) {
                         Ok(_) => Ok(()),
                         Err(e) => Err(ErrorKind::Channel(format!(
                             "Thread {}: sending operation failed, nothing more to do {:?}",
