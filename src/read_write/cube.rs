@@ -286,6 +286,6 @@ impl CubeNodeWriter {
     }
 
     pub fn num_written(&self) -> i64 {
-        (self.xyz_writer.bytes_written() / self.position_encoding.bytes_per_coordinate()) as i64
+        (self.xyz_writer.bytes_written() / self.position_encoding.bytes_per_coordinate() / 3) as i64
     }
 }
