@@ -44,6 +44,8 @@ enum DataType {
     Uint16,
     Int32,
     Uint32,
+    Int64,  // Not a legal datatype
+    Uint64, // Not a legal datatype
     Float32,
     Float64,
 }
@@ -59,6 +61,8 @@ impl DataType {
             "ushort" | "uint16" => Ok(DataType::Uint16),
             "int" | "int32" => Ok(DataType::Int32),
             "uint" | "uint32" => Ok(DataType::Uint32),
+            "longlong" | "int64" => Ok(DataType::Int64),
+            "ulonglong" | "uint64" => Ok(DataType::Uint64),
             _ => Err(ErrorKind::InvalidInput(format!("Invalid data type: {}", input)).into()),
         }
     }
@@ -251,6 +255,12 @@ macro_rules! read_casted_property {
             DataType::Int32 => {
                 create_and_return_reading_fn!($assign, $size, 4, LittleEndian::read_i32)
             }
+            DataType::Uint64 => {
+                create_and_return_reading_fn!($assign, $size, 4, LittleEndian::read_u64)
+            }
+            DataType::Int64 => {
+                create_and_return_reading_fn!($assign, $size, 4, LittleEndian::read_i64)
+            }
             DataType::Float32 => {
                 create_and_return_reading_fn!($assign, $size, 4, LittleEndian::read_f32)
             }
@@ -378,7 +388,9 @@ impl PlyIterator {
                         Uint32 | Int32 | Float32 => {
                             readers.push(create_skip_fn!(&mut num_bytes_per_point, 4))
                         }
-                        Float64 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 8)),
+                        Float64 | Uint64 | Int64 => {
+                            readers.push(create_skip_fn!(&mut num_bytes_per_point, 8))
+                        }
                     }
                 }
             }
@@ -454,8 +466,8 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
                         (
                             &k[..],
                             match data {
-                                AttributeData::I64(_) => panic!("Can't write i64 attribute to PLY"),
-                                AttributeData::U64(_) => panic!("Can't write u64 attribute to PLY"),
+                                AttributeData::I64(_) => "longlong",
+                                AttributeData::U64(_) => "ulonglong",
                                 AttributeData::F32(_) => "float",
                                 AttributeData::F64(_) => "double",
                                 AttributeData::F64Vec3(_) => "double",
