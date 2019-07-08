@@ -164,7 +164,6 @@ pub struct CubeNodeWriter {
     stem: PathBuf,
     position_encoding: PositionEncoding,
     bounding_cube: Cube,
-    point_count: usize,
 }
 
 impl NodeWriter<PointsBatch> for CubeNodeWriter {
@@ -201,7 +200,7 @@ impl NodeWriter<PointsBatch> for CubeNodeWriter {
             }
         }
 
-        if self.point_count == 0 {
+        if self.attribute_writers.is_empty() {
             for name in p.attributes.keys() {
                 self.attribute_writers.push(
                     DataWriter::new(&self.stem.with_extension(attribute_extension(&name))).unwrap(),
@@ -212,8 +211,6 @@ impl NodeWriter<PointsBatch> for CubeNodeWriter {
         for (i, data) in p.attributes.values().enumerate() {
             data.write_le(&mut self.attribute_writers[i])?;
         }
-
-        self.point_count += p.position.len();
 
         Ok(())
     }
@@ -243,7 +240,7 @@ impl NodeWriter<Point> for CubeNodeWriter {
             }
         }
 
-        if self.point_count == 0 {
+        if self.attribute_writers.is_empty() {
             self.attribute_writers.push(
                 DataWriter::new(&self.stem.with_extension(attribute_extension("color"))).unwrap(),
             );
@@ -258,8 +255,6 @@ impl NodeWriter<Point> for CubeNodeWriter {
         if let Some(i) = p.intensity {
             i.write_le(&mut self.attribute_writers[1])?;
         }
-
-        self.point_count += 1;
 
         Ok(())
     }
@@ -281,7 +276,6 @@ impl CubeNodeWriter {
             stem,
             position_encoding,
             bounding_cube,
-            point_count: 0,
         }
     }
 

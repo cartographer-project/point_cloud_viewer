@@ -21,14 +21,13 @@ pub struct RawNodeWriter {
     xyz_writer: DataWriter,
     attribute_writers: Vec<DataWriter>,
     stem: PathBuf,
-    point_count: usize,
 }
 
 impl NodeWriter<PointsBatch> for RawNodeWriter {
     fn write(&mut self, p: &PointsBatch) -> Result<()> {
         p.position.write_le(&mut self.xyz_writer)?;
 
-        if self.point_count == 0 {
+        if self.attribute_writers.is_empty() {
             for name in p.attributes.keys() {
                 self.attribute_writers.push(
                     DataWriter::new(&self.stem.with_extension(attribute_extension(&name))).unwrap(),
@@ -39,8 +38,6 @@ impl NodeWriter<PointsBatch> for RawNodeWriter {
             data.write_le(&mut self.attribute_writers[i])?;
         }
 
-        self.point_count += p.position.len();
-
         Ok(())
     }
 }
@@ -49,7 +46,7 @@ impl NodeWriter<Point> for RawNodeWriter {
     fn write(&mut self, p: &Point) -> Result<()> {
         p.position.write_le(&mut self.xyz_writer)?;
 
-        if self.point_count == 0 {
+        if self.attribute_writers.is_empty() {
             self.attribute_writers.push(
                 DataWriter::new(&self.stem.with_extension(attribute_extension("color"))).unwrap(),
             );
@@ -65,8 +62,6 @@ impl NodeWriter<Point> for RawNodeWriter {
             i.write_le(&mut self.attribute_writers[1])?;
         }
 
-        self.point_count += 1;
-
         Ok(())
     }
 }
@@ -81,7 +76,6 @@ impl RawNodeWriter {
             xyz_writer,
             attribute_writers,
             stem,
-            point_count: 0,
         }
     }
 }
