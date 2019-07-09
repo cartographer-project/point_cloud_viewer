@@ -63,15 +63,17 @@ impl AttributeData {
             AttributeData::U8Vec4(data) => data.len(),
         }
     }
+
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
     pub fn dim(&self) -> usize {
         match self {
-            AttributeData::I64(_) => 1,
-            AttributeData::U64(_) => 1,
-            AttributeData::F32(_) => 1,
-            AttributeData::F64(_) => 1,
+            AttributeData::I64(_)
+            | AttributeData::U64(_)
+            | AttributeData::F32(_)
+            | AttributeData::F64(_) => 1,
             AttributeData::F64Vec3(_) => 3,
             AttributeData::U8Vec4(_) => 4,
         }
