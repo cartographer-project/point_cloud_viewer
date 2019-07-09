@@ -44,7 +44,10 @@ pub fn attribute_extension(attribute: &str) -> &str {
 /// General field to describe point feature attributes such as color, intensity, ...
 #[derive(Debug, Clone)]
 pub enum AttributeData {
+    I64(Vec<i64>),
+    U64(Vec<u64>),
     F32(Vec<f32>),
+    F64(Vec<f64>),
     F64Vec3(Vec<Vector3<f64>>),
     U8Vec4(Vec<Vector4<u8>>),
 }
@@ -52,17 +55,25 @@ pub enum AttributeData {
 impl AttributeData {
     pub fn len(&self) -> usize {
         match self {
+            AttributeData::I64(data) => data.len(),
+            AttributeData::U64(data) => data.len(),
             AttributeData::F32(data) => data.len(),
+            AttributeData::F64(data) => data.len(),
             AttributeData::F64Vec3(data) => data.len(),
             AttributeData::U8Vec4(data) => data.len(),
         }
     }
+
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
     pub fn dim(&self) -> usize {
         match self {
-            AttributeData::F32(_) => 1,
+            AttributeData::I64(_)
+            | AttributeData::U64(_)
+            | AttributeData::F32(_)
+            | AttributeData::F64(_) => 1,
             AttributeData::F64Vec3(_) => 3,
             AttributeData::U8Vec4(_) => 4,
         }
