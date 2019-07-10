@@ -19,7 +19,7 @@ pub mod octree;
 pub mod read_write;
 pub mod s2_geo;
 
-use cgmath::{Vector3, Vector4};
+use cgmath::Vector3;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
@@ -48,8 +48,8 @@ pub enum AttributeData {
     U64(Vec<u64>),
     F32(Vec<f32>),
     F64(Vec<f64>),
+    U8Vec3(Vec<Vector3<u8>>),
     F64Vec3(Vec<Vector3<f64>>),
-    U8Vec4(Vec<Vector4<u8>>),
 }
 
 impl AttributeData {
@@ -59,8 +59,8 @@ impl AttributeData {
             AttributeData::U64(data) => data.len(),
             AttributeData::F32(data) => data.len(),
             AttributeData::F64(data) => data.len(),
+            AttributeData::U8Vec3(data) => data.len(),
             AttributeData::F64Vec3(data) => data.len(),
-            AttributeData::U8Vec4(data) => data.len(),
         }
     }
 
@@ -74,8 +74,7 @@ impl AttributeData {
             | AttributeData::U64(_)
             | AttributeData::F32(_)
             | AttributeData::F64(_) => 1,
-            AttributeData::F64Vec3(_) => 3,
-            AttributeData::U8Vec4(_) => 4,
+            AttributeData::U8Vec3(_) | AttributeData::F64Vec3(_) => 3,
         }
     }
 }

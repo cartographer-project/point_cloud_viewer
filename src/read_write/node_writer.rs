@@ -15,7 +15,7 @@
 use crate::color::Color;
 use crate::AttributeData;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
-use cgmath::{Vector3, Vector4};
+use cgmath::Vector3;
 use std::fs::{remove_file, File};
 use std::io::{BufWriter, Result, Seek, SeekFrom, Write};
 use std::path::PathBuf;
@@ -139,22 +139,16 @@ impl WriteLE for Vector3<f64> {
     }
 }
 
-impl WriteLE for Vector4<u8> {
-    fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
-        writer.write_all(&self[..])
-    }
-}
-
 impl WriteLE for Color<u8> {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         writer.write_u8(self.red)?;
         writer.write_u8(self.green)?;
-        writer.write_u8(self.blue)?;
-        writer.write_u8(self.alpha)
+        writer.write_u8(self.blue)
+        // Alpha is not written on purpose to be compatible with old versions and not waste space.
     }
 }
 
-impl WriteLE for Vec<Vector3<f64>> {
+impl WriteLE for Vec<Vector3<u8>> {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         for elem in self {
             elem.write_le(writer)?;
@@ -163,7 +157,7 @@ impl WriteLE for Vec<Vector3<f64>> {
     }
 }
 
-impl WriteLE for Vec<Vector4<u8>> {
+impl WriteLE for Vec<Vector3<f64>> {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         for elem in self {
             elem.write_le(writer)?;
@@ -179,8 +173,8 @@ impl WriteLE for AttributeData {
             AttributeData::U64(data) => data.write_le(writer),
             AttributeData::F32(data) => data.write_le(writer),
             AttributeData::F64(data) => data.write_le(writer),
+            AttributeData::U8Vec3(data) => data.write_le(writer),
             AttributeData::F64Vec3(data) => data.write_le(writer),
-            AttributeData::U8Vec4(data) => data.write_le(writer),
         }
     }
 }
@@ -196,8 +190,8 @@ impl WriteLEPos for AttributeData {
             AttributeData::U64(data) => data[pos].write_le(writer),
             AttributeData::F32(data) => data[pos].write_le(writer),
             AttributeData::F64(data) => data[pos].write_le(writer),
+            AttributeData::U8Vec3(data) => data[pos].write_le(writer),
             AttributeData::F64Vec3(data) => data[pos].write_le(writer),
-            AttributeData::U8Vec4(data) => data[pos].write_le(writer),
         }
     }
 }

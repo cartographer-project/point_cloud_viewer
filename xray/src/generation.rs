@@ -303,13 +303,13 @@ impl ColoringStrategy for PointColorColoringStrategy {
             .attributes
             .get("color")
             .expect("Coloring was requested, but point data without color found.");
-        if let AttributeData::U8Vec4(color_vec) = color_attribute {
+        if let AttributeData::U8Vec3(color_vec) = color_attribute {
             for i in 0..color_vec.len() {
                 let clr = Color::<u8> {
                     red: color_vec[i][0],
                     green: color_vec[i][1],
                     blue: color_vec[i][2],
-                    alpha: color_vec[i][3],
+                    alpha: 255,
                 }
                 .to_f32();
                 match self
