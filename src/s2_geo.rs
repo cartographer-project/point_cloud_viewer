@@ -1,3 +1,4 @@
+use cgmath::Vector3;
 use nav_types::{ECEF, ENU, WGS84};
 use s2::cellid::CellID;
 use s2::latlng::LatLng;
@@ -7,6 +8,16 @@ use s2::s1::angle::{Angle, Rad};
 use std::vec::Vec;
 
 const LEVEL_MOD: u8 = 1;
+
+pub trait ECEFExt<N> {
+    fn from(_: Self) -> ECEF<N>;
+}
+
+impl<N> ECEFExt<N> for Vector3<N> {
+    fn from(vec: Self) -> ECEF<N> {
+        ECEF::new(vec.x, vec.y, vec.z)
+    }
+}
 
 trait LatLngExt {
     fn from(_: Self) -> LatLng;

@@ -19,6 +19,7 @@ use crate::{AttributeData, Point, PointsBatch};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
 use std::ops::Index;
@@ -580,6 +581,38 @@ impl PlyNodeWriter {
             }
         }
         self.writer.write_all(b"end_header\n")
+    }
+}
+
+pub struct PlySplitWriter<'a> {
+    writers: HashMap<String, PlyNodeWriter>,
+    stem: PathBuf,
+    split_fn: &'a Fn(&Vector3<f64>, usize) -> String,
+}
+
+/// Call e.g. with
+/// let split_fn = |pos: &Vector3<f64>, _: usize| cell_id(ECEFExt::from(*pos), 20).to_token();
+impl<'a> PlySplitWriter<'a> {
+    pub fn new(path: impl Into<PathBuf>, split_fn: &'a Fn(&Vector3<f64>, usize) -> String) -> Self {
+        let writers = HashMap::new();
+        let stem = path.into();
+        PlySplitWriter {
+            writers,
+            stem,
+            split_fn,
+        }
+    }
+}
+
+impl<'a> SplitWriter<PlyNodeWriter> for PlySplitWriter<'a> {
+    fn writer(&mut self, key: &str) -> &mut PlyNodeWriter {
+        let path = self.stem.join(key.to_string()).with_extension(".ply");
+        self.writers
+            .entry(key.to_string())
+            .or_insert_with(|| PlyNodeWriter::new(path))
+    }
+    fn splitter(&self) -> &Fn(&Vector3<f64>, usize) -> String {
+        self.split_fn
     }
 }
 

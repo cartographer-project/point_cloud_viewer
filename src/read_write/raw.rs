@@ -286,3 +286,35 @@ impl RawNodeWriter {
         (self.xyz_writer.bytes_written() / bytes_per_coordinate / 3) as i64
     }
 }
+
+pub struct RawSplitWriter<'a> {
+    writers: HashMap<String, RawNodeWriter>,
+    stem: PathBuf,
+    split_fn: &'a Fn(&Vector3<f64>, usize) -> String,
+}
+
+/// Call e.g. with
+/// let split_fn = |pos: &Vector3<f64>, _: usize| cell_id(ECEFExt::from(*pos), 20).to_token();
+impl<'a> RawSplitWriter<'a> {
+    pub fn new(path: impl Into<PathBuf>, split_fn: &'a Fn(&Vector3<f64>, usize) -> String) -> Self {
+        let writers = HashMap::new();
+        let stem = path.into();
+        RawSplitWriter {
+            writers,
+            stem,
+            split_fn,
+        }
+    }
+}
+
+impl<'a> SplitWriter<RawNodeWriter> for RawSplitWriter<'a> {
+    fn writer(&mut self, key: &str) -> &mut RawNodeWriter {
+        let path = self.stem.join(key.to_string());
+        self.writers
+            .entry(key.to_string())
+            .or_insert_with(|| RawNodeWriter::new(path))
+    }
+    fn splitter(&self) -> &Fn(&Vector3<f64>, usize) -> String {
+        self.split_fn
+    }
+}

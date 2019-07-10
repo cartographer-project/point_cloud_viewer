@@ -25,10 +25,10 @@ mod node_iterator;
 pub use self::node_iterator::{NodeIterator, NodeReader};
 
 mod node_writer;
-pub use self::node_writer::{DataWriter, NodeWriter, WriteLE, WriteLEPos};
+pub use self::node_writer::{DataWriter, NodeWriter, SplitWriter, WriteLE, WriteLEPos};
 
 mod ply;
-pub use self::ply::{PlyIterator, PlyNodeWriter};
+pub use self::ply::{PlyIterator, PlyNodeWriter, PlySplitWriter};
 
 mod pts;
 pub use self::pts::PtsIterator;
