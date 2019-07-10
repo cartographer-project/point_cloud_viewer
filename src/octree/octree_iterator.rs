@@ -3,6 +3,7 @@ use crate::math::Cube;
 use crate::octree::{ChildIndex, NodeId, Octree, OctreeDataProvider, OctreeMeta, PositionEncoding};
 use crate::read_write::{CubeNodeReader, NodeIterator};
 use crate::Point;
+use cgmath::Vector3;
 use std::collections::{HashMap, VecDeque};
 
 impl NodeIterator<CubeNodeReader> {
@@ -13,7 +14,7 @@ impl NodeIterator<CubeNodeReader> {
         num_points: usize,
     ) -> Result<Self> {
         if num_points == 0 {
-            return Ok(NodeIterator::Empty);
+            return Ok(NodeIterator::default());
         }
 
         let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
@@ -44,12 +45,10 @@ impl NodeIterator<CubeNodeReader> {
             }
         };
 
-        Ok(Self::new(CubeNodeReader::new(
-            attributes,
+        Ok(Self::new(
+            CubeNodeReader::new(attributes, position_encoding, bounding_cube)?,
             num_points,
-            position_encoding,
-            bounding_cube,
-        )?))
+        ))
     }
 }
 
@@ -73,7 +72,7 @@ pub struct FilteredPointsIterator<F> {
 
 impl<F> FilteredPointsIterator<F>
 where
-    F: Fn(&Point) -> bool,
+    F: Fn(&Vector3<f64>) -> bool,
 {
     pub fn new(octree: &Octree, node_id: NodeId, filter_func: F) -> FilteredPointsIterator<F> {
         FilteredPointsIterator {
@@ -85,13 +84,13 @@ where
 
 impl<F> Iterator for FilteredPointsIterator<F>
 where
-    F: Fn(&Point) -> bool,
+    F: Fn(&Vector3<f64>) -> bool,
 {
     type Item = Point;
 
     fn next(&mut self) -> Option<Point> {
         while let Some(point) = self.node_iterator.next() {
-            if (self.filter_func)(&point) {
+            if (self.filter_func)(&point.position) {
                 return Some(point);
             }
         }

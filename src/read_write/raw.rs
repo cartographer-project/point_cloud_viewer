@@ -29,9 +29,9 @@ impl NodeWriter<PointsBatch> for RawNodeWriter {
 
         if self.attribute_writers.is_empty() {
             for name in p.attributes.keys() {
-                self.attribute_writers.push(
-                    DataWriter::new(&self.stem.with_extension(attribute_extension(&name))).unwrap(),
-                )
+                self.attribute_writers.push(DataWriter::new(
+                    &self.stem.with_extension(attribute_extension(&name)),
+                )?)
             }
         }
         for (i, data) in p.attributes.values().enumerate() {
@@ -47,14 +47,13 @@ impl NodeWriter<Point> for RawNodeWriter {
         p.position.write_le(&mut self.xyz_writer)?;
 
         if self.attribute_writers.is_empty() {
-            self.attribute_writers.push(
-                DataWriter::new(&self.stem.with_extension(attribute_extension("color"))).unwrap(),
-            );
+            self.attribute_writers.push(DataWriter::new(
+                &self.stem.with_extension(attribute_extension("color")),
+            )?);
             if p.intensity.is_some() {
-                self.attribute_writers.push(
-                    DataWriter::new(&self.stem.with_extension(attribute_extension("intensity")))
-                        .unwrap(),
-                );
+                self.attribute_writers.push(DataWriter::new(
+                    &self.stem.with_extension(attribute_extension("intensity")),
+                )?);
             }
         }
         p.color.write_le(&mut self.attribute_writers[0])?;
