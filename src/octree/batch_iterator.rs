@@ -3,7 +3,7 @@ use crate::math::PointCulling;
 use crate::math::{AllPoints, Isometry3, Obb, OrientedBeam};
 use crate::octree::{self, FilteredPointsIterator, Octree};
 use crate::{AttributeData, Point, PointsBatch};
-use cgmath::{Matrix4, Vector3, Vector4};
+use cgmath::{Matrix4, Vector3};
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Worker};
 use std::collections::BTreeMap;
@@ -46,7 +46,7 @@ where
     F: Fn(PointsBatch) -> Result<()>,
 {
     position: Vec<Vector3<f64>>,
-    color: Vec<Vector4<u8>>,
+    color: Vec<Vector3<u8>>,
     intensity: Vec<f32>,
     local_from_global: &'a Option<Isometry3<f64>>,
     func: &'a F,
@@ -77,11 +77,10 @@ where
             None => point.position,
         };
         self.position.push(position);
-        self.color.push(Vector4::new(
+        self.color.push(Vector3::new(
             point.color.red,
             point.color.green,
             point.color.blue,
-            point.color.alpha,
         ));
         if let Some(point_intensity) = point.intensity {
             self.intensity.push(point_intensity);
@@ -97,7 +96,7 @@ where
         let mut attributes = BTreeMap::default();
         attributes.insert(
             "color".to_string(),
-            AttributeData::U8Vec4(self.color.split_off(0)),
+            AttributeData::U8Vec3(self.color.split_off(0)),
         );
         if !self.intensity.is_empty() {
             attributes.insert(

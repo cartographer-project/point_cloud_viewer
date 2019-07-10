@@ -286,14 +286,14 @@ impl OctreeService {
                         .collect();
 
                     reply.colors = match p_data.attributes.get(&"color".to_string()) {
-                        Some(AttributeData::U8Vec4(data)) => data
+                        Some(AttributeData::U8Vec3(data)) => data
                             .iter()
                             .map(|p| {
                                 let rgb8: Color<u8> = crate::Color {
                                     red: p.x,
                                     green: p.y,
                                     blue: p.z,
-                                    alpha: p.w,
+                                    alpha: 255,
                                 };
                                 let rgb32: Color<f32> = crate::Color::to_f32(rgb8);
                                 let mut v = point_viewer::proto::Color::new();

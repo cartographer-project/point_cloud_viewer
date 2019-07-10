@@ -470,8 +470,8 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
                                 AttributeData::U64(_) => "ulonglong",
                                 AttributeData::F32(_) => "float",
                                 AttributeData::F64(_) => "double",
+                                AttributeData::U8Vec3(_) => "uchar",
                                 AttributeData::F64Vec3(_) => "double",
-                                AttributeData::U8Vec4(_) => "uchar",
                             },
                             data.dim(),
                         )
@@ -496,7 +496,7 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
 impl NodeWriter<Point> for PlyNodeWriter {
     fn write(&mut self, p: &Point) -> io::Result<()> {
         if self.point_count == 0 {
-            let mut attributes = vec![("color", "uchar", 4)];
+            let mut attributes = vec![("color", "uchar", 3)];
             if p.intensity.is_some() {
                 attributes.push(("intensity", "float", 1));
             }
