@@ -243,9 +243,8 @@ where
             }
         }
 
-        for (key, batch) in out {
-            let writer = self.writer(&key);
-            writer.write(&batch)?;
+        for (key, batch) in &out {
+            self.writer(key).write(batch)?;
         }
         Ok(())
     }
