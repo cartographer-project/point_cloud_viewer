@@ -208,7 +208,7 @@ where
     W: NodeWriter<PointsBatch>,
 {
     fn writer(&mut self, key: &str) -> &mut W;
-    fn splitter(&self) -> &Fn(&Vector3<f64>, usize) -> String;
+    fn splitter(&self) -> &dyn Fn(&Vector3<f64>, usize) -> String;
     fn write(&mut self, points_batch: &PointsBatch) -> Result<()> {
         let mut out = HashMap::new();
         for (i, pos) in points_batch.position.iter().enumerate() {

@@ -587,13 +587,16 @@ impl PlyNodeWriter {
 pub struct PlySplitWriter<'a> {
     writers: HashMap<String, PlyNodeWriter>,
     stem: PathBuf,
-    split_fn: &'a Fn(&Vector3<f64>, usize) -> String,
+    split_fn: &'a dyn Fn(&Vector3<f64>, usize) -> String,
 }
 
 /// Call e.g. with
 /// let split_fn = |pos: &Vector3<f64>, _: usize| cell_id(ECEFExt::from(*pos), 20).to_token();
 impl<'a> PlySplitWriter<'a> {
-    pub fn new(path: impl Into<PathBuf>, split_fn: &'a Fn(&Vector3<f64>, usize) -> String) -> Self {
+    pub fn new(
+        path: impl Into<PathBuf>,
+        split_fn: &'a dyn Fn(&Vector3<f64>, usize) -> String,
+    ) -> Self {
         let writers = HashMap::new();
         let stem = path.into();
         PlySplitWriter {
@@ -611,7 +614,7 @@ impl<'a> SplitWriter<PlyNodeWriter> for PlySplitWriter<'a> {
             .entry(key.to_string())
             .or_insert_with(|| PlyNodeWriter::new(path))
     }
-    fn splitter(&self) -> &Fn(&Vector3<f64>, usize) -> String {
+    fn splitter(&self) -> &dyn Fn(&Vector3<f64>, usize) -> String {
         self.split_fn
     }
 }
