@@ -220,24 +220,26 @@ where
             for (in_key, in_data) in &points_batch.attributes {
                 use AttributeData::*;
                 let key = in_key.to_string();
-                let out_data = out_batch.attributes.entry(key).or_insert(match in_data {
-                    I64(_) => I64(Vec::new()),
-                    U64(_) => U64(Vec::new()),
-                    F32(_) => F32(Vec::new()),
-                    F64(_) => F64(Vec::new()),
-                    F64Vec3(_) => F64Vec3(Vec::new()),
-                    U8Vec4(_) => U8Vec4(Vec::new()),
-                });
-
-                match (in_data, out_data) {
-                    (I64(in_vec), I64(out_vec)) => out_vec.push(in_vec[i]),
-                    (U64(in_vec), U64(out_vec)) => out_vec.push(in_vec[i]),
-                    (F32(in_vec), F32(out_vec)) => out_vec.push(in_vec[i]),
-                    (F64(in_vec), F64(out_vec)) => out_vec.push(in_vec[i]),
-                    (F64Vec3(in_vec), F64Vec3(out_vec)) => out_vec.push(in_vec[i]),
-                    (U8Vec4(in_vec), U8Vec4(out_vec)) => out_vec.push(in_vec[i]),
-                    _ => panic!("Input data type unequal output data type."),
-                }
+                out_batch
+                    .attributes
+                    .entry(key)
+                    .and_modify(|out_data| match (in_data, out_data) {
+                        (I64(in_vec), I64(out_vec)) => out_vec.push(in_vec[i]),
+                        (U64(in_vec), U64(out_vec)) => out_vec.push(in_vec[i]),
+                        (F32(in_vec), F32(out_vec)) => out_vec.push(in_vec[i]),
+                        (F64(in_vec), F64(out_vec)) => out_vec.push(in_vec[i]),
+                        (U8Vec4(in_vec), U8Vec4(out_vec)) => out_vec.push(in_vec[i]),
+                        (F64Vec3(in_vec), F64Vec3(out_vec)) => out_vec.push(in_vec[i]),
+                        _ => panic!("Input data type unequal output data type."),
+                    })
+                    .or_insert(match in_data {
+                        I64(in_vec) => I64(vec![in_vec[i]]),
+                        U64(in_vec) => U64(vec![in_vec[i]]),
+                        F32(in_vec) => F32(vec![in_vec[i]]),
+                        F64(in_vec) => F64(vec![in_vec[i]]),
+                        U8Vec4(in_vec) => U8Vec4(vec![in_vec[i]]),
+                        F64Vec3(in_vec) => F64Vec3(vec![in_vec[i]]),
+                    });
             }
         }
 
