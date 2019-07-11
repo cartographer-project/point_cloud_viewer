@@ -542,7 +542,7 @@ impl Drop for PlyNodeWriter {
 }
 
 impl PlyNodeWriter {
-    fn new(filename: impl Into<PathBuf>) -> Self {
+    pub fn new(filename: impl Into<PathBuf>) -> Self {
         let writer = DataWriter::new(filename).unwrap();
         Self {
             writer,
