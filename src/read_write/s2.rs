@@ -8,23 +8,28 @@ use std::path::PathBuf;
 pub struct S2Splitter<W> {
     writers: HashMap<String, W>,
     stem: PathBuf,
+    split_level: u8,
 }
 
 impl<W> S2Splitter<W>
 where
     W: NodeWriter<PointsBatch>,
 {
-    pub fn new(path: impl Into<PathBuf>) -> Self {
+    pub fn new(path: impl Into<PathBuf>, split_level: u8) -> Self {
         let writers = HashMap::new();
         let stem = path.into();
-        S2Splitter { writers, stem }
+        S2Splitter {
+            writers,
+            stem,
+            split_level,
+        }
     }
 
     pub fn write(&mut self, points_batch: &PointsBatch) -> Result<()> {
         let mut out = HashMap::new();
         for (i, pos) in points_batch.position.iter().enumerate() {
             let out_batch = out
-                .entry(cell_id(ECEFExt::from(*pos), 20).to_token())
+                .entry(cell_id(ECEFExt::from(*pos), self.split_level).to_token())
                 .or_insert(PointsBatch {
                     position: Vec::new(),
                     attributes: BTreeMap::new(),
