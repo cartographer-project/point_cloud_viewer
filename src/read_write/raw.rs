@@ -280,7 +280,7 @@ impl RawNodeWriter {
 
     pub fn num_written(&self) -> i64 {
         let bytes_per_coordinate = match &self.encoding {
-            Encoding::Plain => 4,
+            Encoding::Plain => 8,
             Encoding::ScaledToCube(_, _, pos_enc) => pos_enc.bytes_per_coordinate(),
         };
         (self.xyz_writer.bytes_written() / bytes_per_coordinate / 3) as i64
