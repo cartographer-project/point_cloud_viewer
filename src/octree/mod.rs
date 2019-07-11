@@ -15,6 +15,7 @@
 use crate::errors::*;
 use crate::math::{Cube, Frustum};
 use crate::proto;
+use crate::read_write::PositionEncoding;
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
@@ -33,7 +34,7 @@ mod factory;
 pub use self::factory::OctreeFactory;
 
 mod node;
-pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta, PositionEncoding};
+pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta};
 
 mod octree_iterator;
 pub use self::octree_iterator::{FilteredPointsIterator, NodeIdsIterator};

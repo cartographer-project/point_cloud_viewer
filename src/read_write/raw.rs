@@ -15,10 +15,9 @@
 use crate::color;
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::PositionEncoding;
 use crate::read_write::{
     decode, fixpoint_decode, vec3_encode, vec3_fixpoint_encode, DataWriter, Encoding, NodeReader,
-    NodeWriter, WriteLE,
+    NodeWriter, PositionEncoding, WriteLE,
 };
 use crate::{attribute_extension, Point, PointsBatch};
 use byteorder::{LittleEndian, ReadBytesExt};

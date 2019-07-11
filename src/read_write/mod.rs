@@ -15,6 +15,7 @@
 mod codec;
 pub use self::codec::{
     decode, encode, fixpoint_decode, fixpoint_encode, vec3_encode, vec3_fixpoint_encode, Encoding,
+    PositionEncoding,
 };
 
 mod raw;

@@ -16,11 +16,10 @@ use crate::errors::*;
 use crate::math::Cube;
 use crate::octree::{
     self, to_meta_proto, to_node_proto, NodeId, OctreeMeta, OnDiskOctreeDataProvider,
-    PositionEncoding,
 };
 use crate::proto;
 use crate::read_write::{
-    make_stream, Encoding, InputFile, NodeIterator, NodeWriter, RawNodeWriter,
+    make_stream, Encoding, InputFile, NodeIterator, NodeWriter, PositionEncoding, RawNodeWriter,
 };
 use crate::Point;
 use cgmath::{EuclideanSpace, Point3, Vector3};
@@ -402,8 +401,7 @@ pub fn build_octree(
         .iter()
         .map(|(id, num_points)| {
             let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
-            let position_encoding =
-                octree::PositionEncoding::new(&bounding_cube, octree_meta.resolution);
+            let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
             to_node_proto(&id, *num_points, &position_encoding)
         })
         .collect();
