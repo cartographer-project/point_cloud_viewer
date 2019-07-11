@@ -17,7 +17,6 @@ use crate::read_write::Encoding;
 use crate::AttributeData;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use cgmath::Vector3;
-use std::collections::{BTreeMap, HashMap};
 use std::fs::{remove_file, File};
 use std::io::{BufWriter, Result, Seek, SeekFrom, Write};
 use std::path::PathBuf;
@@ -201,51 +200,4 @@ impl WriteLEPos for AttributeData {
 pub trait NodeWriter<P> {
     fn from(path: impl Into<PathBuf>, codec: Encoding) -> Self;
     fn write(&mut self, p: &P) -> Result<()>;
-}
-
-pub trait SplitWriter<W>
-where
-    W: NodeWriter<PointsBatch>,
-{
-    fn writer(&mut self, key: &str) -> &mut W;
-    fn splitter(&self) -> &dyn Fn(&Vector3<f64>, usize) -> String;
-    fn write(&mut self, points_batch: &PointsBatch) -> Result<()> {
-        let mut out = HashMap::new();
-        for (i, pos) in points_batch.position.iter().enumerate() {
-            let out_batch = out.entry(self.splitter()(pos, i)).or_insert(PointsBatch {
-                position: Vec::new(),
-                attributes: BTreeMap::new(),
-            });
-            out_batch.position.push(*pos);
-            for (in_key, in_data) in &points_batch.attributes {
-                use AttributeData::*;
-                let key = in_key.to_string();
-                out_batch
-                    .attributes
-                    .entry(key)
-                    .and_modify(|out_data| match (in_data, out_data) {
-                        (I64(in_vec), I64(out_vec)) => out_vec.push(in_vec[i]),
-                        (U64(in_vec), U64(out_vec)) => out_vec.push(in_vec[i]),
-                        (F32(in_vec), F32(out_vec)) => out_vec.push(in_vec[i]),
-                        (F64(in_vec), F64(out_vec)) => out_vec.push(in_vec[i]),
-                        (U8Vec3(in_vec), U8Vec3(out_vec)) => out_vec.push(in_vec[i]),
-                        (F64Vec3(in_vec), F64Vec3(out_vec)) => out_vec.push(in_vec[i]),
-                        _ => panic!("Input data type unequal output data type."),
-                    })
-                    .or_insert(match in_data {
-                        I64(in_vec) => I64(vec![in_vec[i]]),
-                        U64(in_vec) => U64(vec![in_vec[i]]),
-                        F32(in_vec) => F32(vec![in_vec[i]]),
-                        F64(in_vec) => F64(vec![in_vec[i]]),
-                        U8Vec3(in_vec) => U8Vec3(vec![in_vec[i]]),
-                        F64Vec3(in_vec) => F64Vec3(vec![in_vec[i]]),
-                    });
-            }
-        }
-
-        for (key, batch) in &out {
-            self.writer(key).write(batch)?;
-        }
-        Ok(())
-    }
 }

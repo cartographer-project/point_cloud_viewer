@@ -25,13 +25,16 @@ mod node_iterator;
 pub use self::node_iterator::{NodeIterator, NodeReader};
 
 mod node_writer;
-pub use self::node_writer::{DataWriter, NodeWriter, SplitWriter, WriteLE, WriteLEPos};
+pub use self::node_writer::{DataWriter, NodeWriter, WriteLE, WriteLEPos};
 
 mod ply;
-pub use self::ply::{PlyIterator, PlyNodeWriter, PlySplitWriter};
+pub use self::ply::{PlyIterator, PlyNodeWriter};
 
 mod pts;
 pub use self::pts::PtsIterator;
 
 mod raw;
 pub use self::raw::{RawNodeReader, RawNodeWriter};
+
+mod s2;
+pub use self::s2::S2Splitter;
