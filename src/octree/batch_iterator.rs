@@ -117,7 +117,7 @@ where
         point_iterator: FilteredPointsIterator<Filter>,
     ) -> Result<()>
     where
-        Filter: Fn(&Point) -> bool,
+        Filter: Fn(&Vector3<f64>) -> bool,
     {
         for point in point_iterator {
             self.push_point(point);

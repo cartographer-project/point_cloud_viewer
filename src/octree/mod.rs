@@ -15,8 +15,8 @@
 use crate::errors::*;
 use crate::math::{Cube, Frustum};
 use crate::proto;
-use crate::Point;
-use cgmath::{EuclideanSpace, Matrix4, Point3};
+use crate::read_write::PositionEncoding;
+use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
@@ -34,7 +34,7 @@ mod factory;
 pub use self::factory::OctreeFactory;
 
 mod node;
-pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta, PositionEncoding};
+pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta};
 
 mod octree_iterator;
 pub use self::octree_iterator::{FilteredPointsIterator, NodeIdsIterator};
@@ -313,9 +313,9 @@ impl Octree {
         &'a self,
         location: &PointQuery,
         node_id: NodeId,
-    ) -> FilteredPointsIterator<impl Fn(&Point) -> bool> {
+    ) -> FilteredPointsIterator<impl Fn(&Vector3<f64>) -> bool> {
         let container = location.get_point_culling();
-        let filter_func = move |p: &Point| container.contains(&Point3::from_vec(p.position));
+        let filter_func = move |p: &Vector3<f64>| container.contains(&Point3::from_vec(*p));
         FilteredPointsIterator::new(&self, node_id, filter_func)
     }
 

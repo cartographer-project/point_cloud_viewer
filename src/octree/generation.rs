@@ -16,12 +16,13 @@ use crate::errors::*;
 use crate::math::Cube;
 use crate::octree::{
     self, to_meta_proto, to_node_proto, NodeId, OctreeMeta, OnDiskOctreeDataProvider,
-    PositionEncoding,
 };
 use crate::proto;
-use crate::read_write::{make_stream, CubeNodeWriter, InputFile, NodeIterator, NodeWriter};
+use crate::read_write::{
+    make_stream, Encoding, InputFile, NodeIterator, NodeWriter, PositionEncoding, RawNodeWriter,
+};
 use crate::Point;
-use cgmath::{EuclideanSpace, Point3};
+use cgmath::{EuclideanSpace, Point3, Vector3};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use pbr::ProgressBar;
@@ -36,7 +37,7 @@ use std::sync::mpsc;
 const UPDATE_COUNT: i64 = 100_000;
 const MAX_POINTS_PER_NODE: i64 = 100_000;
 
-impl CubeNodeWriter {
+impl RawNodeWriter {
     fn from_data_provider(
         octree_data_provider: &OnDiskOctreeDataProvider,
         octree_meta: &OctreeMeta,
@@ -45,7 +46,15 @@ impl CubeNodeWriter {
         let path = octree_data_provider.stem(node_id);
         let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
         let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
-        Self::new(path, position_encoding, bounding_cube)
+        let min = bounding_cube.min();
+        RawNodeWriter::new(
+            path,
+            Encoding::ScaledToCube(
+                Vector3::new(min.x, min.y, min.z),
+                bounding_cube.edge_length(),
+                position_encoding,
+            ),
+        )
     }
 }
 
@@ -59,7 +68,7 @@ fn split<P>(
 where
     P: Iterator<Item = Point>,
 {
-    let mut children: Vec<Option<CubeNodeWriter>> =
+    let mut children: Vec<Option<RawNodeWriter>> =
         vec![None, None, None, None, None, None, None, None];
     match stream.size_hint() {
         (_, Some(size)) => println!(
@@ -79,7 +88,7 @@ where
         let child_index = octree::ChildIndex::from_bounding_cube(&bounding_cube, &p.position);
         let array_index = child_index.as_u8() as usize;
         if children[array_index].is_none() {
-            children[array_index] = Some(CubeNodeWriter::from_data_provider(
+            children[array_index] = Some(RawNodeWriter::from_data_provider(
                 octree_data_provider,
                 octree_meta,
                 &node_id.get_child_id(child_index),
@@ -92,7 +101,7 @@ where
     // writing a point. This only saves some disk space during processing - all nodes will be
     // rewritten by subsampling the children in the second step anyways. We also ignore file
     // removing error. For example, we never write out the root, so it cannot be removed.
-    CubeNodeWriter::from_data_provider(octree_data_provider, octree_meta, node_id);
+    RawNodeWriter::from_data_provider(octree_data_provider, octree_meta, node_id);
 
     let mut leaf_nodes = Vec::new();
     let mut split_nodes = Vec::new();
@@ -180,7 +189,7 @@ fn subsample_children_into(
     nodes_sender: &mpsc::Sender<(octree::NodeId, i64)>,
 ) -> Result<()> {
     let mut parent_writer =
-        CubeNodeWriter::from_data_provider(octree_data_provider, octree_meta, node_id);
+        RawNodeWriter::from_data_provider(octree_data_provider, octree_meta, node_id);
     for i in 0..8 {
         let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(i));
         let num_points = match octree_data_provider.number_of_points(&child_id) {
@@ -201,7 +210,7 @@ fn subsample_children_into(
         node_iterator.for_each(|p| points.push(p));
 
         let mut child_writer =
-            CubeNodeWriter::from_data_provider(octree_data_provider, octree_meta, &child_id);
+            RawNodeWriter::from_data_provider(octree_data_provider, octree_meta, &child_id);
         for (idx, p) in points.into_iter().enumerate() {
             if idx % 8 == 0 {
                 parent_writer.write(&p)?;
@@ -392,8 +401,7 @@ pub fn build_octree(
         .iter()
         .map(|(id, num_points)| {
             let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
-            let position_encoding =
-                octree::PositionEncoding::new(&bounding_cube, octree_meta.resolution);
+            let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
             to_node_proto(&id, *num_points, &position_encoding)
         })
         .collect();

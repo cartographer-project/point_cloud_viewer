@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::*;
 use crate::math::Cube;
 use crate::proto;
+use crate::read_write::PositionEncoding;
 use cgmath::Vector3;
 use std::num::ParseIntError;
 use std::str::FromStr;
@@ -267,59 +267,6 @@ pub fn to_node_proto(
     proto.set_num_points(num_points);
     proto.set_position_encoding(position_encoding.to_proto());
     proto
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum PositionEncoding {
-    Uint8,
-    Uint16,
-    Float32,
-    Float64,
-}
-
-impl PositionEncoding {
-    pub fn new(bounding_cube: &Cube, resolution: f64) -> PositionEncoding {
-        let min_bits = (bounding_cube.edge_length() / resolution).log2() as u32 + 1;
-        match min_bits {
-            0..=8 => PositionEncoding::Uint8,
-            9..=16 => PositionEncoding::Uint16,
-            // Capping at 24 keeps the worst resolution at ~1 mm for an edge length of ~8389 km.
-            17..=24 => PositionEncoding::Float32,
-            _ => PositionEncoding::Float64,
-        }
-    }
-
-    // TODO(sirver): Returning a Result here makes this function more expensive than needed - since
-    // we require stack space for the full Result. This shuold be fixable to moving to failure.
-    pub fn from_proto(proto: proto::Node_PositionEncoding) -> Result<Self> {
-        match proto {
-            proto::Node_PositionEncoding::INVALID => {
-                Err(ErrorKind::InvalidInput("Invalid PositionEncoding".to_string()).into())
-            }
-            proto::Node_PositionEncoding::Uint8 => Ok(PositionEncoding::Uint8),
-            proto::Node_PositionEncoding::Uint16 => Ok(PositionEncoding::Uint16),
-            proto::Node_PositionEncoding::Float32 => Ok(PositionEncoding::Float32),
-            proto::Node_PositionEncoding::Float64 => Ok(PositionEncoding::Float64),
-        }
-    }
-
-    pub fn to_proto(&self) -> proto::Node_PositionEncoding {
-        match *self {
-            PositionEncoding::Uint8 => proto::Node_PositionEncoding::Uint8,
-            PositionEncoding::Uint16 => proto::Node_PositionEncoding::Uint16,
-            PositionEncoding::Float32 => proto::Node_PositionEncoding::Float32,
-            PositionEncoding::Float64 => proto::Node_PositionEncoding::Float64,
-        }
-    }
-
-    pub fn bytes_per_coordinate(&self) -> usize {
-        match *self {
-            PositionEncoding::Uint8 => 1,
-            PositionEncoding::Uint16 => 2,
-            PositionEncoding::Float32 => 4,
-            PositionEncoding::Float64 => 8,
-        }
-    }
 }
 
 #[cfg(test)]

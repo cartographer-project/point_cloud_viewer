@@ -19,6 +19,7 @@ use cgmath::{Array, Matrix, Matrix4};
 use fnv::FnvHashSet;
 use lru_cache::LruCache;
 use point_viewer::octree;
+use point_viewer::read_write::PositionEncoding;
 use rand::{thread_rng, Rng};
 use std;
 use std::os::raw::c_void;
@@ -97,8 +98,8 @@ impl NodeDrawer {
         }
     }
 
-    pub fn program(&self, position_encoding: &octree::PositionEncoding) -> &NodeProgram {
-        if let octree::PositionEncoding::Float64 = position_encoding {
+    pub fn program(&self, position_encoding: &PositionEncoding) -> &NodeProgram {
+        if let PositionEncoding::Float64 = position_encoding {
             &self.program_f64
         } else {
             &self.program_f32
@@ -190,10 +191,10 @@ impl NodeView {
             &indices,
             &node_data.position,
             match node_data.meta.position_encoding {
-                octree::PositionEncoding::Uint8 => 3,
-                octree::PositionEncoding::Uint16 => 6,
-                octree::PositionEncoding::Float32 => 12,
-                octree::PositionEncoding::Float64 => 24,
+                PositionEncoding::Uint8 => 3,
+                PositionEncoding::Uint16 => 6,
+                PositionEncoding::Float32 => 12,
+                PositionEncoding::Float64 => 24,
             },
         );
         let color = reshuffle(&indices, &node_data.color, 3);
@@ -204,10 +205,10 @@ impl NodeView {
         unsafe {
             buffer_position.bind();
             let (normalize, data_type) = match node_data.meta.position_encoding {
-                octree::PositionEncoding::Uint8 => (opengl::TRUE, opengl::UNSIGNED_BYTE),
-                octree::PositionEncoding::Uint16 => (opengl::TRUE, opengl::UNSIGNED_SHORT),
-                octree::PositionEncoding::Float32 => (opengl::FALSE, opengl::FLOAT),
-                octree::PositionEncoding::Float64 => (opengl::FALSE, opengl::DOUBLE),
+                PositionEncoding::Uint8 => (opengl::TRUE, opengl::UNSIGNED_BYTE),
+                PositionEncoding::Uint16 => (opengl::TRUE, opengl::UNSIGNED_SHORT),
+                PositionEncoding::Float32 => (opengl::FALSE, opengl::FLOAT),
+                PositionEncoding::Float64 => (opengl::FALSE, opengl::DOUBLE),
             };
             program.gl.BufferData(
                 opengl::ARRAY_BUFFER,
@@ -219,7 +220,7 @@ impl NodeView {
             // Specify the layout of the vertex data.
             let pos_attr = program.gl.GetAttribLocation(program.id, c_str!("position")) as GLuint;
             program.gl.EnableVertexAttribArray(pos_attr);
-            if node_data.meta.position_encoding == octree::PositionEncoding::Float64 {
+            if node_data.meta.position_encoding == PositionEncoding::Float64 {
                 program
                     .gl
                     .VertexAttribLPointer(pos_attr, 3, data_type, 0, ptr::null());

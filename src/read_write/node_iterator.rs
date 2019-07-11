@@ -17,25 +17,39 @@ use std::io::Result;
 
 pub trait NodeReader {
     fn read(&mut self) -> Result<Point>;
-    fn num_points(&self) -> usize;
 }
 
 /// Streams points from our data provider representation.
-pub enum NodeIterator<R> {
-    WithData(R),
-    Empty,
+pub struct NodeIterator<R> {
+    reader: Option<R>,
+    num_points: usize,
+    point_count: usize,
+}
+
+impl<R> Default for NodeIterator<R> {
+    fn default() -> Self {
+        NodeIterator {
+            reader: None,
+            num_points: 0,
+            point_count: 0,
+        }
+    }
 }
 
 impl<R> NodeIterator<R>
 where
     R: NodeReader,
 {
-    pub fn new(reader: R) -> Self {
-        if reader.num_points() == 0 {
-            return NodeIterator::Empty;
+    pub fn new(reader: R, num_points: usize) -> Self {
+        if num_points == 0 {
+            return NodeIterator::default();
         }
 
-        NodeIterator::WithData(reader)
+        NodeIterator {
+            reader: Some(reader),
+            num_points,
+            point_count: 0,
+        }
     }
 }
 
@@ -46,17 +60,16 @@ where
     type Item = Point;
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let num_points = match self {
-            NodeIterator::WithData(ref reader) => reader.num_points(),
-            NodeIterator::Empty => 0,
-        };
-        (num_points, Some(num_points))
+        (self.num_points, Some(self.num_points))
     }
     fn next(&mut self) -> Option<Point> {
-        let reader = match self {
-            NodeIterator::WithData(reader) => reader,
-            NodeIterator::Empty => return None,
-        };
-        reader.read().ok()
+        if let Some(reader) = &mut self.reader {
+            if self.point_count < self.num_points {
+                let res = reader.read().expect("Couldn't read from node.");
+                self.point_count += 1;
+                return Some(res);
+            }
+        }
+        None
     }
 }
