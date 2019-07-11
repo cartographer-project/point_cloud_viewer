@@ -166,7 +166,7 @@ impl NodeWriter<PointsBatch> for RawNodeWriter {
     fn write(&mut self, p: &PointsBatch) -> io::Result<()> {
         match &self.encoding {
             Encoding::Plain => p.position.write_le(&mut self.xyz_writer)?,
-            Encoding::AABBScaled(min, edge_length, position_encoding) => {
+            Encoding::ScaledToCube(min, edge_length, position_encoding) => {
                 // Note that due to floating point rounding errors while calculating bounding boxes, it
                 // could be here that 'p' is not quite inside the bounding box of our node.
                 match position_encoding {
@@ -222,7 +222,7 @@ impl NodeWriter<Point> for RawNodeWriter {
     fn write(&mut self, p: &Point) -> io::Result<()> {
         match &self.encoding {
             Encoding::Plain => p.position.write_le(&mut self.xyz_writer)?,
-            Encoding::AABBScaled(min, edge_length, position_encoding) => {
+            Encoding::ScaledToCube(min, edge_length, position_encoding) => {
                 // Note that due to floating point rounding errors while calculating bounding boxes, it
                 // could be here that 'p' is not quite inside the bounding box of our node.
                 match position_encoding {
@@ -282,7 +282,7 @@ impl RawNodeWriter {
     pub fn num_written(&self) -> i64 {
         let bytes_per_coordinate = match &self.encoding {
             Encoding::Plain => 4,
-            Encoding::AABBScaled(_, _, pos_enc) => pos_enc.bytes_per_coordinate(),
+            Encoding::ScaledToCube(_, _, pos_enc) => pos_enc.bytes_per_coordinate(),
         };
         (self.xyz_writer.bytes_written() / bytes_per_coordinate / 3) as i64
     }

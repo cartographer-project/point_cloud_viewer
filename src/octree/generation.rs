@@ -50,7 +50,7 @@ impl RawNodeWriter {
         let min = bounding_cube.min();
         RawNodeWriter::new(
             path,
-            Encoding::AABBScaled(
+            Encoding::ScaledToCube(
                 Vector3::new(min.x, min.y, min.z),
                 bounding_cube.edge_length(),
                 position_encoding,

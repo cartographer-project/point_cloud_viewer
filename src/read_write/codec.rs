@@ -18,7 +18,7 @@ use num::clamp;
 
 pub enum Encoding {
     Plain,
-    AABBScaled(Vector3<f64>, f64, crate::octree::PositionEncoding),
+    ScaledToCube(Vector3<f64>, f64, crate::octree::PositionEncoding),
 }
 
 pub fn fixpoint_encode<T>(value: f64, min: f64, edge_length: f64) -> T
