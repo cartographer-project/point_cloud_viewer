@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::color::Color;
+use crate::read_write::Encoding;
 use crate::AttributeData;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use cgmath::Vector3;
@@ -197,5 +198,6 @@ impl WriteLEPos for AttributeData {
 }
 
 pub trait NodeWriter<P> {
+    fn from(path: impl Into<PathBuf>, codec: Encoding) -> Self;
     fn write(&mut self, p: &P) -> Result<()>;
 }

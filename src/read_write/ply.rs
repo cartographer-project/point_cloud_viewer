@@ -14,7 +14,7 @@
 
 use crate::color;
 use crate::errors::*;
-use crate::read_write::{DataWriter, NodeWriter, WriteLE, WriteLEPos};
+use crate::read_write::{DataWriter, Encoding, NodeWriter, WriteLE, WriteLEPos};
 use crate::{AttributeData, Point, PointsBatch};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
@@ -22,7 +22,7 @@ use num_traits::identities::Zero;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
 use std::ops::Index;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str;
 
 const HEADER_START_TO_NUM_VERTICES: &[u8] =
@@ -457,6 +457,10 @@ pub struct PlyNodeWriter {
 }
 
 impl NodeWriter<PointsBatch> for PlyNodeWriter {
+    fn from(filename: impl Into<PathBuf>, _: Encoding) -> Self {
+        Self::new(filename)
+    }
+
     fn write(&mut self, p: &PointsBatch) -> io::Result<()> {
         if self.point_count == 0 {
             self.create_header(
@@ -494,6 +498,10 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
 }
 
 impl NodeWriter<Point> for PlyNodeWriter {
+    fn from(filename: impl Into<PathBuf>, _: Encoding) -> Self {
+        Self::new(filename)
+    }
+
     fn write(&mut self, p: &Point) -> io::Result<()> {
         if self.point_count == 0 {
             let mut attributes = vec![("color", "uchar", 3)];
@@ -534,8 +542,8 @@ impl Drop for PlyNodeWriter {
 }
 
 impl PlyNodeWriter {
-    pub fn new(filename: impl AsRef<Path>) -> Self {
-        let writer = DataWriter::new(filename.as_ref()).unwrap();
+    fn new(filename: impl Into<PathBuf>) -> Self {
+        let writer = DataWriter::new(filename).unwrap();
         Self {
             writer,
             point_count: 0,

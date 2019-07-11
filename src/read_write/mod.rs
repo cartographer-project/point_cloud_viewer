@@ -14,11 +14,11 @@
 
 mod codec;
 pub use self::codec::{
-    decode, encode, fixpoint_decode, fixpoint_encode, vec3_encode, vec3_fixpoint_encode,
+    decode, encode, fixpoint_decode, fixpoint_encode, vec3_encode, vec3_fixpoint_encode, Encoding,
 };
 
-mod cube;
-pub use self::cube::{CubeNodeReader, CubeNodeWriter};
+mod raw;
+pub use self::raw::{RawNodeReader, RawNodeWriter};
 
 mod input_file_iterator;
 pub use self::input_file_iterator::{make_stream, InputFile, InputFileIterator};
@@ -34,6 +34,3 @@ pub use self::ply::{PlyIterator, PlyNodeWriter};
 
 mod pts;
 pub use self::pts::PtsIterator;
-
-mod raw;
-pub use self::raw::RawNodeWriter;
