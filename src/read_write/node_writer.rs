@@ -13,31 +13,49 @@
 // limitations under the License.
 
 use crate::color::Color;
-use crate::read_write::Encoding;
+use crate::read_write::{vec3_encode, vec3_fixpoint_encode, Encoding, PositionEncoding};
 use crate::AttributeData;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use cgmath::Vector3;
-use std::fs::{remove_file, File};
+use std::fs::{remove_file, File, OpenOptions};
 use std::io::{BufWriter, Result, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum OpenMode {
+    Truncate,
+    Append,
+}
+
 pub struct DataWriter {
     inner: BufWriter<File>,
-    bytes_written: usize,
+    bytes_written: u64,
     path: PathBuf,
 }
 
 impl DataWriter {
-    pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
+    pub fn new(path: impl Into<PathBuf>, open_mode: OpenMode) -> Result<Self> {
         let path = path.into();
-        File::create(&path).map(|w| DataWriter {
-            inner: BufWriter::new(w),
-            bytes_written: 0,
+        let mut inner = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(open_mode == OpenMode::Truncate)
+            .open(&path)
+            .map(BufWriter::new)?;
+        let bytes_written = inner.seek(SeekFrom::End(0))?;
+        Ok(DataWriter {
+            inner,
+            bytes_written,
             path,
         })
     }
 
-    pub fn bytes_written(&self) -> usize {
+    pub fn get_mut(&mut self) -> &mut BufWriter<File> {
+        &mut self.inner
+    }
+
+    pub fn bytes_written(&self) -> u64 {
         self.bytes_written
     }
 }
@@ -46,7 +64,7 @@ impl Write for DataWriter {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         let res = self.inner.write(buf);
         if let Ok(size) = res {
-            self.bytes_written += size;
+            self.bytes_written += size as u64;
         }
         res
     }
@@ -197,7 +215,74 @@ impl WriteLEPos for AttributeData {
     }
 }
 
+pub trait WriteLEEncoded {
+    fn write_le_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()>;
+}
+
+impl WriteLEEncoded for Vector3<f64> {
+    fn write_le_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()> {
+        match encoding {
+            Encoding::Plain => self.write_le(writer),
+            Encoding::ScaledToCube(min, edge_length, position_encoding) => {
+                // Note that due to floating point rounding errors while calculating bounding boxes, it
+                // could be here that 'p' is not quite inside the bounding box of our node.
+                match position_encoding {
+                    PositionEncoding::Uint8 => {
+                        vec3_fixpoint_encode::<u8>(self, min, *edge_length).write_le(writer)
+                    }
+                    PositionEncoding::Uint16 => {
+                        vec3_fixpoint_encode::<u16>(self, min, *edge_length).write_le(writer)
+                    }
+                    PositionEncoding::Float32 => {
+                        vec3_encode::<f32>(self, min, *edge_length).write_le(writer)
+                    }
+                    PositionEncoding::Float64 => {
+                        vec3_encode::<f64>(self, min, *edge_length).write_le(writer)
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl WriteLEEncoded for Vec<Vector3<f64>> {
+    fn write_le_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()> {
+        match encoding {
+            Encoding::Plain => self.write_le(writer),
+            Encoding::ScaledToCube(min, edge_length, position_encoding) => {
+                // Note that due to floating point rounding errors while calculating bounding boxes, it
+                // could be here that 'p' is not quite inside the bounding box of our node.
+                match position_encoding {
+                    PositionEncoding::Uint8 => {
+                        for position in self {
+                            vec3_fixpoint_encode::<u8>(position, min, *edge_length)
+                                .write_le(writer)?;
+                        }
+                    }
+                    PositionEncoding::Uint16 => {
+                        for position in self {
+                            vec3_fixpoint_encode::<u16>(position, min, *edge_length)
+                                .write_le(writer)?;
+                        }
+                    }
+                    PositionEncoding::Float32 => {
+                        for position in self {
+                            vec3_encode::<f32>(position, min, *edge_length).write_le(writer)?;
+                        }
+                    }
+                    PositionEncoding::Float64 => {
+                        for position in self {
+                            vec3_encode::<f64>(position, min, *edge_length).write_le(writer)?;
+                        }
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 pub trait NodeWriter<P> {
-    fn from(path: impl Into<PathBuf>, codec: Encoding) -> Self;
+    fn from(path: impl Into<PathBuf>, codec: Encoding, open_mode: OpenMode) -> Self;
     fn write(&mut self, p: &P) -> Result<()>;
 }

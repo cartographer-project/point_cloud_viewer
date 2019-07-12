@@ -1,44 +1,53 @@
-use crate::read_write::{Encoding, NodeWriter};
+use crate::read_write::{Encoding, NodeWriter, OpenMode};
 use crate::s2_geo::{cell_id, ECEFExt};
 use crate::{AttributeData, PointsBatch};
-use std::collections::{BTreeMap, HashMap};
+use lru::LruCache;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Result;
 use std::path::PathBuf;
 
+const MAX_NUM_NODE_WRITERS: usize = 25;
+const S2_SPLIT_LEVEL: u8 = 20;
+
 pub struct S2Splitter<W> {
-    writers: HashMap<String, W>,
+    writers: LruCache<String, W>,
+    already_opened_writers: HashSet<String>,
+    encoding: Encoding,
+    open_mode: OpenMode,
     stem: PathBuf,
-    split_level: u8,
 }
 
-impl<W> S2Splitter<W>
+impl<W> NodeWriter<PointsBatch> for S2Splitter<W>
 where
     W: NodeWriter<PointsBatch>,
 {
-    pub fn new(path: impl Into<PathBuf>, split_level: u8) -> Self {
-        let writers = HashMap::new();
+    fn from(path: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
+        let writers = LruCache::new(MAX_NUM_NODE_WRITERS);
+        let already_opened_writers = HashSet::new();
         let stem = path.into();
         S2Splitter {
             writers,
+            already_opened_writers,
+            encoding,
+            open_mode,
             stem,
-            split_level,
         }
     }
 
-    pub fn write(&mut self, points_batch: &PointsBatch) -> Result<()> {
-        let mut out = HashMap::new();
+    fn write(&mut self, points_batch: &PointsBatch) -> Result<()> {
+        let mut batches_by_s2_cell = HashMap::new();
         for (i, pos) in points_batch.position.iter().enumerate() {
-            let out_batch = out
-                .entry(cell_id(ECEFExt::from(*pos), self.split_level).to_token())
+            let s2_cell_batch = batches_by_s2_cell
+                .entry(cell_id(ECEFExt::from(*pos), S2_SPLIT_LEVEL).to_token())
                 .or_insert(PointsBatch {
                     position: Vec::new(),
                     attributes: BTreeMap::new(),
                 });
-            out_batch.position.push(*pos);
+            s2_cell_batch.position.push(*pos);
             for (in_key, in_data) in &points_batch.attributes {
                 use AttributeData::*;
                 let key = in_key.to_string();
-                out_batch
+                s2_cell_batch
                     .attributes
                     .entry(key)
                     .and_modify(|out_data| match (in_data, out_data) {
@@ -61,16 +70,32 @@ where
             }
         }
 
-        for (key, batch) in &out {
+        for (key, batch) in &batches_by_s2_cell {
             self.writer(key).write(batch)?;
         }
         Ok(())
     }
+}
 
+impl<W> S2Splitter<W>
+where
+    W: NodeWriter<PointsBatch>,
+{
     fn writer(&mut self, key: &str) -> &mut W {
-        let path = self.stem.join(key.to_string());
-        self.writers
-            .entry(key.to_string())
-            .or_insert_with(|| W::from(path, Encoding::Plain))
+        let key = key.to_string();
+        let path = self.stem.join(key.clone());
+        if !self.writers.contains(&key) {
+            let open_mode = if self.open_mode == OpenMode::Append
+                || self.already_opened_writers.contains(&key)
+            {
+                OpenMode::Append
+            } else {
+                self.already_opened_writers.insert(key.clone());
+                OpenMode::Truncate
+            };
+            self.writers
+                .put(key.clone(), W::from(path, self.encoding.clone(), open_mode));
+        }
+        self.writers.get_mut(&key).unwrap()
     }
 }

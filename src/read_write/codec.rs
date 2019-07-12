@@ -71,6 +71,7 @@ impl PositionEncoding {
     }
 }
 
+#[derive(Clone)]
 pub enum Encoding {
     Plain,
     ScaledToCube(Vector3<f64>, f64, PositionEncoding),
