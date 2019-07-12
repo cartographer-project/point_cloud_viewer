@@ -6,7 +6,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Result;
 use std::path::PathBuf;
 
+// The actual number of underlying writers is MAX_NUM_NODE_WRITERS * num_attributes.
 const MAX_NUM_NODE_WRITERS: usize = 25;
+// Corresponds to cells of up to about 10m x 10m.
 const S2_SPLIT_LEVEL: u8 = 20;
 
 pub struct S2Splitter<W> {
