@@ -667,16 +667,6 @@ mod tests {
                 ply_writer.write(&p).unwrap();
             });
         }
-        PlyIterator::from_file(file_path_gt)
-            .unwrap()
-            .zip(PlyIterator::from_file(&file_path_test).unwrap())
-            .for_each(|(gt, test)| {
-                assert_eq!(gt.position, test.position);
-                assert_eq!(gt.color, test.color);
-                // All intensities in this file are NaN, but set.
-                assert_eq!(gt.intensity.is_some(), test.intensity.is_some());
-            });
-
         // Now append to the file
         {
             let mut ply_writer =
