@@ -19,7 +19,7 @@ version = "0.1.0"
 edition = "2018"
 
 [build-dependencies]
-gl_generator = "0.8.0"
+gl_generator = "0.13.0"
 
 [dependencies]
 cgmath = "0.17.0"

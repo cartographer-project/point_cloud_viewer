@@ -31,8 +31,6 @@ mod glhelper;
     clippy::unused_unit
 )]
 pub mod opengl {
-    // TODO(feuerste): Remove once a fully compatible version of gl-generator is available!
-    #![allow(bare_trait_objects)]
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 pub mod box_drawer;
