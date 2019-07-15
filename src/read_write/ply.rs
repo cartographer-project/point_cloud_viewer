@@ -460,7 +460,7 @@ pub struct PlyNodeWriter {
 }
 
 impl NodeWriter<PointsBatch> for PlyNodeWriter {
-    fn from(filename: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
+    fn new(filename: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
         Self::new(filename, encoding, open_mode)
     }
 
@@ -501,7 +501,7 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
 }
 
 impl NodeWriter<Point> for PlyNodeWriter {
-    fn from(filename: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
+    fn new(filename: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
         Self::new(filename, encoding, open_mode)
     }
 

@@ -23,7 +23,7 @@ impl<W> NodeWriter<PointsBatch> for S2Splitter<W>
 where
     W: NodeWriter<PointsBatch>,
 {
-    fn from(path: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
+    fn new(path: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
         let writers = LruCache::new(MAX_NUM_NODE_WRITERS);
         let already_opened_writers = HashSet::new();
         let stem = path.into();
@@ -96,7 +96,7 @@ where
                 OpenMode::Truncate
             };
             self.writers
-                .put(key.clone(), W::from(path, self.encoding.clone(), open_mode));
+                .put(key.clone(), W::new(path, self.encoding.clone(), open_mode));
         }
         self.writers.get_mut(&key).unwrap()
     }
