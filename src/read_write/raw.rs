@@ -16,8 +16,8 @@ use crate::color;
 use crate::errors::*;
 use crate::math::Cube;
 use crate::read_write::{
-    decode, fixpoint_decode, vec3_encode, vec3_fixpoint_encode, DataWriter, Encoding, NodeReader,
-    NodeWriter, PositionEncoding, WriteLE,
+    decode, fixpoint_decode, DataWriter, Encoding, NodeReader, NodeWriter, OpenMode,
+    PositionEncoding, WriteEncoded, WriteLE,
 };
 use crate::{attribute_extension, Point, PointsBatch};
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -155,52 +155,23 @@ pub struct RawNodeWriter {
     attribute_writers: Vec<DataWriter>,
     stem: PathBuf,
     encoding: Encoding,
+    open_mode: OpenMode,
 }
 
 impl NodeWriter<PointsBatch> for RawNodeWriter {
-    fn from(path: impl Into<PathBuf>, encoding: Encoding) -> Self {
-        Self::new(path, encoding)
+    fn from(path: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
+        Self::new(path, encoding, open_mode)
     }
 
     fn write(&mut self, p: &PointsBatch) -> io::Result<()> {
-        match &self.encoding {
-            Encoding::Plain => p.position.write_le(&mut self.xyz_writer)?,
-            Encoding::ScaledToCube(min, edge_length, position_encoding) => {
-                // Note that due to floating point rounding errors while calculating bounding boxes, it
-                // could be here that 'p' is not quite inside the bounding box of our node.
-                match position_encoding {
-                    PositionEncoding::Uint8 => {
-                        for position in &p.position {
-                            vec3_fixpoint_encode::<u8>(position, min, *edge_length)
-                                .write_le(&mut self.xyz_writer)?;
-                        }
-                    }
-                    PositionEncoding::Uint16 => {
-                        for position in &p.position {
-                            vec3_fixpoint_encode::<u16>(position, min, *edge_length)
-                                .write_le(&mut self.xyz_writer)?;
-                        }
-                    }
-                    PositionEncoding::Float32 => {
-                        for position in &p.position {
-                            vec3_encode::<f32>(position, min, *edge_length)
-                                .write_le(&mut self.xyz_writer)?;
-                        }
-                    }
-                    PositionEncoding::Float64 => {
-                        for position in &p.position {
-                            vec3_encode::<f64>(position, min, *edge_length)
-                                .write_le(&mut self.xyz_writer)?;
-                        }
-                    }
-                }
-            }
-        }
+        p.position
+            .write_encoded(&self.encoding, &mut self.xyz_writer)?;
 
         if self.attribute_writers.is_empty() {
             for name in p.attributes.keys() {
                 self.attribute_writers.push(DataWriter::new(
                     &self.stem.with_extension(attribute_extension(&name)),
+                    self.open_mode,
                 )?)
             }
         }
@@ -214,44 +185,23 @@ impl NodeWriter<PointsBatch> for RawNodeWriter {
 }
 
 impl NodeWriter<Point> for RawNodeWriter {
-    fn from(path: impl Into<PathBuf>, encoding: Encoding) -> Self {
-        Self::new(path, encoding)
+    fn from(path: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
+        Self::new(path, encoding, open_mode)
     }
 
     fn write(&mut self, p: &Point) -> io::Result<()> {
-        match &self.encoding {
-            Encoding::Plain => p.position.write_le(&mut self.xyz_writer)?,
-            Encoding::ScaledToCube(min, edge_length, position_encoding) => {
-                // Note that due to floating point rounding errors while calculating bounding boxes, it
-                // could be here that 'p' is not quite inside the bounding box of our node.
-                match position_encoding {
-                    PositionEncoding::Uint8 => {
-                        vec3_fixpoint_encode::<u8>(&p.position, min, *edge_length)
-                            .write_le(&mut self.xyz_writer)?;
-                    }
-                    PositionEncoding::Uint16 => {
-                        vec3_fixpoint_encode::<u16>(&p.position, min, *edge_length)
-                            .write_le(&mut self.xyz_writer)?;
-                    }
-                    PositionEncoding::Float32 => {
-                        vec3_encode::<f32>(&p.position, min, *edge_length)
-                            .write_le(&mut self.xyz_writer)?;
-                    }
-                    PositionEncoding::Float64 => {
-                        vec3_encode::<f64>(&p.position, min, *edge_length)
-                            .write_le(&mut self.xyz_writer)?;
-                    }
-                }
-            }
-        }
+        p.position
+            .write_encoded(&self.encoding, &mut self.xyz_writer)?;
 
         if self.attribute_writers.is_empty() {
             self.attribute_writers.push(DataWriter::new(
                 &self.stem.with_extension(attribute_extension("color")),
+                self.open_mode,
             )?);
             if p.intensity.is_some() {
                 self.attribute_writers.push(DataWriter::new(
                     &self.stem.with_extension(attribute_extension("intensity")),
+                    self.open_mode,
                 )?);
             }
         }
@@ -265,24 +215,28 @@ impl NodeWriter<Point> for RawNodeWriter {
 }
 
 impl RawNodeWriter {
-    pub fn new(path: impl Into<PathBuf>, encoding: Encoding) -> Self {
+    pub fn new(path: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
         let stem: PathBuf = path.into();
-        let xyz_writer =
-            DataWriter::new(&stem.with_extension(attribute_extension("position"))).unwrap();
+        let xyz_writer = DataWriter::new(
+            &stem.with_extension(attribute_extension("position")),
+            open_mode,
+        )
+        .unwrap();
         let attribute_writers = Vec::new();
         Self {
             xyz_writer,
             attribute_writers,
             stem,
             encoding,
+            open_mode,
         }
     }
 
     pub fn num_written(&self) -> i64 {
         let bytes_per_coordinate = match &self.encoding {
-            Encoding::Plain => 8,
+            Encoding::Plain => std::mem::size_of::<f64>(),
             Encoding::ScaledToCube(_, _, pos_enc) => pos_enc.bytes_per_coordinate(),
-        };
-        (self.xyz_writer.bytes_written() / bytes_per_coordinate / 3) as i64
+        } as i64;
+        (self.xyz_writer.bytes_written() as i64 / bytes_per_coordinate / 3)
     }
 }

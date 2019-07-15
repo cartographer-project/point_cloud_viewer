@@ -14,16 +14,18 @@
 
 use crate::color;
 use crate::errors::*;
-use crate::read_write::{DataWriter, Encoding, NodeWriter, WriteLE, WriteLEPos};
+use crate::read_write::{
+    DataWriter, Encoding, NodeWriter, OpenMode, PositionEncoding, WriteEncoded, WriteLE, WriteLEPos,
+};
 use crate::{AttributeData, Point, PointsBatch};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
+use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::ops::Index;
 use std::path::{Path, PathBuf};
-use std::str;
+use std::str::{from_utf8, FromStr};
 
 const HEADER_START_TO_NUM_VERTICES: &[u8] =
     b"ply\nformat binary_little_endian 1.0\nelement vertex ";
@@ -454,11 +456,12 @@ impl Iterator for PlyIterator {
 pub struct PlyNodeWriter {
     writer: DataWriter,
     point_count: usize,
+    encoding: Encoding,
 }
 
 impl NodeWriter<PointsBatch> for PlyNodeWriter {
-    fn from(filename: impl Into<PathBuf>, _: Encoding) -> Self {
-        Self::new(filename)
+    fn from(filename: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
+        Self::new(filename, encoding, open_mode)
     }
 
     fn write(&mut self, p: &PointsBatch) -> io::Result<()> {
@@ -485,7 +488,7 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
         }
 
         for (i, pos) in p.position.iter().enumerate() {
-            pos.write_le(&mut self.writer)?;
+            pos.write_encoded(&self.encoding, &mut self.writer)?;
             for data in p.attributes.values() {
                 data.write_le_pos(i, &mut self.writer)?;
             }
@@ -498,8 +501,8 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
 }
 
 impl NodeWriter<Point> for PlyNodeWriter {
-    fn from(filename: impl Into<PathBuf>, _: Encoding) -> Self {
-        Self::new(filename)
+    fn from(filename: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
+        Self::new(filename, encoding, open_mode)
     }
 
     fn write(&mut self, p: &Point) -> io::Result<()> {
@@ -511,7 +514,7 @@ impl NodeWriter<Point> for PlyNodeWriter {
             self.create_header(&attributes)?;
         }
 
-        p.position.write_le(&mut self.writer)?;
+        p.position.write_encoded(&self.encoding, &mut self.writer)?;
         p.color.write_le(&mut self.writer)?;
         if let Some(i) = p.intensity {
             i.write_le(&mut self.writer)?;
@@ -525,6 +528,9 @@ impl NodeWriter<Point> for PlyNodeWriter {
 
 impl Drop for PlyNodeWriter {
     fn drop(&mut self) {
+        if self.point_count == 0 {
+            return;
+        }
         self.writer.write_all(b"\n").unwrap();
         if self
             .writer
@@ -542,11 +548,31 @@ impl Drop for PlyNodeWriter {
 }
 
 impl PlyNodeWriter {
-    pub fn new(filename: impl Into<PathBuf>) -> Self {
-        let writer = DataWriter::new(filename).unwrap();
+    pub fn new(filename: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
+        let filename = filename.into();
+        let mut point_count = 0;
+        if open_mode == OpenMode::Append {
+            if let Ok(mut file) = File::open(&filename) {
+                if file.metadata().unwrap().len()
+                    >= HEADER_START_TO_NUM_VERTICES.len() as u64 + HEADER_NUM_VERTICES.len() as u64
+                {
+                    file.seek(SeekFrom::Start(HEADER_START_TO_NUM_VERTICES.len() as u64))
+                        .unwrap();
+                    let mut buf = vec![0; HEADER_NUM_VERTICES.len()];
+                    file.read_exact(&mut buf).unwrap();
+                    point_count = usize::from_str(from_utf8(&buf).unwrap()).unwrap();
+                }
+            }
+        }
+        let mut writer = DataWriter::new(filename, open_mode).unwrap();
+        if point_count > 0 {
+            // Our ply files always have a newline at the end.
+            writer.seek(SeekFrom::End(-1)).unwrap();
+        }
         Self {
             writer,
-            point_count: 0,
+            point_count,
+            encoding,
         }
     }
 
@@ -554,9 +580,19 @@ impl PlyNodeWriter {
         self.writer.write_all(HEADER_START_TO_NUM_VERTICES)?;
         self.writer.write_all(HEADER_NUM_VERTICES)?;
         self.writer.write_all(b"\n")?;
-        self.writer.write_all(b"property double x\n")?;
-        self.writer.write_all(b"property double y\n")?;
-        self.writer.write_all(b"property double z\n")?;
+        let pos_data_str = match &self.encoding {
+            Encoding::Plain => "double",
+            Encoding::ScaledToCube(_, _, pos_enc) => match pos_enc {
+                PositionEncoding::Uint8 => "uchar",
+                PositionEncoding::Uint16 => "ushort",
+                PositionEncoding::Float32 => "float",
+                PositionEncoding::Float64 => "double",
+            },
+        };
+        for pos in &["x", "y", "z"] {
+            let prop = &["property", " ", pos_data_str, " ", pos, "\n"].concat();
+            self.writer.write_all(&prop.as_bytes())?;
+        }
         for (name, data_str, num_properties) in elements {
             match &name[..] {
                 "color" => {
@@ -637,18 +673,29 @@ mod tests {
         let file_path_test = tmp_dir.path().join("out.ply");
         let file_path_gt = "src/test_data/xyz_f32_rgb_u8_intensity_f32.ply";
         {
-            let mut ply_writer = PlyNodeWriter::new(&file_path_test);
+            let mut ply_writer =
+                PlyNodeWriter::new(&file_path_test, Encoding::Plain, OpenMode::Truncate);
             PlyIterator::from_file(file_path_gt).unwrap().for_each(|p| {
                 ply_writer.write(&p).unwrap();
             });
         }
-        let ply_gt = PlyIterator::from_file(file_path_gt).unwrap();
-        let ply_test = PlyIterator::from_file(&file_path_test).unwrap();
-        ply_gt.zip(ply_test).for_each(|(gt, test)| {
-            assert_eq!(gt.position, test.position);
-            assert_eq!(gt.color, test.color);
-            // All intensities in this file are NaN, but set.
-            assert_eq!(gt.intensity.is_some(), test.intensity.is_some());
-        });
+        // Now append to the file
+        {
+            let mut ply_writer =
+                PlyNodeWriter::new(&file_path_test, Encoding::Plain, OpenMode::Append);
+            PlyIterator::from_file(file_path_gt).unwrap().for_each(|p| {
+                ply_writer.write(&p).unwrap();
+            });
+        }
+        PlyIterator::from_file(file_path_gt)
+            .unwrap()
+            .chain(PlyIterator::from_file(file_path_gt).unwrap())
+            .zip(PlyIterator::from_file(&file_path_test).unwrap())
+            .for_each(|(gt, test)| {
+                assert_eq!(gt.position, test.position);
+                assert_eq!(gt.color, test.color);
+                // All intensities in this file are NaN, but set.
+                assert_eq!(gt.intensity.is_some(), test.intensity.is_some());
+            });
     }
 }

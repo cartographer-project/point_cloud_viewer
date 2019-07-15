@@ -25,7 +25,7 @@ mod node_iterator;
 pub use self::node_iterator::{NodeIterator, NodeReader};
 
 mod node_writer;
-pub use self::node_writer::{DataWriter, NodeWriter, WriteLE, WriteLEPos};
+pub use self::node_writer::{DataWriter, NodeWriter, OpenMode, WriteEncoded, WriteLE, WriteLEPos};
 
 mod ply;
 pub use self::ply::{PlyIterator, PlyNodeWriter};
@@ -35,3 +35,6 @@ pub use self::pts::PtsIterator;
 
 mod raw;
 pub use self::raw::{RawNodeReader, RawNodeWriter};
+
+mod s2;
+pub use self::s2::S2Splitter;

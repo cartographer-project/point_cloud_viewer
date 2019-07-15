@@ -1,3 +1,4 @@
+use cgmath::Vector3;
 use nav_types::{ECEF, ENU, WGS84};
 use s2::cellid::CellID;
 use s2::latlng::LatLng;
@@ -8,21 +9,31 @@ use std::vec::Vec;
 
 const LEVEL_MOD: u8 = 1;
 
+pub trait ECEFExt<N> {
+    fn from(self) -> ECEF<N>;
+}
+
+impl<N> ECEFExt<N> for Vector3<N> {
+    fn from(self) -> ECEF<N> {
+        ECEF::new(self.x, self.y, self.z)
+    }
+}
+
 trait LatLngExt {
-    fn from(_: Self) -> LatLng;
+    fn from(self) -> LatLng;
 }
 
 impl LatLngExt for WGS84<f64> {
-    fn from(wgs: Self) -> LatLng {
-        let lat = Angle::from(Rad(wgs.latitude()));
-        let lng = Angle::from(Rad(wgs.longitude()));
+    fn from(self) -> LatLng {
+        let lat = Angle::from(Rad(self.latitude()));
+        let lng = Angle::from(Rad(self.longitude()));
         LatLng::new(lat, lng)
     }
 }
 
 impl LatLngExt for ECEF<f64> {
-    fn from(ecef: Self) -> LatLng {
-        LatLngExt::from(std::convert::Into::<WGS84<f64>>::into(ecef))
+    fn from(self) -> LatLng {
+        LatLngExt::from(std::convert::Into::<WGS84<f64>>::into(self))
     }
 }
 

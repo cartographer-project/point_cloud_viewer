@@ -17,7 +17,7 @@ use crate::opengl;
 use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use cgmath::{Array, Matrix, Matrix4};
 use fnv::FnvHashSet;
-use lru_cache::LruCache;
+use lru::LruCache;
 use point_viewer::octree;
 use point_viewer::read_write::PositionEncoding;
 use rand::{thread_rng, Rng};
@@ -296,7 +296,7 @@ impl NodeViewContainer {
             // Put loaded node into hash map.
             self.requested.remove(&node_id);
             self.node_views
-                .insert(node_id, NodeView::new(node_drawer, node_data));
+                .put(node_id, NodeView::new(node_drawer, node_data));
             consumed_any = true;
         }
         consumed_any
@@ -305,7 +305,7 @@ impl NodeViewContainer {
     // Returns the 'NodeView' for 'node_id' if it is already loaded, otherwise returns None, but
     // requested the node for loading in the I/O thread
     pub fn get_or_request(&mut self, node_id: &octree::NodeId) -> Option<&NodeView> {
-        if self.node_views.contains_key(node_id) {
+        if self.node_views.contains(node_id) {
             return self.node_views.get_mut(node_id).map(|f| f as &NodeView);
         }
 
@@ -320,7 +320,7 @@ impl NodeViewContainer {
 
     pub fn request_all(&mut self, node_ids: &[octree::NodeId]) {
         for &node_id in node_ids {
-            if !self.node_views.contains_key(&node_id) && !self.requested.contains(&node_id) {
+            if !self.node_views.contains(&node_id) && !self.requested.contains(&node_id) {
                 self.requested.insert(node_id);
                 self.node_id_sender.send(node_id).unwrap();
             }

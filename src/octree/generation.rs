@@ -19,7 +19,8 @@ use crate::octree::{
 };
 use crate::proto;
 use crate::read_write::{
-    make_stream, Encoding, InputFile, NodeIterator, NodeWriter, PositionEncoding, RawNodeWriter,
+    make_stream, Encoding, InputFile, NodeIterator, NodeWriter, OpenMode, PositionEncoding,
+    RawNodeWriter,
 };
 use crate::Point;
 use cgmath::{EuclideanSpace, Point3, Vector3};
@@ -54,6 +55,7 @@ impl RawNodeWriter {
                 bounding_cube.edge_length(),
                 position_encoding,
             ),
+            OpenMode::Truncate,
         )
     }
 }
