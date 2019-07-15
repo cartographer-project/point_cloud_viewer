@@ -17,7 +17,7 @@ use crate::errors::*;
 use crate::math::Cube;
 use crate::read_write::{
     decode, fixpoint_decode, DataWriter, Encoding, NodeReader, NodeWriter, OpenMode,
-    PositionEncoding, WriteLE, WriteLEEncoded,
+    PositionEncoding, WriteEncoded, WriteLE,
 };
 use crate::{attribute_extension, Point, PointsBatch};
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -165,7 +165,7 @@ impl NodeWriter<PointsBatch> for RawNodeWriter {
 
     fn write(&mut self, p: &PointsBatch) -> io::Result<()> {
         p.position
-            .write_le_encoded(&self.encoding, &mut self.xyz_writer)?;
+            .write_encoded(&self.encoding, &mut self.xyz_writer)?;
 
         if self.attribute_writers.is_empty() {
             for name in p.attributes.keys() {
@@ -191,7 +191,7 @@ impl NodeWriter<Point> for RawNodeWriter {
 
     fn write(&mut self, p: &Point) -> io::Result<()> {
         p.position
-            .write_le_encoded(&self.encoding, &mut self.xyz_writer)?;
+            .write_encoded(&self.encoding, &mut self.xyz_writer)?;
 
         if self.attribute_writers.is_empty() {
             self.attribute_writers.push(DataWriter::new(

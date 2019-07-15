@@ -215,12 +215,12 @@ impl WriteLEPos for AttributeData {
     }
 }
 
-pub trait WriteLEEncoded {
-    fn write_le_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()>;
+pub trait WriteEncoded {
+    fn write_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()>;
 }
 
-impl WriteLEEncoded for Vector3<f64> {
-    fn write_le_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()> {
+impl WriteEncoded for Vector3<f64> {
+    fn write_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()> {
         match encoding {
             Encoding::Plain => self.write_le(writer),
             Encoding::ScaledToCube(min, edge_length, position_encoding) => {
@@ -245,8 +245,8 @@ impl WriteLEEncoded for Vector3<f64> {
     }
 }
 
-impl WriteLEEncoded for Vec<Vector3<f64>> {
-    fn write_le_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()> {
+impl WriteEncoded for Vec<Vector3<f64>> {
+    fn write_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()> {
         match encoding {
             Encoding::Plain => self.write_le(writer),
             Encoding::ScaledToCube(min, edge_length, position_encoding) => {

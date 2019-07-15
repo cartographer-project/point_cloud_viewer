@@ -15,8 +15,7 @@
 use crate::color;
 use crate::errors::*;
 use crate::read_write::{
-    DataWriter, Encoding, NodeWriter, OpenMode, PositionEncoding, WriteLE, WriteLEEncoded,
-    WriteLEPos,
+    DataWriter, Encoding, NodeWriter, OpenMode, PositionEncoding, WriteEncoded, WriteLE, WriteLEPos,
 };
 use crate::{AttributeData, Point, PointsBatch};
 use byteorder::{ByteOrder, LittleEndian};
@@ -489,7 +488,7 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
         }
 
         for (i, pos) in p.position.iter().enumerate() {
-            pos.write_le_encoded(&self.encoding, &mut self.writer)?;
+            pos.write_encoded(&self.encoding, &mut self.writer)?;
             for data in p.attributes.values() {
                 data.write_le_pos(i, &mut self.writer)?;
             }
@@ -515,8 +514,7 @@ impl NodeWriter<Point> for PlyNodeWriter {
             self.create_header(&attributes)?;
         }
 
-        p.position
-            .write_le_encoded(&self.encoding, &mut self.writer)?;
+        p.position.write_encoded(&self.encoding, &mut self.writer)?;
         p.color.write_le(&mut self.writer)?;
         if let Some(i) = p.intensity {
             i.write_le(&mut self.writer)?;
