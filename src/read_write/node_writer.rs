@@ -37,7 +37,6 @@ impl DataWriter {
     pub fn new(path: impl Into<PathBuf>, open_mode: OpenMode) -> Result<Self> {
         let path = path.into();
         let mut inner = OpenOptions::new()
-            .read(true)
             .write(true)
             .create(true)
             .truncate(open_mode == OpenMode::Truncate)
@@ -49,10 +48,6 @@ impl DataWriter {
             bytes_written,
             path,
         })
-    }
-
-    pub fn get_mut(&mut self) -> &mut BufWriter<File> {
-        &mut self.inner
     }
 
     pub fn bytes_written(&self) -> u64 {

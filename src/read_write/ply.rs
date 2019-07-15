@@ -532,76 +532,90 @@ impl Drop for PlyNodeWriter {
             return;
         }
         self.writer.write_all(b"\n").unwrap();
-        self.writer.flush().unwrap();
-
-        let mut file = self.writer.get_mut().get_mut();
-        file.seek(SeekFrom::Start(HEADER_START_TO_NUM_VERTICES.len() as u64))
-            .unwrap();
-        let buf_len = HEADER_NUM_VERTICES.len();
-        let mut buf = vec![0; buf_len];
-        file.read_exact(&mut buf).unwrap();
-        let num_vertices = self.point_count + usize::from_str(from_utf8(&buf).unwrap()).unwrap();
-        file.seek(SeekFrom::Current(-(buf_len as i64))).unwrap();
-        write!(&mut file, "{:0width$}", num_vertices, width = buf_len).unwrap();
+        if self
+            .writer
+            .seek(SeekFrom::Start(HEADER_START_TO_NUM_VERTICES.len() as u64))
+            .is_ok()
+        {
+            let _res = write!(
+                &mut self.writer,
+                "{:0width$}",
+                self.point_count,
+                width = HEADER_NUM_VERTICES.len()
+            );
+        }
     }
 }
 
 impl PlyNodeWriter {
     pub fn new(filename: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
-        let writer = DataWriter::new(filename, open_mode).unwrap();
+        let filename = filename.into();
+        let mut point_count = 0;
+        if open_mode == OpenMode::Append {
+            if let Ok(mut file) = File::open(&filename) {
+                if file.metadata().unwrap().len()
+                    >= HEADER_START_TO_NUM_VERTICES.len() as u64 + HEADER_NUM_VERTICES.len() as u64
+                {
+                    file.seek(SeekFrom::Start(HEADER_START_TO_NUM_VERTICES.len() as u64))
+                        .unwrap();
+                    let mut buf = vec![0; HEADER_NUM_VERTICES.len()];
+                    file.read_exact(&mut buf).unwrap();
+                    point_count = usize::from_str(from_utf8(&buf).unwrap()).unwrap();
+                }
+            }
+        }
+        let mut writer = DataWriter::new(filename, open_mode).unwrap();
+        if point_count > 0 {
+            // Our ply files always have a newline at the end.
+            writer.seek(SeekFrom::End(-1)).unwrap();
+        }
         Self {
             writer,
-            point_count: 0,
+            point_count,
             encoding,
         }
     }
 
     fn create_header(&mut self, elements: &[(&str, &str, usize)]) -> io::Result<()> {
-        if self.writer.bytes_written() == 0 {
-            self.writer.write_all(HEADER_START_TO_NUM_VERTICES)?;
-            self.writer.write_all(HEADER_NUM_VERTICES)?;
-            self.writer.write_all(b"\n")?;
-            let pos_data_str = match &self.encoding {
-                Encoding::Plain => "double",
-                Encoding::ScaledToCube(_, _, pos_enc) => match pos_enc {
-                    PositionEncoding::Uint8 => "uchar",
-                    PositionEncoding::Uint16 => "ushort",
-                    PositionEncoding::Float32 => "float",
-                    PositionEncoding::Float64 => "double",
-                },
-            };
-            for pos in &["x", "y", "z"] {
-                let prop = &["property", " ", pos_data_str, " ", pos, "\n"].concat();
-                self.writer.write_all(&prop.as_bytes())?;
-            }
-            for (name, data_str, num_properties) in elements {
-                match &name[..] {
-                    "color" => {
-                        let colors = ["red", "green", "blue", "alpha"];
-                        for color in colors.iter().take(*num_properties) {
-                            let prop = &["property", " ", data_str, " ", color, "\n"].concat();
-                            self.writer.write_all(&prop.as_bytes())?;
-                        }
-                    }
-                    _ if *num_properties > 1 => {
-                        for i in 0..*num_properties {
-                            let prop =
-                                &["property", " ", data_str, " ", name, &i.to_string(), "\n"]
-                                    .concat();
-                            self.writer.write_all(&prop.as_bytes())?;
-                        }
-                    }
-                    _ => {
-                        let prop = &["property", " ", data_str, " ", name, "\n"].concat();
+        self.writer.write_all(HEADER_START_TO_NUM_VERTICES)?;
+        self.writer.write_all(HEADER_NUM_VERTICES)?;
+        self.writer.write_all(b"\n")?;
+        let pos_data_str = match &self.encoding {
+            Encoding::Plain => "double",
+            Encoding::ScaledToCube(_, _, pos_enc) => match pos_enc {
+                PositionEncoding::Uint8 => "uchar",
+                PositionEncoding::Uint16 => "ushort",
+                PositionEncoding::Float32 => "float",
+                PositionEncoding::Float64 => "double",
+            },
+        };
+        for pos in &["x", "y", "z"] {
+            let prop = &["property", " ", pos_data_str, " ", pos, "\n"].concat();
+            self.writer.write_all(&prop.as_bytes())?;
+        }
+        for (name, data_str, num_properties) in elements {
+            match &name[..] {
+                "color" => {
+                    let colors = ["red", "green", "blue", "alpha"];
+                    for color in colors.iter().take(*num_properties) {
+                        let prop = &["property", " ", data_str, " ", color, "\n"].concat();
                         self.writer.write_all(&prop.as_bytes())?;
                     }
                 }
+                _ if *num_properties > 1 => {
+                    for i in 0..*num_properties {
+                        let prop =
+                            &["property", " ", data_str, " ", name, &i.to_string(), "\n"].concat();
+                        self.writer.write_all(&prop.as_bytes())?;
+                    }
+                }
+                _ => {
+                    let prop = &["property", " ", data_str, " ", name, "\n"].concat();
+                    self.writer.write_all(&prop.as_bytes())?;
+                }
             }
-            self.writer.write_all(b"end_header\n")
-        } else {
-            // Our ply files always have a newline at the end.
-            self.writer.seek(SeekFrom::End(-1)).map(|_| ())
         }
+        self.writer.write_all(b"end_header\n")
     }
 }
 
