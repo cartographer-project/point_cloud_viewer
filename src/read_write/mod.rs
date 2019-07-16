@@ -38,3 +38,5 @@ pub use self::raw::{RawNodeReader, RawNodeWriter};
 
 mod s2;
 pub use self::s2::S2Splitter;
+
+pub const BUFFER_CAPACITY_1MB: usize = 1024 * 1024;

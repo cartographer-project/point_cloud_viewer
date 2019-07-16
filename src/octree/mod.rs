@@ -15,7 +15,7 @@
 use crate::errors::*;
 use crate::math::{Cube, Frustum};
 use crate::proto;
-use crate::read_write::PositionEncoding;
+use crate::read_write::{PositionEncoding, BUFFER_CAPACITY_1MB};
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
@@ -277,7 +277,8 @@ impl Octree {
         let mut position_color_reads = self.data_provider.data(node_id, &["position", "color"])?;
 
         let mut get_data = |node_attribute: &str, err: &str| -> Result<Vec<u8>> {
-            let mut reader = BufReader::new(
+            let mut reader = BufReader::with_capacity(
+                BUFFER_CAPACITY_1MB,
                 position_color_reads
                     .remove(node_attribute)
                     .ok_or_else(|| err)?,
