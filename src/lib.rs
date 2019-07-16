@@ -91,4 +91,4 @@ pub use point_viewer_proto_rust::proto;
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 /// mb for buffers
-pub const MB: usize = 1024 * 1024;
+pub const BUFFER_CAPACITY: usize = 1024 * 1024;

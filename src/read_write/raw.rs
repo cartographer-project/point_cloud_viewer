@@ -19,7 +19,7 @@ use crate::read_write::{
     PositionEncoding, WriteEncoded, WriteLE,
 };
 use crate::{attribute_extension, Point, PointsBatch};
-use crate::{color, MB};
+use crate::{color, BUFFER_CAPACITY};
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
@@ -126,13 +126,13 @@ impl RawNodeReader {
         bounding_cube: Cube,
     ) -> Result<Self> {
         let xyz_reader = BufReader::with_capacity(
-            MB,
+            BUFFER_CAPACITY,
             attributes
                 .remove("position")
                 .ok_or_else(|| "No position reader available.")?,
         );
         let rgb_reader = BufReader::with_capacity(
-            MB,
+            BUFFER_CAPACITY,
             attributes
                 .remove("color")
                 .ok_or_else(|| "No color reader available.")?,
@@ -140,7 +140,7 @@ impl RawNodeReader {
         let mut attribute_readers = vec![rgb_reader];
 
         if let Some(intensity_read) = attributes.remove("intensity") {
-            attribute_readers.push(BufReader::with_capacity(MB, intensity_read));
+            attribute_readers.push(BufReader::with_capacity(BUFFER_CAPACITY, intensity_read));
         };
 
         Ok(Self {

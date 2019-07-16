@@ -16,7 +16,7 @@ use crate::errors::*;
 use crate::math::{Cube, Frustum};
 use crate::proto;
 use crate::read_write::PositionEncoding;
-use crate::MB;
+use crate::BUFFER_CAPACITY;
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
@@ -279,7 +279,7 @@ impl Octree {
 
         let mut get_data = |node_attribute: &str, err: &str| -> Result<Vec<u8>> {
             let mut reader = BufReader::with_capacity(
-                MB,
+                BUFFER_CAPACITY,
                 position_color_reads
                     .remove(node_attribute)
                     .ok_or_else(|| err)?,
