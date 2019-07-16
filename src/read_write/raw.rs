@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{color, MB};
 use crate::errors::*;
 use crate::math::Cube;
 use crate::read_write::{
     decode, fixpoint_decode, DataWriter, Encoding, NodeReader, NodeWriter, OpenMode,
-    PositionEncoding, WriteEncoded, WriteLE
+    PositionEncoding, WriteEncoded, WriteLE,
 };
 use crate::{attribute_extension, Point, PointsBatch};
+use crate::{color, MB};
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
@@ -140,10 +140,7 @@ impl RawNodeReader {
         let mut attribute_readers = vec![rgb_reader];
 
         if let Some(intensity_read) = attributes.remove("intensity") {
-            attribute_readers.push(BufReader::with_capacity(
-                MB,
-                intensity_read,
-            ));
+            attribute_readers.push(BufReader::with_capacity(MB, intensity_read));
         };
 
         Ok(Self {

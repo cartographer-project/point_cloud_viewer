@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{color, MB};
 use crate::errors::*;
 use crate::read_write::{
-    DataWriter, Encoding, NodeWriter, OpenMode, PositionEncoding, WriteEncoded, WriteLE,
-    WriteLEPos,
+    DataWriter, Encoding, NodeWriter, OpenMode, PositionEncoding, WriteEncoded, WriteLE, WriteLEPos,
 };
+use crate::{color, MB};
 use crate::{AttributeData, Point, PointsBatch};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;

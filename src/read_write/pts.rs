@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::color::Color;
-use crate::{MB, Point};
+use crate::{Point, MB};
 use cgmath::Vector3;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
