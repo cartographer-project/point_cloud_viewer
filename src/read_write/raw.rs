@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::color;
+use crate::{color, MB};
 use crate::errors::*;
 use crate::math::Cube;
 use crate::read_write::{
     decode, fixpoint_decode, DataWriter, Encoding, NodeReader, NodeWriter, OpenMode,
-    PositionEncoding, WriteEncoded, WriteLE, BUFFER_CAPACITY_1MB,
+    PositionEncoding, WriteEncoded, WriteLE
 };
 use crate::{attribute_extension, Point, PointsBatch};
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -126,13 +126,13 @@ impl RawNodeReader {
         bounding_cube: Cube,
     ) -> Result<Self> {
         let xyz_reader = BufReader::with_capacity(
-            BUFFER_CAPACITY_1MB,
+            MB,
             attributes
                 .remove("position")
                 .ok_or_else(|| "No position reader available.")?,
         );
         let rgb_reader = BufReader::with_capacity(
-            BUFFER_CAPACITY_1MB,
+            MB,
             attributes
                 .remove("color")
                 .ok_or_else(|| "No color reader available.")?,
@@ -141,7 +141,7 @@ impl RawNodeReader {
 
         if let Some(intensity_read) = attributes.remove("intensity") {
             attribute_readers.push(BufReader::with_capacity(
-                BUFFER_CAPACITY_1MB,
+                MB,
                 intensity_read,
             ));
         };

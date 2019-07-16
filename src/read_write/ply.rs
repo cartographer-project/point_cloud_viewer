@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::color;
+use crate::{color, MB};
 use crate::errors::*;
 use crate::read_write::{
     DataWriter, Encoding, NodeWriter, OpenMode, PositionEncoding, WriteEncoded, WriteLE,
-    WriteLEPos, BUFFER_CAPACITY_1MB,
+    WriteLEPos,
 };
 use crate::{AttributeData, Point, PointsBatch};
 use byteorder::{ByteOrder, LittleEndian};
@@ -298,7 +298,7 @@ pub struct PlyIterator {
 impl PlyIterator {
     pub fn from_file<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
         let mut file = File::open(ply_file).chain_err(|| "Could not open input file.")?;
-        let mut reader = BufReader::with_capacity(BUFFER_CAPACITY_1MB, file);
+        let mut reader = BufReader::with_capacity(MB, file);
         let (header, header_len) = parse_header(&mut reader)?;
         file = reader.into_inner();
         file.seek(SeekFrom::Start(header_len as u64))?;
@@ -405,7 +405,7 @@ impl PlyIterator {
 
         // We align the buffer of this 'BufReader' to points, so that we can index this buffer and know
         // that it will always contain full points to parse. Capacity should be approximately 1MB
-        let num_points_in_mb: usize = BUFFER_CAPACITY_1MB / num_bytes_per_point;
+        let num_points_in_mb: usize = MB / num_bytes_per_point;
 
         Ok(PlyIterator {
             reader: BufReader::with_capacity(num_points_in_mb * num_bytes_per_point, file),

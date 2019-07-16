@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::color::Color;
-use crate::Point;
+use crate::{MB, Point};
 use cgmath::Vector3;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -28,7 +28,7 @@ impl PtsIterator {
     pub fn from_file(filename: &Path) -> Self {
         let file = File::open(filename).unwrap();
         PtsIterator {
-            data: BufReader::new(file),
+            data: BufReader::with_capacity(MB, file),
         }
     }
 }
