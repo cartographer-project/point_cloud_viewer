@@ -159,7 +159,7 @@ pub struct RawNodeWriter {
 }
 
 impl NodeWriter<PointsBatch> for RawNodeWriter {
-    fn from(path: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
+    fn new(path: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
         Self::new(path, encoding, open_mode)
     }
 
@@ -185,7 +185,7 @@ impl NodeWriter<PointsBatch> for RawNodeWriter {
 }
 
 impl NodeWriter<Point> for RawNodeWriter {
-    fn from(path: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
+    fn new(path: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
         Self::new(path, encoding, open_mode)
     }
 
