@@ -89,6 +89,6 @@ pub struct PointsBatch {
 pub use point_viewer_proto_rust::proto;
 
 /// size for batch - with ca 24 bytes per point ~< 0.5 MB total
-pub const NUM_POINTS_PER_BATCH: usize = 64 * 1024;
+pub const NUM_POINTS_PER_BATCH: usize = 128 * 1024;
 /// mb for buffers
 pub const BUFFER_CAPACITY: usize = 1024 * 1024;

@@ -403,11 +403,11 @@ impl PlyIterator {
         }
 
         // We align the buffer of this 'BufReader' to points, so that we can index this buffer and know
-        // that it will always contain full points to parse. Capacity should be approximately 1MB
-        let num_points_in_mb: usize = BUFFER_CAPACITY / num_bytes_per_point;
+        // that it will always contain full points to parse.
+        let num_points_in_buffer: usize = BUFFER_CAPACITY / num_bytes_per_point;
 
         Ok(PlyIterator {
-            reader: BufReader::with_capacity(num_points_in_mb * num_bytes_per_point, file),
+            reader: BufReader::with_capacity(num_points_in_buffer * num_bytes_per_point, file),
             readers,
             num_total_points: header["vertex"].count,
             offset: header.offset,
