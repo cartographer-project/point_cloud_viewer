@@ -2,6 +2,7 @@ use crate::read_write::{Encoding, NodeWriter, OpenMode};
 use crate::s2_geo::{cell_id, ECEFExt};
 use crate::{AttributeData, PointsBatch};
 use lru::LruCache;
+use s2::cellid::CellID;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Result;
 use std::path::PathBuf;
@@ -12,8 +13,8 @@ const MAX_NUM_NODE_WRITERS: usize = 25;
 const S2_SPLIT_LEVEL: u8 = 20;
 
 pub struct S2Splitter<W> {
-    writers: LruCache<String, W>,
-    already_opened_writers: HashSet<String>,
+    writers: LruCache<CellID, W>,
+    already_opened_writers: HashSet<CellID>,
     encoding: Encoding,
     open_mode: OpenMode,
     stem: PathBuf,
@@ -40,7 +41,7 @@ where
         let mut batches_by_s2_cell = HashMap::new();
         for (i, pos) in points_batch.position.iter().enumerate() {
             let s2_cell_batch = batches_by_s2_cell
-                .entry(cell_id(ECEFExt::from(*pos), S2_SPLIT_LEVEL).to_token())
+                .entry(cell_id(ECEFExt::from(*pos), S2_SPLIT_LEVEL))
                 .or_insert(PointsBatch {
                     position: Vec::new(),
                     attributes: BTreeMap::new(),
@@ -72,8 +73,8 @@ where
             }
         }
 
-        for (key, batch) in &batches_by_s2_cell {
-            self.writer(key).write(batch)?;
+        for (cell_id, batch) in &batches_by_s2_cell {
+            self.writer(cell_id).write(batch)?;
         }
         Ok(())
     }
@@ -83,21 +84,20 @@ impl<W> S2Splitter<W>
 where
     W: NodeWriter<PointsBatch>,
 {
-    fn writer(&mut self, key: &str) -> &mut W {
-        let key = key.to_string();
-        let path = self.stem.join(key.clone());
-        if !self.writers.contains(&key) {
+    fn writer(&mut self, cell_id: &CellID) -> &mut W {
+        let path = self.stem.join(cell_id.to_token());
+        if !self.writers.contains(cell_id) {
             let open_mode = if self.open_mode == OpenMode::Append
-                || self.already_opened_writers.contains(&key)
+                || self.already_opened_writers.contains(cell_id)
             {
                 OpenMode::Append
             } else {
-                self.already_opened_writers.insert(key.clone());
+                self.already_opened_writers.insert(*cell_id);
                 OpenMode::Truncate
             };
             self.writers
-                .put(key.clone(), W::new(path, self.encoding.clone(), open_mode));
+                .put(*cell_id, W::new(path, self.encoding.clone(), open_mode));
         }
-        self.writers.get_mut(&key).unwrap()
+        self.writers.get_mut(cell_id).unwrap()
     }
 }
