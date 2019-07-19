@@ -1,4 +1,5 @@
 use cgmath::Vector3;
+use nalgebra::RealField;
 use nav_types::{ECEF, ENU, WGS84};
 use s2::cellid::CellID;
 use s2::latlng::LatLng;
@@ -9,11 +10,17 @@ use std::vec::Vec;
 
 const LEVEL_MOD: u8 = 1;
 
-pub trait ECEFExt<N> {
+pub trait ECEFExt<N>
+where
+    N: RealField,
+{
     fn from(self) -> ECEF<N>;
 }
 
-impl<N> ECEFExt<N> for Vector3<N> {
+impl<N> ECEFExt<N> for Vector3<N>
+where
+    N: RealField,
+{
     fn from(self) -> ECEF<N> {
         ECEF::new(self.x, self.y, self.z)
     }
