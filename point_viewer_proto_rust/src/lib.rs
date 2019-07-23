@@ -12,6 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO(feuerste): Remove once a fully compatible version of protobuf is available!
-#![allow(bare_trait_objects)]
 include!(concat!(env!("OUT_DIR"), "/proto.rs"));
