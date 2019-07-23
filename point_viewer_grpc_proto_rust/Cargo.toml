@@ -19,11 +19,11 @@ authors = ["Holger Rapp <hrapp@lyft.com>"]
 edition = "2018"
 
 [build-dependencies]
-protoc-rust = "2.7.0"
+protoc-rust = "2.8.0"
 protoc-grpcio = "1.0.2"
 
 [dependencies]
-protobuf = "2.7.0"
+protobuf = "2.8.0"
 grpcio = "0.4"
 futures = "0.1.17"
 
