@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::AttributeData;
 use crate::errors::*;
 use crate::math::{self, Cube};
 use crate::proto;
@@ -39,25 +40,22 @@ impl PositionEncoding {
     }
 
     // TODO(sirver): Returning a Result here makes this function more expensive than needed - since
-    // we require stack space for the full Result. This shuold be fixable to moving to failure.
-    pub fn from_proto(proto: proto::Node_PositionEncoding) -> Result<Self> {
+    // we require stack space for the full Result. This should be fixable to moving to failure.
+    pub fn from_proto(proto: proto::PositionEncoding) -> Result<Self> {
         match proto {
-            proto::Node_PositionEncoding::INVALID => {
-                Err(ErrorKind::InvalidInput("Invalid PositionEncoding".to_string()).into())
-            }
-            proto::Node_PositionEncoding::Uint8 => Ok(PositionEncoding::Uint8),
-            proto::Node_PositionEncoding::Uint16 => Ok(PositionEncoding::Uint16),
-            proto::Node_PositionEncoding::Float32 => Ok(PositionEncoding::Float32),
-            proto::Node_PositionEncoding::Float64 => Ok(PositionEncoding::Float64),
+            proto::PositionEncoding::Uint8 => Ok(PositionEncoding::Uint8),
+            proto::PositionEncoding::Uint16 => Ok(PositionEncoding::Uint16),
+            proto::PositionEncoding::Float32 => Ok(PositionEncoding::Float32),
+            proto::PositionEncoding::Float64 => Ok(PositionEncoding::Float64),
         }
     }
 
-    pub fn to_proto(&self) -> proto::Node_PositionEncoding {
+    pub fn to_proto(&self) -> proto::PositionEncoding {
         match *self {
-            PositionEncoding::Uint8 => proto::Node_PositionEncoding::Uint8,
-            PositionEncoding::Uint16 => proto::Node_PositionEncoding::Uint16,
-            PositionEncoding::Float32 => proto::Node_PositionEncoding::Float32,
-            PositionEncoding::Float64 => proto::Node_PositionEncoding::Float64,
+            PositionEncoding::Uint8 => proto::PositionEncoding::Uint8,
+            PositionEncoding::Uint16 => proto::PositionEncoding::Uint16,
+            PositionEncoding::Float32 => proto::PositionEncoding::Float32,
+            PositionEncoding::Float64 => proto::PositionEncoding::Float64,
         }
     }
 
@@ -136,4 +134,34 @@ where
     T: num_traits::NumCast,
 {
     num::cast::<T, f64>(value).unwrap() * edge_length + min
+}
+
+
+pub fn attribute_to_proto(attr_name : String, attribute: &AttributeData)-> proto::Attribute{
+    let attr_encoding = match attribute{
+       AttributeData::I64(_) => proto::AttributeData::I64,
+       AttributeData::U64(_) => proto::AttributeData::U64,
+       AttributeData::F32(_) => proto::AttributeData::F32,
+       AttributeData::F64(_) => proto::AttributeData::F64,
+       AttributeData::U8Vec3(_) => proto::AttributeData::U8Vec3,
+       AttributeData::F64Vec3(_) => proto::AttributeData::F64Vec3,
+    };
+    proto::Attribute{attr_name, attr_encoding}
+}
+
+pub fn s2cell_to_proto(s2cellid : u64, points_batch: &PointsBatch)-> proto::S2CellMeta{
+     let attributes : Vec<proto::Attribute> = points_batch.attributes.keys().map( )
+}
+
+pub fn pointsbatch_from_proto(proto : proto::S2CellMeta, attr_source: Box<dyn Read>)-> PointsBatch {
+    let attr_encoding = match proto.attr_encoding {
+       proto::AttributeData::I64 => proto::AttributeData::I64(_),
+       proto::AttributeData::U64 => proto::AttributeData::U64(_),
+       proto::AttributeData::F32 => proto::AttributeData::F32(_),
+       proto::AttributeData::F64 => proto::AttributeData::F64(_),
+       proto::AttributeData::U8Vec3 => proto::AttributeData::U8Vec3(_),
+       proto::AttributeData::F64Vec3 => proto::AttributeData::F64Vec3(_),
+    };
+    (proto.attr_name, attr_encoding)
+
 }
