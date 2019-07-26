@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use point_viewer::octree::{self, NodeId, OctreeDataProvider, OnDiskOctreeDataProvider};
+use point_viewer::octree::{NodeId, OctreeDataProvider, OnDiskOctreeDataProvider};
 use point_viewer::proto;
 use protobuf::Message;
 use std::fs::File;
@@ -79,8 +79,8 @@ fn main() {
         match meta.version {
             9 => upgrade_version9(&args.directory, meta),
             10 => upgrade_version10(&args.directory, meta),
-            other if other == octree::CURRENT_VERSION => {
-                println!("Octree at current version {}", octree::CURRENT_VERSION);
+            other if other == point_viewer::CURRENT_VERSION => {
+                println!("Octree at current version {}", point_viewer::CURRENT_VERSION);
                 break;
             }
             other => {

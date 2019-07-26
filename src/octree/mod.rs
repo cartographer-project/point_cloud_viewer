@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+use crate::CURRENT_VERSION;
 use crate::errors::*;
 use crate::math::{Cube, Frustum};
 use crate::proto;
@@ -45,11 +45,6 @@ pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 #[cfg(test)]
 mod octree_test;
 
-// Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
-// (u64). We are able to convert the proto on read, so the tools can still read version 9.
-// Version 10 -> 11: Change in AxisAlignedCuboid proto from Vector3f min/max to Vector3d min/max.
-// We are able to convert the proto on read, so the tools can still read version 9/10.
-pub const CURRENT_VERSION: i32 = 11;
 
 #[derive(Clone, Debug)]
 pub struct OctreeMeta {

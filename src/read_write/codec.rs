@@ -47,6 +47,7 @@ impl PositionEncoding {
             proto::PositionEncoding::Uint16 => Ok(PositionEncoding::Uint16),
             proto::PositionEncoding::Float32 => Ok(PositionEncoding::Float32),
             proto::PositionEncoding::Float64 => Ok(PositionEncoding::Float64),
+            proto::PositionEncoding::INVALID => Err(ErrorKind::Proto("Proto: PositionEncoding is invalid".to_string()).into()),
         }
     }
 
@@ -137,31 +138,14 @@ where
 }
 
 
-pub fn attribute_to_proto(attr_name : String, attribute: &AttributeData)-> proto::Attribute{
-    let attr_encoding = match attribute{
+pub fn attribute_to_proto(attribute: &AttributeData)-> proto::AttributeData{
+    match attribute{
        AttributeData::I64(_) => proto::AttributeData::I64,
        AttributeData::U64(_) => proto::AttributeData::U64,
        AttributeData::F32(_) => proto::AttributeData::F32,
        AttributeData::F64(_) => proto::AttributeData::F64,
        AttributeData::U8Vec3(_) => proto::AttributeData::U8Vec3,
        AttributeData::F64Vec3(_) => proto::AttributeData::F64Vec3,
-    };
-    proto::Attribute{attr_name, attr_encoding}
+    }
 }
 
-pub fn s2cell_to_proto(s2cellid : u64, points_batch: &PointsBatch)-> proto::S2CellMeta{
-     let attributes : Vec<proto::Attribute> = points_batch.attributes.keys().map( )
-}
-
-pub fn pointsbatch_from_proto(proto : proto::S2CellMeta, attr_source: Box<dyn Read>)-> PointsBatch {
-    let attr_encoding = match proto.attr_encoding {
-       proto::AttributeData::I64 => proto::AttributeData::I64(_),
-       proto::AttributeData::U64 => proto::AttributeData::U64(_),
-       proto::AttributeData::F32 => proto::AttributeData::F32(_),
-       proto::AttributeData::F64 => proto::AttributeData::F64(_),
-       proto::AttributeData::U8Vec3 => proto::AttributeData::U8Vec3(_),
-       proto::AttributeData::F64Vec3 => proto::AttributeData::F64Vec3(_),
-    };
-    (proto.attr_name, attr_encoding)
-
-}

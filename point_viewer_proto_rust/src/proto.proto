@@ -90,35 +90,35 @@ message Node {
   NodeId id = 4;
 }
 
-message Meta {
-  int32 version = 1;
-  AxisAlignedCuboid bounding_box = 4;
-  double resolution = 3;
-  repeated Node nodes = 5;
-}
-
- enum AttributeData{
+enum AttributeData{
     I64 = 0;
     U64 = 1;
     F32 = 2;
     F64 = 3;
     U8Vec3 = 4;
     F64Vec3 = 5;
-  }
+}
 
 message Attribute{
-  string attr_name = 1;
-  AttributeData attr_encoding = 2;
+  string name = 1;
+  AttributeData attr_type = 2;
 }
 
-message S2CellMeta {
+message S2Cell {
+  PositionEncoding position_encoding = 1;
+  uint64 cell_id = 2;
+  uint64 num_points = 3;
+}
+
+
+message Meta {
   int32 version = 1;
-  int64 cell_id = 2;
-  int64 num_points = 3;
-
-  PositionEncoding position_encoding = 4;
-  repeated Attribute attributes = 5;
-  
-  // TODO(catevita): add mission information
-  // TODO(catevita): add sha?build specifics?
+  AxisAlignedCuboid bounding_box = 4;
+  double resolution = 3;
+  repeated Node nodes = 5; 
+  repeated S2Cell cells = 6;
+  // TODO(catevita): add input information: add sha? build specifics?
+  repeated Attribute attributes = 7;
 }
+
+

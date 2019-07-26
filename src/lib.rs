@@ -22,6 +22,12 @@ pub mod s2_geo;
 use cgmath::Vector3;
 use std::collections::BTreeMap;
 
+// Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
+// (u64). We are able to convert the proto on read, so the tools can still read version 9.
+// Version 10 -> 11: Change in AxisAlignedCuboid proto from Vector3f min/max to Vector3d min/max.
+// We are able to convert the proto on read, so the tools can still read version 9/10.
+pub const CURRENT_VERSION: i32 = 11;
+
 #[derive(Debug, Clone)]
 pub struct Point {
     pub position: cgmath::Vector3<f64>,

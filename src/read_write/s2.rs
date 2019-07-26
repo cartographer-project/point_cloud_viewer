@@ -1,10 +1,12 @@
-use crate::read_write::{Encoding, NodeWriter, OpenMode};
+use crate::{AttributeData, CURRENT_VERSION, PointsBatch};
+use crate::proto;
+use crate::read_write::{attribute_to_proto, Encoding, NodeWriter, OpenMode, PositionEncoding};
 use crate::s2_geo::{cell_id, ECEFExt};
-use crate::{AttributeData, PointsBatch};
 use lru::LruCache;
 use s2::cellid::CellID;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Result;
+use std::iter::Iterator;
 use std::path::PathBuf;
 
 // The actual number of underlying writers is MAX_NUM_NODE_WRITERS * num_attributes.
@@ -100,4 +102,27 @@ where
         }
         self.writers.get_mut(cell_id).unwrap()
     }
+}
+
+
+pub fn s2_cloud_to_meta_proto(cells: Vec<proto::S2Cell>, attributes : &BTreeMap<String, AttributeData> ) -> proto::Meta {
+    let mut meta = proto::Meta::new();
+    meta.set_version(CURRENT_VERSION);
+    meta.set_cells(::protobuf::RepeatedField::<proto::S2Cell>::from_vec(cells));
+    let attributes_meta = attributes.iter().map( |(attr_name, attr_type)| {
+        let mut attr_meta = proto::Attribute::new();
+        attr_meta.set_name(attr_name.to_string());
+        attr_meta.set_attr_type(attribute_to_proto(attr_type));
+        attr_meta
+    }).collect();
+    meta.set_attributes(::protobuf::RepeatedField::<proto::Attribute>::from_vec(attributes_meta));
+    meta
+}
+
+pub fn s2_cell_to_proto(cell_id: u64, num_points: u64, position_encoding: &PositionEncoding) -> proto::S2Cell{
+    let mut meta = proto::S2Cell::new();
+    meta.set_cell_id(cell_id);
+    meta.set_num_points(num_points);
+    meta.set_position_encoding(position_encoding.to_proto());
+    meta
 }
