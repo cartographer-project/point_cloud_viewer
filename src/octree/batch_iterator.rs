@@ -5,7 +5,7 @@ use crate::octree::{self, FilteredPointsIterator, Octree};
 use crate::{AttributeData, Point, PointsBatch};
 use cgmath::{Matrix4, Vector3};
 use collision::Aabb3;
-use crossbeam::deque::{Injector, Worker};
+use crossbeam::deque::{Injector, Steal, Worker};
 use std::collections::BTreeMap;
 
 #[allow(clippy::large_enum_variant)]
@@ -177,7 +177,7 @@ impl<'a> BatchIterator<'a> {
             .point_location
             .global_from_local
             .as_ref()
-            .map(|t| t.inverse());
+            .map(Isometry3::inverse);
 
         // operate on nodes with limited number of threads
         crossbeam::scope(|s| {
@@ -207,7 +207,7 @@ impl<'a> BatchIterator<'a> {
                     while let Some((octree, node_id)) = worker.pop().or_else(|| {
                         std::iter::repeat_with(|| jobs.steal_batch_and_pop(&worker))
                             .find(|task| !task.is_retry())
-                            .and_then(|task| task.success())
+                            .and_then(Steal::success)
                     }) {
                         let point_iterator = octree.points_in_node(&point_location, node_id);
                         // executing on the available next task if the function still requires it

@@ -88,22 +88,25 @@ fn server_benchmark(
     num_threads: usize,
     buffer_size: usize,
 ) {
-    let octree: [Octree; 1] = [
-        *octree_from_directory(octree_directory).unwrap_or_else(|_| {
-            panic!(
-                "Could not create octree from '{}'",
-                octree_directory.display()
-            )
-        }),
-    ];
+    let octree: Box<Octree> = octree_from_directory(octree_directory).unwrap_or_else(|_| {
+        panic!(
+            "Could not create octree from '{}'",
+            octree_directory.display()
+        )
+    });
     let mut counter: usize = 0;
     let mut points_streamed_m = 0;
     let all_points = PointQuery {
         location: PointLocation::AllPoints(),
         global_from_local: None,
     };
-    let mut batch_iterator =
-        BatchIterator::new(&octree, &all_points, BATCH_SIZE, num_threads, buffer_size);
+    let mut batch_iterator = BatchIterator::new(
+        std::slice::from_ref(&octree),
+        &all_points,
+        BATCH_SIZE,
+        num_threads,
+        buffer_size,
+    );
     println!("Server benchmark:");
     let _result = batch_iterator.try_for_each_batch(move |points_batch| {
         counter += points_batch.position.len();
