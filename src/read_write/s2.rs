@@ -104,6 +104,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 pub fn s2_cloud_to_meta_proto(
     cells: Vec<proto::S2Cell>,
     attributes: &BTreeMap<String, AttributeData>,
@@ -126,6 +127,7 @@ pub fn s2_cloud_to_meta_proto(
     meta
 }
 
+#[allow(dead_code)]
 pub fn s2_cell_to_proto(
     cell_id: u64,
     num_points: u64,
