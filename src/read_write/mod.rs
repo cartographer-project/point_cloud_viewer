@@ -14,8 +14,8 @@
 
 mod codec;
 pub use self::codec::{
-    attribute_to_proto, decode, encode, fixpoint_decode, fixpoint_encode, vec3_encode, vec3_fixpoint_encode, Encoding,
-    PositionEncoding, 
+    attribute_to_proto, decode, encode, fixpoint_decode, fixpoint_encode, vec3_encode,
+    vec3_fixpoint_encode, Encoding, PositionEncoding,
 };
 
 mod input_file_iterator;

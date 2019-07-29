@@ -11,11 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use crate::CURRENT_VERSION;
 use crate::errors::*;
 use crate::math::{Cube, Frustum};
 use crate::proto;
 use crate::read_write::PositionEncoding;
+use crate::CURRENT_VERSION;
 use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
@@ -44,7 +44,6 @@ pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
 
 #[cfg(test)]
 mod octree_test;
-
 
 #[derive(Clone, Debug)]
 pub struct OctreeMeta {

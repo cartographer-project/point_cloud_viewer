@@ -80,7 +80,10 @@ fn main() {
             9 => upgrade_version9(&args.directory, meta),
             10 => upgrade_version10(&args.directory, meta),
             other if other == point_viewer::CURRENT_VERSION => {
-                println!("Octree at current version {}", point_viewer::CURRENT_VERSION);
+                println!(
+                    "Octree at current version {}",
+                    point_viewer::CURRENT_VERSION
+                );
                 break;
             }
             other => {

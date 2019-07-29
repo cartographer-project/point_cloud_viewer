@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::AttributeData;
 use crate::errors::*;
 use crate::math::{self, Cube};
 use crate::proto;
+use crate::AttributeData;
 use cgmath::{BaseFloat, Vector3, Zero};
 use num::clamp;
 
@@ -47,7 +47,9 @@ impl PositionEncoding {
             proto::PositionEncoding::Uint16 => Ok(PositionEncoding::Uint16),
             proto::PositionEncoding::Float32 => Ok(PositionEncoding::Float32),
             proto::PositionEncoding::Float64 => Ok(PositionEncoding::Float64),
-            proto::PositionEncoding::INVALID => Err(ErrorKind::Proto("Proto: PositionEncoding is invalid".to_string()).into()),
+            proto::PositionEncoding::INVALID => {
+                Err(ErrorKind::Proto("Proto: PositionEncoding is invalid".to_string()).into())
+            }
         }
     }
 
@@ -137,15 +139,13 @@ where
     num::cast::<T, f64>(value).unwrap() * edge_length + min
 }
 
-
-pub fn attribute_to_proto(attribute: &AttributeData)-> proto::AttributeData{
-    match attribute{
-       AttributeData::I64(_) => proto::AttributeData::I64,
-       AttributeData::U64(_) => proto::AttributeData::U64,
-       AttributeData::F32(_) => proto::AttributeData::F32,
-       AttributeData::F64(_) => proto::AttributeData::F64,
-       AttributeData::U8Vec3(_) => proto::AttributeData::U8Vec3,
-       AttributeData::F64Vec3(_) => proto::AttributeData::F64Vec3,
+pub fn attribute_to_proto(attribute: &AttributeData) -> proto::AttributeData {
+    match attribute {
+        AttributeData::I64(_) => proto::AttributeData::I64,
+        AttributeData::U64(_) => proto::AttributeData::U64,
+        AttributeData::F32(_) => proto::AttributeData::F32,
+        AttributeData::F64(_) => proto::AttributeData::F64,
+        AttributeData::U8Vec3(_) => proto::AttributeData::U8Vec3,
+        AttributeData::F64Vec3(_) => proto::AttributeData::F64Vec3,
     }
 }
-
