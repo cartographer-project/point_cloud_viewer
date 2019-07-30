@@ -121,9 +121,9 @@ pub fn s2_cloud_to_meta_proto(
             attr_meta
         })
         .collect();
-    meta.set_attributes(
-        ::protobuf::RepeatedField::<proto::Attribute>::from_vec(attributes_meta),
-    );
+    meta.set_attributes(::protobuf::RepeatedField::<proto::Attribute>::from_vec(
+        attributes_meta,
+    ));
     meta
 }
 

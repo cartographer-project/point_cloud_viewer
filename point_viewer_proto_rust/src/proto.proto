@@ -90,6 +90,7 @@ message Node {
 }
 
 enum AttributeDataType {
+    INVALID_DATA_TYPE = 0;
     I64 = 1;
     U64 = 2;
     F32 = 3;
