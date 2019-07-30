@@ -1,0 +1,4 @@
+[submodule "third_party/protobuf"]
+	path = third_party/protobuf
+	url = git@github.com:protocolbuffers/protobuf.git
+	ignore = dirty
