@@ -90,7 +90,7 @@ message Node {
   NodeId id = 4;
 }
 
-enum AttributeData{
+enum AttributeType{
     I64 = 0;
     U64 = 1;
     F32 = 2;
@@ -99,15 +99,15 @@ enum AttributeData{
     F64Vec3 = 5;
 }
 
-message Attribute{
+message AttributeDescription{
   string name = 1;
-  AttributeData attr_type = 2;
+  AttributeType type = 2;
 }
 
 message S2Cell {
   PositionEncoding position_encoding = 1;
-  uint64 cell_id = 2;
-  uint64 num_points = 3;
+  int64 id = 2;
+  int64 num_points = 3;
 }
 
 
@@ -115,6 +115,7 @@ message Meta {
   int32 version = 1;
   AxisAlignedCuboid bounding_box = 4;
   double resolution = 3;
+  // Either nodes or cell is allowed, both is invalid
   repeated Node nodes = 5; 
   repeated S2Cell cells = 6;
   // TODO(catevita): add input information: add sha? build specifics?
