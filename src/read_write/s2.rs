@@ -114,27 +114,27 @@ pub fn s2_cloud_to_meta_proto(
     meta.set_cells(::protobuf::RepeatedField::<proto::S2Cell>::from_vec(cells));
     let attributes_meta = attributes
         .iter()
-        .map(|(attr_name, attr_type)| {
-            let mut attr_meta = proto::Attribute::new();
-            attr_meta.set_name(attr_name.to_string());
-            attr_meta.set_attr_type(attribute_to_proto(attr_type));
+        .map(|(name, data_type)| {
+            let mut attr_meta = proto::AttributeDescription::new();
+            attr_meta.set_name(name.to_string());
+            attr_meta.set_data_type(attribute_to_proto(data_type));
             attr_meta
         })
         .collect();
-    meta.set_attributes(::protobuf::RepeatedField::<proto::Attribute>::from_vec(
-        attributes_meta,
-    ));
+    meta.set_attributes(
+        ::protobuf::RepeatedField::<proto::AttributeDescription>::from_vec(attributes_meta),
+    );
     meta
 }
 
 #[allow(dead_code)]
 pub fn s2_cell_to_proto(
-    cell_id: u64,
-    num_points: u64,
+    cell_id: i64,
+    num_points: i64,
     position_encoding: &PositionEncoding,
 ) -> proto::S2Cell {
     let mut meta = proto::S2Cell::new();
-    meta.set_cell_id(cell_id);
+    meta.set_id(cell_id);
     meta.set_num_points(num_points);
     meta.set_position_encoding(position_encoding.to_proto());
     meta

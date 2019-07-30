@@ -22,7 +22,7 @@ error_chain! {
 
     errors {
         InvalidInput(msg: String) {
-            description("The input file is not supported or invalid")
+            description("The input is not supported or invalid")
                 display("{}", msg)
         }
 
@@ -45,11 +45,6 @@ error_chain! {
 
         Channel(msg: String) {
             description("The current channel failed an operation")
-            display("{}", msg)
-        }
-
-        Proto(msg: String){
-            description("Proto error, the field is invalid")
             display("{}", msg)
         }
 

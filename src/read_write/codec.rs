@@ -47,9 +47,10 @@ impl PositionEncoding {
             proto::PositionEncoding::Uint16 => Ok(PositionEncoding::Uint16),
             proto::PositionEncoding::Float32 => Ok(PositionEncoding::Float32),
             proto::PositionEncoding::Float64 => Ok(PositionEncoding::Float64),
-            proto::PositionEncoding::INVALID => {
-                Err(ErrorKind::Proto("Proto: PositionEncoding is invalid".to_string()).into())
-            }
+            proto::PositionEncoding::INVALID => Err(ErrorKind::InvalidInput(
+                "Proto: PositionEncoding is invalid".to_string(),
+            )
+            .into()),
         }
     }
 
@@ -139,13 +140,13 @@ where
     num::cast::<T, f64>(value).unwrap() * edge_length + min
 }
 
-pub fn attribute_to_proto(attribute: &AttributeData) -> proto::AttributeData {
+pub fn attribute_to_proto(attribute: &AttributeData) -> proto::AttributeType {
     match attribute {
-        AttributeData::I64(_) => proto::AttributeData::I64,
-        AttributeData::U64(_) => proto::AttributeData::U64,
-        AttributeData::F32(_) => proto::AttributeData::F32,
-        AttributeData::F64(_) => proto::AttributeData::F64,
-        AttributeData::U8Vec3(_) => proto::AttributeData::U8Vec3,
-        AttributeData::F64Vec3(_) => proto::AttributeData::F64Vec3,
+        AttributeData::I64(_) => proto::AttributeType::I64,
+        AttributeData::U64(_) => proto::AttributeType::U64,
+        AttributeData::F32(_) => proto::AttributeType::F32,
+        AttributeData::F64(_) => proto::AttributeType::F64,
+        AttributeData::U8Vec3(_) => proto::AttributeType::U8Vec3,
+        AttributeData::F64Vec3(_) => proto::AttributeType::F64Vec3,
     }
 }

@@ -101,7 +101,7 @@ enum AttributeType{
 
 message AttributeDescription{
   string name = 1;
-  AttributeType type = 2;
+  AttributeType data_type = 2;
 }
 
 message S2Cell {
@@ -115,11 +115,11 @@ message Meta {
   int32 version = 1;
   AxisAlignedCuboid bounding_box = 4;
   double resolution = 3;
-  // Either nodes or cell is allowed, both is invalid
+  // Either nodes or cells is allowed, both is invalid
   repeated Node nodes = 5; 
   repeated S2Cell cells = 6;
   // TODO(catevita): add input information: add sha? build specifics?
-  repeated Attribute attributes = 7;
+  repeated AttributeDescription attributes = 7;
 }
 
 
