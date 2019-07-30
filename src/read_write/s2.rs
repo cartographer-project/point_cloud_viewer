@@ -115,14 +115,14 @@ pub fn s2_cloud_to_meta_proto(
     let attributes_meta = attributes
         .iter()
         .map(|(name, data_type)| {
-            let mut attr_meta = proto::AttributeDescription::new();
+            let mut attr_meta = proto::Attribute::new();
             attr_meta.set_name(name.to_string());
             attr_meta.set_data_type(attribute_to_proto(data_type));
             attr_meta
         })
         .collect();
     meta.set_attributes(
-        ::protobuf::RepeatedField::<proto::AttributeDescription>::from_vec(attributes_meta),
+        ::protobuf::RepeatedField::<proto::Attribute>::from_vec(attributes_meta),
     );
     meta
 }

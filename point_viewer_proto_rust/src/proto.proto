@@ -83,25 +83,24 @@ enum PositionEncoding {
     Float64 = 4;
 }
 
-
 message Node {
   PositionEncoding position_encoding = 2;
   int64 num_points = 3;
   NodeId id = 4;
 }
 
-enum AttributeType{
-    I64 = 0;
-    U64 = 1;
-    F32 = 2;
-    F64 = 3;
-    U8Vec3 = 4;
-    F64Vec3 = 5;
+enum AttributeDataType {
+    I64 = 1;
+    U64 = 2;
+    F32 = 3;
+    F64 = 4;
+    U8Vec3 = 5;
+    F64Vec3 = 6;
 }
 
-message AttributeDescription{
+message Attribute {
   string name = 1;
-  AttributeType data_type = 2;
+  AttributeDataType data_type = 2;
 }
 
 message S2Cell {
@@ -109,7 +108,6 @@ message S2Cell {
   int64 id = 2;
   int64 num_points = 3;
 }
-
 
 message Meta {
   int32 version = 1;
@@ -119,7 +117,5 @@ message Meta {
   repeated Node nodes = 5; 
   repeated S2Cell cells = 6;
   // TODO(catevita): add input information: add sha? build specifics?
-  repeated AttributeDescription attributes = 7;
+  repeated Attribute attributes = 7;
 }
-
-

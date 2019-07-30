@@ -140,13 +140,13 @@ where
     num::cast::<T, f64>(value).unwrap() * edge_length + min
 }
 
-pub fn attribute_to_proto(attribute: &AttributeData) -> proto::AttributeType {
+pub fn attribute_to_proto(attribute: &AttributeData) -> proto::AttributeDataType {
     match attribute {
-        AttributeData::I64(_) => proto::AttributeType::I64,
-        AttributeData::U64(_) => proto::AttributeType::U64,
-        AttributeData::F32(_) => proto::AttributeType::F32,
-        AttributeData::F64(_) => proto::AttributeType::F64,
-        AttributeData::U8Vec3(_) => proto::AttributeType::U8Vec3,
-        AttributeData::F64Vec3(_) => proto::AttributeType::F64Vec3,
+        AttributeData::I64(_) => proto::AttributeDataType::I64,
+        AttributeData::U64(_) => proto::AttributeDataType::U64,
+        AttributeData::F32(_) => proto::AttributeDataType::F32,
+        AttributeData::F64(_) => proto::AttributeDataType::F64,
+        AttributeData::U8Vec3(_) => proto::AttributeDataType::U8Vec3,
+        AttributeData::F64Vec3(_) => proto::AttributeDataType::F64Vec3,
     }
 }
