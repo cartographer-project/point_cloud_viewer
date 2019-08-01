@@ -17,6 +17,6 @@ pub fn attr_from_proto<R : Read>(proto : proto::Attribute, attr_source: &R)-> st
 fn read_source<R : Read, T>(attr_source: R) -> std::io::Result<Vec<T>>{
    let mut vec = Vec::<T>::new();
    let bufreader = BufReader::new(attr_source);
-   bufreader.read_all(&mut vec)?;
+   bufreader.read_to_end(&mut vec)?;
    Ok(vec)
 }
