@@ -25,7 +25,7 @@ matrix:
       addons:
         apt:
           packages:
-            - &build_deps [cmake, g++, git, libc-dev, libgoogle-glog-dev, libsdl2-dev, ninja-build]
+            - &build_deps [cmake, g++, git, libc-dev, libgoogle-glog-dev, libsdl2-dev]
     - name: "beta clippy|build|test"
       rust: beta
       addons:
