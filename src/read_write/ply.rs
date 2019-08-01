@@ -122,7 +122,7 @@ impl<'a> Index<&'a str> for Element {
 }
 
 // returns just header length and point count
-pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> Result<(usize, usize)> {
+pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> io::Result<(usize, usize)> {
     use crate::errors::ErrorKind::InvalidInput;
 
     let mut header_len = 0;
@@ -130,8 +130,9 @@ pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> Result<(usize, usize
     let mut line = String::new();
     header_len += reader.read_line(&mut line)?;
     if line.trim() != "ply" {
-        return Err(InvalidInput("Not a PLY file".to_string()).into());
+        return Err(io::Error::new(std::io::ErrorKind::InvalidInput, "Not a PLY file".to_string()).into());
     }
+    let mut end_header_found = false;
     loop {
         line.clear();
         header_len += reader.read_line(&mut line)?;
@@ -140,11 +141,14 @@ pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> Result<(usize, usize
             "element" if entries.len() == 3 => {
                 point_count = entries[2]
                     .parse::<i64>()
-                    .chain_err(|| InvalidInput(format!("Invalid count: {}", entries[2])))?
+                    .map_err(|_| io::Error::new(std::io::ErrorKind::InvalidInput, format!("Invalid count: {}", entries[2])))?
             }
-            "end_header" => break,
+            "end_header" => {end_header_found = true; break},
             _ => continue,
         }
+    }
+    if !end_header_found{
+        return Err(io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid header for PLY file".to_string()).into());
     }
     Ok((header_len, point_count as usize))
 }
@@ -666,7 +670,7 @@ impl PlyNodeWriter {
 
     // it returns the number of points contained by the ply file
     fn check_headers<R: BufRead>(&self, reader: &mut R, header_len: usize) -> io::Result<(usize)> {
-        let (input_length, input_point_count): (usize, usize) = parse_header_quick(reader)
+        let (input_length, input_point_count): (usize, usize) = parse_ply_header_fast(reader)
             .map_err(|err| io::Error::new(std::io::ErrorKind::InvalidData, err.to_string()))?;
         if header_len != input_length {
             return Err(io::Error::new(
