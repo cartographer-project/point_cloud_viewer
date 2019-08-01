@@ -122,7 +122,7 @@ impl<'a> Index<&'a str> for Element {
 }
 
 // returns just header length and point count
-fn parse_header_quick<R: BufRead>(reader: &mut R) -> Result<(usize, usize)>{
+fn parse_header_quick<R: BufRead>(reader: &mut R) -> Result<(usize, usize)> {
     use crate::errors::ErrorKind::InvalidInput;
 
     let mut header_len = 0;
@@ -136,15 +136,17 @@ fn parse_header_quick<R: BufRead>(reader: &mut R) -> Result<(usize, usize)>{
         line.clear();
         header_len += reader.read_line(&mut line)?;
         let entries: Vec<&str> = line.trim().split_whitespace().collect();
-        match entries[0]{
-            "element" if entries.len == 3 => point_count =entries[2]
-                .parse::<i64>()
-                .chain_err(|| InvalidInput(format!("Invalid count: {}", entries[2])))?, 
+        match entries[0] {
+            "element" if entries.len() == 3 => {
+                point_count = entries[2]
+                    .parse::<i64>()
+                    .chain_err(|| InvalidInput(format!("Invalid count: {}", entries[2])))?
+            }
             "end_header" => break,
             _ => continue,
         }
     }
-    Ok((header_len,point_count))
+    Ok((header_len, point_count as usize))
 }
 
 fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
@@ -510,7 +512,7 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
                         )
                     })
                     .collect::<Vec<_>>()[..],
-            )?;path: P
+            )?;
         }
 
         for (i, pos) in p.position.iter().enumerate() {
@@ -643,35 +645,38 @@ impl PlyNodeWriter {
         }
         self.writer.write_all(b"end_header\n")
     }
- 
 
     // the contents of a ply file are appended to the current file
-    pub fn append_contents<R: BufReader>(&self, reader: R, num_points: usize, keep_eof: bool) -> io::Result(usize){
+    pub fn append_contents<R: BufRead>(
+        &mut self,
+        reader: &mut R,
+        header_len: usize,
+        keep_eof: bool,
+    ) -> io::Result<usize> {
         //check headers consistency and get number of points
-        let (num_points, reader) = check_headers(filename));
+        let num_points = self.check_headers(reader, header_len)?;
         // TODO(catevita): check reader position
-        io::copy(reader, self.writer)?;
-
-        self.writer.seek(SeekFrom::End(-1)).unwrap();
+        io::copy(reader, &mut self.writer)?;
+        if !keep_eof {
+            self.writer.seek(SeekFrom::End(-1)).unwrap();
+        }
         self.point_count += num_points;
-        Ok((num_points))
+        Ok(num_points)
     }
 
     // it returns the number of points contained by the ply file
-    fn check_headers(&self, filename: impl Into<PathBuf>, header_len : usize) -> io::Result<(usize, BufReader<dyn Read>)>{
-       let mut point_count = 0;
-       let mut reader = BufReader::new(File::open(&filename)?);
-        // quick check of just header length 
-       let (input_length, input_point_count) = parse_header_quick(&reader);
-       if header_len != input_length{
-           Err(ErrorKind::InvalidInput("Ply header length does not match"));
-       }
-       Ok(point_count, reader);
+    fn check_headers<R: BufRead>(&self, reader: &mut R, header_len: usize) -> io::Result<(usize)> {
+        let (input_length, input_point_count): (usize, usize) = parse_header_quick(reader)
+            .map_err(|err| io::Error::new(std::io::ErrorKind::InvalidData, err.to_string()))?;
+        if header_len != input_length {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Ply header length does not match".to_string(),
+            ))
+            .into();
+        }
+        Ok(input_point_count)
     }
-
-    pub fn header_to_attributes() ->
-
-    
 }
 
 #[cfg(test)]
@@ -754,27 +759,24 @@ mod tests {
             });
     }
 
-    fn test_ply_pointbatch()
-    {
+    fn test_ply_pointbatch() {
         let tmp_dir = TempDir::new("test_ply_pointbatch").unwrap();
         let file_path_test = tmp_dir.path().join("out.ply");
         let file_path_gt = "src/test_data/xyz_f32_rgb_u8_intensity_f32.ply";
         // from ground truth push points in pointbatch
         let batch = PointsBatch::new();
         PlyIterator::from_file(file_path_gt).unwrap().for_each(|p| {
-                batch.position.push(p.position);
-                match points_batch.attributes.get(&"color".to_string()) {
-                Some(AttributeData::U8Vec3(data)) => {
-                    data.push(p.color)
-                }};
-                match points_batch.attributes.get(&"intensity".to_string()) {
-                Some(AttributeData::F32(data)) => {
-                    data.push(p.intensity)
-                }};
-            });
+            batch.position.push(p.position);
+            match points_batch.attributes.get(&"color".to_string()) {
+                Some(AttributeData::U8Vec3(data)) => data.push(p.color),
+            };
+            match points_batch.attributes.get(&"intensity".to_string()) {
+                Some(AttributeData::F32(data)) => data.push(p.intensity),
+            };
+        });
         // write pointbatch
         let mut ply_writer =
-                PlyNodeWriter::new(&file_path_test, Encoding::Plain, OpenMode::Truncate);
+            PlyNodeWriter::new(&file_path_test, Encoding::Plain, OpenMode::Truncate);
         ply_writer.write(&batch).unwrap();
         //check file
 
