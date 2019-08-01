@@ -105,9 +105,8 @@ message Attribute {
 }
 
 message S2Cell {
-  PositionEncoding position_encoding = 1;
-  int64 id = 2;
-  int64 num_points = 3;
+  int64 id = 1;
+  int64 num_points = 2;
 }
 
 message Meta {

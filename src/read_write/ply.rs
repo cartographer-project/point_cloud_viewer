@@ -698,4 +698,41 @@ mod tests {
                 assert_eq!(gt.intensity.is_some(), test.intensity.is_some());
             });
     }
+
+    #[test]
+    fn test_ply_pointbatch()
+    {
+        let tmp_dir = TempDir::new("test_ply_pointbatch").unwrap();
+        let file_path_test = tmp_dir.path().join("out.ply");
+        let file_path_gt = "src/test_data/xyz_f32_rgb_u8_intensity_f32.ply";
+        // from ground truth push points in pointbatch
+        let batch = PointsBatch::new();
+        PlyIterator::from_file(file_path_gt).unwrap().for_each(|p| {
+                batch.position.push(p.position);
+                match points_batch.attributes.get(&"color".to_string()) {
+                Some(AttributeData::U8Vec3(data)) => {
+                    data.push(p.color)
+                }};
+                match points_batch.attributes.get(&"intensity".to_string()) {
+                Some(AttributeData::F32(data)) => {
+                    data.push(p.intensity)
+                }};
+            });
+        // write pointbatch
+        let mut ply_writer =
+                PlyNodeWriter::new(&file_path_test, Encoding::Plain, OpenMode::Truncate);
+        ply_writer.write(&batch).unwrap();
+        //check file
+
+        PlyIterator::from_file(file_path_gt)
+            .unwrap()
+            .chain(PlyIterator::from_file(file_path_gt).unwrap())
+            .zip(PlyIterator::from_file(&file_path_test).unwrap())
+            .for_each(|(gt, test)| {
+                assert_eq!(gt.position, test.position);
+                assert_eq!(gt.color, test.color);
+                // All intensities in this file are NaN, but set.
+                assert_eq!(gt.intensity.is_some(), test.intensity.is_some());
+            });
+    }
 }

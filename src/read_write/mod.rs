@@ -37,4 +37,7 @@ mod raw;
 pub use self::raw::{RawNodeReader, RawNodeWriter};
 
 mod s2;
-pub use self::s2::S2Splitter;
+pub use self::s2::{s2_cloud_to_meta_proto, s2_cell_to_proto, S2Splitter};
+
+mod attribute_reader;
+pub use self::attribute_reader::{attr_from_proto};

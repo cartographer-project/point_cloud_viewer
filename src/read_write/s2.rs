@@ -1,5 +1,5 @@
 use crate::proto;
-use crate::read_write::{attribute_to_proto, Encoding, NodeWriter, OpenMode, PositionEncoding};
+use crate::read_write::{attribute_to_proto, Encoding, NodeWriter, OpenMode};
 use crate::s2_geo::{cell_id, ECEFExt};
 use crate::{AttributeData, PointsBatch, CURRENT_VERSION};
 use lru::LruCache;
@@ -104,7 +104,6 @@ where
     }
 }
 
-#[allow(dead_code)]
 pub fn s2_cloud_to_meta_proto(
     cells: Vec<proto::S2Cell>,
     attributes: &BTreeMap<String, AttributeData>,
@@ -127,15 +126,12 @@ pub fn s2_cloud_to_meta_proto(
     meta
 }
 
-#[allow(dead_code)]
 pub fn s2_cell_to_proto(
     cell_id: i64,
     num_points: i64,
-    position_encoding: &PositionEncoding,
 ) -> proto::S2Cell {
     let mut meta = proto::S2Cell::new();
     meta.set_id(cell_id);
     meta.set_num_points(num_points);
-    meta.set_position_encoding(position_encoding.to_proto());
     meta
 }
