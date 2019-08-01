@@ -123,8 +123,6 @@ impl<'a> Index<&'a str> for Element {
 
 // returns just header length and point count
 pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> io::Result<(usize, usize)> {
-    use crate::errors::ErrorKind::InvalidInput;
-
     let mut header_len = 0;
     let mut point_count = 0;
     let mut line = String::new();
@@ -684,6 +682,11 @@ impl PlyNodeWriter {
 
     pub fn get_point_count(&self) -> usize {
         self.point_count
+    }
+
+    pub fn write_eof(&mut self) -> io::Result<()>{
+        // append newline at the end
+        self.writer.write_all(b"\n")
     }
 }
 
