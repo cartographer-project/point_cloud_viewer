@@ -122,7 +122,7 @@ impl<'a> Index<&'a str> for Element {
 }
 
 // returns just header length and point count
-fn parse_header_quick<R: BufRead>(reader: &mut R) -> Result<(usize, usize)> {
+pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> Result<(usize, usize)> {
     use crate::errors::ErrorKind::InvalidInput;
 
     let mut header_len = 0;
@@ -651,13 +651,13 @@ impl PlyNodeWriter {
         &mut self,
         reader: &mut R,
         header_len: usize,
-        keep_eof: bool,
+        keep_eol: bool,
     ) -> io::Result<usize> {
         //check headers consistency and get number of points
         let num_points = self.check_headers(reader, header_len)?;
         // TODO(catevita): check reader position
         io::copy(reader, &mut self.writer)?;
-        if !keep_eof {
+        if !keep_eol {
             self.writer.seek(SeekFrom::End(-1)).unwrap();
         }
         self.point_count += num_points;
@@ -676,6 +676,10 @@ impl PlyNodeWriter {
             .into();
         }
         Ok(input_point_count)
+    }
+
+    pub fn get_point_count(&self) -> usize {
+        self.point_count
     }
 }
 
