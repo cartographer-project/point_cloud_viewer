@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub const PROTOBUF_BIN_PATH: &str = concat!(env!("OUT_DIR"), "/bin");
+pub const PROTOBUF_LIB_PATH: &str = concat!(env!("OUT_DIR"), "/lib");
+pub const PROTOBUF_INCLUDE_PATH: &str = concat!(env!("OUT_DIR"), "/include");
+
 pub struct ScopedProtocPath {
     old_path: String,
 }
@@ -19,7 +23,7 @@ pub struct ScopedProtocPath {
 impl ScopedProtocPath {
     pub fn new() -> Self {
         let old_path = std::env::var("PATH").unwrap_or("".to_string());
-        std::env::set_var("PATH", concat!(env!("OUT_DIR"), "/bin"));
+        std::env::set_var("PATH", PROTOBUF_BIN_PATH);
         Self { old_path }
     }
 }

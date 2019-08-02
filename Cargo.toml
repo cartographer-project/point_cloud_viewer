@@ -53,7 +53,7 @@ members = [
    "point_viewer_grpc",
    "point_viewer_grpc_proto_rust",
    "point_viewer_proto_rust",
-   "protoc_provider",
+   "protobuf_provider",
    "quadtree",
    "sdl_viewer",
    "xray",

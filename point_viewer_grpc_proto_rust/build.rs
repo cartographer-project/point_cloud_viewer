@@ -1,4 +1,4 @@
-use protoc_provider::ScopedProtocPath;
+use protobuf_provider::ScopedProtocPath;
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};

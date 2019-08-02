@@ -20,7 +20,7 @@ edition = "2018"
 
 [build-dependencies]
 protoc-grpcio = "1.0.2"
-protoc_provider = { path = "../protoc_provider" }
+protobuf_provider = { path = "../protobuf_provider" }
 protoc-rust = "2.8.0"
 
 [dependencies]
