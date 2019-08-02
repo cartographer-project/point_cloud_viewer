@@ -44,7 +44,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/proto.proto");
 
     let git_repo_root = find_git_repo_root();
-    let _protoc_path = ScopedProtocPath::new();
+    let _protoc_path = ScopedProtocPath::default();
     protoc_grpcio::compile_grpc_protos(
         &["point_viewer_grpc_proto_rust/src/proto.proto"],
         &[git_repo_root.clone()],

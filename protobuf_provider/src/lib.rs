@@ -20,9 +20,9 @@ pub struct ScopedProtocPath {
     old_path: String,
 }
 
-impl ScopedProtocPath {
-    pub fn new() -> Self {
-        let old_path = std::env::var("PATH").unwrap_or("".to_string());
+impl Default for ScopedProtocPath {
+    fn default() -> Self {
+        let old_path = std::env::var("PATH").unwrap_or_else(|_| "".to_string());
         std::env::set_var("PATH", PROTOBUF_BIN_PATH);
         Self { old_path }
     }

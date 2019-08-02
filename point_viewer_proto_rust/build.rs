@@ -22,7 +22,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/proto.proto");
 
     let out_dir = env::var("OUT_DIR").unwrap();
-    let _protoc_path = ScopedProtocPath::new();
+    let _protoc_path = ScopedProtocPath::default();
     protoc_rust::run(protoc_rust::Args {
         out_dir: &out_dir,
         input: &["src/proto.proto"],
