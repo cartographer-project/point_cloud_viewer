@@ -19,6 +19,7 @@ authors = ["Holger Rapp <hrapp@lyft.com>"]
 edition = "2018"
 
 [build-dependencies]
+protoc_provider = { path = "../protoc_provider" }
 protoc-rust = "2.8.0"
 
 [dependencies]

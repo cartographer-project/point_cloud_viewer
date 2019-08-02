@@ -1,3 +1,4 @@
+use protoc_provider::use_protoc;
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -43,16 +44,13 @@ fn main() {
     println!("cargo:rerun-if-changed=src/proto.proto");
 
     let git_repo_root = find_git_repo_root();
-    let old_path = env::var("PATH");
-    env::set_var("PATH", "../target/protobuf/bin");
-    protoc_grpcio::compile_grpc_protos(
+    use_protoc!(protoc_grpcio::compile_grpc_protos(
         &["point_viewer_grpc_proto_rust/src/proto.proto"],
         &[git_repo_root.clone()],
         &out_dir,
         None,
     )
-    .expect("Failed to compile gRPC definitions!");
-    env::set_var("PATH", old_path.unwrap_or("".to_string()));
+    .expect("Failed to compile gRPC definitions!"));
 
     inplace_modify_file(&Path::new(&out_dir).join("proto.rs"), |c| {
         // Work around https://github.com/stepancheg/rust-protobuf/issues/260. The protobuf plugin

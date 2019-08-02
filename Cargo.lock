@@ -1676,7 +1676,6 @@ version = "0.1.0"
 dependencies = [
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cgmath 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "cmake 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "collision 0.20.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "crossbeam 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "error-chain 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1727,6 +1726,7 @@ dependencies = [
  "protobuf 2.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "protoc-grpcio 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "protoc-rust 2.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protoc_provider 0.1.0",
 ]
 
 [[package]]
@@ -1735,6 +1735,7 @@ version = "0.1.0"
 dependencies = [
  "protobuf 2.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "protoc-rust 2.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protoc_provider 0.1.0",
 ]
 
 [[package]]
@@ -1841,6 +1842,13 @@ dependencies = [
  "protobuf-codegen 2.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "protoc 2.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "protoc_provider"
+version = "0.1.0"
+dependencies = [
+ "cmake 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3319,6 +3327,7 @@ version = "0.1.0"
 dependencies = [
  "protobuf 2.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "protoc-rust 2.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protoc_provider 0.1.0",
 ]
 
 [metadata]
