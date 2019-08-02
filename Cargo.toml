@@ -43,21 +43,19 @@ walkdir = "2.2.8"
 [dependencies.point_viewer_proto_rust]
 path = "point_viewer_proto_rust"
 
-[build-dependencies]
-cmake = "0.1.40"
-
 [dev-dependencies]
 tempdir = "0.3.7"
 
 [workspace]
 members = [
+   "octree_web_viewer",
    "point_cloud_client",
    "point_viewer_grpc",
    "point_viewer_grpc_proto_rust",
    "point_viewer_proto_rust",
+   "protobuf_provider",
    "quadtree",
    "sdl_viewer",
-   "octree_web_viewer",
    "xray",
    "xray_proto_rust",
 ]

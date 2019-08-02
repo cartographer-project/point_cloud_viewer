@@ -13,14 +13,9 @@
 # limitations under the License.
 
 [package]
-name = "point_viewer_proto_rust"
+name = "protobuf_provider"
 version = "0.1.0"
-authors = ["Holger Rapp <hrapp@lyft.com>"]
 edition = "2018"
 
 [build-dependencies]
-protobuf_provider = { path = "../protobuf_provider" }
-protoc-rust = "2.8.0"
-
-[dependencies]
-protobuf = "2.8.0"
+cmake = "0.1.40"

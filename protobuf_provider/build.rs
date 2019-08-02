@@ -13,17 +13,11 @@
 // limitations under the License.
 
 use cmake::Config;
-use std::env;
 
 fn main() {
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     // Build and install proto3
-    Config::new("third_party/protobuf/cmake")
+    Config::new("../third_party/protobuf/cmake")
         .define("CMAKE_BUILD_TYPE", "Release")
-        .define(
-            "CMAKE_INSTALL_PREFIX",
-            format!("{}/target/protobuf", manifest_dir),
-        )
         .define("CMAKE_POSITION_INDEPENDENT_CODE", "True")
         .define("protobuf_BUILD_TESTS", "False")
         .build();
