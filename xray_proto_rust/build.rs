@@ -1,4 +1,4 @@
-use protoc_provider::use_protoc;
+use protoc_provider::ScopedProtocPath;
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -8,13 +8,14 @@ fn main() {
     println!("cargo:rerun-if-changed=src/proto.proto");
 
     let out_dir = env::var("OUT_DIR").unwrap();
-    use_protoc!(protoc_rust::run(protoc_rust::Args {
+    let _protoc_path = ScopedProtocPath::new();
+    protoc_rust::run(protoc_rust::Args {
         out_dir: &out_dir,
         input: &["src/proto.proto"],
         includes: &[],
         ..Default::default()
     })
-    .expect("protoc"));
+    .expect("protoc");
 
     // Work around
     // https://github.com/stepancheg/rust-protobuf/issues/117

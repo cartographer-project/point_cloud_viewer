@@ -12,16 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub const PROTOC_PATH: &str = concat!(env!("OUT_DIR"), "/bin");
+pub struct ScopedProtocPath {
+    old_path: String,
+}
 
-#[macro_export]
-macro_rules! use_protoc {
-    ($body:expr) => {{
-        let old_path = env::var("PATH");
-        std::env::set_var("PATH", protoc_provider::PROTOC_PATH);
-        {
-            $body
-        }
-        std::env::set_var("PATH", old_path.unwrap_or("".to_string()));
-    }};
+impl ScopedProtocPath {
+    pub fn new() -> Self {
+        let old_path = std::env::var("PATH").unwrap_or("".to_string());
+        std::env::set_var("PATH", concat!(env!("OUT_DIR"), "/bin"));
+        Self { old_path }
+    }
+}
+
+impl Drop for ScopedProtocPath {
+    fn drop(&mut self) {
+        std::env::set_var("PATH", &self.old_path);
+    }
 }
