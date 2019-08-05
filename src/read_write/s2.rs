@@ -104,12 +104,14 @@ where
     }
 }
 
+
 pub fn s2_cloud_to_meta_proto(
     cells: Vec<proto::S2Cell>,
     attributes: &BTreeMap<String, AttributeData>,
 ) -> proto::Meta {
     let mut meta = proto::Meta::new();
     meta.set_version(CURRENT_VERSION);
+    // TODO(catevita): set resolution and bounding box
     meta.set_cells(::protobuf::RepeatedField::<proto::S2Cell>::from_vec(cells));
     let attributes_meta = attributes
         .iter()
@@ -126,10 +128,7 @@ pub fn s2_cloud_to_meta_proto(
     meta
 }
 
-pub fn s2_cell_to_proto(
-    cell_id: i64,
-    num_points: i64,
-) -> proto::S2Cell {
+pub fn s2_cell_to_proto(cell_id: i64, num_points: i64) -> proto::S2Cell {
     let mut meta = proto::S2Cell::new();
     meta.set_id(cell_id);
     meta.set_num_points(num_points);
