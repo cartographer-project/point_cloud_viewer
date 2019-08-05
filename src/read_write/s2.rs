@@ -104,7 +104,6 @@ where
     }
 }
 
-
 pub fn s2_cloud_to_meta_proto(
     cells: Vec<proto::S2Cell>,
     attributes: &BTreeMap<String, AttributeData>,
