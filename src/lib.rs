@@ -13,6 +13,7 @@
 // limitations under the License.
 
 pub mod color;
+pub mod data_provider;
 pub mod errors;
 pub mod math;
 pub mod octree;

@@ -1,6 +1,6 @@
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::{ChildIndex, NodeId, Octree, OctreeDataProvider, OctreeMeta, PositionEncoding};
+use crate::octree::{ChildIndex, NodeId, Octree, DataProvider, OctreeMeta, PositionEncoding};
 use crate::read_write::{NodeIterator, RawNodeReader};
 use crate::Point;
 use cgmath::Vector3;
@@ -8,7 +8,7 @@ use std::collections::{HashMap, VecDeque};
 
 impl NodeIterator<RawNodeReader> {
     pub fn from_data_provider(
-        octree_data_provider: &dyn OctreeDataProvider,
+        octree_data_provider: &dyn DataProvider,
         octree_meta: &OctreeMeta,
         id: &NodeId,
         num_points: usize,
@@ -22,7 +22,8 @@ impl NodeIterator<RawNodeReader> {
 
         let mut attributes = HashMap::new();
 
-        let mut position_color_reads = octree_data_provider.data(id, &["position", "color"])?;
+        let mut position_color_reads =
+            octree_data_provider.data(&id.to_string(), &["position", "color"])?;
         match position_color_reads.remove("position") {
             Some(position_data) => {
                 attributes.insert("position".to_string(), position_data);
@@ -36,7 +37,7 @@ impl NodeIterator<RawNodeReader> {
             None => return Err("No color reader available.".into()),
         }
 
-        if let Ok(mut data_map) = octree_data_provider.data(id, &["intensity"]) {
+        if let Ok(mut data_map) = octree_data_provider.data(&id.to_string(), &["intensity"]) {
             match data_map.remove("intensity") {
                 Some(intensity_data) => {
                     attributes.insert("intensity".to_string(), intensity_data);

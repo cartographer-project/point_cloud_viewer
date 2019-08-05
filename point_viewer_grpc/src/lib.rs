@@ -19,7 +19,7 @@ use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::color::Color;
 use point_viewer::errors::*;
-use point_viewer::octree::{NodeId, Octree, OctreeDataProvider};
+use point_viewer::octree::{Octree, DataProvider};
 use point_viewer::proto::Meta;
 use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto;
@@ -30,12 +30,12 @@ use std::sync::Arc;
 
 pub mod service;
 
-pub struct GrpcOctreeDataProvider {
+pub struct GrpcDataProvider {
     client: OctreeClient,
     octree_id: String,
 }
 
-impl GrpcOctreeDataProvider {
+impl GrpcDataProvider {
     pub fn from_address(addr: &str) -> Result<Self> {
         let mut addr_parts = addr.trim_matches('/').splitn(2, '/');
         let addr = addr_parts.next().ok_or_else(|| "Invalid address.")?;
@@ -46,7 +46,7 @@ impl GrpcOctreeDataProvider {
             .connect(addr);
         let client = OctreeClient::new(ch);
 
-        Ok(GrpcOctreeDataProvider { client, octree_id })
+        Ok(GrpcDataProvider { client, octree_id })
     }
 
     pub fn get_points_in_box(
@@ -108,7 +108,7 @@ impl GrpcOctreeDataProvider {
     }
 }
 
-impl OctreeDataProvider for GrpcOctreeDataProvider {
+impl DataProvider for GrpcDataProvider {
     fn meta_proto(&self) -> Result<Meta> {
         let mut req = proto::GetMetaRequest::new();
         req.set_octree_id(self.octree_id.clone());
@@ -121,7 +121,7 @@ impl OctreeDataProvider for GrpcOctreeDataProvider {
 
     fn data(
         &self,
-        node_id: &NodeId,
+        node_id: &str,
         node_attributes: &[&str],
     ) -> Result<HashMap<String, Box<dyn Read>>> {
         let mut req = proto::GetNodeDataRequest::new();
@@ -152,7 +152,7 @@ pub fn octree_from_grpc_address(addr: &str) -> Result<Box<Octree>> {
         return Err(format!("Invalid grpc address: it has to start with {}.", prefix).into());
     }
     let addr_no_prefix: &str = &addr[prefix.len()..];
-    let octree = Octree::from_data_provider(Box::new(GrpcOctreeDataProvider::from_address(
+    let octree = Octree::from_data_provider(Box::new(GrpcDataProvider::from_address(
         addr_no_prefix,
     )?))?;
     Ok(Box::new(octree))

@@ -30,7 +30,7 @@ mod tests {
         let tmp_dir = TempDir::new("octree").unwrap();
 
         build_octree(&pool, &tmp_dir, 1.0, bounding_box, points.into_iter());
-        crate::octree::on_disk::octree_from_directory(tmp_dir.into_path()).unwrap()
+        crate::octree::octree_from_directory(tmp_dir.into_path()).unwrap()
     }
 
     fn build_test_octree() -> Box<octree::Octree> {
@@ -54,7 +54,7 @@ mod tests {
         let tmp_dir = TempDir::new("octree").unwrap();
 
         build_octree(&pool, &tmp_dir, 1.0, bounding_box, points.into_iter());
-        crate::octree::on_disk::octree_from_directory(tmp_dir.into_path()).unwrap()
+        crate::octree::octree_from_directory(tmp_dir.into_path()).unwrap()
     }
 
     #[test]

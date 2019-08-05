@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use point_viewer::octree::{self, NodeId, OctreeDataProvider, OnDiskOctreeDataProvider};
+use point_viewer::octree::{self, NodeId, DataProvider, OnDiskDataProvider};
 use point_viewer::proto;
 use protobuf::Message;
 use std::fs::File;
@@ -68,7 +68,7 @@ fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
 
 fn main() {
     let args = CommandlineArguments::from_args();
-    let data_provider = OnDiskOctreeDataProvider {
+    let data_provider = OnDiskDataProvider {
         directory: args.directory.clone(),
     };
 
