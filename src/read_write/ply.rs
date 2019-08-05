@@ -698,3 +698,4 @@ mod tests {
                 assert_eq!(gt.intensity.is_some(), test.intensity.is_some());
             });
     }
+}
