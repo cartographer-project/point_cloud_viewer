@@ -41,6 +41,7 @@ use crate::box_drawer::BoxDrawer;
 use crate::camera::Camera;
 use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 use cgmath::{Matrix4, SquareMatrix};
+use evdev_rs;
 use point_viewer::color::YELLOW;
 use point_viewer::octree::{self, OctreeFactory};
 use sdl2::event::{Event, WindowEvent};
@@ -305,7 +306,6 @@ pub trait Extension {
 
 trait Joystick {
     fn act(&self, camera: &mut Camera);
-    fn joystick(&self) -> &sdl2::joystick::Joystick;
 }
 
 struct XBoxJoystick {
@@ -320,10 +320,6 @@ impl Joystick for XBoxJoystick {
         let turning_up = -f64::from(self.joystick.axis(4).unwrap()) / 32000.;
         camera.pan(right, 0., forward);
         camera.rotate(turning_up, turning_right);
-    }
-
-    fn joystick(&self) -> &sdl2::joystick::Joystick {
-        &self.joystick
     }
 }
 
@@ -343,9 +339,60 @@ impl Joystick for SpaceMouseJoystick {
         camera.pan(x, y, z);
         camera.rotate(up, around);
     }
+}
 
-    fn joystick(&self) -> &sdl2::joystick::Joystick {
-        &self.joystick
+struct EvDevSpaceMouseJoystick {
+    device: evdev_rs::Device,
+}
+
+impl EvDevSpaceMouseJoystick {
+    pub fn try_new(filename: &str) -> Option<EvDevSpaceMouseJoystick> {
+        let file = match std::fs::File::open(filename) {
+            Ok(file) => file,
+            Err(_) => return None,
+        };
+        let device = evdev_rs::Device::new_from_fd(file).unwrap();
+        let device_name = device.name().unwrap();
+        if device_name.contains("3Dconnexion Space") {
+            println!("Detected {} as {}.", device_name, filename);
+            Some(EvDevSpaceMouseJoystick { device: device })
+        } else {
+            None
+        }
+    }
+}
+
+impl Joystick for EvDevSpaceMouseJoystick {
+    fn act(&self, camera: &mut Camera) {
+        let mut axes = [0; 6];
+        while self.device.has_event_pending() {
+            if let Ok(event) = self
+                .device
+                .next_event(evdev_rs::ReadFlag::NORMAL | evdev_rs::ReadFlag::BLOCKING)
+            {
+                if let evdev_rs::enums::EventCode::EV_REL(rel) = event.1.event_code {
+                    let axis_no = match rel {
+                        evdev_rs::enums::EV_REL::REL_X => 0,
+                        evdev_rs::enums::EV_REL::REL_Y => 1,
+                        evdev_rs::enums::EV_REL::REL_Z => 2,
+                        evdev_rs::enums::EV_REL::REL_RX => 3,
+                        evdev_rs::enums::EV_REL::REL_RY => 4,
+                        evdev_rs::enums::EV_REL::REL_RZ => 5,
+                        _ => break,
+                    };
+                    axes[axis_no] += event.1.value;
+                }
+            }
+        }
+        /*let x = f64::from(axes[0]) / 500.;
+        let y = f64::from(-axes[1]) / 500.;
+        let z = f64::from(-axes[2]) / 500.;
+        let up = f64::from(axes[3]) / 500.;
+        // Combine tilting and turning on the knob.
+        let around = f64::from(axes[4]) / 500. - f64::from(axes[5]) / 500.;
+        camera.pan(x, y, z);
+        camera.rotate(up, around);*/
+        camera.apply_axes(axes);
     }
 }
 
@@ -401,11 +448,19 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     // input from it. We just open the first we find.
     let joystick_subsystem = ctx.joystick().unwrap();
     let mut joysticks = Vec::new();
-    for idx in 0..joystick_subsystem
+    /*for idx in 0..joystick_subsystem
         .num_joysticks()
         .expect("Should be able to enumerate joysticks.")
     {
         if let Ok(joystick) = joystick_subsystem.open(idx) {
+            let message = format!(
+                "Found a joystick named '{}' ({} axes, {} buttons, {} balls, {} hats).",
+                joystick.name(),
+                joystick.num_axes(),
+                joystick.num_buttons(),
+                joystick.num_balls(),
+                joystick.num_hats()
+            );
             let (kind, j) = if joystick.name().contains("Xbox") {
                 (
                     "XBox controller",
@@ -418,16 +473,16 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                 )
             };
 
-            println!(
-                "Found a joystick named '{}' ({} axes, {} buttons, {} balls, {} hats). Will treat it as a {}.",
-                j.joystick().name(),
-                j.joystick().num_axes(),
-                j.joystick().num_buttons(),
-                j.joystick().num_balls(),
-                j.joystick().num_hats(),
-                kind
-            );
+            println!("{} Will treat it as a {}.", message, kind);
             joysticks.push(j);
+        }
+    }*/
+    // TODO(wohe): Listing the directory would be better.
+    for idx in 0..100 {
+        if let Some(joystick) =
+            EvDevSpaceMouseJoystick::try_new(&format!("/dev/input/event{}", idx))
+        {
+            joysticks.push(Box::new(joystick) as Box<dyn Joystick>);
         }
     }
 

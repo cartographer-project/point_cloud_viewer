@@ -195,9 +195,9 @@ impl Camera {
     /// Update the camera position for the current frame. Returns true if the camera moved in this
     /// step.
     pub fn update(&mut self, elapsed: time::Duration) -> bool {
-        let mut moved = self.moved;
+        let moved = self.moved;
         self.moved = false;
-
+/*
         // Handle keyboard input
         let mut pan = Vector3::zero();
         if self.moving_right {
@@ -270,7 +270,7 @@ impl Camera {
         self.rotation_speed.theta = Rad::zero();
         self.rotation_speed.phi = Rad::zero();
         self.delta_rotation.theta = Rad::zero();
-        self.delta_rotation.phi = Rad::zero();
+        self.delta_rotation.phi = Rad::zero();*/
         moved
     }
 
@@ -301,5 +301,20 @@ impl Camera {
     pub fn rotate(&mut self, up: f64, around: f64) {
         self.rotation_speed.phi += Rad(up);
         self.rotation_speed.theta += Rad(around);
+    }
+
+    pub fn apply_axes(&mut self, axes: [i32; 6]) {
+        let translation = Vector3::new(axes[0] as f64 / 1e2, -axes[2] as f64 / 1e2, axes[1] as f64 / 1e2);
+        let rotation = Vector3::new(axes[3] as f64 / 1e4, -axes[5] as f64 / 1e4, axes[4] as f64 / 1e4);
+        let angle = cgmath::Rad(rotation.magnitude());
+        let rotation = if rotation.magnitude2() > 0. {
+            Quaternion::from_axis_angle(rotation.normalize(), angle) } else { 
+            Quaternion::one() };
+            self.transform.disp += self
+                .transform
+                .rot
+                .rotate_vector(translation);
+          self.transform.rot = self.transform.rot * rotation;
+        self.moved = true;
     }
 }
