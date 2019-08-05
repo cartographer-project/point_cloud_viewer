@@ -130,7 +130,6 @@ pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> io::Result<(usize, u
     if line.trim() != "ply" {
         return Err(io::Error::new(std::io::ErrorKind::InvalidInput, "Not a PLY file".to_string()).into());
     }
-    let mut end_header_found = false;
     loop {
         line.clear();
         header_len += reader.read_line(&mut line)?;
@@ -139,14 +138,12 @@ pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> io::Result<(usize, u
             "element" if entries.len() == 3 => {
                 point_count = entries[2]
                     .parse::<i64>()
-                    .map_err(|_| io::Error::new(std::io::ErrorKind::InvalidInput, format!("Invalid count: {}", entries[2])))?
-            }
-            "end_header" => {end_header_found = true; break},
-            _ => continue,
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, format!("Invalid count: {}", entries[2])))?
+            },
+            "end_header" => break,
+            "format" | "comment" | "property" => continue,
+            _ => {return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Invalid line: {}", line)))},
         }
-    }
-    if !end_header_found{
-        return Err(io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid header for PLY file".to_string()).into());
     }
     Ok((header_len, point_count as usize))
 }
