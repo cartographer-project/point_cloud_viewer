@@ -128,7 +128,7 @@ pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> io::Result<(usize, u
     let mut line = String::new();
     header_len += reader.read_line(&mut line)?;
     if line.trim() != "ply" {
-        return Err(io::Error::new(std::io::ErrorKind::InvalidInput, "Not a PLY file".to_string()).into());
+        return Err(io::Error::new(std::io::ErrorKind::InvalidInput, "Not a PLY file".to_string()));
     }
     loop {
         line.clear();
@@ -671,8 +671,7 @@ impl PlyNodeWriter {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Ply header length does not match".to_string(),
-            ))
-            .into();
+            ));
         }
         Ok(input_point_count)
     }
