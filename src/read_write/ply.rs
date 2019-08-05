@@ -128,7 +128,10 @@ pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> io::Result<(usize, u
     let mut line = String::new();
     header_len += reader.read_line(&mut line)?;
     if line.trim() != "ply" {
-        return Err(io::Error::new(std::io::ErrorKind::InvalidInput, "Not a PLY file".to_string()));
+        return Err(io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Not a PLY file".to_string(),
+        ));
     }
     loop {
         line.clear();
@@ -136,13 +139,21 @@ pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> io::Result<(usize, u
         let entries: Vec<&str> = line.trim().split_whitespace().collect();
         match entries[0] {
             "element" if entries.len() == 3 => {
-                point_count = entries[2]
-                    .parse::<i64>()
-                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, format!("Invalid count: {}", entries[2])))?
-            },
+                point_count = entries[2].parse::<i64>().map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("Invalid count: {}", entries[2]),
+                    )
+                })?
+            }
             "end_header" => break,
             "format" | "comment" | "property" => continue,
-            _ => {return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Invalid line: {}", line)))},
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Invalid line: {}", line),
+                ));
+            }
         }
     }
     Ok((header_len, point_count as usize))
@@ -680,7 +691,7 @@ impl PlyNodeWriter {
         self.point_count
     }
 
-    pub fn write_eof(&mut self) -> io::Result<()>{
+    pub fn write_eof(&mut self) -> io::Result<()> {
         // append newline at the end
         self.writer.write_all(b"\n")
     }
@@ -771,8 +782,9 @@ mod tests {
         let tmp_dir = TempDir::new("test_ply_append").unwrap();
         let file_path_test = tmp_dir.path().join("out.ply");
         let file_path_gt = "src/test_data/xyz_f32_rgb_u8_intensity_f32.ply";
-        
-        let (header_len, _) = parse_ply_header_fast(&mut BufReader::new(File::open(file_path_gt).unwrap())).unwrap();
+
+        let (header_len, _) =
+            parse_ply_header_fast(&mut BufReader::new(File::open(file_path_gt).unwrap())).unwrap();
         {
             std::fs::copy(file_path_gt, &file_path_test).unwrap();
         }
@@ -780,7 +792,9 @@ mod tests {
             let mut ply_writer =
                 PlyNodeWriter::new(&file_path_test, Encoding::Plain, OpenMode::Append);
             let mut reader = BufReader::new(File::open(file_path_gt).unwrap());
-            ply_writer.append_contents(&mut reader , header_len, true).unwrap();
+            ply_writer
+                .append_contents(&mut reader, header_len, true)
+                .unwrap();
         }
         PlyIterator::from_file(file_path_gt)
             .unwrap()

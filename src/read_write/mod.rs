@@ -28,7 +28,7 @@ mod node_writer;
 pub use self::node_writer::{DataWriter, NodeWriter, OpenMode, WriteEncoded, WriteLE, WriteLEPos};
 
 mod ply;
-pub use self::ply::{PlyIterator, PlyNodeWriter, parse_ply_header_fast};
+pub use self::ply::{parse_ply_header_fast, PlyIterator, PlyNodeWriter};
 
 mod pts;
 pub use self::pts::PtsIterator;
