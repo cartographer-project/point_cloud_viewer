@@ -766,27 +766,22 @@ mod tests {
             });
     }
 
-    fn test_ply_pointbatch() {
-        let tmp_dir = TempDir::new("test_ply_pointbatch").unwrap();
+    #[test]
+    fn test_ply_append() {
+        let tmp_dir = TempDir::new("test_ply_append").unwrap();
         let file_path_test = tmp_dir.path().join("out.ply");
         let file_path_gt = "src/test_data/xyz_f32_rgb_u8_intensity_f32.ply";
-        // from ground truth push points in pointbatch
-        let batch = PointsBatch::new();
-        PlyIterator::from_file(file_path_gt).unwrap().for_each(|p| {
-            batch.position.push(p.position);
-            match points_batch.attributes.get(&"color".to_string()) {
-                Some(AttributeData::U8Vec3(data)) => data.push(p.color),
-            };
-            match points_batch.attributes.get(&"intensity".to_string()) {
-                Some(AttributeData::F32(data)) => data.push(p.intensity),
-            };
-        });
-        // write pointbatch
-        let mut ply_writer =
-            PlyNodeWriter::new(&file_path_test, Encoding::Plain, OpenMode::Truncate);
-        ply_writer.write(&batch).unwrap();
-        //check file
-
+        
+        let (header_len, _) = parse_ply_header_fast(&mut BufReader::new(File::open(file_path_gt).unwrap())).unwrap();
+        {
+            std::fs::copy(file_path_gt, &file_path_test).unwrap();
+        }
+        {
+            let mut ply_writer =
+                PlyNodeWriter::new(&file_path_test, Encoding::Plain, OpenMode::Append);
+            let mut reader = BufReader::new(File::open(file_path_gt).unwrap());
+            ply_writer.append_contents(&mut reader , header_len, true).unwrap();
+        }
         PlyIterator::from_file(file_path_gt)
             .unwrap()
             .chain(PlyIterator::from_file(file_path_gt).unwrap())
