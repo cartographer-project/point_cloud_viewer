@@ -14,9 +14,7 @@
 
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::{
-    self, to_meta_proto, to_node_proto, NodeId, OctreeMeta, OnDiskDataProvider,
-};
+use crate::octree::{self, to_meta_proto, to_node_proto, NodeId, OctreeMeta, OnDiskDataProvider};
 use crate::proto;
 use crate::read_write::{
     make_stream, Encoding, InputFile, NodeIterator, NodeWriter, OpenMode, PositionEncoding,

@@ -1,6 +1,6 @@
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::{ChildIndex, NodeId, Octree, DataProvider, OctreeMeta, PositionEncoding};
+use crate::octree::{ChildIndex, DataProvider, NodeId, Octree, OctreeMeta, PositionEncoding};
 use crate::read_write::{NodeIterator, RawNodeReader};
 use crate::Point;
 use cgmath::Vector3;
