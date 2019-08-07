@@ -138,14 +138,14 @@ pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> io::Result<(usize, u
         header_len += reader.read_line(&mut line)?;
         let entries: Vec<&str> = line.trim().split_whitespace().collect();
         match entries[0] {
-            "element" if (entries.len() == 3 && entries [1] == "vertex") =>{
+            "element" if (entries.len() == 3 && entries[1] == "vertex") => {
                 point_count = usize::from_str(entries[2]).map_err(|_| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
                         format!("Invalid count: {}", entries[2]),
                     )
                 })?;
-            },
+            }
             "end_header" => break,
             "format" | "comment" | "property" | "element" => continue,
             _ => {
@@ -671,7 +671,7 @@ impl PlyNodeWriter {
         if !keep_eol {
             self.writer.seek(SeekFrom::End(-1)).unwrap();
         }
-        self.point_count = self.point_count + num_points;    
+        self.point_count += num_points;
         Ok(num_points)
     }
 
@@ -798,7 +798,7 @@ mod tests {
                 .append_contents(&mut reader, header_len, true)
                 .unwrap();
             println!("Points in gt:{} append:{}", point_count, point_appended);
-            assert_eq!(point_count, point_appended);    
+            assert_eq!(point_count, point_appended);
         }
         PlyIterator::from_file(file_path_gt)
             .unwrap()
