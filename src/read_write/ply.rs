@@ -138,16 +138,16 @@ pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> io::Result<(usize, u
         header_len += reader.read_line(&mut line)?;
         let entries: Vec<&str> = line.trim().split_whitespace().collect();
         match entries[0] {
-            "element" if entries.len() == 3 => {
-                point_count = entries[2].parse::<i64>().map_err(|_| {
+            "element" if (entries.len() == 3 && entries [1] == "vertex") =>{
+                point_count = usize::from_str(entries[2]).map_err(|_| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
                         format!("Invalid count: {}", entries[2]),
                     )
-                })?
-            }
+                })?;
+            },
             "end_header" => break,
-            "format" | "comment" | "property" => continue,
+            "format" | "comment" | "property" | "element" => continue,
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -156,7 +156,7 @@ pub fn parse_ply_header_fast<R: BufRead>(reader: &mut R) -> io::Result<(usize, u
             }
         }
     }
-    Ok((header_len, point_count as usize))
+    Ok((header_len, point_count))
 }
 
 fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
@@ -594,6 +594,7 @@ impl PlyNodeWriter {
                 if file.metadata().unwrap().len()
                     >= HEADER_START_TO_NUM_VERTICES.len() as u64 + HEADER_NUM_VERTICES.len() as u64
                 {
+                    // this method only works if the number of digits of the element vertex is constant
                     file.seek(SeekFrom::Start(HEADER_START_TO_NUM_VERTICES.len() as u64))
                         .unwrap();
                     let mut buf = vec![0; HEADER_NUM_VERTICES.len()];
@@ -670,7 +671,7 @@ impl PlyNodeWriter {
         if !keep_eol {
             self.writer.seek(SeekFrom::End(-1)).unwrap();
         }
-        self.point_count += num_points;
+        self.point_count = self.point_count + num_points;    
         Ok(num_points)
     }
 
@@ -783,18 +784,21 @@ mod tests {
         let file_path_test = tmp_dir.path().join("out.ply");
         let file_path_gt = "src/test_data/xyz_f32_rgb_u8_intensity_f32.ply";
 
-        let (header_len, _) =
+        let (header_len, point_count) =
             parse_ply_header_fast(&mut BufReader::new(File::open(file_path_gt).unwrap())).unwrap();
         {
             std::fs::copy(file_path_gt, &file_path_test).unwrap();
         }
         {
             let mut ply_writer =
-                PlyNodeWriter::new(&file_path_test, Encoding::Plain, OpenMode::Append);
+                PlyNodeWriter::new(file_path_test.clone(), Encoding::Plain, OpenMode::Append);
+            assert_eq!(point_count, ply_writer.get_point_count());
             let mut reader = BufReader::new(File::open(file_path_gt).unwrap());
-            ply_writer
+            let point_appended = ply_writer
                 .append_contents(&mut reader, header_len, true)
                 .unwrap();
+            println!("Points in gt:{} append:{}", point_count, point_appended);
+            assert_eq!(point_count, point_appended);    
         }
         PlyIterator::from_file(file_path_gt)
             .unwrap()
