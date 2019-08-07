@@ -2,7 +2,7 @@
 mod tests {
     use crate::color::Color;
     use crate::errors::Result;
-    use crate::octree::{self, build_octree, BatchIterator, Octree, PointLocation, PointQuery};
+    use crate::octree::{self, build_octree, BatchIterator, PointLocation, PointQuery};
     use crate::{Point, PointsBatch};
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};
@@ -87,13 +87,13 @@ mod tests {
         };
 
         // octree and iterator
-        let octree_vec: [Octree; 1] = [*build_test_octree()];
+        let octree = build_test_octree();
         let location = PointQuery {
             location: PointLocation::AllPoints(),
             global_from_local: None,
         };
         let mut batch_iterator = BatchIterator::new(
-            &octree_vec,
+            std::slice::from_ref(&octree),
             &location,
             batch_size,
             std::cmp::max(1, num_cpus::get() - 1),
@@ -143,13 +143,14 @@ mod tests {
             Ok(())
         };
         // octree and iterator
-        let octree_vec: [Octree; 1] = [*build_test_octree()];
+        let octree = build_test_octree();
         let location = PointQuery {
             location: PointLocation::AllPoints(),
             global_from_local: None,
         };
 
-        let mut batch_iterator = BatchIterator::new(&octree_vec, &location, batch_size, 2, 2);
+        let mut batch_iterator =
+            BatchIterator::new(std::slice::from_ref(&octree), &location, batch_size, 2, 2);
 
         let _err_stop = batch_iterator
             .try_for_each_batch(callback_func)
@@ -187,13 +188,13 @@ mod tests {
         };
 
         // octree and iterator
-        let octree_vec: [Octree; 1] = [*build_big_test_octree()];
+        let octree = build_big_test_octree();
         let location = PointQuery {
             location: PointLocation::AllPoints(),
             global_from_local: None,
         };
         let mut batch_iterator = BatchIterator::new(
-            &octree_vec,
+            std::slice::from_ref(&octree),
             &location,
             batch_size,
             std::cmp::max(1, num_cpus::get() - 1),
