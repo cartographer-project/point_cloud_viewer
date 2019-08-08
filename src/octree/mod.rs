@@ -21,8 +21,9 @@ use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::BinaryHeap;
 use std::io::{BufReader, Read};
+use std::path::PathBuf;
 
 mod batch_iterator;
 pub use self::batch_iterator::{BatchIterator, PointLocation, PointQuery};
@@ -39,8 +40,7 @@ pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta};
 mod octree_iterator;
 pub use self::octree_iterator::{FilteredPointsIterator, NodeIdsIterator};
 
-mod on_disk;
-pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
+pub use crate::data_provider::{DataProvider, OnDiskDataProvider};
 
 #[cfg(test)]
 mod octree_test;
@@ -122,17 +122,8 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f64>) -> f64 {
     (rv.max().x - rv.min().x) * (rv.max().y - rv.min().y)
 }
 
-pub trait OctreeDataProvider: Send + Sync {
-    fn meta_proto(&self) -> Result<proto::Meta>;
-    fn data(
-        &self,
-        node_id: &NodeId,
-        node_attributes: &[&str],
-    ) -> Result<HashMap<String, Box<dyn Read>>>;
-}
-
 pub struct Octree {
-    data_provider: Box<dyn OctreeDataProvider>,
+    data_provider: Box<dyn DataProvider>,
     meta: OctreeMeta,
     nodes: FnvHashMap<NodeId, NodeMeta>,
 }
@@ -146,7 +137,7 @@ pub struct NodeData {
 
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
-    pub fn from_data_provider(data_provider: Box<dyn OctreeDataProvider>) -> Result<Self> {
+    pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
         match meta_proto.version {
             9 | 10 => println!(
@@ -274,7 +265,9 @@ impl Octree {
     pub fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData> {
         // TODO(hrapp): If we'd randomize the points while writing, we could just read the
         // first N points instead of reading everything and skipping over a few.
-        let mut position_color_reads = self.data_provider.data(node_id, &["position", "color"])?;
+        let mut position_color_reads = self
+            .data_provider
+            .data(&node_id.to_string(), &["position", "color"])?;
 
         let mut get_data = |node_attribute: &str, err: &str| -> Result<Vec<u8>> {
             let mut reader = BufReader::new(
@@ -375,4 +368,13 @@ fn maybe_push_node(
             empty: meta.num_points == 0,
         });
     }
+}
+
+//  TODO(catevita): refactor function for octree factory
+pub fn octree_from_directory(directory: impl Into<PathBuf>) -> Result<Box<Octree>> {
+    let data_provider = OnDiskDataProvider {
+        directory: directory.into(),
+    };
+    let octree = Octree::from_data_provider(Box::new(data_provider))?;
+    Ok(Box::new(octree))
 }
