@@ -1,7 +1,6 @@
 use crate::errors::*;
 use crate::math::PointCulling;
-use crate::math::{AllPoints, Isometry3, Obb, OrientedBeam};
-use crate::octree::{self, FilteredPointsIterator, Octree};
+use crate::math::{AllPoints, Frustum, Isometry3, Obb, OrientedBeam};
 use crate::{AttributeData, Point, PointsBatch};
 use cgmath::{Matrix4, Vector3};
 use collision::Aabb3;
@@ -30,7 +29,7 @@ impl PointQuery {
         let culling: Box<dyn PointCulling<f64>> = match &self.location {
             PointLocation::AllPoints() => return Box::new(AllPoints {}),
             PointLocation::Aabb(aabb) => Box::new(*aabb),
-            PointLocation::Frustum(matrix) => Box::new(octree::Frustum::new(*matrix)),
+            PointLocation::Frustum(matrix) => Box::new(Frustum::new(*matrix)),
             PointLocation::Obb(obb) => Box::new(obb.clone()),
             PointLocation::OrientedBeam(beam) => Box::new(beam.clone()),
         };
@@ -40,6 +39,7 @@ impl PointQuery {
         }
     }
 }
+
 /// current implementation of the stream of points used in BatchIterator
 struct PointStream<'a, F>
 where
@@ -108,16 +108,12 @@ where
             position: self.position.split_off(0),
             attributes,
         };
-        //println!("internal callback sending last batch...");
         (self.func)(points_batch)
     }
 
-    fn push_points_and_callback<Filter>(
-        &mut self,
-        point_iterator: FilteredPointsIterator<Filter>,
-    ) -> Result<()>
+    fn push_points_and_callback<I>(&mut self, point_iterator: I) -> Result<()>
     where
-        Filter: Fn(&Vector3<f64>) -> bool,
+        I: Iterator<Item = Point>,
     {
         for point in point_iterator {
             self.push_point(point);
@@ -129,18 +125,28 @@ where
     }
 }
 
+pub trait PointCloud: Sync {
+    type Id: ToString + Send;
+    type PointIter: Iterator<Item = Point>;
+    fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id>;
+    fn points_in_node(&self, query: &PointQuery, node_id: Self::Id) -> Self::PointIter;
+}
+
 /// Iterator on point batches
-pub struct BatchIterator<'a> {
-    octrees: &'a [octree::Octree],
+pub struct BatchIterator<'a, C> {
+    octrees: &'a [C],
     point_location: &'a PointQuery,
     batch_size: usize,
     num_threads: usize,
     buffer_size: usize,
 }
 
-impl<'a> BatchIterator<'a> {
+impl<'a, C> BatchIterator<'a, C>
+where
+    C: PointCloud,
+{
     pub fn new(
-        octrees: &'a [octree::Octree],
+        octrees: &'a [C],
         point_location: &'a PointQuery,
         batch_size: usize,
         num_threads: usize,
@@ -161,7 +167,7 @@ impl<'a> BatchIterator<'a> {
         F: FnMut(PointsBatch) -> Result<()>,
     {
         // get thread safe fifo
-        let jobs = Injector::<(&Octree, octree::NodeId)>::new();
+        let jobs = Injector::<(&C, C::Id)>::new();
         let mut number_of_jobs = 0;
         self.octrees
             .iter()

@@ -9,7 +9,7 @@ use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
-use point_viewer::octree::{PointLocation, PointQuery};
+use point_viewer::batch_iterator::{PointLocation, PointQuery};
 use point_viewer::{color::Color, math::Isometry3, AttributeData, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};

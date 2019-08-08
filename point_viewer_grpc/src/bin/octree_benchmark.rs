@@ -20,9 +20,8 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use point_viewer::octree::{
-    octree_from_directory, BatchIterator, Octree, OctreeFactory, PointLocation, PointQuery,
-};
+use point_viewer::batch_iterator::{BatchIterator, PointLocation, PointQuery};
+use point_viewer::octree::{octree_from_directory, Octree, OctreeFactory};
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
 use point_viewer_grpc_proto_rust::proto;
@@ -100,8 +99,9 @@ fn server_benchmark(
         location: PointLocation::AllPoints(),
         global_from_local: None,
     };
+    let octree_slice: &[Octree] = std::slice::from_ref(&octree);
     let mut batch_iterator = BatchIterator::new(
-        std::slice::from_ref(&octree),
+        octree_slice,
         &all_points,
         BATCH_SIZE,
         num_threads,
