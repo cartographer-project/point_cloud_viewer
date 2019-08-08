@@ -127,9 +127,9 @@ where
 
 pub trait PointCloud: Sync {
     type Id: ToString + Send;
-    type PointIter: Iterator<Item = Point>;
+    type PointsIter: Iterator<Item = Point>;
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id>;
-    fn points_in_node(&self, query: &PointQuery, node_id: Self::Id) -> Self::PointIter;
+    fn points_in_node(&self, query: &PointQuery, node_id: Self::Id) -> Self::PointsIter;
 }
 
 /// Iterator on point batches

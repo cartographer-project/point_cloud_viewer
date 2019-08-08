@@ -296,7 +296,7 @@ impl Octree {
 
 impl PointCloud for Octree {
     type Id = NodeId;
-    type PointIter = FilteredPointsIterator;
+    type PointsIter = FilteredPointsIterator;
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         let container = query.get_point_culling();
         let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
