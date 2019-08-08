@@ -134,7 +134,7 @@ pub trait PointCloud: Sync {
 
 /// Iterator on point batches
 pub struct BatchIterator<'a, C> {
-    octrees: &'a [C],
+    point_clouds: &'a [C],
     point_location: &'a PointQuery,
     batch_size: usize,
     num_threads: usize,
@@ -146,14 +146,14 @@ where
     C: PointCloud,
 {
     pub fn new(
-        octrees: &'a [C],
+        point_clouds: &'a [C],
         point_location: &'a PointQuery,
         batch_size: usize,
         num_threads: usize,
         buffer_size: usize,
     ) -> Self {
         BatchIterator {
-            octrees,
+            point_clouds,
             point_location,
             batch_size,
             num_threads,
@@ -169,7 +169,7 @@ where
         // get thread safe fifo
         let jobs = Injector::<(&C, C::Id)>::new();
         let mut number_of_jobs = 0;
-        self.octrees
+        self.point_clouds
             .iter()
             .flat_map(|octree| {
                 std::iter::repeat(octree).zip(octree.nodes_in_location(self.point_location))
