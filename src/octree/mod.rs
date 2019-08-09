@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::{Cube, Frustum};
+use crate::math::Cube;
 use crate::proto;
 use crate::read_write::PositionEncoding;
-use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3};
+use cgmath::{Matrix4, Point3};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
@@ -25,8 +25,7 @@ use std::collections::BinaryHeap;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
 
-mod batch_iterator;
-pub use self::batch_iterator::{BatchIterator, PointLocation, PointQuery};
+use crate::batch_iterator::{PointCloud, PointQuery};
 
 mod generation;
 pub use self::generation::{build_octree, build_octree_from_file};
@@ -289,32 +288,27 @@ impl Octree {
         })
     }
 
-    pub fn nodes_in_location<'a>(
-        &'a self,
-        location: &PointQuery,
-    ) -> NodeIdsIterator<'a, impl Fn(&NodeId, &'a Octree) -> bool> {
-        let container = location.get_point_culling();
-        let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
-            let current = &octree.nodes[&node_id];
-            container.intersects(&current.bounding_cube.to_aabb3())
-        };
-        NodeIdsIterator::new(&self, filter_func)
-    }
-
-    /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
-    pub fn points_in_node<'a>(
-        &'a self,
-        location: &PointQuery,
-        node_id: NodeId,
-    ) -> FilteredPointsIterator<impl Fn(&Vector3<f64>) -> bool> {
-        let container = location.get_point_culling();
-        let filter_func = move |p: &Vector3<f64>| container.contains(&Point3::from_vec(*p));
-        FilteredPointsIterator::new(&self, node_id, filter_func)
-    }
-
     /// return the bounding box saved in meta
     pub fn bounding_box(&self) -> &Aabb3<f64> {
         &self.meta.bounding_box
+    }
+}
+
+impl PointCloud for Octree {
+    type Id = NodeId;
+    type PointsIter = FilteredPointsIterator;
+    fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
+        let container = query.get_point_culling();
+        let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
+            let current = &octree.nodes[&node_id];
+            container.intersects_aabb3(&current.bounding_cube.to_aabb3())
+        };
+        NodeIdsIterator::new(&self, filter_func).collect()
+    }
+
+    fn points_in_node<'a>(&'a self, query: &PointQuery, node_id: NodeId) -> FilteredPointsIterator {
+        let container = query.get_point_culling();
+        FilteredPointsIterator::new(&self, node_id, container)
     }
 }
 

@@ -61,7 +61,11 @@ fn main() {
     let mut router = Router::new();
     router.get("/", index, "index");
     router.get("/app_bundle.js", app_bundle, "app_bundle");
-    router.get("/app_bundle.js.map", app_bundle_source_map, "app_bundle_source_map");
+    router.get(
+        "/app_bundle.js.map",
+        app_bundle_source_map,
+        "app_bundle_source_map",
+    );
     xray::backend::serve(
         "",
         &mut router,
