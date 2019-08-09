@@ -129,16 +129,19 @@ pub fn serve(
         HandleMeta {
             meta: Arc::clone(&meta),
         },
+        "meta",
     );
     router.get(
         format!("{}/nodes_for_level", prefix),
         HandleNodesForLevel {
             meta: Arc::clone(&meta),
         },
+        "nodes_for_level",
     );
     router.get(
         format!("{}/node_image/:id", prefix),
         HandleNodeImage { xray_provider },
+        "node_image",
     );
     Ok(())
 }
