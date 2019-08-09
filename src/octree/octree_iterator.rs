@@ -88,12 +88,11 @@ impl Iterator for FilteredPointsIterator {
     type Item = Point;
 
     fn next(&mut self) -> Option<Point> {
-        while let Some(point) = self.node_iterator.next() {
-            if self.culling.contains(&Point3::from_vec(point.position)) {
-                return Some(point);
-            }
-        }
-        None
+        let culling = &self.culling;
+        self.node_iterator.find(|pt| {
+            let pos = Point3::from_vec(pt.position);
+            culling.contains(&pos)
+        })
     }
 }
 
