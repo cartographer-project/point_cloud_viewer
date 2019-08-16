@@ -54,6 +54,7 @@ where
                     .attributes
                     .entry(key)
                     .and_modify(|out_data| match (in_data, out_data) {
+                        (U8(in_vec), U8(out_vec)) => out_vec.push(in_vec[i]),
                         (I64(in_vec), I64(out_vec)) => out_vec.push(in_vec[i]),
                         (U64(in_vec), U64(out_vec)) => out_vec.push(in_vec[i]),
                         (F32(in_vec), F32(out_vec)) => out_vec.push(in_vec[i]),
@@ -63,6 +64,7 @@ where
                         _ => panic!("Input data type unequal output data type."),
                     })
                     .or_insert(match in_data {
+                        U8(in_vec) => U8(vec![in_vec[i]]),
                         I64(in_vec) => I64(vec![in_vec[i]]),
                         U64(in_vec) => U64(vec![in_vec[i]]),
                         F32(in_vec) => F32(vec![in_vec[i]]),

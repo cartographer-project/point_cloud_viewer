@@ -473,6 +473,7 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
                         (
                             &k[..],
                             match data {
+                                AttributeData::U8(_) => "uchar",
                                 AttributeData::I64(_) => "longlong",
                                 AttributeData::U64(_) => "ulonglong",
                                 AttributeData::F32(_) => "float",
