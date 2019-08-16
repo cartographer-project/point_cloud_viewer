@@ -103,11 +103,6 @@ impl PointCloudRenderer {
                 }
                 let now = ::std::time::Instant::now();
                 let visible_nodes = octree_clone.get_visible_nodes(&matrix);
-                println!(
-                    "Currently visible nodes: {}, time to calculate: {:?}",
-                    visible_nodes.len(),
-                    now.elapsed()
-                );
                 tx.send(visible_nodes).unwrap();
             }
         });
@@ -301,7 +296,7 @@ pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
     fn new(matches: &clap::ArgMatches, opengl: Rc<opengl::Gl>) -> Self;
     fn local_from_global(matches: &clap::ArgMatches, octree: &Octree) -> Option<Isometry3<f64>>;
-    fn camera_changed(&mut self, transform: &Matrix4<f64>);
+    fn camera_changed(&mut self, transform: &Matrix4<f64>, camera_to_world: &Matrix4<f64>);
     fn draw(&mut self);
 }
 
@@ -505,6 +500,8 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                             Scancode::Num8 => renderer.adjust_gamma(0.1),
                             Scancode::Num9 => renderer.adjust_point_size(-0.1),
                             Scancode::Num0 => renderer.adjust_point_size(0.1),
+                            Scancode::Period => camera.mouse_wheel(100),
+                            Scancode::Comma => camera.mouse_wheel(-100),
                             _ => (),
                         }
                     } else if keymod.intersects(LCTRLMOD | RCTRLMOD)
@@ -590,7 +587,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
         last_frame_time = current_time;
         if camera.update(elapsed) {
             renderer.camera_changed(&camera.get_world_to_gl());
-            extension.camera_changed(&camera.get_world_to_gl());
+            extension.camera_changed(&camera.get_world_to_gl(), &camera.get_camera_to_world());
         }
 
         match renderer.draw() {
