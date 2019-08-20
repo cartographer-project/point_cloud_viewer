@@ -17,8 +17,8 @@ use crate::math::Cube;
 use crate::octree::{self, to_meta_proto, to_node_proto, NodeId, OctreeMeta, OnDiskDataProvider};
 use crate::proto;
 use crate::read_write::{
-    make_stream, Encoding, InputFile, NodeIterator, NodeWriter, OpenMode, PositionEncoding,
-    RawNodeWriter,
+    attempt_increasing_rlimit_to_max, make_stream, Encoding, InputFile, NodeIterator, NodeWriter,
+    OpenMode, PositionEncoding, RawNodeWriter,
 };
 use crate::Point;
 use cgmath::{EuclideanSpace, Point3, Vector3};
@@ -292,18 +292,7 @@ pub fn build_octree(
     bounding_box: Aabb3<f64>,
     input: impl Iterator<Item = Point>,
 ) {
-    // We open a lot of files during our work. Sometimes users see errors with 'cannot open more
-    // files'. We attempt to increase the rlimits for the number of open files per process here,
-    // but we do not fail if we do not manage to do so.
-    unsafe {
-        let mut rl = libc::rlimit {
-            rlim_cur: 0,
-            rlim_max: 0,
-        };
-        libc::getrlimit(libc::RLIMIT_NOFILE, &mut rl);
-        rl.rlim_cur = rl.rlim_max;
-        libc::setrlimit(libc::RLIMIT_NOFILE, &rl);
-    }
+    attempt_increasing_rlimit_to_max();
 
     // TODO(ksavinash9): This function should return a Result.
     let octree_meta = &octree::OctreeMeta {
