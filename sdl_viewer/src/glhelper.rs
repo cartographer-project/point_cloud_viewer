@@ -63,11 +63,15 @@ pub fn link_program(
         let program = gl.CreateProgram();
         gl.AttachShader(program, vertex_shader_id);
         gl.AttachShader(program, fragment_shader_id);
-        geometry_shader_id.map(|id| gl.AttachShader(program, id));
+        if let Some(id) = geometry_shader_id {
+            gl.AttachShader(program, id)
+        };
         gl.LinkProgram(program);
         gl.DetachShader(program, vertex_shader_id);
         gl.DetachShader(program, fragment_shader_id);
-        geometry_shader_id.map(|id| gl.DetachShader(program, id));
+        if let Some(id) = geometry_shader_id {
+            gl.DetachShader(program, id)
+        };
 
         let mut status = i32::from(opengl::FALSE);
         gl.GetProgramiv(program, opengl::LINK_STATUS, &mut status);

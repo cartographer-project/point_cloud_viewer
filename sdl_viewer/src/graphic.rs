@@ -14,7 +14,6 @@
 
 //! Higher level abstractions around core OpenGL concepts.
 
-use crate::c_str;
 use crate::glhelper::{compile_shader, link_program};
 use crate::opengl::types::{GLboolean, GLint, GLuint};
 use crate::opengl::{self, Gl};
@@ -212,11 +211,12 @@ pub struct GlUniform<T> {
 }
 
 impl<T: Uniform> GlUniform<T> {
-    pub fn new(program: &GlProgram, gl: Rc<opengl::Gl>, name: *const i8, value: T) -> Self {
+    pub fn new(program: &GlProgram, gl: Rc<opengl::Gl>, name: &str, value: T) -> Self {
         let location;
         unsafe {
             gl.UseProgram(program.id);
-            location = gl.GetUniformLocation(program.id, name);
+            location =
+                gl.GetUniformLocation(program.id, (name.to_string() + "\0").as_ptr() as *const i8);
         }
         GlUniform {
             location,
@@ -258,7 +258,7 @@ where
     pub fn new(
         program: &GlProgram,
         gl: Rc<opengl::Gl>,
-        name: *const i8,
+        name: &str,
         size: i32,
         pixels: ImageBuffer<P, Vec<P::Subpixel>>,
     ) -> Self {
@@ -266,7 +266,8 @@ where
         let mut id = 0;
         unsafe {
             gl.UseProgram(program.id);
-            let loc = gl.GetUniformLocation(program.id, name);
+            let loc =
+                gl.GetUniformLocation(program.id, (name.to_string() + "\0").as_ptr() as *const i8);
             gl.Uniform1i(loc, 0);
 
             gl.GenTextures(1, &mut id);
@@ -313,7 +314,7 @@ where
         let u_texture_offset = GlUniform::new(
             &program,
             Rc::clone(&gl),
-            c_str!("texture_offset"), // TODO: unique name
+            "texture_offset", // TODO: unique name
             Vector2::new(0, 0),
         );
 
@@ -370,7 +371,7 @@ where
             let right_width = self.size - xoff;
             let left_width = width - right_width;
             regions[0] = Some(UpdateRegion {
-                xoff: xoff,
+                xoff,
                 yoff: 0,
                 width: right_width,
                 height: self.size,
@@ -396,9 +397,9 @@ where
             });
         } else if width != 0 {
             regions[0] = Some(UpdateRegion {
-                xoff: xoff,
+                xoff,
                 yoff: 0,
-                width: width,
+                width,
                 height: self.size,
                 pixels: rotate_y(vert_strip, self.u_texture_offset.value.y as u32),
             });
@@ -410,7 +411,7 @@ where
             let lower_height = height - upper_height;
             regions[2] = Some(UpdateRegion {
                 xoff: 0,
-                yoff: yoff,
+                yoff,
                 width: self.size,
                 height: upper_height,
                 pixels: rotate_x(
@@ -436,9 +437,9 @@ where
         } else if height != 0 {
             regions[2] = Some(UpdateRegion {
                 xoff: 0,
-                yoff: yoff,
+                yoff,
                 width: self.size,
-                height: height,
+                height,
                 pixels: rotate_x(hori_strip, self.u_texture_offset.value.x as u32),
             });
         }
@@ -450,8 +451,8 @@ where
         &mut self,
         delta_x: i32,
         delta_y: i32,
-        mut vert_strip: ImageBuffer<P, Vec<P::Subpixel>>,
-        mut hori_strip: ImageBuffer<P, Vec<P::Subpixel>>,
+        vert_strip: ImageBuffer<P, Vec<P::Subpixel>>,
+        hori_strip: ImageBuffer<P, Vec<P::Subpixel>>,
     ) {
         if delta_x == 0 && delta_y == 0 {
             return;
@@ -560,5 +561,5 @@ pub fn debug<P: AsRef<std::path::Path>>(tex: &ImageBuffer<LumaA<f32>, Vec<f32>>,
     use image::GrayImage;
     let dbg_image: GrayImage =
         ImageBuffer::from_raw(tex.width(), tex.height(), first_channel).unwrap();
-    dbg_image.save(name);
+    dbg_image.save(name).unwrap();
 }

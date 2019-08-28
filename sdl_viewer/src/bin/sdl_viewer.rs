@@ -12,35 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::Matrix4;
-use point_viewer::math::Isometry3;
-use point_viewer::octree::{Octree, OctreeFactory};
+use point_viewer::octree::OctreeFactory;
 use point_viewer_grpc::octree_from_grpc_address;
-use sdl_viewer::{opengl, run, Extension};
-use std::rc::Rc;
-
-struct NullExtension;
-
-impl Extension for NullExtension {
-    fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
-        app
-    }
-
-    fn new(_: &clap::ArgMatches, _: Rc<opengl::Gl>) -> Self {
-        Self
-    }
-
-    fn local_from_global(_: &clap::ArgMatches, _: &Octree) -> Option<Isometry3<f64>> {
-        None
-    }
-
-    fn camera_changed(&mut self, _: &Matrix4<f64>) {}
-
-    fn draw(&mut self) {}
-}
+use sdl_viewer::run;
+use sdl_viewer::terrain::TerrainExtension;
 
 fn main() {
     let octree_factory = OctreeFactory::new().register("grpc://", octree_from_grpc_address);
     // TODO(catevita): hide octree factory details, simplify the run method interface
-    run::<NullExtension>(octree_factory);
+    run::<TerrainExtension>(octree_factory);
 }

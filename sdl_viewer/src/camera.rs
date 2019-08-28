@@ -199,6 +199,10 @@ impl Camera {
         self.update_viewport(gl);
     }
 
+    pub fn get_camera_to_world(&self) -> Matrix4<f64> {
+        self.local_from_global.inverse_transform().unwrap() * Matrix4::from(self.transform)
+    }
+
     pub fn get_world_to_gl(&self) -> Matrix4<f64> {
         let camera_from_local: Matrix4<f64> = self.transform.inverse_transform().unwrap().into();
         self.projection_matrix.cast::<f64>().unwrap() * camera_from_local * self.local_from_global
@@ -236,7 +240,7 @@ impl Camera {
 
         let elapsed_seconds = elapsed.num_milliseconds() as f64 / 1000.;
 
-        const TURNING_SPEED: Rad<f64> = Rad(0.15);
+        const TURNING_SPEED: Rad<f64> = Rad(0.5);
         if self.turning_left {
             self.rotation_speed.theta += TURNING_SPEED;
         }
