@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod batch_iterator;
 pub mod color;
 pub mod data_provider;
 pub mod errors;
@@ -45,6 +46,7 @@ pub fn attribute_extension(attribute: &str) -> &str {
 /// General field to describe point feature attributes such as color, intensity, ...
 #[derive(Debug, Clone)]
 pub enum AttributeData {
+    U8(Vec<u8>),
     I64(Vec<i64>),
     U64(Vec<u64>),
     F32(Vec<f32>),
@@ -56,6 +58,7 @@ pub enum AttributeData {
 impl AttributeData {
     pub fn len(&self) -> usize {
         match self {
+            AttributeData::U8(data) => data.len(),
             AttributeData::I64(data) => data.len(),
             AttributeData::U64(data) => data.len(),
             AttributeData::F32(data) => data.len(),
@@ -71,7 +74,8 @@ impl AttributeData {
 
     pub fn dim(&self) -> usize {
         match self {
-            AttributeData::I64(_)
+            AttributeData::U8(_)
+            | AttributeData::I64(_)
             | AttributeData::U64(_)
             | AttributeData::F32(_)
             | AttributeData::F64(_) => 1,
