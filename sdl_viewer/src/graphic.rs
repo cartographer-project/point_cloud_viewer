@@ -29,7 +29,7 @@ impl GlProgram {
     pub fn new(gl: Rc<opengl::Gl>, vertex_shader: &str, fragment_shader: &str) -> Self {
         let vertex_shader_id = compile_shader(&*gl, vertex_shader, opengl::VERTEX_SHADER);
         let fragment_shader_id = compile_shader(&*gl, fragment_shader, opengl::FRAGMENT_SHADER);
-        let id = link_program(&*gl, vertex_shader_id, fragment_shader_id);
+        let id = link_program(&*gl, vertex_shader_id, fragment_shader_id, None);
 
         // TODO(hrapp): Pull out some saner abstractions around program compilation.
         unsafe {
@@ -37,6 +37,20 @@ impl GlProgram {
             gl.DeleteShader(fragment_shader_id);
         }
         GlProgram { gl, id }
+    }
+
+    pub fn new_with_geometry_shader(gl: Rc<opengl::Gl>, vertex_shader: &str, fragment_shader: &str, geometry_shader: &str) -> Self {
+        let vertex_shader_id = compile_shader(&*gl, vertex_shader, opengl::VERTEX_SHADER);
+        let fragment_shader_id = compile_shader(&*gl, fragment_shader, opengl::FRAGMENT_SHADER);
+        let geometry_shader_id = compile_shader(&*gl, geometry_shader, opengl::GEOMETRY_SHADER);
+        let id = link_program(&*gl, vertex_shader_id, fragment_shader_id, Some(geometry_shader_id));
+        unsafe {
+            gl.DeleteShader(vertex_shader_id);
+            gl.DeleteShader(fragment_shader_id);
+            gl.DeleteShader(geometry_shader_id);
+        }
+        GlProgram { gl, id }
+
     }
 }
 
