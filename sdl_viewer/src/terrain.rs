@@ -3,7 +3,7 @@ use crate::opengl;
 use crate::sparse_texture_loader::SparseTextureLoader;
 use crate::{c_str, Extension};
 use cgmath::{Matrix4, SquareMatrix, Vector2, Zero};
-use image::LumaA;
+use image::{LumaA, Rgba};
 use opengl::types::{GLsizeiptr, GLuint};
 use point_viewer::math::Isometry3;
 use point_viewer::octree::Octree;
@@ -25,6 +25,7 @@ pub struct TerrainRenderer {
     u_transform: GlUniform<Matrix4<f64>>,
     u_terrain_pos: GlUniform<Vector2<i32>>,
     heightmap: GlTexture<LumaA<f32>>,
+    // colormap: GlTexture<Rgba<u8>>,
     camera_pos_xy_m: Vector2<f64>,
     vertex_array: GlVertexArray,
     buffer_position: GlBuffer,
@@ -35,7 +36,7 @@ pub struct TerrainRenderer {
 
 impl TerrainRenderer {
     pub fn new<P: AsRef<std::path::Path>>(gl: Rc<opengl::Gl>, heightmap_path: P) -> Self {
-        let sparse_heightmap = SparseTextureLoader::new(heightmap_path);
+        let sparse_heightmap = SparseTextureLoader::new(heightmap_path).unwrap();
 
         let program = GlProgram::new_with_geometry_shader(
             Rc::clone(&gl),
@@ -84,12 +85,23 @@ impl TerrainRenderer {
         let (buffer_position, buffer_indices, num_indices) =
             Self::create_mesh(&program, &vertex_array, Rc::clone(&gl));
 
-        let heightmap = Self::create_texture(
-            &sparse_heightmap,
-            initial_terrain_pos,
+        let height_and_color = sparse_heightmap.load(initial_terrain_pos.x, initial_terrain_pos.y, GRID_SIZE + 1, GRID_SIZE + 1);
+        let heightmap = GlTexture::new(
             &program,
             Rc::clone(&gl),
+            "height",
+            (GRID_SIZE + 1) as i32,
+            height_and_color.height,
         );
+
+        // let colormap = GlTexture::new(
+        //     &program,
+        //     Rc::clone(&gl),
+        //     "color_sampler",
+        //     (GRID_SIZE + 1) as i32,
+        //     height_and_color.color,
+        // );
+
         let camera_pos_xy_m = Vector2::zero();
 
         Self {
@@ -97,6 +109,7 @@ impl TerrainRenderer {
             u_transform,
             u_terrain_pos,
             heightmap,
+            // colormap,
             camera_pos_xy_m,
             vertex_array,
             buffer_position,
@@ -174,21 +187,6 @@ impl TerrainRenderer {
         (buffer_position, buffer_indices, indices.len())
     }
 
-    fn create_texture(
-        heightmap: &SparseTextureLoader,
-        terrain_pos: Vector2<i64>,
-        program: &GlProgram,
-        gl: Rc<opengl::Gl>,
-    ) -> GlTexture<LumaA<f32>> {
-        let pixels = heightmap.load(terrain_pos.x, terrain_pos.y, GRID_SIZE + 1, GRID_SIZE + 1);
-        GlTexture::new(
-            program,
-            gl,
-            "heightmap_sampler",
-            (GRID_SIZE + 1) as i32,
-            pixels,
-        )
-    }
 
     // ======================================= End setup =======================================
 
@@ -263,7 +261,9 @@ impl TerrainRenderer {
         };
 
         self.heightmap
-            .incremental_update(moved.x as i32, moved.y as i32, vert_strip, hori_strip);
+            .incremental_update(moved.x as i32, moved.y as i32, vert_strip.height, hori_strip.height);
+        // self.colormap
+        //     .incremental_update(moved.x as i32, moved.y as i32, vert_strip.color, hori_strip.color);
         // if moved.x != 0 || moved.y != 0 {
         //     crate::graphic::debug(
         //         &self.heightmap.debug_tex,
@@ -277,7 +277,7 @@ impl TerrainRenderer {
     }
 
     pub fn draw(&mut self) {
-        unsafe {
+        let err = unsafe {
             self.vertex_array.bind();
             self.program.gl.UseProgram(self.program.id);
             self.program
@@ -301,7 +301,9 @@ impl TerrainRenderer {
                 std::ptr::null(),
             );
             self.program.gl.Disable(opengl::BLEND);
-        }
+            self.program.gl.GetError()
+        };
+        println!("Err = {:?}", err);
     }
 }
 

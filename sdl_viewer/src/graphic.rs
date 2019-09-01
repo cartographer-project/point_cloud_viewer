@@ -19,7 +19,7 @@ use crate::opengl::types::{GLboolean, GLint, GLuint};
 use crate::opengl::{self, Gl};
 use arrayvec::ArrayVec;
 use cgmath::{Matrix, Matrix4, Vector2, Vector3};
-use image::{GenericImage, GenericImageView, ImageBuffer, LumaA, Pixel};
+use image::{GenericImage, GenericImageView, ImageBuffer, LumaA, Pixel, Rgba};
 use num_integer::Integer;
 use std::ffi::c_void;
 use std::marker::PhantomData;
@@ -250,8 +250,27 @@ struct UpdateRegion<P: Pixel> {
     pixels: ImageBuffer<P, Vec<P::Subpixel>>,
 }
 
+pub trait TextureFormat: Pixel {
+    const INTERNALFORMAT: GLint;
+    const FORMAT: GLuint;
+    const DTYPE: GLuint;
+}
+
+impl TextureFormat for LumaA<f32> {
+    const INTERNALFORMAT: GLint = opengl::RG32F as GLint;
+    const FORMAT: GLuint = opengl::RG;
+    const DTYPE: GLuint = opengl::FLOAT;
+}
+
+impl TextureFormat for Rgba<u8> {
+    const INTERNALFORMAT: GLint = opengl::RGBA8 as GLint;
+    const FORMAT: GLuint = opengl::RGBA;
+    const DTYPE: GLuint = opengl::UNSIGNED_BYTE;
+}
+
 impl<P> GlTexture<P>
 where
+    P: TextureFormat,
     P: Pixel + 'static + std::fmt::Debug,
     P::Subpixel: 'static + std::fmt::Debug,
 {
@@ -301,12 +320,12 @@ where
             gl.TexImage2D(
                 opengl::TEXTURE_2D,
                 0,
-                opengl::RG32F as GLint,
+                P::INTERNALFORMAT,
                 size,
                 size,
                 0,
-                Self::image_format(),
-                opengl::FLOAT,
+                P::FORMAT,
+                P::DTYPE,
                 pixels.into_raw().as_ptr() as *const c_void,
             );
         }
@@ -314,7 +333,7 @@ where
         let u_texture_offset = GlUniform::new(
             &program,
             Rc::clone(&gl),
-            "texture_offset", // TODO: unique name
+            &(name.to_string() + "_texture_offset"),
             Vector2::new(0, 0),
         );
 
@@ -325,16 +344,6 @@ where
             u_texture_offset,
             pixel_type: PhantomData,
             debug_tex,
-        }
-    }
-
-    fn image_format() -> u32 {
-        match P::CHANNEL_COUNT {
-            1 => opengl::RED,
-            2 => opengl::RG,
-            3 => opengl::RGB,
-            4 => opengl::RGBA,
-            _ => panic!("Pixel can only have four channels."),
         }
     }
 
@@ -482,8 +491,8 @@ where
                     r.yoff,
                     r.width,
                     r.height,
-                    Self::image_format(),
-                    opengl::FLOAT,
+                    P::FORMAT,
+                    P::DTYPE,
                     r.pixels.into_raw().as_ptr() as *const c_void,
                 );
             }

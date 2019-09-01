@@ -10,9 +10,11 @@ uniform double terrain_res_m;
 
 // The min corner of the currently visible terrain
 uniform ivec2 terrain_pos;
-uniform ivec2 texture_offset;
+uniform ivec2 height_texture_offset;
+uniform ivec2 color_texture_offset;
 uniform dmat4 world_to_gl; // the full projective transform
-uniform sampler2D heightmap_sampler;
+uniform sampler2D height;
+uniform sampler2D color;
 
 out VS_OUT {
     vec4 color;
@@ -20,12 +22,12 @@ out VS_OUT {
 } vs_out;
 
 void main() {
-  // vec2 texCoord = texture_offset + vec2(aPos.xy) / float(grid_size+1.0);
-  // vec4 tex = texture(heightmap_sampler, texCoord);
-  ivec2 texSize = textureSize(heightmap_sampler, 0);
-  ivec2 texCoord = texture_offset + aPos.xy;
+  // vec2 texCoord = height_texture_offset + vec2(aPos.xy) / float(grid_size+1.0);
+  // vec4 tex = texture(height, texCoord);
+  ivec2 texSize = textureSize(height, 0);
+  ivec2 texCoord = height_texture_offset + aPos.xy;
   ivec2 texCoordModSize = texCoord - (texCoord / texSize) * texSize;
-  vec4 tex = texelFetch(heightmap_sampler, texCoordModSize, 0);
+  vec4 tex = texelFetch(height, texCoordModSize, 0);
   vs_out.quads = uint(tex.y);
   dvec4 world_pos = dvec4(terrain_origin_m, 1.0lf);
   world_pos.xy += terrain_res_m * (dvec2(aPos.xy) + dvec2(terrain_pos));

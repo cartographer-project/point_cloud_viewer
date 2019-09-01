@@ -1,10 +1,16 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::{Vector2, Vector3};
-use image::{GenericImage, GenericImageView, ImageBuffer, LumaA};
+use image::{GenericImage, GenericImageView, ImageBuffer, LumaA, Rgba};
 use num_integer::Integer;
 use std::collections::HashMap;
 use std::fs::File; // for div_floor
-use std::io::BufReader;
+use std::io::{BufReader, Read};
+
+
+pub struct HeightAndColor {
+    pub height: ImageBuffer<LumaA<f32>, Vec<f32>>,
+    pub color: ImageBuffer<Rgba<u8>, Vec<u8>>
+}
 
 pub struct SparseTextureLoader {
     origin_x: f64,
@@ -12,58 +18,51 @@ pub struct SparseTextureLoader {
     origin_z: f64,
     resolution_m: f64,
     tile_size: u32,
-    tiles: HashMap<(i32, i32), ImageBuffer<LumaA<f32>, Vec<f32>>>,
+    tiles: HashMap<(i32, i32), HeightAndColor>,
 }
 
 impl SparseTextureLoader {
-    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Self {
+    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self, std::io::Error> {
         println!("Loading terrain");
         let mut meta =
             File::open(path.as_ref().join("meta")).expect("Could not open sparse texture dir");
-        let tile_size = meta.read_u32::<LittleEndian>().unwrap();
-        let resolution_m = meta.read_f64::<LittleEndian>().unwrap();
-        let origin_x = meta.read_f64::<LittleEndian>().unwrap();
-        let origin_y = meta.read_f64::<LittleEndian>().unwrap();
-        let origin_z = meta.read_f64::<LittleEndian>().unwrap();
-        // TODO: read file size
+        let tile_size = meta.read_u32::<LittleEndian>()?;
+        let resolution_m = meta.read_f64::<LittleEndian>()?;
+        let origin_x = meta.read_f64::<LittleEndian>()?;
+        let origin_y = meta.read_f64::<LittleEndian>()?;
+        let origin_z = meta.read_f64::<LittleEndian>()?;
+        let num_tiles = meta.read_u32::<LittleEndian>()?;
 
         let mut tiles = HashMap::new();
-        std::fs::read_dir(path)
-            .expect("Could not open texture dir")
-            .for_each(|entry| {
-                let entry = entry.unwrap();
-                let file_name = entry.file_name();
-                if file_name == "meta" {
-                    return;
-                }
-                let x: i32 = file_name.to_str().unwrap()[1..9].parse().unwrap();
-                let y: i32 = file_name.to_str().unwrap()[11..19].parse().unwrap();
-                let mut contents = vec![0.0; tile_size as usize * tile_size as usize * 2];
-                // let mut contents = Vec::with_capacity(tile_size as usize * tile_size as usize * 2);
-                let file = File::open(entry.path()).unwrap();
-                let mut rdr = BufReader::new(file);
-                // for i in 0..(tile_size as usize * tile_size as usize) {
-                //     contents.push(rdr.read_f32::<LittleEndian>().unwrap());
-                //     contents.push(rdr.read_u32::<LittleEndian>().unwrap() as f32);
-                // }
-                rdr.read_f32_into::<LittleEndian>(&mut contents).unwrap();
-                assert!(tiles
+        let mut height_contents = vec![0.0; tile_size as usize * tile_size as usize * 2];
+        let mut color_contents = vec![0; tile_size as usize * tile_size as usize * 4];
+        for i in 0..num_tiles {
+            let x = meta.read_i32::<LittleEndian>()?;
+            let y = meta.read_i32::<LittleEndian>()?;
+            let height_file_path = path.as_ref().join(format!("x{:08}_y{:08}.height", x, y));
+            let color_file_path = path.as_ref().join(format!("x{:08}_y{:08}.color", x, y));
+            let mut height_rdr = BufReader::new(File::open(height_file_path)?);
+            height_rdr.read_f32_into::<LittleEndian>(&mut height_contents)?;
+            let height_buffer = ImageBuffer::from_raw(tile_size, tile_size, height_contents.clone()).expect("Corrupt contents");
+            let mut color_rdr = BufReader::new(File::open(color_file_path)?);
+            color_rdr.read(&mut color_contents)?;
+            let color_buffer = ImageBuffer::from_raw(tile_size, tile_size, color_contents.clone()).expect("Corrupt contents");
+            let previous_entry =  tiles
                     .insert(
                         (x, y),
-                        ImageBuffer::from_raw(tile_size, tile_size, contents)
-                            .expect("Corrupt contents"),
-                    )
-                    .is_none());
-            });
+                        HeightAndColor { height: height_buffer, color: color_buffer }
+                    );
+            assert!(previous_entry.is_none());
+        }
 
-        SparseTextureLoader {
+        Ok(SparseTextureLoader {
             origin_x,
             origin_y,
             origin_z,
             resolution_m,
             tile_size,
             tiles,
-        }
+        })
     }
 
     pub fn resolution(&self) -> f64 {
@@ -80,7 +79,7 @@ impl SparseTextureLoader {
         min_y: i64,
         width: usize,
         height: usize,
-    ) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
+    ) -> HeightAndColor {
         // return self.load_dummy2(min_x, min_y, width, height);
         let ts = &i64::from(self.tile_size);
         let (min_tile_x, min_mod_x) = min_x.div_mod_floor(ts);
@@ -89,7 +88,8 @@ impl SparseTextureLoader {
         let max_y = min_y + height as i64;
         let (max_tile_x, max_mod_x) = max_x.div_mod_floor(ts);
         let (max_tile_y, max_mod_y) = max_y.div_mod_floor(ts);
-        let mut buffer = ImageBuffer::from_pixel(width as u32, height as u32, LumaA([0.0; 2]));
+        let mut height_buffer = ImageBuffer::from_pixel(width as u32, height as u32, LumaA([0.0; 2]));
+        let mut color_buffer = ImageBuffer::from_pixel(width as u32, height as u32, Rgba([0; 4]));
         (min_tile_x..=max_tile_x)
             .flat_map(|tile_x| (min_tile_y..=max_tile_y).map(move |tile_y| (tile_x, tile_y)))
             .for_each(|(tile_x, tile_y)| {
@@ -119,12 +119,14 @@ impl SparseTextureLoader {
                     self.tile_size as u32 - y_off_src
                 };
                 if let Some(src) = self.tiles.get(&(tile_x as i32, tile_y as i32)) {
-                    let roi = src.view(x_off_src, y_off_src, len_x, len_y);
-                    buffer.copy_from(&roi, x_off_dst as u32, y_off_dst as u32);
+                    let height_roi = src.height.view(x_off_src, y_off_src, len_x, len_y);
+                    let color_roi = src.color.view(x_off_src, y_off_src, len_x, len_y);
+                    height_buffer.copy_from(&height_roi, x_off_dst as u32, y_off_dst as u32);
+                    color_buffer.copy_from(&color_roi, x_off_dst as u32, y_off_dst as u32);
                 }
             });
         // super::graphic::debug(&buffer, format!("tex_{}_{}_{}_{}.png", min_x, min_y, width, height));
-        buffer
+        HeightAndColor { height: height_buffer, color: color_buffer }
     }
 
     // fn load_dummy(
