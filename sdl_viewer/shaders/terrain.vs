@@ -32,6 +32,6 @@ void main() {
   dvec4 world_pos = dvec4(terrain_origin_m, 1.0lf);
   world_pos.xy += terrain_res_m * (dvec2(aPos.xy) + dvec2(terrain_pos));
   world_pos.z += double(tex.x);
-  vs_out.color = vec4(0.2, 0.0, 1.0, 1.0);
+  vs_out.color = texelFetch(color, texCoordModSize, 0).yxzw; // TODO: why is the channel order wrong?
   gl_Position = vec4(world_to_gl * world_pos);
 }
