@@ -25,7 +25,7 @@ pub struct TerrainRenderer {
     u_transform: GlUniform<Matrix4<f64>>,
     u_terrain_pos: GlUniform<Vector2<i32>>,
     heightmap: GlTexture<LumaA<f32>>,
-    // colormap: GlTexture<Rgba<u8>>,
+    colormap: GlTexture<Rgba<u8>>,
     camera_pos_xy_m: Vector2<f64>,
     vertex_array: GlVertexArray,
     buffer_position: GlBuffer,
@@ -94,13 +94,13 @@ impl TerrainRenderer {
             height_and_color.height,
         );
 
-        // let colormap = GlTexture::new(
-        //     &program,
-        //     Rc::clone(&gl),
-        //     "color_sampler",
-        //     (GRID_SIZE + 1) as i32,
-        //     height_and_color.color,
-        // );
+        let colormap = GlTexture::new(
+            &program,
+            Rc::clone(&gl),
+            "color_sampler",
+            (GRID_SIZE + 1) as i32,
+            height_and_color.color,
+        );
 
         let camera_pos_xy_m = Vector2::zero();
 
@@ -109,7 +109,7 @@ impl TerrainRenderer {
             u_transform,
             u_terrain_pos,
             heightmap,
-            // colormap,
+            colormap,
             camera_pos_xy_m,
             vertex_array,
             buffer_position,
@@ -262,8 +262,8 @@ impl TerrainRenderer {
 
         self.heightmap
             .incremental_update(moved.x as i32, moved.y as i32, vert_strip.height, hori_strip.height);
-        // self.colormap
-        //     .incremental_update(moved.x as i32, moved.y as i32, vert_strip.color, hori_strip.color);
+        self.colormap
+            .incremental_update(moved.x as i32, moved.y as i32, vert_strip.color, hori_strip.color);
         // if moved.x != 0 || moved.y != 0 {
         //     crate::graphic::debug(
         //         &self.heightmap.debug_tex,
@@ -277,7 +277,7 @@ impl TerrainRenderer {
     }
 
     pub fn draw(&mut self) {
-        let err = unsafe {
+        unsafe {
             self.vertex_array.bind();
             self.program.gl.UseProgram(self.program.id);
             self.program
@@ -301,9 +301,7 @@ impl TerrainRenderer {
                 std::ptr::null(),
             );
             self.program.gl.Disable(opengl::BLEND);
-            self.program.gl.GetError()
-        };
-        println!("Err = {:?}", err);
+        }
     }
 }
 
