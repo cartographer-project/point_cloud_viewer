@@ -16,8 +16,8 @@ use crate::color;
 use crate::errors::*;
 use crate::math::Cube;
 use crate::read_write::{
-    decode, fixpoint_decode, DataWriter, Encoding, NodeReader, NodeWriter, OpenMode,
-    PositionEncoding, WriteEncoded, WriteLE,
+    decode, fixpoint_decode, AttributeReader, DataWriter, Encoding, NodeReader, NodeWriter,
+    OpenMode, PositionEncoding, WriteEncoded, WriteLE,
 };
 use crate::{
     attribute_extension, AttributeData, AttributeDataType, Point, PointsBatch, NUM_POINTS_PER_BATCH,
@@ -31,7 +31,7 @@ use std::path::PathBuf;
 
 pub struct RawNodeReader {
     xyz_reader: BufReader<Box<dyn Read>>,
-    attribute_readers: HashMap<String, (AttributeDataType, BufReader<Box<dyn Read>>)>,
+    attribute_readers: HashMap<String, AttributeReader>,
     position_encoding: PositionEncoding,
     bounding_cube: Cube,
 }
@@ -110,13 +110,13 @@ impl NodeReader for RawNodeReader {
         }
 
         if let Some(cr) = self.attribute_readers.get_mut("color") {
-            point.color.red = cr.1.read_u8()?;
-            point.color.green = cr.1.read_u8()?;
-            point.color.blue = cr.1.read_u8()?;
+            point.color.red = cr.reader.read_u8()?;
+            point.color.green = cr.reader.read_u8()?;
+            point.color.blue = cr.reader.read_u8()?;
         }
 
         if let Some(ir) = self.attribute_readers.get_mut("intensity") {
-            point.intensity = Some(ir.1.read_f32::<LittleEndian>()?);
+            point.intensity = Some(ir.reader.read_f32::<LittleEndian>()?);
         }
 
         Ok(point)
@@ -202,12 +202,12 @@ impl RawNodeReader {
 
         self.attribute_readers
             .iter_mut()
-            .for_each(|(key, (attr_type, read))| {
-                let _err = match attr_type {
+            .for_each(|(key, AttributeReader { dtype, reader })| {
+                let _err = match dtype {
                     AttributeDataType::U8 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
                         let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let data = read.read_u8()?;
+                            let data = reader.read_u8()?;
                             attr.push(data);
                             Ok(())
                         });
@@ -218,7 +218,7 @@ impl RawNodeReader {
                     AttributeDataType::I64 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
                         let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let data = read.read_i64::<LittleEndian>()?;
+                            let data = reader.read_i64::<LittleEndian>()?;
                             attr.push(data);
                             Ok(())
                         });
@@ -229,7 +229,7 @@ impl RawNodeReader {
                     AttributeDataType::U64 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
                         let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let data = read.read_u64::<LittleEndian>()?;
+                            let data = reader.read_u64::<LittleEndian>()?;
                             attr.push(data);
                             Ok(())
                         });
@@ -240,7 +240,7 @@ impl RawNodeReader {
                     AttributeDataType::F32 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
                         let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let data = read.read_f32::<LittleEndian>()?;
+                            let data = reader.read_f32::<LittleEndian>()?;
                             attr.push(data);
                             Ok(())
                         });
@@ -251,7 +251,7 @@ impl RawNodeReader {
                     AttributeDataType::F64 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
                         let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let data = read.read_f64::<LittleEndian>()?;
+                            let data = reader.read_f64::<LittleEndian>()?;
                             attr.push(data);
                             Ok(())
                         });
@@ -262,9 +262,9 @@ impl RawNodeReader {
                     AttributeDataType::U8Vec3 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
                         let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let x = read.read_u8()?;
-                            let y = read.read_u8()?;
-                            let z = read.read_u8()?;
+                            let x = reader.read_u8()?;
+                            let y = reader.read_u8()?;
+                            let z = reader.read_u8()?;
                             attr.push(Vector3::new(x, y, z));
                             Ok(())
                         });
@@ -275,9 +275,9 @@ impl RawNodeReader {
                     AttributeDataType::F64Vec3 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
                         let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let x = read.read_f64::<LittleEndian>()?;
-                            let y = read.read_f64::<LittleEndian>()?;
-                            let z = read.read_f64::<LittleEndian>()?;
+                            let x = reader.read_f64::<LittleEndian>()?;
+                            let y = reader.read_f64::<LittleEndian>()?;
+                            let z = reader.read_f64::<LittleEndian>()?;
                             attr.push(Vector3::new(x, y, z));
                             Ok(())
                         });
@@ -309,16 +309,11 @@ impl RawNodeReader {
 impl RawNodeReader {
     pub fn new(
         xyz_reader: Box<dyn Read>,
-        attributes: HashMap<String, (AttributeDataType, Box<dyn Read>)>,
+        attribute_readers: HashMap<String, AttributeReader>,
         position_encoding: PositionEncoding,
         bounding_cube: Cube,
     ) -> Result<Self> {
         let xyz_reader = BufReader::new(xyz_reader);
-
-        let attribute_readers = attributes
-            .into_iter()
-            .map(|(key, (attr_type, read))| (key, (attr_type, BufReader::new(read))))
-            .collect();
 
         Ok(Self {
             xyz_reader,

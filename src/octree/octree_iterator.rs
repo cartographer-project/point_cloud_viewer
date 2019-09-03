@@ -1,10 +1,11 @@
 use crate::errors::*;
 use crate::math::{Cube, PointCulling};
 use crate::octree::{ChildIndex, DataProvider, NodeId, Octree, OctreeMeta, PositionEncoding};
-use crate::read_write::{NodeIterator, RawNodeReader};
+use crate::read_write::{AttributeReader, NodeIterator, RawNodeReader};
 use crate::{AttributeDataType, Point};
 use cgmath::{EuclideanSpace, Point3};
 use std::collections::{HashMap, VecDeque};
+use std::io::BufReader;
 
 impl NodeIterator<RawNodeReader> {
     pub fn from_data_provider(
@@ -29,7 +30,11 @@ impl NodeIterator<RawNodeReader> {
             .ok_or_else(|| -> Error { "No position reader available.".into() })?;
         match position_color_reads.remove("color") {
             Some(color_data) => {
-                attributes.insert("color".to_string(), (AttributeDataType::U8Vec3, color_data));
+                let color_reader = AttributeReader {
+                    dtype: AttributeDataType::U8Vec3,
+                    reader: BufReader::new(color_data),
+                };
+                attributes.insert("color".to_string(), color_reader);
             }
             None => return Err("No color reader available.".into()),
         }
@@ -37,10 +42,11 @@ impl NodeIterator<RawNodeReader> {
         if let Ok(mut data_map) = octree_data_provider.data(&id.to_string(), &["intensity"]) {
             match data_map.remove("intensity") {
                 Some(intensity_data) => {
-                    attributes.insert(
-                        "intensity".to_string(),
-                        (AttributeDataType::F32, intensity_data),
-                    );
+                    let intensity_reader = AttributeReader {
+                        dtype: AttributeDataType::F32,
+                        reader: BufReader::new(intensity_data),
+                    };
+                    attributes.insert("intensity".to_string(), intensity_reader);
                 }
                 None => return Err("No intensity reader available.".into()),
             }
