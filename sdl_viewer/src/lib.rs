@@ -101,13 +101,7 @@ impl PointCloudRenderer {
                 while let Ok(newer_matrix) = rx.try_recv() {
                     matrix = newer_matrix;
                 }
-                let now = ::std::time::Instant::now();
                 let visible_nodes = octree_clone.get_visible_nodes(&matrix);
-                println!(
-                    "Currently visible nodes: {}, time to calculate: {:?}",
-                    visible_nodes.len(),
-                    now.elapsed()
-                );
                 tx.send(visible_nodes).unwrap();
             }
         });
