@@ -14,7 +14,6 @@
 
 use crate::color;
 use crate::errors::*;
-use crate::math::Cube;
 use crate::read_write::{
     decode, fixpoint_decode, AttributeReader, DataWriter, Encoding, NodeReader, NodeWriter,
     OpenMode, PositionEncoding, WriteEncoded, WriteLE,
@@ -32,8 +31,7 @@ use std::path::PathBuf;
 pub struct RawNodeReader {
     xyz_reader: BufReader<Box<dyn Read>>,
     attribute_readers: HashMap<String, AttributeReader>,
-    position_encoding: PositionEncoding,
-    bounding_cube: Cube,
+    encoding: Encoding,
 }
 
 impl NodeReader for RawNodeReader {
@@ -44,19 +42,21 @@ impl NodeReader for RawNodeReader {
             intensity: None,
         };
 
-        let edge_length = self.bounding_cube.edge_length();
-        let min = self.bounding_cube.min();
-
         // I tried pulling out this match by taking a function pointer to a 'decode_position'
         // function. This replaces a branch per point vs a function call per point and turned
         // out to be marginally slower.
-        match self.position_encoding {
-            PositionEncoding::Uint8 => {
+        match self.encoding {
+            Encoding::Plain => {
+                point.position.x = self.xyz_reader.read_f64::<LittleEndian>()?;
+                point.position.y = self.xyz_reader.read_f64::<LittleEndian>()?;
+                point.position.z = self.xyz_reader.read_f64::<LittleEndian>()?;
+            }
+            Encoding::ScaledToCube(min, edge_length, PositionEncoding::Uint8) => {
                 point.position.x = fixpoint_decode(self.xyz_reader.read_u8()?, min.x, edge_length);
                 point.position.y = fixpoint_decode(self.xyz_reader.read_u8()?, min.y, edge_length);
                 point.position.z = fixpoint_decode(self.xyz_reader.read_u8()?, min.z, edge_length);
             }
-            PositionEncoding::Uint16 => {
+            Encoding::ScaledToCube(min, edge_length, PositionEncoding::Uint16) => {
                 point.position.x = fixpoint_decode(
                     self.xyz_reader.read_u16::<LittleEndian>()?,
                     min.x,
@@ -73,7 +73,7 @@ impl NodeReader for RawNodeReader {
                     edge_length,
                 );
             }
-            PositionEncoding::Float32 => {
+            Encoding::ScaledToCube(min, edge_length, PositionEncoding::Float32) => {
                 point.position.x = decode(
                     self.xyz_reader.read_f32::<LittleEndian>()?,
                     min.x,
@@ -90,7 +90,7 @@ impl NodeReader for RawNodeReader {
                     edge_length,
                 );
             }
-            PositionEncoding::Float64 => {
+            Encoding::ScaledToCube(min, edge_length, PositionEncoding::Float64) => {
                 point.position.x = decode(
                     self.xyz_reader.read_f64::<LittleEndian>()?,
                     min.x,
@@ -130,74 +130,86 @@ impl RawNodeReader {
             attributes: BTreeMap::new(),
         };
 
-        let edge_length = self.bounding_cube.edge_length();
-        let min = self.bounding_cube.min();
-
-        let _err: io::Result<()> = match self.position_encoding {
-            PositionEncoding::Uint8 => (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                let x = fixpoint_decode(self.xyz_reader.read_u8()?, min.x, edge_length);
-                let y = fixpoint_decode(self.xyz_reader.read_u8()?, min.y, edge_length);
-                let z = fixpoint_decode(self.xyz_reader.read_u8()?, min.z, edge_length);
+        let _err: io::Result<()> = match self.encoding {
+            Encoding::Plain => (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                let x = self.xyz_reader.read_f64::<LittleEndian>()?;
+                let y = self.xyz_reader.read_f64::<LittleEndian>()?;
+                let z = self.xyz_reader.read_f64::<LittleEndian>()?;
                 batch.position.push(Vector3::new(x, y, z));
                 Ok(())
             }),
-            PositionEncoding::Uint16 => (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                let x = fixpoint_decode(
-                    self.xyz_reader.read_u16::<LittleEndian>()?,
-                    min.x,
-                    edge_length,
-                );
-                let y = fixpoint_decode(
-                    self.xyz_reader.read_u16::<LittleEndian>()?,
-                    min.y,
-                    edge_length,
-                );
-                let z = fixpoint_decode(
-                    self.xyz_reader.read_u16::<LittleEndian>()?,
-                    min.z,
-                    edge_length,
-                );
-                batch.position.push(Vector3::new(x, y, z));
-                Ok(())
-            }),
-            PositionEncoding::Float32 => (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                let x = decode(
-                    self.xyz_reader.read_f32::<LittleEndian>()?,
-                    min.x,
-                    edge_length,
-                );
-                let y = decode(
-                    self.xyz_reader.read_f32::<LittleEndian>()?,
-                    min.y,
-                    edge_length,
-                );
-                let z = decode(
-                    self.xyz_reader.read_f32::<LittleEndian>()?,
-                    min.z,
-                    edge_length,
-                );
-                batch.position.push(Vector3::new(x, y, z));
-                Ok(())
-            }),
-            PositionEncoding::Float64 => (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                let x = decode(
-                    self.xyz_reader.read_f64::<LittleEndian>()?,
-                    min.x,
-                    edge_length,
-                );
-                let y = decode(
-                    self.xyz_reader.read_f64::<LittleEndian>()?,
-                    min.y,
-                    edge_length,
-                );
-                let z = decode(
-                    self.xyz_reader.read_f64::<LittleEndian>()?,
-                    min.z,
-                    edge_length,
-                );
-                batch.position.push(Vector3::new(x, y, z));
-                Ok(())
-            }),
+            Encoding::ScaledToCube(min, edge_length, PositionEncoding::Uint8) => {
+                (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                    let x = fixpoint_decode(self.xyz_reader.read_u8()?, min.x, edge_length);
+                    let y = fixpoint_decode(self.xyz_reader.read_u8()?, min.y, edge_length);
+                    let z = fixpoint_decode(self.xyz_reader.read_u8()?, min.z, edge_length);
+                    batch.position.push(Vector3::new(x, y, z));
+                    Ok(())
+                })
+            }
+            Encoding::ScaledToCube(min, edge_length, PositionEncoding::Uint16) => {
+                (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                    let x = fixpoint_decode(
+                        self.xyz_reader.read_u16::<LittleEndian>()?,
+                        min.x,
+                        edge_length,
+                    );
+                    let y = fixpoint_decode(
+                        self.xyz_reader.read_u16::<LittleEndian>()?,
+                        min.y,
+                        edge_length,
+                    );
+                    let z = fixpoint_decode(
+                        self.xyz_reader.read_u16::<LittleEndian>()?,
+                        min.z,
+                        edge_length,
+                    );
+                    batch.position.push(Vector3::new(x, y, z));
+                    Ok(())
+                })
+            }
+            Encoding::ScaledToCube(min, edge_length, PositionEncoding::Float32) => {
+                (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                    let x = decode(
+                        self.xyz_reader.read_f32::<LittleEndian>()?,
+                        min.x,
+                        edge_length,
+                    );
+                    let y = decode(
+                        self.xyz_reader.read_f32::<LittleEndian>()?,
+                        min.y,
+                        edge_length,
+                    );
+                    let z = decode(
+                        self.xyz_reader.read_f32::<LittleEndian>()?,
+                        min.z,
+                        edge_length,
+                    );
+                    batch.position.push(Vector3::new(x, y, z));
+                    Ok(())
+                })
+            }
+            Encoding::ScaledToCube(min, edge_length, PositionEncoding::Float64) => {
+                (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                    let x = decode(
+                        self.xyz_reader.read_f64::<LittleEndian>()?,
+                        min.x,
+                        edge_length,
+                    );
+                    let y = decode(
+                        self.xyz_reader.read_f64::<LittleEndian>()?,
+                        min.y,
+                        edge_length,
+                    );
+                    let z = decode(
+                        self.xyz_reader.read_f64::<LittleEndian>()?,
+                        min.z,
+                        edge_length,
+                    );
+                    batch.position.push(Vector3::new(x, y, z));
+                    Ok(())
+                })
+            }
         };
 
         self.attribute_readers
@@ -310,16 +322,14 @@ impl RawNodeReader {
     pub fn new(
         xyz_reader: Box<dyn Read>,
         attribute_readers: HashMap<String, AttributeReader>,
-        position_encoding: PositionEncoding,
-        bounding_cube: Cube,
+        encoding: Encoding,
     ) -> Result<Self> {
         let xyz_reader = BufReader::new(xyz_reader);
 
         Ok(Self {
             xyz_reader,
             attribute_readers,
-            position_encoding,
-            bounding_cube,
+            encoding,
         })
     }
 }

@@ -1,7 +1,7 @@
 use crate::errors::*;
 use crate::math::{Cube, PointCulling};
 use crate::octree::{ChildIndex, DataProvider, NodeId, Octree, OctreeMeta, PositionEncoding};
-use crate::read_write::{AttributeReader, NodeIterator, RawNodeReader};
+use crate::read_write::{AttributeReader, Encoding, NodeIterator, RawNodeReader};
 use crate::{AttributeDataType, Point};
 use cgmath::{EuclideanSpace, Point3};
 use std::collections::{HashMap, VecDeque};
@@ -53,7 +53,15 @@ impl NodeIterator<RawNodeReader> {
         };
 
         Ok(Self::new(
-            RawNodeReader::new(position_read, attributes, position_encoding, bounding_cube)?,
+            RawNodeReader::new(
+                position_read,
+                attributes,
+                Encoding::ScaledToCube(
+                    bounding_cube.min().to_vec(),
+                    bounding_cube.edge_length(),
+                    position_encoding,
+                ),
+            )?,
             num_points,
         ))
     }
