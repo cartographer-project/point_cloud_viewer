@@ -2,7 +2,7 @@ use crate::errors::*;
 use crate::math::{Cube, PointCulling};
 use crate::octree::{ChildIndex, DataProvider, NodeId, Octree, OctreeMeta, PositionEncoding};
 use crate::read_write::{NodeIterator, RawNodeReader};
-use crate::Point;
+use crate::{AttributeDataType, Point};
 use cgmath::{EuclideanSpace, Point3};
 use std::collections::{HashMap, VecDeque};
 
@@ -24,15 +24,12 @@ impl NodeIterator<RawNodeReader> {
 
         let mut position_color_reads =
             octree_data_provider.data(&id.to_string(), &["position", "color"])?;
-        match position_color_reads.remove("position") {
-            Some(position_data) => {
-                attributes.insert("position".to_string(), position_data);
-            }
-            None => return Err("No position reader available.".into()),
-        }
+        let position_read = position_color_reads
+            .remove("position")
+            .ok_or_else(|| -> Error { "No position reader available.".into() })?;
         match position_color_reads.remove("color") {
             Some(color_data) => {
-                attributes.insert("color".to_string(), color_data);
+                attributes.insert("color".to_string(), (AttributeDataType::U8Vec3, color_data));
             }
             None => return Err("No color reader available.".into()),
         }
@@ -40,14 +37,17 @@ impl NodeIterator<RawNodeReader> {
         if let Ok(mut data_map) = octree_data_provider.data(&id.to_string(), &["intensity"]) {
             match data_map.remove("intensity") {
                 Some(intensity_data) => {
-                    attributes.insert("intensity".to_string(), intensity_data);
+                    attributes.insert(
+                        "intensity".to_string(),
+                        (AttributeDataType::F32, intensity_data),
+                    );
                 }
                 None => return Err("No intensity reader available.".into()),
             }
         };
 
         Ok(Self::new(
-            RawNodeReader::new(attributes, position_encoding, bounding_cube)?,
+            RawNodeReader::new(position_read, attributes, position_encoding, bounding_cube)?,
             num_points,
         ))
     }

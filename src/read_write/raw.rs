@@ -19,17 +19,19 @@ use crate::read_write::{
     decode, fixpoint_decode, DataWriter, Encoding, NodeReader, NodeWriter, OpenMode,
     PositionEncoding, WriteEncoded, WriteLE,
 };
-use crate::{attribute_extension, Point, PointsBatch};
+use crate::{
+    attribute_extension, AttributeData, AttributeDataType, Point, PointsBatch, NUM_POINTS_PER_BATCH,
+};
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::Vector3;
 use num_traits::identities::Zero;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{self, BufReader, Read};
 use std::path::PathBuf;
 
 pub struct RawNodeReader {
     xyz_reader: BufReader<Box<dyn Read>>,
-    attribute_readers: Vec<BufReader<Box<dyn Read>>>,
+    attribute_readers: HashMap<String, (AttributeDataType, BufReader<Box<dyn Read>>)>,
     position_encoding: PositionEncoding,
     bounding_cube: Cube,
 }
@@ -107,12 +109,14 @@ impl NodeReader for RawNodeReader {
             }
         }
 
-        point.color.red = self.attribute_readers[0].read_u8()?;
-        point.color.green = self.attribute_readers[0].read_u8()?;
-        point.color.blue = self.attribute_readers[0].read_u8()?;
+        if let Some(cr) = self.attribute_readers.get_mut("color") {
+            point.color.red = cr.1.read_u8()?;
+            point.color.green = cr.1.read_u8()?;
+            point.color.blue = cr.1.read_u8()?;
+        }
 
-        if let Some(ir) = self.attribute_readers.get_mut(1) {
-            point.intensity = Some(ir.read_f32::<LittleEndian>()?);
+        if let Some(ir) = self.attribute_readers.get_mut("intensity") {
+            point.intensity = Some(ir.1.read_f32::<LittleEndian>()?);
         }
 
         Ok(point)
@@ -120,26 +124,201 @@ impl NodeReader for RawNodeReader {
 }
 
 impl RawNodeReader {
+    fn read_batch(&mut self) -> Option<PointsBatch> {
+        let mut batch = PointsBatch {
+            position: vec![],
+            attributes: BTreeMap::new(),
+        };
+
+        let edge_length = self.bounding_cube.edge_length();
+        let min = self.bounding_cube.min();
+
+        let _err: io::Result<()> = match self.position_encoding {
+            PositionEncoding::Uint8 => (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                let x = fixpoint_decode(self.xyz_reader.read_u8()?, min.x, edge_length);
+                let y = fixpoint_decode(self.xyz_reader.read_u8()?, min.y, edge_length);
+                let z = fixpoint_decode(self.xyz_reader.read_u8()?, min.z, edge_length);
+                batch.position.push(Vector3::new(x, y, z));
+                Ok(())
+            }),
+            PositionEncoding::Uint16 => (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                let x = fixpoint_decode(
+                    self.xyz_reader.read_u16::<LittleEndian>()?,
+                    min.x,
+                    edge_length,
+                );
+                let y = fixpoint_decode(
+                    self.xyz_reader.read_u16::<LittleEndian>()?,
+                    min.y,
+                    edge_length,
+                );
+                let z = fixpoint_decode(
+                    self.xyz_reader.read_u16::<LittleEndian>()?,
+                    min.z,
+                    edge_length,
+                );
+                batch.position.push(Vector3::new(x, y, z));
+                Ok(())
+            }),
+            PositionEncoding::Float32 => (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                let x = decode(
+                    self.xyz_reader.read_f32::<LittleEndian>()?,
+                    min.x,
+                    edge_length,
+                );
+                let y = decode(
+                    self.xyz_reader.read_f32::<LittleEndian>()?,
+                    min.y,
+                    edge_length,
+                );
+                let z = decode(
+                    self.xyz_reader.read_f32::<LittleEndian>()?,
+                    min.z,
+                    edge_length,
+                );
+                batch.position.push(Vector3::new(x, y, z));
+                Ok(())
+            }),
+            PositionEncoding::Float64 => (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                let x = decode(
+                    self.xyz_reader.read_f64::<LittleEndian>()?,
+                    min.x,
+                    edge_length,
+                );
+                let y = decode(
+                    self.xyz_reader.read_f64::<LittleEndian>()?,
+                    min.y,
+                    edge_length,
+                );
+                let z = decode(
+                    self.xyz_reader.read_f64::<LittleEndian>()?,
+                    min.z,
+                    edge_length,
+                );
+                batch.position.push(Vector3::new(x, y, z));
+                Ok(())
+            }),
+        };
+
+        self.attribute_readers
+            .iter_mut()
+            .for_each(|(key, (attr_type, read))| {
+                let _err = match attr_type {
+                    AttributeDataType::U8 => {
+                        let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
+                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                            let data = read.read_u8()?;
+                            attr.push(data);
+                            Ok(())
+                        });
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::U8(attr));
+                    }
+                    AttributeDataType::I64 => {
+                        let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
+                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                            let data = read.read_i64::<LittleEndian>()?;
+                            attr.push(data);
+                            Ok(())
+                        });
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::I64(attr));
+                    }
+                    AttributeDataType::U64 => {
+                        let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
+                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                            let data = read.read_u64::<LittleEndian>()?;
+                            attr.push(data);
+                            Ok(())
+                        });
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::U64(attr));
+                    }
+                    AttributeDataType::F32 => {
+                        let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
+                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                            let data = read.read_f32::<LittleEndian>()?;
+                            attr.push(data);
+                            Ok(())
+                        });
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::F32(attr));
+                    }
+                    AttributeDataType::F64 => {
+                        let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
+                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                            let data = read.read_f64::<LittleEndian>()?;
+                            attr.push(data);
+                            Ok(())
+                        });
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::F64(attr));
+                    }
+                    AttributeDataType::U8Vec3 => {
+                        let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
+                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                            let x = read.read_u8()?;
+                            let y = read.read_u8()?;
+                            let z = read.read_u8()?;
+                            attr.push(Vector3::new(x, y, z));
+                            Ok(())
+                        });
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::U8Vec3(attr));
+                    }
+                    AttributeDataType::F64Vec3 => {
+                        let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
+                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
+                            let x = read.read_f64::<LittleEndian>()?;
+                            let y = read.read_f64::<LittleEndian>()?;
+                            let z = read.read_f64::<LittleEndian>()?;
+                            attr.push(Vector3::new(x, y, z));
+                            Ok(())
+                        });
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::F64Vec3(attr));
+                    }
+                };
+            });
+
+        let num_points = batch.position.len();
+        if num_points == 0 {
+            return None;
+        }
+
+        // If the attributes differ in length, something was wrong with the files.
+        // Do not trust the result and return None.
+        if !batch
+            .attributes
+            .values()
+            .all(|attr| attr.len() == num_points)
+        {
+            return None;
+        }
+        Some(batch)
+    }
+}
+
+impl RawNodeReader {
     pub fn new(
-        mut attributes: HashMap<String, Box<dyn Read>>,
+        xyz_reader: Box<dyn Read>,
+        attributes: HashMap<String, (AttributeDataType, Box<dyn Read>)>,
         position_encoding: PositionEncoding,
         bounding_cube: Cube,
     ) -> Result<Self> {
-        let xyz_reader = BufReader::new(
-            attributes
-                .remove("position")
-                .ok_or_else(|| "No position reader available.")?,
-        );
-        let rgb_reader = BufReader::new(
-            attributes
-                .remove("color")
-                .ok_or_else(|| "No color reader available.")?,
-        );
-        let mut attribute_readers = vec![rgb_reader];
+        let xyz_reader = BufReader::new(xyz_reader);
 
-        if let Some(intensity_read) = attributes.remove("intensity") {
-            attribute_readers.push(BufReader::new(intensity_read));
-        };
+        let attribute_readers = attributes
+            .into_iter()
+            .map(|(key, (attr_type, read))| (key, (attr_type, BufReader::new(read))))
+            .collect();
 
         Ok(Self {
             xyz_reader,
