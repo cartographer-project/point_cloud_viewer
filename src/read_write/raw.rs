@@ -124,6 +124,7 @@ impl NodeReader for RawNodeReader {
 }
 
 impl RawNodeReader {
+    #[allow(dead_code)]
     fn read_batch(&mut self) -> Option<PointsBatch> {
         let mut batch = PointsBatch {
             position: vec![],
@@ -215,7 +216,7 @@ impl RawNodeReader {
         self.attribute_readers
             .iter_mut()
             .for_each(|(key, AttributeReader { dtype, reader })| {
-                let _err = match dtype {
+                match dtype {
                     AttributeDataType::U8 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
                         let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
