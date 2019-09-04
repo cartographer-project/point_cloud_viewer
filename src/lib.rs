@@ -55,6 +55,17 @@ pub enum AttributeData {
     F64Vec3(Vec<Vector3<f64>>),
 }
 
+#[derive(Debug, Clone)]
+pub enum AttributeDataType {
+    U8,
+    I64,
+    U64,
+    F32,
+    F64,
+    U8Vec3,
+    F64Vec3,
+}
+
 impl AttributeData {
     pub fn len(&self) -> usize {
         match self {
