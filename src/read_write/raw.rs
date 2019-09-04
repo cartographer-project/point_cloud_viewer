@@ -148,6 +148,7 @@ impl RawNodeReader {
                     Ok(())
                 })
             }
+
             Encoding::ScaledToCube(min, edge_length, PositionEncoding::Uint16) => {
                 (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
                     let x = fixpoint_decode(
@@ -169,6 +170,7 @@ impl RawNodeReader {
                     Ok(())
                 })
             }
+
             Encoding::ScaledToCube(min, edge_length, PositionEncoding::Float32) => {
                 (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
                     let x = decode(
@@ -190,6 +192,7 @@ impl RawNodeReader {
                     Ok(())
                 })
             }
+
             Encoding::ScaledToCube(min, edge_length, PositionEncoding::Float64) => {
                 (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
                     let x = decode(
@@ -213,93 +216,77 @@ impl RawNodeReader {
             }
         };
 
-        self.attribute_readers
-            .iter_mut()
-            .for_each(|(key, AttributeReader { dtype, reader })| {
-                match dtype {
+        self.attribute_readers.iter_mut().for_each(
+            |(key, AttributeReader { data_type, reader })| {
+                match data_type {
                     AttributeDataType::U8 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
-                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let data = reader.read_u8()?;
-                            attr.push(data);
-                            Ok(())
-                        });
+                        let _err: io::Result<()> = reader.read_exact(&mut attr);
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::U8(attr));
                     }
                     AttributeDataType::I64 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
-                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let data = reader.read_i64::<LittleEndian>()?;
-                            attr.push(data);
-                            Ok(())
-                        });
+                        let _err: io::Result<()> = reader.read_i64_into::<LittleEndian>(&mut attr);
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::I64(attr));
                     }
                     AttributeDataType::U64 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
-                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let data = reader.read_u64::<LittleEndian>()?;
-                            attr.push(data);
-                            Ok(())
-                        });
+                        let _err: io::Result<()> = reader.read_u64_into::<LittleEndian>(&mut attr);
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::U64(attr));
                     }
                     AttributeDataType::F32 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
-                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let data = reader.read_f32::<LittleEndian>()?;
-                            attr.push(data);
-                            Ok(())
-                        });
+                        let _err: io::Result<()> = reader.read_f32_into::<LittleEndian>(&mut attr);
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::F32(attr));
                     }
                     AttributeDataType::F64 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
-                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let data = reader.read_f64::<LittleEndian>()?;
-                            attr.push(data);
-                            Ok(())
-                        });
+                        let _err: io::Result<()> = reader.read_f64_into::<LittleEndian>(&mut attr);
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::F64(attr));
                     }
                     AttributeDataType::U8Vec3 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
-                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let x = reader.read_u8()?;
-                            let y = reader.read_u8()?;
-                            let z = reader.read_u8()?;
+                        let _err: io::Result<()> = {
+                            let buffer = Vec::with_capacity(3 * NUM_POINTS_PER_BATCH);
+                            let x = reader.read_exact(&mut buffer)?;
+                            for i in 0..NUM_POINTS_PER_BATCH {
+                                attr.push(Vector3::new(buffer[i], buffer[i + 1], buffer[i + 2]));
+                            }
+
                             attr.push(Vector3::new(x, y, z));
                             Ok(())
-                        });
+                        };
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::U8Vec3(attr));
                     }
                     AttributeDataType::F64Vec3 => {
                         let mut attr = Vec::with_capacity(NUM_POINTS_PER_BATCH);
-                        let _err: io::Result<()> = (0..NUM_POINTS_PER_BATCH).try_for_each(|_| {
-                            let x = reader.read_f64::<LittleEndian>()?;
-                            let y = reader.read_f64::<LittleEndian>()?;
-                            let z = reader.read_f64::<LittleEndian>()?;
-                            attr.push(Vector3::new(x, y, z));
+                        let _err: io::Result<()> = {
+                            let buffer = Vec::with_capacity(3 * NUM_POINTS_PER_BATCH);
+                            let x = reader.read_f64_into::<LittleEndian>(&mut buffer)?;
+                            for i in 0..NUM_POINTS_PER_BATCH {
+                                attr.push(Vector3::new(buffer[i], buffer[i + 1], buffer[i + 2]));
+                            }
                             Ok(())
-                        });
+                        };
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::F64Vec3(attr));
                     }
                 };
-            });
+            },
+        );
 
         let num_points = batch.position.len();
         if num_points == 0 {

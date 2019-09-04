@@ -31,7 +31,7 @@ impl NodeIterator<RawNodeReader> {
         match position_color_reads.remove("color") {
             Some(color_data) => {
                 let color_reader = AttributeReader {
-                    dtype: AttributeDataType::U8Vec3,
+                    data_type: AttributeDataType::U8Vec3,
                     reader: BufReader::new(color_data),
                 };
                 attributes.insert("color".to_string(), color_reader);
@@ -43,7 +43,7 @@ impl NodeIterator<RawNodeReader> {
             match data_map.remove("intensity") {
                 Some(intensity_data) => {
                     let intensity_reader = AttributeReader {
-                        dtype: AttributeDataType::F32,
+                        data_type: AttributeDataType::F32,
                         reader: BufReader::new(intensity_data),
                     };
                     attributes.insert("intensity".to_string(), intensity_reader);

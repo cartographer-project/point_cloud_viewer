@@ -42,7 +42,7 @@ pub use self::s2::S2Splitter;
 use std::io::{BufReader, Read};
 
 pub struct AttributeReader {
-    pub dtype: crate::AttributeDataType,
+    pub data_type: crate::AttributeDataType,
     pub reader: BufReader<Box<dyn Read>>,
 }
 
