@@ -11,7 +11,7 @@ use std::path::PathBuf;
 /// The actual number of underlying writers is MAX_NUM_NODE_WRITERS * num_attributes.
 const MAX_NUM_NODE_WRITERS: usize = 25;
 /// Corresponds to cells of up to about 10m x 10m.
-const S2_SPLIT_LEVEL: u8 = 20;
+const S2_SPLIT_LEVEL: u64 = 20;
 /// Lower bound for distance from earth's center.
 /// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
 const EARTH_RADIUS_MIN_M: f64 = 6_352_800.0;
@@ -57,7 +57,7 @@ where
             }
             let s2_point = Point::from_coords(pos.x, pos.y, pos.z);
             let s2_cell_batch = batches_by_s2_cell
-                .entry(CellID::from(s2_point).parent(u64::from(S2_SPLIT_LEVEL)))
+                .entry(CellID::from(s2_point).parent(S2_SPLIT_LEVEL))
                 .or_insert(PointsBatch {
                     position: Vec::new(),
                     attributes: BTreeMap::new(),
