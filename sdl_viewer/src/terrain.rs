@@ -1,5 +1,6 @@
+use crate::graphic::moving_texture::GlTexture;
 use crate::graphic::uniform::GlUniform;
-use crate::graphic::{GlBuffer, GlProgram, GlTexture, GlVertexArray};
+use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use crate::opengl;
 use crate::sparse_texture_loader::SparseTextureLoader;
 use crate::{c_str, Extension};
