@@ -67,8 +67,9 @@ impl<T: Uniform> GlUniform<T> {
         let location;
         unsafe {
             program.gl.UseProgram(program.id);
-            location =
-                program.gl.GetUniformLocation(program.id, (name.to_string() + "\0").as_ptr() as *const i8);
+            location = program
+                .gl
+                .GetUniformLocation(program.id, (name.to_string() + "\0").as_ptr() as *const i8);
         }
         GlUniform {
             location,
