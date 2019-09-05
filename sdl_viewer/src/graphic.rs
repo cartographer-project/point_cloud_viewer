@@ -26,6 +26,8 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::str;
 
+pub mod uniform;
+
 pub struct GlProgram {
     pub gl: Rc<Gl>,
     pub id: GLuint,
