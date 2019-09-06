@@ -1,15 +1,15 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use cgmath::{Vector2, Vector3};
+use cgmath::{Decomposed, Matrix4, Quaternion, Vector2, Vector3};
 use image::{GenericImage, GenericImageView, ImageBuffer, LumaA, Rgba};
 use num_integer::Integer;
 use std::collections::HashMap;
 use std::fs::File; // for div_floor
 use std::io::{BufReader, Read};
-
+use point_viewer::math::Isometry3;
 
 pub struct HeightAndColor {
     pub height: ImageBuffer<LumaA<f32>, Vec<f32>>,
-    pub color: ImageBuffer<Rgba<u8>, Vec<u8>>
+    pub color: ImageBuffer<Rgba<u8>, Vec<u8>>,
 }
 
 pub struct SparseTextureLoader {
@@ -22,7 +22,7 @@ pub struct SparseTextureLoader {
 }
 
 impl SparseTextureLoader {
-    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self, std::io::Error> {
+    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<(Self, Isometry3<f64>), std::io::Error> {
         println!("Loading terrain");
         let mut meta =
             File::open(path.as_ref().join("meta")).expect("Could not open sparse texture dir");
@@ -31,38 +31,59 @@ impl SparseTextureLoader {
         let origin_x = meta.read_f64::<LittleEndian>()?;
         let origin_y = meta.read_f64::<LittleEndian>()?;
         let origin_z = meta.read_f64::<LittleEndian>()?;
+        let t_x = meta.read_f64::<LittleEndian>()?;
+        let t_y = meta.read_f64::<LittleEndian>()?;
+        let t_z = meta.read_f64::<LittleEndian>()?;
+        let q_x = meta.read_f64::<LittleEndian>()?;
+        let q_y = meta.read_f64::<LittleEndian>()?;
+        let q_z = meta.read_f64::<LittleEndian>()?;
+        let q_w = meta.read_f64::<LittleEndian>()?;
+        let translation = Vector3::new(t_x, t_y, t_z);
+        let rotation = Quaternion::new(q_x, q_y, q_z, q_w);
+        let world_from_terrain = Decomposed {
+            scale: 1.0,
+            disp: translation,
+            rot: rotation,
+        }
+        .into();
         let num_tiles = meta.read_u32::<LittleEndian>()?;
 
         let mut tiles = HashMap::new();
         let mut height_contents = vec![0.0; tile_size as usize * tile_size as usize * 2];
         let mut color_contents = vec![0; tile_size as usize * tile_size as usize * 4];
-        for i in 0..num_tiles {
+        for _ in 0..num_tiles {
             let x = meta.read_i32::<LittleEndian>()?;
             let y = meta.read_i32::<LittleEndian>()?;
             let height_file_path = path.as_ref().join(format!("x{:08}_y{:08}.height", x, y));
             let color_file_path = path.as_ref().join(format!("x{:08}_y{:08}.color", x, y));
             let mut height_rdr = BufReader::new(File::open(height_file_path)?);
             height_rdr.read_f32_into::<LittleEndian>(&mut height_contents)?;
-            let height_buffer = ImageBuffer::from_raw(tile_size, tile_size, height_contents.clone()).expect("Corrupt contents");
+            let height_buffer =
+                ImageBuffer::from_raw(tile_size, tile_size, height_contents.clone())
+                    .expect("Corrupt contents");
             let mut color_rdr = BufReader::new(File::open(color_file_path)?);
             color_rdr.read(&mut color_contents)?;
-            let color_buffer = ImageBuffer::from_raw(tile_size, tile_size, color_contents.clone()).expect("Corrupt contents");
-            let previous_entry =  tiles
-                    .insert(
-                        (x, y),
-                        HeightAndColor { height: height_buffer, color: color_buffer }
-                    );
+            let color_buffer = ImageBuffer::from_raw(tile_size, tile_size, color_contents.clone())
+                .expect("Corrupt contents");
+            let previous_entry = tiles.insert(
+                (x, y),
+                HeightAndColor {
+                    height: height_buffer,
+                    color: color_buffer,
+                },
+            );
             assert!(previous_entry.is_none());
         }
 
-        Ok(SparseTextureLoader {
+        let loader = SparseTextureLoader {
             origin_x,
             origin_y,
             origin_z,
             resolution_m,
             tile_size,
             tiles,
-        })
+        };
+        Ok((loader, world_from_terrain))
     }
 
     pub fn resolution(&self) -> f64 {
@@ -73,13 +94,7 @@ impl SparseTextureLoader {
         Vector3::new(self.origin_x, self.origin_y, self.origin_z)
     }
 
-    pub fn load(
-        &self,
-        min_x: i64,
-        min_y: i64,
-        width: usize,
-        height: usize,
-    ) -> HeightAndColor {
+    pub fn load(&self, min_x: i64, min_y: i64, width: usize, height: usize) -> HeightAndColor {
         // return self.load_dummy2(min_x, min_y, width, height);
         let ts = &i64::from(self.tile_size);
         let (min_tile_x, min_mod_x) = min_x.div_mod_floor(ts);
@@ -88,7 +103,8 @@ impl SparseTextureLoader {
         let max_y = min_y + height as i64;
         let (max_tile_x, max_mod_x) = max_x.div_mod_floor(ts);
         let (max_tile_y, max_mod_y) = max_y.div_mod_floor(ts);
-        let mut height_buffer = ImageBuffer::from_pixel(width as u32, height as u32, LumaA([0.0; 2]));
+        let mut height_buffer =
+            ImageBuffer::from_pixel(width as u32, height as u32, LumaA([0.0; 2]));
         let mut color_buffer = ImageBuffer::from_pixel(width as u32, height as u32, Rgba([0; 4]));
         (min_tile_x..=max_tile_x)
             .flat_map(|tile_x| (min_tile_y..=max_tile_y).map(move |tile_y| (tile_x, tile_y)))
@@ -126,7 +142,10 @@ impl SparseTextureLoader {
                 }
             });
         // super::graphic::debug(&buffer, format!("tex_{}_{}_{}_{}.png", min_x, min_y, width, height));
-        HeightAndColor { height: height_buffer, color: color_buffer }
+        HeightAndColor {
+            height: height_buffer,
+            color: color_buffer,
+        }
     }
 
     // fn load_dummy(

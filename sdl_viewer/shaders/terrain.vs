@@ -13,6 +13,7 @@ uniform ivec2 terrain_pos;
 uniform ivec2 height_texture_offset;
 uniform ivec2 color_texture_offset;
 uniform dmat4 world_to_gl; // the full projective transform
+uniform dmat4 terrain_to_world;
 uniform sampler2D height;
 uniform sampler2D color;
 
@@ -29,9 +30,9 @@ void main() {
   ivec2 texCoordModSize = texCoord - (texCoord / texSize) * texSize;
   vec4 tex = texelFetch(height, texCoordModSize, 0);
   vs_out.quads = uint(tex.y);
-  dvec4 world_pos = dvec4(terrain_origin_m, 1.0lf);
-  world_pos.xy += terrain_res_m * (dvec2(aPos.xy) + dvec2(terrain_pos));
-  world_pos.z += double(tex.x);
+  dvec4 terrain_pos = dvec4(terrain_origin_m, 1.0lf);
+  terrain_pos.xy += terrain_res_m * (dvec2(aPos.xy) + dvec2(terrain_pos));
+  terrain_pos.z += double(tex.x);
   vs_out.color = texelFetch(color, texCoordModSize, 0).yxzw; // TODO: why is the channel order wrong?
-  gl_Position = vec4(world_to_gl * world_pos);
+  gl_Position = vec4(world_to_gl * terrain_to_world * terrain_pos);
 }

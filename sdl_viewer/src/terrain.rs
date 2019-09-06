@@ -2,7 +2,7 @@ use crate::graphic::{GlBuffer, GlProgram, GlTexture, GlUniform, GlVertexArray};
 use crate::opengl;
 use crate::sparse_texture_loader::SparseTextureLoader;
 use crate::{c_str, Extension};
-use cgmath::{Matrix4, SquareMatrix, Vector2, Zero};
+use cgmath::{Matrix4, Decomposed, SquareMatrix, Transform, Vector2, Zero};
 use image::{LumaA, Rgba};
 use opengl::types::{GLsizeiptr, GLuint};
 use point_viewer::math::Isometry3;
@@ -32,11 +32,13 @@ pub struct TerrainRenderer {
     buffer_indices: GlBuffer,
     num_indices: usize,
     sparse_heightmap: SparseTextureLoader,
+    terrain_to_world: Isometry3<f64>,
 }
 
 impl TerrainRenderer {
     pub fn new<P: AsRef<std::path::Path>>(gl: Rc<opengl::Gl>, heightmap_path: P) -> Self {
-        let sparse_heightmap = SparseTextureLoader::new(heightmap_path).unwrap();
+        let (sparse_heightmap, terrain_to_world) =
+            SparseTextureLoader::new(heightmap_path).unwrap();
 
         let program = GlProgram::new_with_geometry_shader(
             Rc::clone(&gl),
@@ -57,6 +59,17 @@ impl TerrainRenderer {
             sparse_heightmap.resolution(),
         )
         .submit();
+
+
+        GlUniform::new(
+            &program,
+            Rc::clone(&gl),
+            "terrain_to_world",
+            Matrix4::from({
+                let decomp: Decomposed<_, _> = terrain_to_world.clone().into();
+                decomp
+            }),
+            ).submit();
 
         GlUniform::new(
             &program,
@@ -85,7 +98,12 @@ impl TerrainRenderer {
         let (buffer_position, buffer_indices, num_indices) =
             Self::create_mesh(&program, &vertex_array, Rc::clone(&gl));
 
-        let height_and_color = sparse_heightmap.load(initial_terrain_pos.x, initial_terrain_pos.y, GRID_SIZE + 1, GRID_SIZE + 1);
+        let height_and_color = sparse_heightmap.load(
+            initial_terrain_pos.x,
+            initial_terrain_pos.y,
+            GRID_SIZE + 1,
+            GRID_SIZE + 1,
+        );
         let heightmap = GlTexture::new(
             &program,
             Rc::clone(&gl),
@@ -117,6 +135,7 @@ impl TerrainRenderer {
             buffer_indices,
             num_indices,
             sparse_heightmap,
+            terrain_to_world,
         }
     }
 
@@ -187,7 +206,6 @@ impl TerrainRenderer {
         (buffer_position, buffer_indices, indices.len())
     }
 
-
     // ======================================= End setup =======================================
 
     pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f64>, camera_to_world: &Matrix4<f64>) {
@@ -198,7 +216,15 @@ impl TerrainRenderer {
         //     discretize(&lower_corner.truncate(), TERRAIN_RES_M);
         // let pixels = dummy_heightmap(lower_corner.x, lower_corner.y, GRID_SIZE + 1, GRID_SIZE + 1);
         // self.heightmap.update(pixels.as_ptr() as *const c_void);
-        let cur_camera_pos_xy_m = Vector2::new(camera_to_world.w.x, camera_to_world.w.y);
+        // TODO: Do not compute inverse each time
+        let terrain_from_world: Decomposed<_, _> = self.terrain_to_world.inverse().into();
+        let camera_to_terrain: Matrix4<f64> = Matrix4::from(terrain_from_world) * camera_to_world;
+        let cur_camera_pos_xy_m = Vector2::new(camera_to_terrain.w.x, camera_to_terrain.w.y);
+        use cgmath::InnerSpace;
+        if (cur_camera_pos_xy_m - self.camera_pos_xy_m).magnitude() > 1000.0 {
+            println!("Movement too large");
+            return;
+        }
         self.update(self.camera_pos_xy_m, cur_camera_pos_xy_m);
 
         self.u_transform.value = *world_to_gl;
@@ -260,10 +286,18 @@ impl TerrainRenderer {
             )
         };
 
-        self.heightmap
-            .incremental_update(moved.x as i32, moved.y as i32, vert_strip.height, hori_strip.height);
-        self.colormap
-            .incremental_update(moved.x as i32, moved.y as i32, vert_strip.color, hori_strip.color);
+        self.heightmap.incremental_update(
+            moved.x as i32,
+            moved.y as i32,
+            vert_strip.height,
+            hori_strip.height,
+        );
+        self.colormap.incremental_update(
+            moved.x as i32,
+            moved.y as i32,
+            vert_strip.color,
+            hori_strip.color,
+        );
         // if moved.x != 0 || moved.y != 0 {
         //     crate::graphic::debug(
         //         &self.heightmap.debug_tex,
@@ -325,8 +359,8 @@ impl Extension for TerrainExtension {
         }
     }
 
-    fn local_from_global(_matches: &clap::ArgMatches, _octree: &Octree) -> Option<Isometry3<f64>> {
-        None
+    fn local_from_global(&self, _matches: &clap::ArgMatches, _octree: &Octree) -> Option<Isometry3<f64>> {
+        Some(self.terrain_renderer.terrain_to_world.inverse())
     }
 
     fn camera_changed(&mut self, transform: &Matrix4<f64>, camera_to_world: &Matrix4<f64>) {
