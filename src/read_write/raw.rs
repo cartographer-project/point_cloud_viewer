@@ -127,8 +127,7 @@ impl NodeReader for RawNodeReader {
 }
 
 impl RawNodeReader {
-    #[allow(dead_code)]
-    fn read_batch(&mut self, num_points: usize) -> io::Result<PointsBatch> {
+    pub fn read_batch(&mut self, num_points: usize) -> io::Result<PointsBatch> {
         let mut batch = PointsBatch {
             position: vec![],
             attributes: BTreeMap::new(),
