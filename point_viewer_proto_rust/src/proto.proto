@@ -83,7 +83,7 @@ enum PositionEncoding {
     Float64 = 4;
 }
 
-message Node {
+message OctreeNode {
   PositionEncoding position_encoding = 2;
   int64 num_points = 3;
   NodeId id = 4;
@@ -91,12 +91,21 @@ message Node {
 
 enum AttributeDataType {
     INVALID_DATA_TYPE = 0;
-    I64 = 1;
-    U64 = 2;
-    F32 = 3;
-    F64 = 4;
-    U8Vec3 = 5;
-    F64Vec3 = 6;
+    U8 = 1;
+    U16 = 2;
+    U32 = 3;
+    U64 = 4;
+    
+    I8 = 4 + 1;
+    I16 = 4 + 2;
+    I32 = 4 + 3;
+    I64 = 4 + 4;
+
+    F32 = 2*4 +3;
+    F64 = 2*4 + 4; //max value 12
+    
+    U8Vec3 = 12*2 + U8 ;
+    F64Vec3 = 12*2 + F64;
 }
 
 message Attribute {
@@ -114,7 +123,7 @@ message Meta {
   AxisAlignedCuboid bounding_box = 4;
   double resolution = 3;
   // Either nodes or cells is allowed, both is invalid
-  repeated Node nodes = 5; 
+  repeated OctreeNode nodes = 5; 
   repeated S2Cell cells = 6;
   // TODO(catevita): add input information: add sha? build specifics?
   repeated Attribute attributes = 7;
