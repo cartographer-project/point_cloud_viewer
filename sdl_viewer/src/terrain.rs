@@ -1,4 +1,6 @@
-use crate::graphic::{GlBuffer, GlProgram, GlTexture, GlUniform, GlVertexArray};
+use crate::graphic::moving_texture::GlTexture;
+use crate::graphic::uniform::GlUniform;
+use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use crate::opengl;
 use crate::sparse_texture_loader::SparseTextureLoader;
 use crate::{c_str, Extension};
@@ -50,20 +52,13 @@ impl TerrainRenderer {
 
         // These need to be set only once
 
-        GlUniform::new(&program, Rc::clone(&gl), "grid_size", GRID_SIZE as f64).submit();
+        GlUniform::new(&program, "grid_size", GRID_SIZE as f64).submit();
 
-        GlUniform::new(
-            &program,
-            Rc::clone(&gl),
-            "terrain_res_m",
-            sparse_heightmap.resolution(),
-        )
-        .submit();
+        GlUniform::new(&program, "terrain_res_m", sparse_heightmap.resolution()).submit();
 
 
         GlUniform::new(
             &program,
-            Rc::clone(&gl),
             "terrain_to_world",
             Matrix4::from({
                 let decomp: Decomposed<_, _> = terrain_to_world.clone().into();
@@ -71,23 +66,16 @@ impl TerrainRenderer {
             }),
             ).submit();
 
-        GlUniform::new(
-            &program,
-            Rc::clone(&gl),
-            "terrain_origin_m",
-            sparse_heightmap.origin(),
-        )
-        .submit();
 
-        let u_transform =
-            GlUniform::new(&program, Rc::clone(&gl), "world_to_gl", Matrix4::identity());
+        GlUniform::new(&program, "terrain_origin_m", sparse_heightmap.origin()).submit();
+
+        let u_transform = GlUniform::new(&program, "world_to_gl", Matrix4::identity());
 
         let initial_terrain_pos = sparse_heightmap.to_grid_coords(&Vector2::new(0.0, 0.0))
             + Vector2::new(INIT_TERRAIN_POS, INIT_TERRAIN_POS);
         println!("{:?}", initial_terrain_pos);
         let u_terrain_pos = GlUniform::new(
             &program,
-            Rc::clone(&gl),
             "terrain_pos",
             Vector2::new(
                 initial_terrain_pos.x.try_into().unwrap(),

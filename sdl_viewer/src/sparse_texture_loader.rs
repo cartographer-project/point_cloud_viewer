@@ -62,7 +62,7 @@ impl SparseTextureLoader {
                 ImageBuffer::from_raw(tile_size, tile_size, height_contents.clone())
                     .expect("Corrupt contents");
             let mut color_rdr = BufReader::new(File::open(color_file_path)?);
-            color_rdr.read(&mut color_contents)?;
+            color_rdr.read_exact(&mut color_contents)?;
             let color_buffer = ImageBuffer::from_raw(tile_size, tile_size, color_contents.clone())
                 .expect("Corrupt contents");
             let previous_entry = tiles.insert(
