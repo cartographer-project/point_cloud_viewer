@@ -26,9 +26,10 @@ use grpcio::{
     UnarySink, WriteFlags,
 };
 use num_cpus;
+use point_viewer::batch_iterator::{BatchIterator, PointLocation, PointQuery};
 use point_viewer::errors::*;
 use point_viewer::math::{Isometry3, OrientedBeam};
-use point_viewer::octree::{self, BatchIterator, NodeId, Octree, OctreeFactory, PointQuery};
+use point_viewer::octree::{NodeId, Octree, OctreeFactory};
 use point_viewer::{AttributeData, PointsBatch};
 use protobuf::Message;
 use std::collections::HashMap;
@@ -37,7 +38,7 @@ use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 struct OctreeServiceData {
-    octree: [Octree; 1], // caveat: only one octree in this slice
+    octree: Box<Octree>,
     meta: point_viewer::proto::Meta,
 }
 
@@ -95,7 +96,7 @@ impl proto_grpc::Octree for OctreeService {
             Ok(node_id) => node_id,
             Err(e) => return send_fail(&ctx, sink, e.to_string()),
         };
-        let node_data = match service_data.octree[0].get_node_data(&node_id) {
+        let node_data = match service_data.octree.get_node_data(&node_id) {
             Ok(data) => data,
             Err(e) => return send_fail(&ctx, sink, e.to_string()),
         };
@@ -140,7 +141,7 @@ impl proto_grpc::Octree for OctreeService {
         };
         let frustum_matrix = projection_matrix.concat(&view_transform.into());
         let point_location = PointQuery {
-            location: octree::PointLocation::Frustum(frustum_matrix),
+            location: PointLocation::Frustum(frustum_matrix),
             global_from_local: None,
         };
         self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
@@ -162,7 +163,7 @@ impl proto_grpc::Octree for OctreeService {
             )
         };
         let point_location = PointQuery {
-            location: octree::PointLocation::Aabb(bounding_box),
+            location: PointLocation::Aabb(bounding_box),
             global_from_local: None,
         };
         self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
@@ -175,7 +176,7 @@ impl proto_grpc::Octree for OctreeService {
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
         let point_location = PointQuery {
-            location: octree::PointLocation::AllPoints(),
+            location: PointLocation::AllPoints(),
             global_from_local: None,
         };
         self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
@@ -204,7 +205,7 @@ impl proto_grpc::Octree for OctreeService {
 
         let beam = OrientedBeam::new(Isometry3::new(rotation, translation), half_extent);
         let point_location = PointQuery {
-            location: octree::PointLocation::OrientedBeam(beam),
+            location: PointLocation::OrientedBeam(beam),
             global_from_local: None,
         };
         self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
@@ -331,8 +332,9 @@ impl OctreeService {
                     Ok(())
                 };
 
+                let octree_slice: &[Octree] = std::slice::from_ref(&service_data.octree);
                 let mut batch_iterator = BatchIterator::new(
-                    &service_data.octree,
+                    octree_slice,
                     &query,
                     num_points_per_batch,
                     num_cpus::get() - 1,
@@ -356,14 +358,11 @@ impl OctreeService {
         if let Some(service_data) = self.data_cache.read().unwrap().get(octree_id) {
             return Ok(Arc::clone(service_data));
         };
-        let octree_slice: [Octree; 1] = [*self
+        let octree = self
             .factory
-            .generate_octree(self.location.join(&octree_id).to_string_lossy())?];
-        let meta = octree_slice[0].to_meta_proto();
-        let service_data = Arc::new(OctreeServiceData {
-            octree: octree_slice,
-            meta,
-        });
+            .generate_octree(self.location.join(&octree_id).to_string_lossy())?;
+        let meta = octree.to_meta_proto();
+        let service_data = Arc::new(OctreeServiceData { octree, meta });
         self.data_cache
             .write()
             .unwrap()

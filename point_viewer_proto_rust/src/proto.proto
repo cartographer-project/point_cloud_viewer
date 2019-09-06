@@ -91,21 +91,18 @@ message OctreeNode {
 
 enum AttributeDataType {
     INVALID_DATA_TYPE = 0;
-    U8 = 1;
+    U8 = 1; // (X)
     U16 = 2;
     U32 = 3;
     U64 = 4;
-    
-    I8 = 4 + 1;
-    I16 = 4 + 2;
-    I32 = 4 + 3;
-    I64 = 4 + 4;
-
-    F32 = 2*4 +3;
-    F64 = 2*4 + 4; //max value 12
-    
-    U8Vec3 = 12*2 + U8 ;
-    F64Vec3 = 12*2 + F64;
+    I8 = 5; // (4 + X)
+    I16 = 6;
+    I32 = 7;
+    I64 = 8;
+    F32 = 11;// (2*4) + X
+    F64 = 12; //max value 12
+    U8Vec3 = 25; //(12*2 + X)
+    F64Vec3 = 36;
 }
 
 message Attribute {

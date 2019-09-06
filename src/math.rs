@@ -39,7 +39,7 @@ where
 {
     fn contains(&self, point: &Point3<S>) -> bool;
     // TODO(catevita): return Relation
-    fn intersects(&self, aabb: &Aabb3<S>) -> bool;
+    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
 }
 
@@ -47,9 +47,9 @@ impl<S> PointCulling<S> for Aabb3<S>
 where
     S: 'static + BaseFloat + Sync + Send,
 {
-    fn intersects(&self, aabb: &Aabb3<S>) -> bool {
+    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
         let separating_axes = &[Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
-        intersects(&self.to_corners(), separating_axes, aabb)
+        intersects_aabb3(&self.to_corners(), separating_axes, aabb)
     }
 
     fn contains(&self, p: &Point3<S>) -> bool {
@@ -69,7 +69,7 @@ impl<S> PointCulling<S> for AllPoints
 where
     S: BaseFloat + Sync + Send,
 {
-    fn intersects(&self, _aabb: &Aabb3<S>) -> bool {
+    fn intersects_aabb3(&self, _aabb: &Aabb3<S>) -> bool {
         true
     }
     fn contains(&self, _p: &Point3<S>) -> bool {
@@ -132,12 +132,13 @@ impl Cube {
     }
 }
 
-// This guards against the separating axes being NaN, which may happen when the orientation aligns with the unit axes.
+// This guards against the separating axes being NaN, which may happen when the
+// orientation aligns with the unit axes.
 fn is_finite<S: BaseFloat>(vec: &Vector3<S>) -> bool {
     vec.x.is_finite() && vec.y.is_finite() && vec.z.is_finite()
 }
 
-fn intersects<S: BaseFloat>(
+fn intersects_aabb3<S: BaseFloat>(
     corners: &[Point3<S>],
     separating_axes: &[Vector3<S>],
     aabb: &Aabb3<S>,
@@ -330,8 +331,8 @@ impl<S> PointCulling<S> for Obb<S>
 where
     S: 'static + BaseFloat + Sync + Send,
 {
-    fn intersects(&self, aabb: &Aabb3<S>) -> bool {
-        intersects(&self.corners, &self.separating_axes, aabb)
+    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
+        intersects_aabb3(&self.corners, &self.separating_axes, aabb)
     }
 
     fn contains(&self, p: &Point3<S>) -> bool {
@@ -383,7 +384,7 @@ impl<S: BaseFloat> OrientedBeam<S> {
         ]
     }
 
-    // TODO(nnmm): Change the axes to describe a beam, which is finitie in one direction.
+    // TODO(nnmm): Change the axes to describe a beam, which is finite in one direction.
     // Currently we have a beam which is infinite in both directions.
     // If we defined a beam on one side of the earth pointing towards the sky,
     // it will also collect points on the other side of the earth, which is undesired.
@@ -409,8 +410,8 @@ impl<S> PointCulling<S> for OrientedBeam<S>
 where
     S: 'static + BaseFloat + Sync + Send,
 {
-    fn intersects(&self, aabb: &Aabb3<S>) -> bool {
-        intersects(&self.corners, &self.separating_axes, aabb)
+    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
+        intersects_aabb3(&self.corners, &self.separating_axes, aabb)
     }
 
     fn contains(&self, p: &Point3<S>) -> bool {
@@ -460,32 +461,32 @@ mod tests {
     }
 
     #[test]
-    fn test_beam_intersects() {
+    fn test_beam_intersects_aabb3() {
         let bbox1 = Aabb3::new(Point3::new(0.0, 0.0, 0.0), Point3::new(2.0, 2.0, 2.0));
         let bbox2 = Aabb3::new(Point3::new(0.0, 0.0, 3.0), Point3::new(2.0, 2.0, 5.0));
         // bbox3 is completely inside the beam, none of its faces intersect it
         let bbox3 = Aabb3::new(Point3::new(0.25, 1.8, 0.0), Point3::new(1.25, 2.8, 1.0));
-        // bbox4 intersects the beam, but has no vertices inside it
+        // bbox4 intersects_aabb3 the beam, but has no vertices inside it
         let bbox4 = Aabb3::new(Point3::new(-3.0, -2.0, -3.5), Point3::new(5.0, 6.0, 4.5));
         let bbox5 = Aabb3::new(Point3::new(2.1, -0.55, 0.0), Point3::new(4.1, 1.45, 2.0));
         let bbox6 = Aabb3::new(Point3::new(0.9, -1.67, 0.0), Point3::new(2.9, 0.33, 2.0));
         let bbox7 = Aabb3::new(Point3::new(0.9, -1.57, 0.0), Point3::new(2.9, 0.43, 2.0));
-        assert_eq!(some_beam().intersects(&bbox1), true);
-        assert_eq!(some_beam().intersects(&bbox2), false);
-        assert_eq!(some_beam().intersects(&bbox3), true);
-        assert_eq!(some_beam().intersects(&bbox4), true);
-        assert_eq!(some_beam().intersects(&bbox5), false);
-        assert_eq!(some_beam().intersects(&bbox6), false);
-        assert_eq!(some_beam().intersects(&bbox7), true);
+        assert_eq!(some_beam().intersects_aabb3(&bbox1), true);
+        assert_eq!(some_beam().intersects_aabb3(&bbox2), false);
+        assert_eq!(some_beam().intersects_aabb3(&bbox3), true);
+        assert_eq!(some_beam().intersects_aabb3(&bbox4), true);
+        assert_eq!(some_beam().intersects_aabb3(&bbox5), false);
+        assert_eq!(some_beam().intersects_aabb3(&bbox6), false);
+        assert_eq!(some_beam().intersects_aabb3(&bbox7), true);
         let vertical_beam = OrientedBeam::new(
             Isometry3::new(Quaternion::zero(), Vector3::zero()),
             Vector2::new(1.0, 1.0),
         );
-        assert_eq!(vertical_beam.intersects(&bbox1), true);
+        assert_eq!(vertical_beam.intersects_aabb3(&bbox1), true);
     }
 
     #[test]
-    fn test_obb_intersects() {
+    fn test_obb_intersects_aabb3() {
         let zero_rot: Quaternion<f64> = Rotation3::from_angle_z(Rad(0.0));
         let fourty_five_deg_rot: Quaternion<f64> =
             Rotation3::from_angle_z(Rad(std::f64::consts::PI / 4.0));
@@ -501,9 +502,9 @@ mod tests {
         let arbitrary_obb = Obb::new(Isometry3::new(arbitrary_rot, translation), half_extent);
         let bbox = Aabb3::new(Point3::new(0.5, 1.0, -3.0), Point3::new(1.5, 3.0, 3.0));
         assert_eq!(zero_obb.separating_axes.len(), 3);
-        assert_eq!(zero_obb.intersects(&bbox), true);
+        assert_eq!(zero_obb.intersects_aabb3(&bbox), true);
         assert_eq!(fourty_five_deg_obb.separating_axes.len(), 5);
-        assert_eq!(fourty_five_deg_obb.intersects(&bbox), false);
+        assert_eq!(fourty_five_deg_obb.intersects_aabb3(&bbox), false);
         assert_eq!(arbitrary_obb.separating_axes.len(), 15);
     }
 }
@@ -537,7 +538,7 @@ where
             && clip_v.z < clip_v.w
     }
 
-    fn intersects(&self, aabb: &Aabb3<S>) -> bool {
+    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
         match self.frustum.contains(aabb) {
             Relation::Cross => true,
             Relation::In => true,

@@ -19,8 +19,9 @@ authors = ["Holger Rapp <hrapp@lyft.com>"]
 edition = "2018"
 
 [build-dependencies]
-protoc-rust = "2.8.0"
+protobuf_provider = { path = "../protobuf_provider" }
 protoc-grpcio = "1.0.2"
+protoc-rust = "2.8.0"
 
 [dependencies]
 protobuf = "2.8.0"

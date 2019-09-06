@@ -1,6 +1,6 @@
 use crate::attribute_extension;
+use crate::data_provider::DataProvider;
 use crate::errors::*;
-use crate::octree::{NodeId, Octree, OctreeDataProvider};
 use crate::proto;
 use protobuf;
 use std::collections::HashMap;
@@ -8,19 +8,19 @@ use std::fs::{self, File};
 use std::io::{Cursor, Read};
 use std::path::PathBuf;
 
-pub struct OnDiskOctreeDataProvider {
+pub struct OnDiskDataProvider {
     pub directory: PathBuf,
 }
 
-impl OnDiskOctreeDataProvider {
+impl OnDiskDataProvider {
     /// Returns the path on disk where the data for this node is saved.
-    pub fn stem(&self, node_id: &NodeId) -> PathBuf {
-        self.directory.join(node_id.to_string())
+    pub fn stem(&self, node_id: &str) -> PathBuf {
+        self.directory.join(node_id)
     }
 
     // Get number of points from the file size of the color data.
     // Color data is required and always present.
-    pub fn number_of_points(&self, node_id: &NodeId) -> Result<i64> {
+    pub fn number_of_points(&self, node_id: &str) -> Result<i64> {
         let stem = self.stem(node_id);
         let file_meta_data_opt = fs::metadata(stem.with_extension(attribute_extension("color")));
         if file_meta_data_opt.is_err() {
@@ -33,7 +33,7 @@ impl OnDiskOctreeDataProvider {
     }
 }
 
-impl OctreeDataProvider for OnDiskOctreeDataProvider {
+impl DataProvider for OnDiskDataProvider {
     fn meta_proto(&self) -> Result<proto::Meta> {
         // We used to use JSON earlier.
         if self.directory.join("meta.json").exists() {
@@ -50,7 +50,7 @@ impl OctreeDataProvider for OnDiskOctreeDataProvider {
 
     fn data(
         &self,
-        node_id: &NodeId,
+        node_id: &str,
         node_attributes: &[&str],
     ) -> Result<HashMap<String, Box<dyn Read>>> {
         let stem = self.stem(node_id);
@@ -66,13 +66,4 @@ impl OctreeDataProvider for OnDiskOctreeDataProvider {
         }
         Ok(readers)
     }
-}
-
-//  TODO(catevita): refactor function for octree factory
-pub fn octree_from_directory(directory: impl Into<PathBuf>) -> Result<Box<Octree>> {
-    let data_provider = OnDiskOctreeDataProvider {
-        directory: directory.into(),
-    };
-    let octree = Octree::from_data_provider(Box::new(data_provider))?;
-    Ok(Box::new(octree))
 }

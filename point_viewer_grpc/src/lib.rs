@@ -19,7 +19,7 @@ use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::color::Color;
 use point_viewer::errors::*;
-use point_viewer::octree::{NodeId, Octree, OctreeDataProvider};
+use point_viewer::octree::{DataProvider, Octree};
 use point_viewer::proto::Meta;
 use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto;
@@ -108,7 +108,7 @@ impl GrpcOctreeDataProvider {
     }
 }
 
-impl OctreeDataProvider for GrpcOctreeDataProvider {
+impl DataProvider for GrpcOctreeDataProvider {
     fn meta_proto(&self) -> Result<Meta> {
         let mut req = proto::GetMetaRequest::new();
         req.set_octree_id(self.octree_id.clone());
@@ -121,7 +121,7 @@ impl OctreeDataProvider for GrpcOctreeDataProvider {
 
     fn data(
         &self,
-        node_id: &NodeId,
+        node_id: &str,
         node_attributes: &[&str],
     ) -> Result<HashMap<String, Box<dyn Read>>> {
         let mut req = proto::GetNodeDataRequest::new();

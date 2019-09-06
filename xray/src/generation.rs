@@ -9,7 +9,7 @@ use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
-use point_viewer::octree::{PointLocation, PointQuery};
+use point_viewer::batch_iterator::{PointLocation, PointQuery};
 use point_viewer::{color::Color, math::Isometry3, AttributeData, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
@@ -201,7 +201,7 @@ impl ColoringStrategy for XRayColoringStrategy {
             red: value,
             green: value,
             blue: value,
-            alpha: value,
+            alpha: 255,
         }
     }
 }
@@ -344,7 +344,7 @@ impl ColoringStrategy for PointColorColoringStrategy {
             red: c.color_sum.red / c.count as f32,
             green: c.color_sum.green / c.count as f32,
             blue: c.color_sum.blue / c.count as f32,
-            alpha: c.color_sum.alpha / c.count as f32,
+            alpha: 1.,
         }
         .to_u8()
     }

@@ -183,6 +183,7 @@ impl WriteLE for Vec<Vector3<f64>> {
 impl WriteLE for AttributeData {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         match self {
+            AttributeData::U8(data) => writer.write_all(data),
             AttributeData::I64(data) => data.write_le(writer),
             AttributeData::U64(data) => data.write_le(writer),
             AttributeData::F32(data) => data.write_le(writer),
@@ -200,6 +201,7 @@ pub trait WriteLEPos {
 impl WriteLEPos for AttributeData {
     fn write_le_pos(&self, pos: usize, writer: &mut DataWriter) -> Result<()> {
         match self {
+            AttributeData::U8(data) => writer.write_u8(data[pos]),
             AttributeData::I64(data) => data[pos].write_le(writer),
             AttributeData::U64(data) => data[pos].write_le(writer),
             AttributeData::F32(data) => data[pos].write_le(writer),

@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use crate::errors::*;
-use crate::math::{Cube, Frustum};
+use crate::math::Cube;
 use crate::proto;
 use crate::read_write::PositionEncoding;
 use crate::CURRENT_VERSION;
-use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3};
+use cgmath::{Matrix4, Point3};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::BinaryHeap;
 use std::io::{BufReader, Read};
+use std::path::PathBuf;
 
-mod batch_iterator;
-pub use self::batch_iterator::{BatchIterator, PointLocation, PointQuery};
+use crate::batch_iterator::{PointCloud, PointQuery};
 
 mod generation;
 pub use self::generation::{build_octree, build_octree_from_file};
@@ -39,8 +39,7 @@ pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta};
 mod octree_iterator;
 pub use self::octree_iterator::{FilteredPointsIterator, NodeIdsIterator};
 
-mod on_disk;
-pub use self::on_disk::{octree_from_directory, OnDiskOctreeDataProvider};
+pub use crate::data_provider::{DataProvider, OnDiskDataProvider};
 
 #[cfg(test)]
 mod octree_test;
@@ -51,7 +50,7 @@ pub struct OctreeMeta {
     pub bounding_box: Aabb3<f64>,
 }
 
-pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::Node>) -> proto::Meta {
+pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::OctreeNode>) -> proto::Meta {
     let mut meta = proto::Meta::new();
     meta.mut_bounding_box()
         .mut_min()
@@ -73,7 +72,9 @@ pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::Node>) -> proto
         .set_z(octree_meta.bounding_box.max().z);
     meta.set_resolution(octree_meta.resolution);
     meta.set_version(CURRENT_VERSION);
-    meta.set_nodes(::protobuf::RepeatedField::<proto::Node>::from_vec(nodes));
+    meta.set_nodes(::protobuf::RepeatedField::<proto::OctreeNode>::from_vec(
+        nodes,
+    ));
     meta
 }
 
@@ -116,17 +117,8 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f64>) -> f64 {
     (rv.max().x - rv.min().x) * (rv.max().y - rv.min().y)
 }
 
-pub trait OctreeDataProvider: Send + Sync {
-    fn meta_proto(&self) -> Result<proto::Meta>;
-    fn data(
-        &self,
-        node_id: &NodeId,
-        node_attributes: &[&str],
-    ) -> Result<HashMap<String, Box<dyn Read>>>;
-}
-
 pub struct Octree {
-    data_provider: Box<dyn OctreeDataProvider>,
+    data_provider: Box<dyn DataProvider>,
     meta: OctreeMeta,
     nodes: FnvHashMap<NodeId, NodeMeta>,
 }
@@ -140,7 +132,7 @@ pub struct NodeData {
 
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
-    pub fn from_data_provider(data_provider: Box<dyn OctreeDataProvider>) -> Result<Self> {
+    pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
         match meta_proto.version {
             9 | 10 => println!(
@@ -201,7 +193,7 @@ impl Octree {
     }
 
     pub fn to_meta_proto(&self) -> proto::Meta {
-        let nodes: Vec<proto::Node> = self
+        let nodes: Vec<proto::OctreeNode> = self
             .nodes
             .iter()
             .map(|(id, node_meta)| {
@@ -268,7 +260,9 @@ impl Octree {
     pub fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData> {
         // TODO(hrapp): If we'd randomize the points while writing, we could just read the
         // first N points instead of reading everything and skipping over a few.
-        let mut position_color_reads = self.data_provider.data(node_id, &["position", "color"])?;
+        let mut position_color_reads = self
+            .data_provider
+            .data(&node_id.to_string(), &["position", "color"])?;
 
         let mut get_data = |node_attribute: &str, err: &str| -> Result<Vec<u8>> {
             let mut reader = BufReader::new(
@@ -290,32 +284,27 @@ impl Octree {
         })
     }
 
-    pub fn nodes_in_location<'a>(
-        &'a self,
-        location: &PointQuery,
-    ) -> NodeIdsIterator<'a, impl Fn(&NodeId, &'a Octree) -> bool> {
-        let container = location.get_point_culling();
-        let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
-            let current = &octree.nodes[&node_id];
-            container.intersects(&current.bounding_cube.to_aabb3())
-        };
-        NodeIdsIterator::new(&self, filter_func)
-    }
-
-    /// Returns the ids of all nodes that cut or are fully contained in 'aabb'.
-    pub fn points_in_node<'a>(
-        &'a self,
-        location: &PointQuery,
-        node_id: NodeId,
-    ) -> FilteredPointsIterator<impl Fn(&Vector3<f64>) -> bool> {
-        let container = location.get_point_culling();
-        let filter_func = move |p: &Vector3<f64>| container.contains(&Point3::from_vec(*p));
-        FilteredPointsIterator::new(&self, node_id, filter_func)
-    }
-
     /// return the bounding box saved in meta
     pub fn bounding_box(&self) -> &Aabb3<f64> {
         &self.meta.bounding_box
+    }
+}
+
+impl PointCloud for Octree {
+    type Id = NodeId;
+    type PointsIter = FilteredPointsIterator;
+    fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
+        let container = query.get_point_culling();
+        let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
+            let current = &octree.nodes[&node_id];
+            container.intersects_aabb3(&current.bounding_cube.to_aabb3())
+        };
+        NodeIdsIterator::new(&self, filter_func).collect()
+    }
+
+    fn points_in_node<'a>(&'a self, query: &PointQuery, node_id: NodeId) -> FilteredPointsIterator {
+        let container = query.get_point_culling();
+        FilteredPointsIterator::new(&self, node_id, container)
     }
 }
 
@@ -369,4 +358,13 @@ fn maybe_push_node(
             empty: meta.num_points == 0,
         });
     }
+}
+
+//  TODO(catevita): refactor function for octree factory
+pub fn octree_from_directory(directory: impl Into<PathBuf>) -> Result<Box<Octree>> {
+    let data_provider = OnDiskDataProvider {
+        directory: directory.into(),
+    };
+    let octree = Octree::from_data_provider(Box::new(data_provider))?;
+    Ok(Box::new(octree))
 }

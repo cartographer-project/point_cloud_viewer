@@ -7,6 +7,7 @@ use point_cloud_client::PointCloudClient;
 use point_viewer::color::{TRANSPARENT, WHITE};
 use point_viewer::math::Isometry3;
 use point_viewer::octree::OctreeFactory;
+use point_viewer::read_write::attempt_increasing_rlimit_to_max;
 use scoped_pool::Pool;
 use std::path::Path;
 
@@ -87,6 +88,8 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
 }
 
 pub fn run<T: Extension>(octree_factory: OctreeFactory) {
+    attempt_increasing_rlimit_to_max();
+
     let args = parse_arguments::<T>();
     let resolution = args
         .value_of("resolution")

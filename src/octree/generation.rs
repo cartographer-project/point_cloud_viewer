@@ -14,13 +14,11 @@
 
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::{
-    self, to_meta_proto, to_node_proto, NodeId, OctreeMeta, OnDiskOctreeDataProvider,
-};
+use crate::octree::{self, to_meta_proto, to_node_proto, NodeId, OctreeMeta, OnDiskDataProvider};
 use crate::proto;
 use crate::read_write::{
-    make_stream, Encoding, InputFile, NodeIterator, NodeWriter, OpenMode, PositionEncoding,
-    RawNodeWriter,
+    attempt_increasing_rlimit_to_max, make_stream, Encoding, InputFile, NodeIterator, NodeWriter,
+    OpenMode, PositionEncoding, RawNodeWriter,
 };
 use crate::Point;
 use cgmath::{EuclideanSpace, Point3, Vector3};
@@ -40,11 +38,11 @@ const MAX_POINTS_PER_NODE: i64 = 100_000;
 
 impl RawNodeWriter {
     fn from_data_provider(
-        octree_data_provider: &OnDiskOctreeDataProvider,
+        octree_data_provider: &OnDiskDataProvider,
         octree_meta: &OctreeMeta,
         node_id: &NodeId,
     ) -> Self {
-        let path = octree_data_provider.stem(node_id);
+        let path = octree_data_provider.stem(&node_id.to_string());
         let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
         let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
         let min = bounding_cube.min();
@@ -62,7 +60,7 @@ impl RawNodeWriter {
 
 // Return a list a leaf nodes and a list of nodes to be splitted further.
 fn split<P>(
-    octree_data_provider: &OnDiskOctreeDataProvider,
+    octree_data_provider: &OnDiskDataProvider,
     octree_meta: &octree::OctreeMeta,
     node_id: &octree::NodeId,
     stream: P,
@@ -149,7 +147,7 @@ fn should_split_node(
 
 fn split_node<'a, P>(
     scope: &Scope<'a>,
-    octree_data_provider: &'a OnDiskOctreeDataProvider,
+    octree_data_provider: &'a OnDiskDataProvider,
     octree_meta: &'a octree::OctreeMeta,
     node_id: &octree::NodeId,
     stream: P,
@@ -165,7 +163,9 @@ fn split_node<'a, P>(
                 octree_data_provider,
                 octree_meta,
                 &child_id,
-                octree_data_provider.number_of_points(&child_id).unwrap() as usize,
+                octree_data_provider
+                    .number_of_points(&child_id.to_string())
+                    .unwrap() as usize,
             )
             .unwrap();
             split_node(
@@ -185,7 +185,7 @@ fn split_node<'a, P>(
 }
 
 fn subsample_children_into(
-    octree_data_provider: &OnDiskOctreeDataProvider,
+    octree_data_provider: &OnDiskDataProvider,
     octree_meta: &octree::OctreeMeta,
     node_id: &octree::NodeId,
     nodes_sender: &mpsc::Sender<(octree::NodeId, i64)>,
@@ -194,7 +194,7 @@ fn subsample_children_into(
         RawNodeWriter::from_data_provider(octree_data_provider, octree_meta, node_id);
     for i in 0..8 {
         let child_id = node_id.get_child_id(octree::ChildIndex::from_u8(i));
-        let num_points = match octree_data_provider.number_of_points(&child_id) {
+        let num_points = match octree_data_provider.number_of_points(&child_id.to_string()) {
             Ok(num_points) => num_points,
             Err(Error(ErrorKind::NodeNotFound, _)) => continue,
             Err(err) => return Err(err),
@@ -292,25 +292,14 @@ pub fn build_octree(
     bounding_box: Aabb3<f64>,
     input: impl Iterator<Item = Point>,
 ) {
-    // We open a lot of files during our work. Sometimes users see errors with 'cannot open more
-    // files'. We attempt to increase the rlimits for the number of open files per process here,
-    // but we do not fail if we do not manage to do so.
-    unsafe {
-        let mut rl = libc::rlimit {
-            rlim_cur: 0,
-            rlim_max: 0,
-        };
-        libc::getrlimit(libc::RLIMIT_NOFILE, &mut rl);
-        rl.rlim_cur = rl.rlim_max;
-        libc::setrlimit(libc::RLIMIT_NOFILE, &rl);
-    }
+    attempt_increasing_rlimit_to_max();
 
     // TODO(ksavinash9): This function should return a Result.
     let octree_meta = &octree::OctreeMeta {
         bounding_box,
         resolution,
     };
-    let octree_data_provider = OnDiskOctreeDataProvider {
+    let octree_data_provider = OnDiskDataProvider {
         directory: output_directory.as_ref().to_path_buf(),
     };
     let octree_data_provider = &octree_data_provider;
@@ -399,7 +388,7 @@ pub fn build_octree(
     }
 
     // Add all non-zero node meta data to meta.pb
-    let nodes: Vec<proto::Node> = finished_nodes
+    let nodes: Vec<proto::OctreeNode> = finished_nodes
         .iter()
         .map(|(id, num_points)| {
             let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));

@@ -141,12 +141,13 @@ where
 }
 
 pub fn attribute_to_proto(attribute: &AttributeData) -> proto::AttributeDataType {
-    match attribute {
+    match *attribute {
         AttributeData::I64(_) => proto::AttributeDataType::I64,
         AttributeData::U64(_) => proto::AttributeDataType::U64,
         AttributeData::F32(_) => proto::AttributeDataType::F32,
         AttributeData::F64(_) => proto::AttributeDataType::F64,
         AttributeData::U8Vec3(_) => proto::AttributeDataType::U8Vec3,
         AttributeData::F64Vec3(_) => proto::AttributeDataType::F64Vec3,
+        _ => proto::AttributeDataType::INVALID_DATA_TYPE,
     }
 }

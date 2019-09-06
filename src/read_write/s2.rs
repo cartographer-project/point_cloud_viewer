@@ -1,18 +1,25 @@
 use crate::proto;
 use crate::read_write::{attribute_to_proto, Encoding, NodeWriter, OpenMode};
-use crate::s2_geo::{cell_id, ECEFExt};
 use crate::{AttributeData, PointsBatch, CURRENT_VERSION};
+use cgmath::InnerSpace;
 use lru::LruCache;
 use s2::cellid::CellID;
+use s2::point::Point;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::io::Result;
+use std::io::{Error, ErrorKind, Result};
 use std::iter::Iterator;
 use std::path::PathBuf;
 
-// The actual number of underlying writers is MAX_NUM_NODE_WRITERS * num_attributes.
+/// The actual number of underlying writers is MAX_NUM_NODE_WRITERS * num_attributes.
 const MAX_NUM_NODE_WRITERS: usize = 25;
-// Corresponds to cells of up to about 10m x 10m.
-const S2_SPLIT_LEVEL: u8 = 20;
+/// Corresponds to cells of up to about 10m x 10m.
+const S2_SPLIT_LEVEL: u64 = 20;
+/// Lower bound for distance from earth's center.
+/// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
+const EARTH_RADIUS_MIN_M: f64 = 6_352_800.0;
+/// Upper bound for distance from earth's center.
+/// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
+const EARTH_RADIUS_MAX_M: f64 = 6_384_400.0;
 
 pub struct S2Splitter<W> {
     writers: LruCache<CellID, W>,
@@ -42,8 +49,17 @@ where
     fn write(&mut self, points_batch: &PointsBatch) -> Result<()> {
         let mut batches_by_s2_cell = HashMap::new();
         for (i, pos) in points_batch.position.iter().enumerate() {
+            let radius = pos.magnitude();
+            if radius > EARTH_RADIUS_MAX_M || radius < EARTH_RADIUS_MIN_M {
+                let msg = format!(
+                    "Point ({}, {}, {}) is not a valid ECEF point",
+                    pos.x, pos.y, pos.z
+                );
+                return Err(Error::new(ErrorKind::InvalidInput, msg));
+            }
+            let s2_point = Point::from_coords(pos.x, pos.y, pos.z);
             let s2_cell_batch = batches_by_s2_cell
-                .entry(cell_id(ECEFExt::from(*pos), S2_SPLIT_LEVEL))
+                .entry(CellID::from(s2_point).parent(S2_SPLIT_LEVEL))
                 .or_insert(PointsBatch {
                     position: Vec::new(),
                     attributes: BTreeMap::new(),
@@ -56,6 +72,7 @@ where
                     .attributes
                     .entry(key)
                     .and_modify(|out_data| match (in_data, out_data) {
+                        (U8(in_vec), U8(out_vec)) => out_vec.push(in_vec[i]),
                         (I64(in_vec), I64(out_vec)) => out_vec.push(in_vec[i]),
                         (U64(in_vec), U64(out_vec)) => out_vec.push(in_vec[i]),
                         (F32(in_vec), F32(out_vec)) => out_vec.push(in_vec[i]),
@@ -65,6 +82,7 @@ where
                         _ => panic!("Input data type unequal output data type."),
                     })
                     .or_insert(match in_data {
+                        U8(in_vec) => U8(vec![in_vec[i]]),
                         I64(in_vec) => I64(vec![in_vec[i]]),
                         U64(in_vec) => U64(vec![in_vec[i]]),
                         F32(in_vec) => F32(vec![in_vec[i]]),

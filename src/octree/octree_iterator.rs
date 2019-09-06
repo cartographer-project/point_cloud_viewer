@@ -1,14 +1,15 @@
 use crate::errors::*;
-use crate::math::Cube;
-use crate::octree::{ChildIndex, NodeId, Octree, OctreeDataProvider, OctreeMeta, PositionEncoding};
-use crate::read_write::{NodeIterator, RawNodeReader};
-use crate::Point;
-use cgmath::Vector3;
+use crate::math::{Cube, PointCulling};
+use crate::octree::{ChildIndex, DataProvider, NodeId, Octree, OctreeMeta, PositionEncoding};
+use crate::read_write::{AttributeReader, Encoding, NodeIterator, RawNodeReader};
+use crate::{AttributeDataType, Point};
+use cgmath::{EuclideanSpace, Point3};
 use std::collections::{HashMap, VecDeque};
+use std::io::BufReader;
 
 impl NodeIterator<RawNodeReader> {
     pub fn from_data_provider(
-        octree_data_provider: &dyn OctreeDataProvider,
+        octree_data_provider: &dyn DataProvider,
         octree_meta: &OctreeMeta,
         id: &NodeId,
         num_points: usize,
@@ -22,31 +23,45 @@ impl NodeIterator<RawNodeReader> {
 
         let mut attributes = HashMap::new();
 
-        let mut position_color_reads = octree_data_provider.data(id, &["position", "color"])?;
-        match position_color_reads.remove("position") {
-            Some(position_data) => {
-                attributes.insert("position".to_string(), position_data);
-            }
-            None => return Err("No position reader available.".into()),
-        }
+        let mut position_color_reads =
+            octree_data_provider.data(&id.to_string(), &["position", "color"])?;
+        let position_read = position_color_reads
+            .remove("position")
+            .ok_or_else(|| -> Error { "No position reader available.".into() })?;
         match position_color_reads.remove("color") {
             Some(color_data) => {
-                attributes.insert("color".to_string(), color_data);
+                let color_reader = AttributeReader {
+                    data_type: AttributeDataType::U8Vec3,
+                    reader: BufReader::new(color_data),
+                };
+                attributes.insert("color".to_string(), color_reader);
             }
             None => return Err("No color reader available.".into()),
         }
 
-        if let Ok(mut data_map) = octree_data_provider.data(id, &["intensity"]) {
+        if let Ok(mut data_map) = octree_data_provider.data(&id.to_string(), &["intensity"]) {
             match data_map.remove("intensity") {
                 Some(intensity_data) => {
-                    attributes.insert("intensity".to_string(), intensity_data);
+                    let intensity_reader = AttributeReader {
+                        data_type: AttributeDataType::F32,
+                        reader: BufReader::new(intensity_data),
+                    };
+                    attributes.insert("intensity".to_string(), intensity_reader);
                 }
                 None => return Err("No intensity reader available.".into()),
             }
         };
 
         Ok(Self::new(
-            RawNodeReader::new(attributes, position_encoding, bounding_cube)?,
+            RawNodeReader::new(
+                position_read,
+                attributes,
+                Encoding::ScaledToCube(
+                    bounding_cube.min().to_vec(),
+                    bounding_cube.edge_length(),
+                    position_encoding,
+                ),
+            )?,
             num_points,
         ))
     }
@@ -65,36 +80,33 @@ fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator<RawNodeR
 }
 
 /// iterator over the points of a octree node that satisfy the condition expressed by a boolean function
-pub struct FilteredPointsIterator<F> {
-    filter_func: F,
+pub struct FilteredPointsIterator {
+    culling: Box<dyn PointCulling<f64>>,
     node_iterator: NodeIterator<RawNodeReader>,
 }
 
-impl<F> FilteredPointsIterator<F>
-where
-    F: Fn(&Vector3<f64>) -> bool,
-{
-    pub fn new(octree: &Octree, node_id: NodeId, filter_func: F) -> FilteredPointsIterator<F> {
+impl FilteredPointsIterator {
+    pub fn new(
+        octree: &Octree,
+        node_id: NodeId,
+        culling: Box<dyn PointCulling<f64>>,
+    ) -> FilteredPointsIterator {
         FilteredPointsIterator {
-            filter_func,
+            culling,
             node_iterator: get_node_iterator(octree, &node_id),
         }
     }
 }
 
-impl<F> Iterator for FilteredPointsIterator<F>
-where
-    F: Fn(&Vector3<f64>) -> bool,
-{
+impl Iterator for FilteredPointsIterator {
     type Item = Point;
 
     fn next(&mut self) -> Option<Point> {
-        while let Some(point) = self.node_iterator.next() {
-            if (self.filter_func)(&point.position) {
-                return Some(point);
-            }
-        }
-        None
+        let culling = &self.culling;
+        self.node_iterator.find(|pt| {
+            let pos = Point3::from_vec(pt.position);
+            culling.contains(&pos)
+        })
     }
 }
 

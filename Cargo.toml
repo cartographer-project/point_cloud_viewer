@@ -48,13 +48,14 @@ tempdir = "0.3.7"
 
 [workspace]
 members = [
+   "octree_web_viewer",
    "point_cloud_client",
    "point_viewer_grpc",
    "point_viewer_grpc_proto_rust",
    "point_viewer_proto_rust",
+   "protobuf_provider",
    "quadtree",
    "sdl_viewer",
-   "octree_web_viewer",
    "xray",
    "xray_proto_rust",
 ]

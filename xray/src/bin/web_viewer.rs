@@ -59,9 +59,13 @@ fn main() {
     let quadtree_directory = PathBuf::from(matches.value_of("quadtree_directory").unwrap());
 
     let mut router = Router::new();
-    router.get("/", index);
-    router.get("/app_bundle.js", app_bundle);
-    router.get("/app_bundle.js.map", app_bundle_source_map);
+    router.get("/", index, "index");
+    router.get("/app_bundle.js", app_bundle, "app_bundle");
+    router.get(
+        "/app_bundle.js.map",
+        app_bundle_source_map,
+        "app_bundle_source_map",
+    );
     xray::backend::serve(
         "",
         &mut router,
