@@ -19,7 +19,6 @@ pub mod errors;
 pub mod math;
 pub mod octree;
 pub mod read_write;
-pub mod s2_geo;
 
 use cgmath::Vector3;
 use std::collections::BTreeMap;
