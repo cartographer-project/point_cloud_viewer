@@ -3,14 +3,15 @@ use crate::math::{Cube, PointCulling};
 use crate::octree::{ChildIndex, DataProvider, NodeId, Octree, OctreeMeta, PositionEncoding};
 use crate::read_write::{AttributeReader, Encoding, NodeIterator, RawNodeReader};
 use crate::{AttributeDataType, Point};
+use crate::batch_iterator::{PointCloud};
 use cgmath::{EuclideanSpace, Point3};
 use std::collections::{HashMap, VecDeque};
 use std::io::BufReader;
 
 impl NodeIterator<RawNodeReader> {
     pub fn from_data_provider(
-        octree_data_provider: &dyn DataProvider,
-        octree_meta: &OctreeMeta,
+        data_provider: &dyn DataProvider,
+        encoding: Encoding,
         id: &NodeId,
         num_points: usize,
     ) -> Result<Self> {
@@ -18,13 +19,10 @@ impl NodeIterator<RawNodeReader> {
             return Ok(NodeIterator::default());
         }
 
-        let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
-        let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
-
         let mut attributes = HashMap::new();
 
         let mut position_color_reads =
-            octree_data_provider.data(&id.to_string(), &["position", "color"])?;
+            data_provider.data(&id.to_string(), &["position", "color"])?;
         let position_read = position_color_reads
             .remove("position")
             .ok_or_else(|| -> Error { "No position reader available.".into() })?;
@@ -39,7 +37,7 @@ impl NodeIterator<RawNodeReader> {
             None => return Err("No color reader available.".into()),
         }
 
-        if let Ok(mut data_map) = octree_data_provider.data(&id.to_string(), &["intensity"]) {
+        if let Ok(mut data_map) = data_provider.data(&id.to_string(), &["intensity"]) {
             match data_map.remove("intensity") {
                 Some(intensity_data) => {
                     let intensity_reader = AttributeReader {
@@ -56,27 +54,11 @@ impl NodeIterator<RawNodeReader> {
             RawNodeReader::new(
                 position_read,
                 attributes,
-                Encoding::ScaledToCube(
-                    bounding_cube.min().to_vec(),
-                    bounding_cube.edge_length(),
-                    position_encoding,
-                ),
+                encoding,
             )?,
             num_points,
         ))
     }
-}
-
-/// returns an Iterator over the points of the current node
-fn get_node_iterator(octree: &Octree, node_id: &NodeId) -> NodeIterator<RawNodeReader> {
-    // TODO(sirver): This crashes on error. We should bubble up an error.
-    NodeIterator::from_data_provider(
-        &*octree.data_provider,
-        &octree.meta,
-        &node_id,
-        octree.nodes[&node_id].num_points as usize,
-    )
-    .expect("Could not read node points")
 }
 
 /// iterator over the points of a octree node that satisfy the condition expressed by a boolean function
@@ -86,15 +68,21 @@ pub struct FilteredPointsIterator {
 }
 
 impl FilteredPointsIterator {
-    pub fn new(
+    pub fn from_octree(
         octree: &Octree,
         node_id: NodeId,
         culling: Box<dyn PointCulling<f64>>,
-    ) -> FilteredPointsIterator {
-        FilteredPointsIterator {
+    ) -> Result<FilteredPointsIterator> {
+        let node_iterator = NodeIterator::from_data_provider(
+            &*octree.data_provider,
+            octree.meta.encoding_for_node(node_id),
+            &node_id,
+            octree.nodes[&node_id].num_points as usize,
+        )?;
+        Ok(FilteredPointsIterator {
             culling,
-            node_iterator: get_node_iterator(octree, &node_id),
-        }
+            node_iterator,
+        })
     }
 }
 
