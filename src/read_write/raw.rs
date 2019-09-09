@@ -261,7 +261,11 @@ impl RawNodeReader {
                         let mut buffer = vec![0; 3 * num_points];
                         reader.read_exact(&mut buffer)?;
                         for i in 0..num_points {
-                            attr.push(Vector3::new(buffer[i], buffer[i + 1], buffer[i + 2]));
+                            attr.push(Vector3::new(
+                                buffer[3 * i],
+                                buffer[3 * i + 1],
+                                buffer[3 * i + 2],
+                            ));
                         }
                         batch
                             .attributes
@@ -272,7 +276,11 @@ impl RawNodeReader {
                         let mut buffer = vec![0.0; 3 * num_points];
                         reader.read_f64_into::<LittleEndian>(&mut buffer)?;
                         for i in 0..num_points {
-                            attr.push(Vector3::new(buffer[i], buffer[i + 1], buffer[i + 2]));
+                            attr.push(Vector3::new(
+                                buffer[3 * i],
+                                buffer[3 * i + 1],
+                                buffer[3 * i + 2],
+                            ));
                         }
                         batch
                             .attributes
