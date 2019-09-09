@@ -95,6 +95,7 @@ impl AttributeData {
 }
 
 /// General structure that contains points and attached feature attributes.
+#[derive(Debug, Clone)]
 pub struct PointsBatch {
     pub position: Vec<Vector3<f64>>,
     // BTreeMap for deterministic iteration order.
