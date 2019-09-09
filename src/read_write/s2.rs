@@ -1,6 +1,6 @@
 use crate::proto;
-use crate::read_write::{attribute_to_proto, Encoding, NodeWriter, OpenMode};
-use crate::{AttributeData, PointsBatch, CURRENT_VERSION};
+use crate::read_write::{Encoding, NodeWriter, OpenMode};
+use crate::{AttributeData, AttributeDataType, PointsBatch, CURRENT_VERSION};
 use cgmath::InnerSpace;
 use lru::LruCache;
 use s2::cellid::CellID;
@@ -135,7 +135,7 @@ pub fn s2_cloud_to_meta_proto(
         .map(|(name, data_type)| {
             let mut attr_meta = proto::Attribute::new();
             attr_meta.set_name(name.to_string());
-            attr_meta.set_data_type(attribute_to_proto(data_type));
+            attr_meta.set_data_type(AttributeDataType::from_attribute(data_type).to_proto());
             attr_meta
         })
         .collect();

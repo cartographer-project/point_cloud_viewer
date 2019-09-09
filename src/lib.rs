@@ -72,6 +72,32 @@ pub enum AttributeDataType {
     F64Vec3,
 }
 
+impl AttributeDataType {
+    pub fn to_proto(&self) -> proto::AttributeDataType {
+        match self {
+            AttributeDataType::U8 => proto::AttributeDataType::U8,
+            AttributeDataType::I64 => proto::AttributeDataType::I64,
+            AttributeDataType::U64 => proto::AttributeDataType::U64,
+            AttributeDataType::F32 => proto::AttributeDataType::F32,
+            AttributeDataType::F64 => proto::AttributeDataType::F64,
+            AttributeDataType::U8Vec3 => proto::AttributeDataType::U8Vec3,
+            AttributeDataType::F64Vec3 => proto::AttributeDataType::F64Vec3,
+        }
+    }
+
+    pub fn from_attribute(attribute: &AttributeData) -> Self {
+        match attribute {
+            AttributeData::U8(_) => AttributeDataType::U8,
+            AttributeData::I64(_) => AttributeDataType::I64,
+            AttributeData::U64(_) => AttributeDataType::U64,
+            AttributeData::F32(_) => AttributeDataType::F32,
+            AttributeData::F64(_) => AttributeDataType::F64,
+            AttributeData::U8Vec3(_) => AttributeDataType::U8Vec3,
+            AttributeData::F64Vec3(_) => AttributeDataType::F64Vec3,
+        }
+    }
+}
+
 impl AttributeData {
     pub fn len(&self) -> usize {
         match self {

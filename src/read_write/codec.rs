@@ -15,7 +15,6 @@
 use crate::errors::*;
 use crate::math::{self, Cube};
 use crate::proto;
-use crate::AttributeData;
 use cgmath::{BaseFloat, Vector3, Zero};
 use num::clamp;
 
@@ -138,16 +137,4 @@ where
     T: num_traits::NumCast,
 {
     num::cast::<T, f64>(value).unwrap() * edge_length + min
-}
-
-pub fn attribute_to_proto(attribute: &AttributeData) -> proto::AttributeDataType {
-    match *attribute {
-        AttributeData::I64(_) => proto::AttributeDataType::I64,
-        AttributeData::U64(_) => proto::AttributeDataType::U64,
-        AttributeData::F32(_) => proto::AttributeDataType::F32,
-        AttributeData::F64(_) => proto::AttributeDataType::F64,
-        AttributeData::U8Vec3(_) => proto::AttributeDataType::U8Vec3,
-        AttributeData::F64Vec3(_) => proto::AttributeDataType::F64Vec3,
-        _ => proto::AttributeDataType::INVALID_DATA_TYPE,
-    }
 }
