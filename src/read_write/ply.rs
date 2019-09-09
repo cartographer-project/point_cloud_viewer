@@ -596,7 +596,7 @@ impl PlyNodeWriter {
         }
         for (name, data_str, num_properties) in elements {
             match &name[..] {
-                "color" => {
+                "color" | "rgb" | "rgba" => {
                     let colors = ["red", "green", "blue", "alpha"];
                     for color in colors.iter().take(*num_properties) {
                         let prop = &["property", " ", data_str, " ", color, "\n"].concat();
