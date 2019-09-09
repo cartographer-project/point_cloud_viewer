@@ -128,7 +128,7 @@ where
 
 // TODO(nnmm): Move this somewhere else
 pub trait PointCloud: Sync {
-    type Id: ToString + Send;
+    type Id: ToString + Send + Copy;
     type PointsIter: Iterator<Item = Point>;
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id>;
     fn encoding_for_node(&self, id: Self::Id) -> Encoding;

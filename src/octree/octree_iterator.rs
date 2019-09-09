@@ -1,18 +1,18 @@
+use crate::batch_iterator::PointCloud;
 use crate::errors::*;
 use crate::math::{Cube, PointCulling};
-use crate::octree::{ChildIndex, DataProvider, NodeId, Octree, OctreeMeta, PositionEncoding};
+use crate::octree::{ChildIndex, DataProvider, NodeId, Octree};
 use crate::read_write::{AttributeReader, Encoding, NodeIterator, RawNodeReader};
 use crate::{AttributeDataType, Point};
-use crate::batch_iterator::{PointCloud};
 use cgmath::{EuclideanSpace, Point3};
 use std::collections::{HashMap, VecDeque};
 use std::io::BufReader;
 
 impl NodeIterator<RawNodeReader> {
-    pub fn from_data_provider(
+    pub fn from_data_provider<Id: ToString>(
         data_provider: &dyn DataProvider,
         encoding: Encoding,
-        id: &NodeId,
+        id: &Id,
         num_points: usize,
     ) -> Result<Self> {
         if num_points == 0 {
@@ -51,11 +51,7 @@ impl NodeIterator<RawNodeReader> {
         };
 
         Ok(Self::new(
-            RawNodeReader::new(
-                position_read,
-                attributes,
-                encoding,
-            )?,
+            RawNodeReader::new(position_read, attributes, encoding)?,
             num_points,
         ))
     }
@@ -63,8 +59,8 @@ impl NodeIterator<RawNodeReader> {
 
 /// iterator over the points of a octree node that satisfy the condition expressed by a boolean function
 pub struct FilteredPointsIterator {
-    culling: Box<dyn PointCulling<f64>>,
-    node_iterator: NodeIterator<RawNodeReader>,
+    pub culling: Box<dyn PointCulling<f64>>,
+    pub node_iterator: NodeIterator<RawNodeReader>,
 }
 
 impl FilteredPointsIterator {
