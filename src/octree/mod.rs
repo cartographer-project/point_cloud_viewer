@@ -51,30 +51,36 @@ pub struct OctreeMeta {
 }
 
 pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::OctreeNode>) -> proto::Meta {
-    let mut meta = proto::Meta::new();
-    meta.mut_bounding_box()
+    let mut octree_proto = proto::OctreeMeta::new();
+    octree_proto.mut_bounding_box()
         .mut_min()
         .set_x(octree_meta.bounding_box.min().x);
-    meta.mut_bounding_box()
+    octree_proto.mut_bounding_box()
         .mut_min()
         .set_y(octree_meta.bounding_box.min().y);
-    meta.mut_bounding_box()
+    octree_proto.mut_bounding_box()
         .mut_min()
         .set_z(octree_meta.bounding_box.min().z);
-    meta.mut_bounding_box()
+    octree_proto.mut_bounding_box()
         .mut_max()
         .set_x(octree_meta.bounding_box.max().x);
-    meta.mut_bounding_box()
+    octree_proto.mut_bounding_box()
         .mut_max()
         .set_y(octree_meta.bounding_box.max().y);
-    meta.mut_bounding_box()
+    octree_proto.mut_bounding_box()
         .mut_max()
         .set_z(octree_meta.bounding_box.max().z);
-    meta.set_resolution(octree_meta.resolution);
-    meta.set_version(CURRENT_VERSION);
-    meta.set_nodes(::protobuf::RepeatedField::<proto::OctreeNode>::from_vec(
+    octree_proto.set_resolution(octree_meta.resolution);
+    
+    let octree_nodes = ::protobuf::RepeatedField::<proto::OctreeNode>::from_vec(
         nodes,
-    ));
+    );
+    octree_proto.set_nodes(octree_nodes);
+
+
+    let meta = proto::Meta::new();
+    meta.set_version(CURRENT_VERSION);
+    meta.set_octree(octree_proto);
     meta
 }
 
@@ -133,54 +139,55 @@ pub struct NodeData {
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
     pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
+        let bounding_box;
+        let meta;
+        let nodes_proto;
+
         let meta_proto = data_provider.meta_proto()?;
         match meta_proto.version {
-            9 | 10 => println!(
+            9 | 10 => { println!(
                 "Data is an older octree version: {}, current would be {}. \
                  If feasible, try upgrading this octree using `upgrade_octree`.",
                 meta_proto.version, CURRENT_VERSION
-            ),
-            CURRENT_VERSION => (),
+                );
+                bounding_box = bounding_box_previous_versions(meta_proto);
+                meta = OctreeMeta {resolution : meta_proto.deprecated_resolution, bounding_box};
+                nodes_proto =  meta_proto.deprecated_nodes;
+            },
+            11 => { println!(
+                "Data is an older octree version: {}, current would be {}. \
+                 If feasible, try upgrading this octree using `upgrade_octree`.",
+                meta_proto.version, CURRENT_VERSION
+                );
+                bounding_box = bounding_box_previous_versions(meta_proto);
+                meta = OctreeMeta{resolution : meta_proto.deprecated_resolution, bounding_box};
+                nodes_proto =  meta_proto.deprecated_nodes;
+            },
+            CURRENT_VERSION => { //TODO sanity check: is it an octree? 
+                let octree_meta = meta_proto.data.expect("Mandatory field data expected").octree.unwrap();
+
+                bounding_box = { 
+                    let bounding_box = octree_meta.bounding_box().unwrap();
+                    Aabb3::new( bounding_box.min, bounding_box.max)
+                };
+                meta = OctreeMeta{
+                    resolution : octree_meta.resolution,
+                    bounding_box }; 
+                nodes_proto =  octree_meta.nodes;
+            }
             _ => return Err(ErrorKind::InvalidVersion(meta_proto.version).into()),
         }
 
-        let bounding_box = {
-            let bounding_box = meta_proto.bounding_box.unwrap();
-            let min = bounding_box.min.clone().unwrap_or_else(|| {
-                let deprecated_min = bounding_box.deprecated_min.clone().unwrap();
-                let mut v = proto::Vector3d::new();
-                v.set_x(f64::from(deprecated_min.x));
-                v.set_y(f64::from(deprecated_min.y));
-                v.set_z(f64::from(deprecated_min.z));
-                v
-            });
-            let max = bounding_box.max.clone().unwrap_or_else(|| {
-                let deprecated_max = bounding_box.deprecated_max.clone().unwrap();
-                let mut v = proto::Vector3d::new();
-                v.set_x(f64::from(deprecated_max.x));
-                v.set_y(f64::from(deprecated_max.y));
-                v.set_z(f64::from(deprecated_max.z));
-                v
-            });
-            Aabb3::new(
-                Point3::new(min.x, min.y, min.z),
-                Point3::new(max.x, max.y, max.z),
-            )
-        };
-        let meta = OctreeMeta {
-            resolution: meta_proto.resolution,
-            bounding_box,
-        };
-
         let mut nodes = FnvHashMap::default();
-        for node_proto in meta_proto.nodes.iter() {
+
+        for node_proto in nodes_proto.iter() {
             let node_id = NodeId::from_proto(node_proto.id.as_ref().unwrap());
             nodes.insert(
                 node_id,
                 NodeMeta {
                     num_points: node_proto.num_points,
                     position_encoding: PositionEncoding::from_proto(node_proto.position_encoding)?,
-                    bounding_cube: node_id.find_bounding_cube(&Cube::bounding(&meta.bounding_box)),
+                    bounding_cube: node_id.find_bounding_cube(&Cube::bounding(&bounding_box)),
                 },
             );
         }
@@ -191,6 +198,33 @@ impl Octree {
             data_provider,
         })
     }
+  
+    // backward compatibility
+    fn bounding_box_previous_versions(meta_proto: proto::Meta) -> Aabb3<f64> {
+        let bounding_box = meta_proto.deprecated_bounding_box.unwrap();
+        let min = bounding_box.min.clone().unwrap_or_else(|| {
+            let deprecated_min = bounding_box.deprecated_min.clone().unwrap();
+            let mut v = proto::Vector3d::new();
+            v.set_x(f64::from(deprecated_min.x));
+            v.set_y(f64::from(deprecated_min.y));
+            v.set_z(f64::from(deprecated_min.z));
+            v
+        });
+        let max = bounding_box.max.clone().unwrap_or_else(|| {
+            let deprecated_max = bounding_box.deprecated_max.clone().unwrap();
+            let mut v = proto::Vector3d::new();
+            v.set_x(f64::from(deprecated_max.x));
+            v.set_y(f64::from(deprecated_max.y));
+            v.set_z(f64::from(deprecated_max.z));
+            v
+        });
+        Aabb3::new(
+            Point3::new(min.x, min.y, min.z),
+            Point3::new(max.x, max.y, max.z),
+        )
+    }
+
+
 
     pub fn to_meta_proto(&self) -> proto::Meta {
         let nodes: Vec<proto::OctreeNode> = self

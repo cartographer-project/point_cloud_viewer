@@ -27,7 +27,8 @@ use std::collections::BTreeMap;
 // (u64). We are able to convert the proto on read, so the tools can still read version 9.
 // Version 10 -> 11: Change in AxisAlignedCuboid proto from Vector3f min/max to Vector3d min/max.
 // We are able to convert the proto on read, so the tools can still read version 9/10.
-// Version 11 -> 12: Change in Proto names, the tools can still read version 9/10.
+// Version 11 -> 12: Change in Meta names, to have one version for s2 or octree data.
+// We are able to convert the proto on read, so the tools can still read version 9/10.
 pub const CURRENT_VERSION: i32 = 12;
 
 #[derive(Debug, Clone)]

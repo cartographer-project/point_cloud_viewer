@@ -128,8 +128,8 @@ pub fn s2_cloud_to_meta_proto(
 ) -> proto::Meta {
     let mut meta = proto::Meta::new();
     meta.set_version(CURRENT_VERSION);
-    // TODO(catevita): set resolution and bounding box
-    meta.set_cells(::protobuf::RepeatedField::<proto::S2Cell>::from_vec(cells));
+    let mut s2_meta = proto::S2Meta::new();
+    s2_meta.set_cells(::protobuf::RepeatedField::<proto::S2Cell>::from_vec(cells));
     let attributes_meta = attributes
         .iter()
         .map(|(name, data_type)| {
@@ -139,9 +139,10 @@ pub fn s2_cloud_to_meta_proto(
             attr_meta
         })
         .collect();
-    meta.set_attributes(::protobuf::RepeatedField::<proto::Attribute>::from_vec(
+    s2_meta.set_attributes(::protobuf::RepeatedField::<proto::Attribute>::from_vec(
         attributes_meta,
     ));
+    meta.set_s2(s2_meta);
     meta
 }
 

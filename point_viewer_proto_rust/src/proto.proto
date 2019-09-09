@@ -119,13 +119,28 @@ message S2Cell {
   int64 num_points = 2;
 }
 
+message OctreeMeta {
+  AxisAlignedCuboid bounding_box = 1;
+  double resolution = 2;
+  repeated OctreeNode nodes = 3;
+}
+
+message S2Meta {
+  repeated S2Cell cells = 1;
+  repeated Attribute attributes = 2;
+}
+
+
 message Meta {
   int32 version = 1;
-  AxisAlignedCuboid bounding_box = 4;
-  double resolution = 3;
   // Either nodes or cells is allowed, both is invalid
-  repeated OctreeNode nodes = 5; 
-  repeated S2Cell cells = 6;
-  // TODO(catevita): add input information: add sha? build specifics?
-  repeated Attribute attributes = 7;
+  oneof data {
+    OctreeMeta octree = 6;
+    S2Meta s2 = 7;
+  } 
+  // These were used in VERSION <= 11. Once we no longer need to keep these
+  // working, we should remove these entries.
+  double deprecated_resolution = 3;
+  AxisAlignedCuboid deprecated_bounding_box = 4;
+  repeated OctreeNode deprecated_nodes = 5;
 }
