@@ -21,6 +21,7 @@ use std::rc::Rc;
 use std::str;
 
 pub mod uniform;
+pub mod moving_window_texture;
 
 pub struct GlProgram {
     pub gl: Rc<Gl>,
