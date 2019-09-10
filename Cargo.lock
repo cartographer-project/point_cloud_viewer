@@ -2193,6 +2193,7 @@ dependencies = [
  "gl_generator 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.22.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lru 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nav-types 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-integer 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "point_viewer 0.1.0",
  "point_viewer_grpc 0.1.0",

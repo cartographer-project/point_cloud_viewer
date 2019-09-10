@@ -10,6 +10,13 @@ use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
+/// A square texture that is incrementally loaded. Incrementality is achieved
+/// by using wraparound indexing and overwriting the parts that moved off the
+/// texture with the newly loaded parts.
+/// See https://developer.nvidia.com/gpugems/GPUGems2/gpugems2_chapter02.html,
+/// section 2.4 for an illustration.
+/// Also publishes an "xyz_texture_offset" uniform whose unit is pixels (not UV
+/// coordinates).
 pub struct GlTexture<P: Pixel> {
     id: GLuint,
     gl: Rc<opengl::Gl>,
@@ -19,6 +26,8 @@ pub struct GlTexture<P: Pixel> {
     pub debug_tex: ImageBuffer<P, Vec<P::Subpixel>>,
 }
 
+/// Specifies the offsets and sizes in the destination, as well as the image to
+/// be pasted there.
 #[derive(Debug)]
 struct UpdateRegion<P: Pixel> {
     xoff: i32,
@@ -130,10 +139,9 @@ where
         delta_y: i32,
         mut vert_strip: ImageBuffer<P, Vec<P::Subpixel>>,
         mut hori_strip: ImageBuffer<P, Vec<P::Subpixel>>,
-    ) -> [Option<UpdateRegion<P>>; 4] {
-        let mut regions: [Option<UpdateRegion<P>>; 4] = [None, None, None, None];
-
-        // normalize to positive deltas
+    ) -> ArrayVec<[UpdateRegion<P>; 4]> {
+        // width/height are always positive, but if the delta is negative, the
+        // start of the new region is actually offset + delta, not offset
         let width = delta_x.abs();
         let height = delta_y.abs();
         let xoff = if delta_x > 0 {
@@ -152,82 +160,106 @@ where
         let y = (self.u_texture_offset.value.y + delta_y).mod_floor(&self.size);
         self.u_texture_offset.value = Vector2::new(x, y);
 
+        // There is a maximum of 4 update regions
+        let mut regions: ArrayVec<[UpdateRegion<P>; 4]> = ArrayVec::new();
+
         if width + xoff > self.size {
-            // wraparound – split into two vertical strips
-            let right_width = self.size - xoff;
-            let left_width = width - right_width;
-            regions[0] = Some(UpdateRegion {
+            // Wraparound the right texture edge – split into two vertical strips.
+            // Illustration:
+
+            // <- width ->
+            // +---+-+
+            // |   | |
+            // |   | |
+            // | 1 |2|  vert_strip
+            // |   | |
+            // |   | |
+            // +---+-+
+
+            // <- self.size ->
+            // +-+-------+---+
+            // | |       |   |
+            // | |       |   |
+            // |2|       | 1 |  texture
+            // | |       |   |
+            // | |       |   |
+            // +-+-------+---+
+            //           ^
+            //           |
+            //           xoff
+
+            let width_1 = self.size - xoff;
+            let region_1 = UpdateRegion {
                 xoff,
                 yoff: 0,
-                width: right_width,
+                width: width_1,
                 height: self.size,
                 pixels: rotate_y(
-                    vert_strip.sub_image(0, 0, right_width as u32, self.size as u32),
+                    vert_strip.sub_image(0, 0, width_1 as u32, self.size as u32),
                     self.u_texture_offset.value.y as u32,
                 ),
-            });
-            regions[1] = Some(UpdateRegion {
+            };
+            let width_2 = width - width_1;
+            let region_2 = UpdateRegion {
                 xoff: 0,
                 yoff: 0,
-                width: left_width,
+                width: width_2,
                 height: self.size,
                 pixels: rotate_y(
-                    vert_strip.sub_image(
-                        right_width as u32,
-                        0,
-                        left_width as u32,
-                        self.size as u32,
-                    ),
+                    vert_strip.sub_image(width_1 as u32, 0, width_2 as u32, self.size as u32),
                     self.u_texture_offset.value.y as u32,
                 ),
-            });
+            };
+            regions.push(region_1);
+            regions.push(region_2);
         } else if width != 0 {
-            regions[0] = Some(UpdateRegion {
+            let region = UpdateRegion {
                 xoff,
                 yoff: 0,
                 width,
                 height: self.size,
                 pixels: rotate_y(vert_strip, self.u_texture_offset.value.y as u32),
-            });
+            };
+            regions.push(region);
         }
 
         if height + yoff > self.size {
-            // wraparound – split into two horizontal strips
-            let upper_height = self.size - yoff;
-            let lower_height = height - upper_height;
-            regions[2] = Some(UpdateRegion {
+            // Wraparound the upper texture edge – split into two horizontal strips.
+            // Imagine the same illustration as above, but rotated counterclockwise by
+            // 90 degrees and with xoff => yoff and width => height.
+            let height_1 = self.size - yoff;
+            let region_1 = UpdateRegion {
                 xoff: 0,
                 yoff,
                 width: self.size,
-                height: upper_height,
+                height: height_1,
                 pixels: rotate_x(
-                    hori_strip.sub_image(0, 0, self.size as u32, upper_height as u32),
+                    hori_strip.sub_image(0, 0, self.size as u32, height_1 as u32),
                     self.u_texture_offset.value.x as u32,
                 ),
-            });
-            regions[3] = Some(UpdateRegion {
+            };
+            let height_2 = height - height_1;
+            let region_2 = UpdateRegion {
                 xoff: 0,
                 yoff: 0,
                 width: self.size,
-                height: lower_height,
+                height: height_2,
                 pixels: rotate_x(
-                    hori_strip.sub_image(
-                        0,
-                        upper_height as u32,
-                        self.size as u32,
-                        lower_height as u32,
-                    ),
+                    hori_strip.sub_image(0, height_1 as u32, self.size as u32, height_2 as u32),
                     self.u_texture_offset.value.x as u32,
                 ),
-            });
+            };
+            regions.push(region_1);
+            regions.push(region_2);
         } else if height != 0 {
-            regions[2] = Some(UpdateRegion {
+            let region = UpdateRegion {
                 xoff: 0,
                 yoff,
                 width: self.size,
                 height,
                 pixels: rotate_x(hori_strip, self.u_texture_offset.value.x as u32),
-            });
+            };
+            regions.push(region);
         }
 
         regions
@@ -243,16 +275,9 @@ where
         if delta_x == 0 && delta_y == 0 {
             return;
         }
-        let regions = ArrayVec::from(
-            self.incremental_update_regions(delta_x, delta_y, vert_strip, hori_strip),
-        );
+        let regions = self.incremental_update_regions(delta_x, delta_y, vert_strip, hori_strip);
 
-        for reg in regions {
-            let r = match reg {
-                Some(r) => r,
-                None => continue,
-            };
-
+        for r in regions {
             let buf =
                 ImageBuffer::from_raw(r.width as u32, r.height as u32, r.pixels.clone().into_raw())
                     .unwrap();
@@ -330,22 +355,4 @@ where
         amount,
     );
     result
-}
-
-pub fn debug<P: AsRef<std::path::Path>>(tex: &ImageBuffer<LumaA<f32>, Vec<f32>>, name: P) {
-    if tex.width() * tex.height() == 0 {
-        return;
-    }
-    let first_channel: Vec<_> = tex
-        .clone()
-        .into_raw()
-        .into_iter()
-        .enumerate()
-        .filter(|(i, _)| i % 2 == 0)
-        .map(|(_, px)| (px * 100.0) as u8)
-        .collect();
-    use image::GrayImage;
-    let dbg_image: GrayImage =
-        ImageBuffer::from_raw(tex.width(), tex.height(), first_channel).unwrap();
-    dbg_image.save(name).unwrap();
 }

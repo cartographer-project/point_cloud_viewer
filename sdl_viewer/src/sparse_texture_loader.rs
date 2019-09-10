@@ -2,10 +2,10 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::{Decomposed, Matrix4, Quaternion, Vector2, Vector3};
 use image::{GenericImage, GenericImageView, ImageBuffer, LumaA, Rgba};
 use num_integer::Integer;
+use point_viewer::math::Isometry3;
 use std::collections::HashMap;
 use std::fs::File; // for div_floor
 use std::io::{BufReader, Read};
-use point_viewer::math::Isometry3;
 
 pub struct HeightAndColor {
     pub height: ImageBuffer<LumaA<f32>, Vec<f32>>,
@@ -22,7 +22,9 @@ pub struct SparseTextureLoader {
 }
 
 impl SparseTextureLoader {
-    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<(Self, Isometry3<f64>), std::io::Error> {
+    pub fn new<P: AsRef<std::path::Path>>(
+        path: P,
+    ) -> Result<(Self, Isometry3<f64>), std::io::Error> {
         println!("Loading terrain");
         let mut meta =
             File::open(path.as_ref().join("meta")).expect("Could not open sparse texture dir");

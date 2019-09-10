@@ -4,7 +4,7 @@ use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use crate::opengl;
 use crate::sparse_texture_loader::SparseTextureLoader;
 use crate::{c_str, Extension};
-use cgmath::{Matrix4, Decomposed, SquareMatrix, Transform, Vector2, Zero};
+use cgmath::{Decomposed, Matrix4, SquareMatrix, Transform, Vector2, Zero};
 use image::{LumaA, Rgba};
 use opengl::types::{GLsizeiptr, GLuint};
 use point_viewer::math::Isometry3;
@@ -56,7 +56,6 @@ impl TerrainRenderer {
 
         GlUniform::new(&program, "terrain_res_m", sparse_heightmap.resolution()).submit();
 
-
         GlUniform::new(
             &program,
             "terrain_to_world",
@@ -64,8 +63,8 @@ impl TerrainRenderer {
                 let decomp: Decomposed<_, _> = terrain_to_world.clone().into();
                 decomp
             }),
-            ).submit();
-
+        )
+        .submit();
 
         GlUniform::new(&program, "terrain_origin_m", sparse_heightmap.origin()).submit();
 
@@ -73,7 +72,7 @@ impl TerrainRenderer {
 
         let initial_terrain_pos = sparse_heightmap.to_grid_coords(&Vector2::new(0.0, 0.0))
             + Vector2::new(INIT_TERRAIN_POS, INIT_TERRAIN_POS);
-        println!("{:?}", initial_terrain_pos);
+
         let u_terrain_pos = GlUniform::new(
             &program,
             "terrain_pos",
@@ -347,7 +346,14 @@ impl Extension for TerrainExtension {
         }
     }
 
-    fn local_from_global(&self, _matches: &clap::ArgMatches, _octree: &Octree) -> Option<Isometry3<f64>> {
+    fn local_from_global(
+        &self,
+        _matches: &clap::ArgMatches,
+        octree: &Octree,
+    ) -> Option<Isometry3<f64>> {
+        // use collision::Aabb;
+        // let center = octree.bounding_box().center();
+        // Some(Isometry3::from(local_frame_from_ecef_transform(center)))
         Some(self.terrain_renderer.terrain_to_world.inverse())
     }
 
@@ -358,5 +364,36 @@ impl Extension for TerrainExtension {
 
     fn draw(&mut self) {
         self.terrain_renderer.draw();
+    }
+}
+
+// Returns transform needed to go from ECEF to local frame with the specified origin where
+// the axes are ENU (east, north, up <in the direction normal to the oblate spheroid
+// used as Earth's ellipsoid, which does not generally pass through the center of the Earth>)
+// https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
+// transcribed from `localFrameFromEcefWgs84()` in avsoftware/src/common/math/geo_math.cc
+use cgmath::{Deg, Matrix3, Point3, Quaternion, Rotation, Vector3};
+use nav_types::{ECEF, WGS84};
+
+pub fn local_frame_from_ecef_transform(
+    local_frame_origin: Point3<f64>,
+) -> Decomposed<Vector3<f64>, Quaternion<f64>> {
+    const PI_HALF: Deg<f64> = Deg(90.0);
+
+    let origin_vector = Vector3::new(
+        local_frame_origin.x,
+        local_frame_origin.y,
+        local_frame_origin.z,
+    );
+    let lat_lng_alt = WGS84::from(ECEF::new(origin_vector.x, origin_vector.y, origin_vector.z));
+    let rotation_matrix = Matrix3::from_angle_z(-PI_HALF)
+        * Matrix3::from_angle_y(Deg(lat_lng_alt.latitude_degrees()) - PI_HALF)
+        * Matrix3::from_angle_z(Deg(-lat_lng_alt.longitude_degrees()));
+    let rotation = Quaternion::from(rotation_matrix);
+
+    Decomposed {
+        scale: 1.0,
+        rot: rotation,
+        disp: rotation.rotate_vector(-origin_vector),
     }
 }
