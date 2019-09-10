@@ -139,7 +139,6 @@ pub struct NodeData {
     pub color: Vec<u8>,
 }
 
-// backward compatibility
 fn bounding_box_to_aabb(bounding_box: &proto::AxisAlignedCuboid) -> Aabb3<f64> {
     let min = bounding_box.min.clone().unwrap_or_else(|| {
         let deprecated_min = bounding_box.deprecated_min.clone().unwrap(); // Version 9
@@ -199,7 +198,6 @@ impl Octree {
                 nodes_proto = meta_proto.get_deprecated_nodes();
             }
             CURRENT_VERSION => {
-                //TODO sanity check: is it an octree?
                 if !meta_proto.has_octree() {
                     return Err(ErrorKind::InvalidInput("No octree meta found".to_string()).into());
                 }
