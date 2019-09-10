@@ -75,23 +75,72 @@ message NodeId {
   int64 deprecated_index = 2;
 }
 
-message Node {
-  enum PositionEncoding {
+enum PositionEncoding {
     INVALID = 0;
     Uint8 = 1;
     Uint16 = 2;
     Float32 = 3;
     Float64 = 4;
-  }
+}
 
+message OctreeNode {
   PositionEncoding position_encoding = 2;
   int64 num_points = 3;
   NodeId id = 4;
 }
 
+enum AttributeDataType {
+   // very long types planned but not implemented yet
+    INVALID_DATA_TYPE = 0;
+    U8 = 1; // (X)
+    U16 = 2;
+    U32 = 3;
+    U64 = 4;
+    // U128 = 5;
+    I8 = 6; // (5 + X)
+    I16 = 7;
+    I32 = 8;
+    I64 = 9;
+    // I128 = 10;
+    F32 = 11;// (2*4) + X
+    F64 = 12; 
+    //max value 
+    U8Vec3 = 27; //(13*2 + X)
+    F64Vec3 = 38;
+}
+
+message Attribute {
+  string name = 1;
+  AttributeDataType data_type = 2;
+}
+
+message S2Cell {
+  int64 id = 1;
+  int64 num_points = 2;
+}
+
+message OctreeMeta {
+  AxisAlignedCuboid bounding_box = 1;
+  double resolution = 2;
+  repeated OctreeNode nodes = 3;
+}
+
+message S2Meta {
+  repeated S2Cell cells = 1;
+  repeated Attribute attributes = 2;
+}
+
+
 message Meta {
   int32 version = 1;
-  AxisAlignedCuboid bounding_box = 4;
-  double resolution = 3;
-  repeated Node nodes = 5;
+  // Either nodes or cells is allowed, both is invalid
+  oneof data {
+    OctreeMeta octree = 6;
+    S2Meta s2 = 7;
+  } 
+  // These were used in VERSION <= 11. Once we no longer need to keep these
+  // working, we should remove these entries.
+  double deprecated_resolution = 3;
+  AxisAlignedCuboid deprecated_bounding_box = 4;
+  repeated OctreeNode deprecated_nodes = 5;
 }

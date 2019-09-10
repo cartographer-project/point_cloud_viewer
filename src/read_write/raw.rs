@@ -222,35 +222,35 @@ impl RawNodeReader {
             |(key, AttributeReader { data_type, reader })| -> io::Result<()> {
                 match data_type {
                     AttributeDataType::U8 => {
-                        let mut attr = Vec::with_capacity(num_points);
+                        let mut attr = vec![0; num_points];
                         reader.read_exact(&mut attr)?;
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::U8(attr));
                     }
                     AttributeDataType::I64 => {
-                        let mut attr = Vec::with_capacity(num_points);
+                        let mut attr = vec![0; num_points];
                         reader.read_i64_into::<LittleEndian>(&mut attr)?;
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::I64(attr));
                     }
                     AttributeDataType::U64 => {
-                        let mut attr = Vec::with_capacity(num_points);
+                        let mut attr = vec![0; num_points];
                         reader.read_u64_into::<LittleEndian>(&mut attr)?;
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::U64(attr));
                     }
                     AttributeDataType::F32 => {
-                        let mut attr = Vec::with_capacity(num_points);
+                        let mut attr = vec![0.0; num_points];
                         reader.read_f32_into::<LittleEndian>(&mut attr)?;
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::F32(attr));
                     }
                     AttributeDataType::F64 => {
-                        let mut attr = Vec::with_capacity(num_points);
+                        let mut attr = vec![0.0; num_points];
                         reader.read_f64_into::<LittleEndian>(&mut attr)?;
                         batch
                             .attributes
@@ -258,10 +258,14 @@ impl RawNodeReader {
                     }
                     AttributeDataType::U8Vec3 => {
                         let mut attr = Vec::with_capacity(num_points);
-                        let mut buffer = Vec::with_capacity(3 * num_points);
+                        let mut buffer = vec![0; 3 * num_points];
                         reader.read_exact(&mut buffer)?;
                         for i in 0..num_points {
-                            attr.push(Vector3::new(buffer[i], buffer[i + 1], buffer[i + 2]));
+                            attr.push(Vector3::new(
+                                buffer[3 * i],
+                                buffer[3 * i + 1],
+                                buffer[3 * i + 2],
+                            ));
                         }
                         batch
                             .attributes
@@ -269,10 +273,14 @@ impl RawNodeReader {
                     }
                     AttributeDataType::F64Vec3 => {
                         let mut attr = Vec::with_capacity(num_points);
-                        let mut buffer = Vec::with_capacity(3 * num_points);
+                        let mut buffer = vec![0.0; 3 * num_points];
                         reader.read_f64_into::<LittleEndian>(&mut buffer)?;
                         for i in 0..num_points {
-                            attr.push(Vector3::new(buffer[i], buffer[i + 1], buffer[i + 2]));
+                            attr.push(Vector3::new(
+                                buffer[3 * i],
+                                buffer[3 * i + 1],
+                                buffer[3 * i + 2],
+                            ));
                         }
                         batch
                             .attributes

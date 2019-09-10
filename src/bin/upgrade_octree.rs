@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use point_viewer::octree::{self, DataProvider, NodeId, OnDiskDataProvider};
+use point_viewer::octree::{DataProvider, NodeId, OnDiskDataProvider};
 use point_viewer::proto;
 use protobuf::Message;
 use std::fs::File;
@@ -30,7 +30,7 @@ struct CommandlineArguments {
 
 fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 9 => 10.");
-    for node_proto in &mut meta.nodes.iter_mut() {
+    for node_proto in &mut meta.deprecated_nodes.iter_mut() {
         let mut id = node_proto.id.as_mut().unwrap();
         let node_id = NodeId::from_proto(id);
         id.deprecated_level = 0;
@@ -44,7 +44,7 @@ fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
 
 fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 10 => 11.");
-    let bbox = meta.bounding_box.as_mut().unwrap();
+    let bbox = meta.deprecated_bounding_box.as_mut().unwrap();
     let deprecated_min = bbox.deprecated_min.as_ref().unwrap();
     let mut min = point_viewer::proto::Vector3d::new();
     min.set_x(f64::from(deprecated_min.x));
@@ -66,6 +66,23 @@ fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
     meta.write_to_writer(&mut buf_writer).unwrap();
 }
 
+fn upgrade_version11(directory: &Path, mut meta: proto::Meta) {
+    println!("Upgrading version 11 => 12.");
+    let mut octree = proto::OctreeMeta::new();
+
+    octree.set_bounding_box(meta.take_deprecated_bounding_box());
+
+    octree.set_resolution(meta.deprecated_resolution);
+    meta.deprecated_resolution = 0.0;
+
+    octree.set_nodes(meta.take_deprecated_nodes());
+
+    meta.set_octree(octree);
+    meta.version = 12;
+    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
+    meta.write_to_writer(&mut buf_writer).unwrap();
+}
+
 fn main() {
     let args = CommandlineArguments::from_args();
     let data_provider = OnDiskDataProvider {
@@ -79,8 +96,12 @@ fn main() {
         match meta.version {
             9 => upgrade_version9(&args.directory, meta),
             10 => upgrade_version10(&args.directory, meta),
-            other if other == octree::CURRENT_VERSION => {
-                println!("Octree at current version {}", octree::CURRENT_VERSION);
+            11 => upgrade_version11(&args.directory, meta),
+            other if other == point_viewer::CURRENT_VERSION => {
+                println!(
+                    "Octree at current version {}",
+                    point_viewer::CURRENT_VERSION
+                );
                 break;
             }
             other => {

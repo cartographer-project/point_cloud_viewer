@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::octree;
 use error_chain::*;
 use std::io;
 
@@ -23,7 +22,7 @@ error_chain! {
 
     errors {
         InvalidInput(msg: String) {
-            description("The input file is not supported or invalid")
+            description("The input is not supported or invalid")
                 display("{}", msg)
         }
 
@@ -33,7 +32,7 @@ error_chain! {
             "Octree in this directory has a version of {}, the only supported version is {}. \
             Try running upgrade_octree on this data to get it to the current version. \
             The viewer might eventually be backwards compatible, but for now only \
-            the currently created version is supported.", version, octree::CURRENT_VERSION)
+            the currently created version is supported.", version, crate::CURRENT_VERSION)
         }
 
         NodeNotFound {
