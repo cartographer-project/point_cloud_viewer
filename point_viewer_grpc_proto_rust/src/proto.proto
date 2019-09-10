@@ -47,7 +47,7 @@ message GetNodeDataRequest {
 }
 
 message GetNodeDataReply {
-  point_viewer.proto.Node node = 1;
+  point_viewer.proto.OctreeNode node = 1;
   bytes position = 2;
   bytes color = 3;
 }

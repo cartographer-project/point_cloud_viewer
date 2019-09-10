@@ -1,11 +1,13 @@
+use crate::proto;
 use crate::read_write::{Encoding, NodeWriter, OpenMode};
-use crate::{AttributeData, PointsBatch};
+use crate::{AttributeData, PointsBatch, CURRENT_VERSION};
 use cgmath::InnerSpace;
 use lru::LruCache;
 use s2::cellid::CellID;
 use s2::point::Point;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Error, ErrorKind, Result};
+use std::iter::Iterator;
 use std::path::PathBuf;
 
 /// The actual number of underlying writers is MAX_NUM_NODE_WRITERS * num_attributes.
@@ -118,4 +120,35 @@ where
         }
         self.writers.get_mut(cell_id).unwrap()
     }
+}
+
+pub fn s2_cloud_to_meta_proto(
+    cells: Vec<proto::S2Cell>,
+    attributes: &BTreeMap<String, AttributeData>,
+) -> proto::Meta {
+    let mut meta = proto::Meta::new();
+    meta.set_version(CURRENT_VERSION);
+    let mut s2_meta = proto::S2Meta::new();
+    s2_meta.set_cells(::protobuf::RepeatedField::<proto::S2Cell>::from_vec(cells));
+    let attributes_meta = attributes
+        .iter()
+        .map(|(name, attribute)| {
+            let mut attr_meta = proto::Attribute::new();
+            attr_meta.set_name(name.to_string());
+            attr_meta.set_data_type(attribute.data_type().to_proto());
+            attr_meta
+        })
+        .collect();
+    s2_meta.set_attributes(::protobuf::RepeatedField::<proto::Attribute>::from_vec(
+        attributes_meta,
+    ));
+    meta.set_s2(s2_meta);
+    meta
+}
+
+pub fn s2_cell_to_proto(cell_id: i64, num_points: i64) -> proto::S2Cell {
+    let mut meta = proto::S2Cell::new();
+    meta.set_id(cell_id);
+    meta.set_num_points(num_points);
+    meta
 }

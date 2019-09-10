@@ -388,7 +388,7 @@ pub fn build_octree(
     }
 
     // Add all non-zero node meta data to meta.pb
-    let nodes: Vec<proto::Node> = finished_nodes
+    let nodes: Vec<proto::OctreeNode> = finished_nodes
         .iter()
         .map(|(id, num_points)| {
             let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
