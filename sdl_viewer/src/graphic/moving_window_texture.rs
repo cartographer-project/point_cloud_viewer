@@ -274,6 +274,9 @@ where
             for r in regions {
                 let width = i32::try_from(r.pixels.width()).unwrap();
                 let height = i32::try_from(r.pixels.height()).unwrap();
+                if height * width == 0 {
+                    continue;
+                }
                 let image = r.pixels.to_image();
                 self.gl.TexSubImage2D(
                     opengl::TEXTURE_2D,
