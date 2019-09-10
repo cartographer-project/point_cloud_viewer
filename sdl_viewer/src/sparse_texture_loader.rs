@@ -1,5 +1,5 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use cgmath::{Decomposed, Matrix4, Quaternion, Vector2, Vector3};
+use cgmath::{Decomposed, Quaternion, Vector2, Vector3};
 use image::{GenericImage, GenericImageView, ImageBuffer, LumaA, Rgba};
 use num_integer::Integer;
 use point_viewer::math::Isometry3;

@@ -4,8 +4,9 @@ use crate::opengl;
 use crate::opengl::types::{GLint, GLuint};
 use arrayvec::ArrayVec;
 use cgmath::Vector2;
-use image::{GenericImage, GenericImageView, ImageBuffer, LumaA, Pixel, Rgba};
+use image::{GenericImageView, ImageBuffer, LumaA, Pixel, Rgba, SubImage};
 use num_integer::Integer;
+use std::convert::{TryFrom, TryInto};
 use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -17,6 +18,8 @@ use std::rc::Rc;
 /// section 2.4 for an illustration.
 /// Also publishes an "xyz_texture_offset" uniform whose unit is pixels (not UV
 /// coordinates).
+/// I'm told that a more efficient alternative would be to use a PBO (pixel
+/// buffer object), so a future version could use that instead.
 pub struct GlTexture<P: Pixel> {
     id: GLuint,
     gl: Rc<opengl::Gl>,
@@ -25,15 +28,74 @@ pub struct GlTexture<P: Pixel> {
     pixel_type: PhantomData<P>,
 }
 
-/// Specifies the offsets and sizes in the destination, as well as the image to
-/// be pasted there.
-#[derive(Debug)]
-struct UpdateRegion<P: Pixel> {
-    xoff: i32,
-    yoff: i32,
-    width: i32,
-    height: i32,
-    pixels: ImageBuffer<P, Vec<P::Subpixel>>,
+/// Specifies the offsets in the destination, as well as the image to be pasted
+/// there.
+struct UpdateRegion<'a, P: Pixel + 'static> {
+    x: i32,
+    y: i32,
+    pixels: SubImage<&'a ImageBuffer<P, Vec<P::Subpixel>>>,
+}
+
+impl<'a, P: Pixel + 'static> UpdateRegion<'a, P> {
+    // Splits an image with offset into update regions
+    //
+    //     +---+-+
+    //     | 3 |4|
+    //     +---+-+
+    //     |   | |
+    //     | 1 |2|
+    //     |   | |
+    //     +---+-+
+    //        |
+    //        V
+    // +-+-------+---+
+    // | |       |   |
+    // |2|       | 1 |
+    // | |       |   |
+    // +-+       +---+
+    // |4|       | 3 |
+    // +-+-------+---+
+    pub fn new_regions(
+        xoff: i32,
+        yoff: i32,
+        size: i32,
+        pixels: &'a ImageBuffer<P, Vec<P::Subpixel>>,
+    ) -> [UpdateRegion<'a, P>; 4] {
+        // Do subtractions in signed numbers to avoid overflow
+        let width: i32 = pixels.width().try_into().unwrap();
+        let height: i32 = pixels.height().try_into().unwrap();
+        let width_1_3 = width.min(size - xoff);
+        let width_2_4 = width - width_1_3;
+        let height_3_4 = height.min(size - yoff);
+        let height_1_2 = height - height_3_4;
+        // The image crate likes unsigned ints
+        let width_1_3 = u32::try_from(width_1_3).unwrap();
+        let width_2_4 = u32::try_from(width_2_4).unwrap();
+        let height_3_4 = u32::try_from(height_3_4).unwrap();
+        let height_1_2 = u32::try_from(height_1_2).unwrap();
+        [
+            UpdateRegion {
+                x: xoff,
+                y: yoff,
+                pixels: pixels.view(0, 0, width_1_3, height_1_2),
+            },
+            UpdateRegion {
+                x: 0,
+                y: yoff,
+                pixels: pixels.view(width_1_3, 0, width_2_4, height_1_2),
+            },
+            UpdateRegion {
+                x: xoff,
+                y: 0,
+                pixels: pixels.view(0, height_1_2, width_1_3, height_3_4),
+            },
+            UpdateRegion {
+                x: 0,
+                y: 0,
+                pixels: pixels.view(width_1_3, height_1_2, width_2_4, height_3_4),
+            },
+        ]
+    }
 }
 
 pub trait TextureFormat: Pixel {
@@ -76,6 +138,8 @@ where
 
             gl.GenTextures(1, &mut id);
             gl.BindTexture(opengl::TEXTURE_2D, id);
+
+            // Enable wraparound addressing
             gl.TexParameteri(
                 opengl::TEXTURE_2D,
                 opengl::TEXTURE_WRAP_S,
@@ -130,13 +194,69 @@ where
         }
     }
 
-    fn incremental_update_regions(
+    // Let's say the texture window has moved left and up. The new pixels that
+    // are now inside the window are passed as a vertical and a horizontal
+    // strip. Here they are in the texture window:
+    // +-----+------------+
+    // |#####|############| <- hori_strip
+    // +-----|------------+
+    // |#####|            |
+    // |#####|            |
+    // |#####|            |
+    // +-----+------------+
+    //    ^
+    //    |
+    //   vert_strip
+    //
+    // You can see that they are redundant where they overlap. This is not
+    // handled to keep the code from becoming more complex. Also, either may
+    // be empty, which is the case for purely horizontal/vertical shifts.
+
+    // These strips have to be inserted correctly into the OpenGL texture,
+    // which starts not at 0 but at texture_offset because of wrapping indexing.
+    // Updating that texture from such a strip can typically not be done in one
+    // step, but requires breaking it into up to four subregions. This is
+    // because OpenGL textures can be read with wrapping indexing, but not
+    // written with wrapping indexing, so we need to do it ourselves.
+    // Let's look at the vertical strip:
+
+    // <- width ->
+    // +---+-+
+    // | 3 |4|
+    // +---+-+
+    // |   | |  vert_strip
+    // | 1 |2|
+    // |   | |
+    // +---+-+
+
+    // Wraparound at the right texture edge causes the split into regions 1/3
+    // vs 2/4, and wraparound at the upper texture edge causes the split into
+    // regions 1/2 vs 3/4.
+    // Here's the texture with the vert_strip placed correctly:
+    //
+    // <- self.size ->
+    // +-+-------+---+
+    // | |       |   |
+    // |2|       | 1 |
+    // | |       |   |
+    // +-+       +---+ <- texture_offset.y
+    // |4|       | 3 |
+    // +-+-------+---+
+    //           ^
+    //           |
+    //           xoff
+    //
+    // xoff is not equal to texture_offset.x if the texture moved right.
+
+    // The way this is handled is by creating regions as if they always need
+    // splitting, and skipping empty regions that result from that.
+    pub fn incremental_update(
         &mut self,
         delta_x: i32,
         delta_y: i32,
-        mut vert_strip: ImageBuffer<P, Vec<P::Subpixel>>,
-        mut hori_strip: ImageBuffer<P, Vec<P::Subpixel>>,
-    ) -> ArrayVec<[UpdateRegion<P>; 4]> {
+        vert_strip: ImageBuffer<P, Vec<P::Subpixel>>,
+        hori_strip: ImageBuffer<P, Vec<P::Subpixel>>,
+    ) {
         // width/height are always positive, but if the delta is negative, the
         // start of the new region is actually offset + delta, not offset
         let width = delta_x.abs();
@@ -157,141 +277,28 @@ where
         let y = (self.u_texture_offset.value.y + delta_y).mod_floor(&self.size);
         self.u_texture_offset.value = Vector2::new(x, y);
 
-        // There is a maximum of 4 update regions
-        let mut regions: ArrayVec<[UpdateRegion<P>; 4]> = ArrayVec::new();
+        let vert_regions = UpdateRegion::new_regions(xoff, y, self.size, &vert_strip);
+        let hori_regions = UpdateRegion::new_regions(x, yoff, self.size, &hori_strip);
+        let regions = ArrayVec::from(vert_regions)
+            .into_iter()
+            .chain(ArrayVec::from(hori_regions));
 
-        if width + xoff > self.size {
-            // Wraparound the right texture edge – split into two vertical strips.
-            // Illustration:
-
-            // <- width ->
-            // +---+-+
-            // |   | |
-            // |   | |
-            // | 1 |2|  vert_strip
-            // |   | |
-            // |   | |
-            // +---+-+
-
-            // <- self.size ->
-            // +-+-------+---+
-            // | |       |   |
-            // | |       |   |
-            // |2|       | 1 |  texture
-            // | |       |   |
-            // | |       |   |
-            // +-+-------+---+
-            //           ^
-            //           |
-            //           xoff
-
-            let width_1 = self.size - xoff;
-            let region_1 = UpdateRegion {
-                xoff,
-                yoff: 0,
-                width: width_1,
-                height: self.size,
-                pixels: rotate_y(
-                    vert_strip.sub_image(0, 0, width_1 as u32, self.size as u32),
-                    self.u_texture_offset.value.y as u32,
-                ),
-            };
-            let width_2 = width - width_1;
-            let region_2 = UpdateRegion {
-                xoff: 0,
-                yoff: 0,
-                width: width_2,
-                height: self.size,
-                pixels: rotate_y(
-                    vert_strip.sub_image(width_1 as u32, 0, width_2 as u32, self.size as u32),
-                    self.u_texture_offset.value.y as u32,
-                ),
-            };
-            regions.push(region_1);
-            regions.push(region_2);
-        } else if width != 0 {
-            let region = UpdateRegion {
-                xoff,
-                yoff: 0,
-                width,
-                height: self.size,
-                pixels: rotate_y(vert_strip, self.u_texture_offset.value.y as u32),
-            };
-            regions.push(region);
-        }
-
-        if height + yoff > self.size {
-            // Wraparound the upper texture edge – split into two horizontal strips.
-            // Imagine the same illustration as above, but rotated counterclockwise by
-            // 90 degrees and with xoff => yoff and width => height.
-            let height_1 = self.size - yoff;
-            let region_1 = UpdateRegion {
-                xoff: 0,
-                yoff,
-                width: self.size,
-                height: height_1,
-                pixels: rotate_x(
-                    hori_strip.sub_image(0, 0, self.size as u32, height_1 as u32),
-                    self.u_texture_offset.value.x as u32,
-                ),
-            };
-            let height_2 = height - height_1;
-            let region_2 = UpdateRegion {
-                xoff: 0,
-                yoff: 0,
-                width: self.size,
-                height: height_2,
-                pixels: rotate_x(
-                    hori_strip.sub_image(0, height_1 as u32, self.size as u32, height_2 as u32),
-                    self.u_texture_offset.value.x as u32,
-                ),
-            };
-            regions.push(region_1);
-            regions.push(region_2);
-        } else if height != 0 {
-            let region = UpdateRegion {
-                xoff: 0,
-                yoff,
-                width: self.size,
-                height,
-                pixels: rotate_x(hori_strip, self.u_texture_offset.value.x as u32),
-            };
-            regions.push(region);
-        }
-
-        regions
-    }
-
-    pub fn incremental_update(
-        &mut self,
-        delta_x: i32,
-        delta_y: i32,
-        vert_strip: ImageBuffer<P, Vec<P::Subpixel>>,
-        hori_strip: ImageBuffer<P, Vec<P::Subpixel>>,
-    ) {
-        if delta_x == 0 && delta_y == 0 {
-            return;
-        }
-        let regions = self.incremental_update_regions(delta_x, delta_y, vert_strip, hori_strip);
-
-        for r in regions {
-            let buf =
-                ImageBuffer::from_raw(r.width as u32, r.height as u32, r.pixels.clone().into_raw())
-                    .unwrap();
-
-            unsafe {
-                self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
-
+        unsafe {
+            self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
+            for mut r in regions {
+                let width = i32::try_from(r.pixels.width()).unwrap();
+                let height = i32::try_from(r.pixels.height()).unwrap();
+                let image = r.pixels.to_image();
                 self.gl.TexSubImage2D(
                     opengl::TEXTURE_2D,
                     0,
-                    r.xoff,
-                    r.yoff,
-                    r.width,
-                    r.height,
+                    r.x,
+                    r.y,
+                    width,
+                    height,
                     P::FORMAT,
                     P::DTYPE,
-                    r.pixels.into_raw().as_ptr() as *const c_void,
+                    image.into_raw().as_ptr() as *const c_void,
                 );
             }
         }
@@ -305,50 +312,4 @@ where
             self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
         }
     }
-}
-
-fn rotate_x<I: GenericImageView>(
-    img: I,
-    amount: u32,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static + std::fmt::Debug,
-    <I::Pixel as Pixel>::Subpixel: 'static,
-{
-    let mut result = ImageBuffer::new(img.width(), img.height());
-    result.copy_from(
-        &img.view(img.width() - amount, 0, amount, img.height()),
-        0,
-        0,
-    );
-    result.copy_from(
-        &img.view(0, 0, img.width() - amount, img.height()),
-        amount,
-        0,
-    );
-    result
-}
-
-// moves the interval [0, height-amount] to [amount, height]
-// and [height-amount, height] to [0, amount]
-fn rotate_y<I: GenericImageView>(
-    img: I,
-    amount: u32,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static,
-    <I::Pixel as Pixel>::Subpixel: 'static,
-{
-    let mut result = ImageBuffer::new(img.width(), img.height());
-    result.copy_from(
-        &img.view(0, img.height() - amount, img.width(), amount),
-        0,
-        0,
-    );
-    result.copy_from(
-        &img.view(0, 0, img.width(), img.height() - amount),
-        0,
-        amount,
-    );
-    result
 }
