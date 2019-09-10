@@ -27,8 +27,8 @@ use std::collections::BTreeMap;
 // (u64). We are able to convert the proto on read, so the tools can still read version 9.
 // Version 10 -> 11: Change in AxisAlignedCuboid proto from Vector3f min/max to Vector3d min/max.
 // We are able to convert the proto on read, so the tools can still read version 9/10.
-// Version 11 -> 12: Change in Meta names, to have one version for s2 or octree data.
-// We are able to convert the proto on read, so the tools can still read version 9/10.
+// Version 11 -> 12: Change in Meta names and structures, to allow both s2 and octree meta.
+// We are able to convert the proto on read, so the tools can still read version 9/10/11.
 pub const CURRENT_VERSION: i32 = 12;
 
 #[derive(Debug, Clone)]
@@ -85,18 +85,6 @@ impl AttributeDataType {
             AttributeDataType::F64Vec3 => proto::AttributeDataType::F64Vec3,
         }
     }
-
-    pub fn from_attribute(attribute: &AttributeData) -> Self {
-        match attribute {
-            AttributeData::U8(_) => AttributeDataType::U8,
-            AttributeData::I64(_) => AttributeDataType::I64,
-            AttributeData::U64(_) => AttributeDataType::U64,
-            AttributeData::F32(_) => AttributeDataType::F32,
-            AttributeData::F64(_) => AttributeDataType::F64,
-            AttributeData::U8Vec3(_) => AttributeDataType::U8Vec3,
-            AttributeData::F64Vec3(_) => AttributeDataType::F64Vec3,
-        }
-    }
 }
 
 impl AttributeData {
@@ -124,6 +112,18 @@ impl AttributeData {
             | AttributeData::F32(_)
             | AttributeData::F64(_) => 1,
             AttributeData::U8Vec3(_) | AttributeData::F64Vec3(_) => 3,
+        }
+    }
+
+    pub fn data_type(&self) -> AttributeDataType {
+        match self {
+            AttributeData::U8(_) => AttributeDataType::U8,
+            AttributeData::I64(_) => AttributeDataType::I64,
+            AttributeData::U64(_) => AttributeDataType::U64,
+            AttributeData::F32(_) => AttributeDataType::F32,
+            AttributeData::F64(_) => AttributeDataType::F64,
+            AttributeData::U8Vec3(_) => AttributeDataType::U8Vec3,
+            AttributeData::F64Vec3(_) => AttributeDataType::F64Vec3,
         }
     }
 }

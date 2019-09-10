@@ -1,6 +1,6 @@
 use crate::proto;
 use crate::read_write::{Encoding, NodeWriter, OpenMode};
-use crate::{AttributeData, AttributeDataType, PointsBatch, CURRENT_VERSION};
+use crate::{AttributeData, PointsBatch, CURRENT_VERSION};
 use cgmath::InnerSpace;
 use lru::LruCache;
 use s2::cellid::CellID;
@@ -132,10 +132,10 @@ pub fn s2_cloud_to_meta_proto(
     s2_meta.set_cells(::protobuf::RepeatedField::<proto::S2Cell>::from_vec(cells));
     let attributes_meta = attributes
         .iter()
-        .map(|(name, data_type)| {
+        .map(|(name, attribute)| {
             let mut attr_meta = proto::Attribute::new();
             attr_meta.set_name(name.to_string());
-            attr_meta.set_data_type(AttributeDataType::from_attribute(data_type).to_proto());
+            attr_meta.set_data_type(attribute.data_type().to_proto());
             attr_meta
         })
         .collect();
