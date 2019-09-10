@@ -51,7 +51,6 @@ impl TerrainRenderer {
         let vertex_array = GlVertexArray::new(Rc::clone(&gl));
 
         // These need to be set only once
-
         GlUniform::new(&program, "grid_size", GRID_SIZE as f64).submit();
 
         GlUniform::new(&program, "terrain_res_m", sparse_heightmap.resolution()).submit();

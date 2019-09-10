@@ -41,7 +41,7 @@ impl SparseTextureLoader {
         let q_z = meta.read_f64::<LittleEndian>()?;
         let q_w = meta.read_f64::<LittleEndian>()?;
         let translation = Vector3::new(t_x, t_y, t_z);
-        let rotation = Quaternion::new(q_x, q_y, q_z, q_w);
+        let rotation = Quaternion::new(q_w, q_x, q_y, q_z);
         let world_from_terrain = Decomposed {
             scale: 1.0,
             disp: translation,
