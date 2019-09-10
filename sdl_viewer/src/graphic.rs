@@ -20,7 +20,7 @@ use crate::opengl::{self, Gl};
 use std::rc::Rc;
 use std::str;
 
-pub mod moving_texture;
+pub mod moving_window_texture;
 pub mod uniform;
 
 pub struct GlProgram {

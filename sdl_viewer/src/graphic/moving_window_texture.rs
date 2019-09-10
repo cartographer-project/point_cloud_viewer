@@ -11,16 +11,17 @@ use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-/// A square texture that is incrementally loaded. Incrementality is achieved
-/// by using wraparound indexing and overwriting the parts that moved off the
-/// texture with the newly loaded parts.
-/// See https://developer.nvidia.com/gpugems/GPUGems2/gpugems2_chapter02.html,
+/// A square texture that functions like a moving window into a larger texture.
+/// Incrementality is achieved by using wraparound indexing and overwriting the
+/// parts that moved off the texture with the newly loaded parts.
+/// See `https://developer.nvidia.com/gpugems/GPUGems2/gpugems2_chapter02.html`,
 /// section 2.4 for an illustration.
-/// Also publishes an "xyz_texture_offset" uniform whose unit is pixels (not UV
-/// coordinates).
+/// Also publishes an `<texture_name>_texture_offset` uniform whose unit is
+/// pixels (not UV coordinates).
+///
 /// I'm told that a more efficient alternative would be to use a PBO (pixel
 /// buffer object), so a future version could use that instead.
-pub struct GlTexture<P: Pixel> {
+pub struct GlMovingWindowTexture<P: Pixel> {
     id: GLuint,
     gl: Rc<opengl::Gl>,
     size: i32,
@@ -37,24 +38,27 @@ struct UpdateRegion<'a, P: Pixel + 'static> {
 }
 
 impl<'a, P: Pixel + 'static> UpdateRegion<'a, P> {
-    // Splits an image with offset into update regions
-    //
-    //     +---+-+
-    //     | 3 |4|
-    //     +---+-+
-    //     |   | |
-    //     | 1 |2|
-    //     |   | |
-    //     +---+-+
-    //        |
-    //        V
-    // +-+-------+---+
-    // | |       |   |
-    // |2|       | 1 |
-    // | |       |   |
-    // +-+       +---+
-    // |4|       | 3 |
-    // +-+-------+---+
+    /// Splits an image with offset into update regions. See
+    /// [`incremental_update()`] for a detailed explanation.
+    ///
+    /// ```text
+    ///     +---+-+
+    ///     | 3 |4|
+    ///     +---+-+
+    ///     |   | |
+    ///     | 1 |2|
+    ///     |   | |
+    ///     +---+-+
+    ///        |
+    ///        V
+    /// +-+-------+---+
+    /// | |       |   |
+    /// |2|       | 1 |
+    /// | |       |   |
+    /// +-+       +---+
+    /// |4|       | 3 |
+    /// +-+-------+---+
+    /// ```
     pub fn new_regions(
         xoff: i32,
         yoff: i32,
@@ -98,25 +102,7 @@ impl<'a, P: Pixel + 'static> UpdateRegion<'a, P> {
     }
 }
 
-pub trait TextureFormat: Pixel {
-    const INTERNALFORMAT: GLint;
-    const FORMAT: GLuint;
-    const DTYPE: GLuint;
-}
-
-impl TextureFormat for LumaA<f32> {
-    const INTERNALFORMAT: GLint = opengl::RG32F as GLint;
-    const FORMAT: GLuint = opengl::RG;
-    const DTYPE: GLuint = opengl::FLOAT;
-}
-
-impl TextureFormat for Rgba<u8> {
-    const INTERNALFORMAT: GLint = opengl::RGBA8 as GLint;
-    const FORMAT: GLuint = opengl::RGBA;
-    const DTYPE: GLuint = opengl::UNSIGNED_BYTE;
-}
-
-impl<P> GlTexture<P>
+impl<P> GlMovingWindowTexture<P>
 where
     P: TextureFormat,
     P: Pixel + 'static + std::fmt::Debug,
@@ -150,12 +136,8 @@ where
                 opengl::TEXTURE_WRAP_T,
                 opengl::REPEAT as i32,
             );
-            let color: [f32; 4] = [-1000.0, -1000.0, -1000.0, 1.0];
-            gl.TexParameterfv(
-                opengl::TEXTURE_2D,
-                opengl::TEXTURE_BORDER_COLOR,
-                color.as_ptr(),
-            );
+
+            // Intended for exact pixel fetching, no interpolation needed
             gl.TexParameteri(
                 opengl::TEXTURE_2D,
                 opengl::TEXTURE_MIN_FILTER,
@@ -185,7 +167,7 @@ where
             Vector2::new(0, 0),
         );
 
-        GlTexture {
+        GlMovingWindowTexture {
             id,
             gl,
             size,
@@ -194,62 +176,68 @@ where
         }
     }
 
-    // Let's say the texture window has moved left and up. The new pixels that
-    // are now inside the window are passed as a vertical and a horizontal
-    // strip. Here they are in the texture window:
-    // +-----+------------+
-    // |#####|############| <- hori_strip
-    // +-----|------------+
-    // |#####|            |
-    // |#####|            |
-    // |#####|            |
-    // +-----+------------+
-    //    ^
-    //    |
-    //   vert_strip
-    //
-    // You can see that they are redundant where they overlap. This is not
-    // handled to keep the code from becoming more complex. Also, either may
-    // be empty, which is the case for purely horizontal/vertical shifts.
-
-    // These strips have to be inserted correctly into the OpenGL texture,
-    // which starts not at 0 but at texture_offset because of wrapping indexing.
-    // Updating that texture from such a strip can typically not be done in one
-    // step, but requires breaking it into up to four subregions. This is
-    // because OpenGL textures can be read with wrapping indexing, but not
-    // written with wrapping indexing, so we need to do it ourselves.
-    // Let's look at the vertical strip:
-
-    // <- width ->
-    // +---+-+
-    // | 3 |4|
-    // +---+-+
-    // |   | |  vert_strip
-    // | 1 |2|
-    // |   | |
-    // +---+-+
-
-    // Wraparound at the right texture edge causes the split into regions 1/3
-    // vs 2/4, and wraparound at the upper texture edge causes the split into
-    // regions 1/2 vs 3/4.
-    // Here's the texture with the vert_strip placed correctly:
-    //
-    // <- self.size ->
-    // +-+-------+---+
-    // | |       |   |
-    // |2|       | 1 |
-    // | |       |   |
-    // +-+       +---+ <- texture_offset.y
-    // |4|       | 3 |
-    // +-+-------+---+
-    //           ^
-    //           |
-    //           xoff
-    //
-    // xoff is not equal to texture_offset.x if the texture moved right.
-
-    // The way this is handled is by creating regions as if they always need
-    // splitting, and skipping empty regions that result from that.
+    /// Let's say the texture window has moved left and up. The new pixels that
+    /// are now inside the window are passed as a vertical and a horizontal
+    /// strip. Here they are in the texture window:
+    /// ```text
+    /// +-----+------------+
+    /// |#####|############| <- hori_strip
+    /// +-----|------------+
+    /// |#####|            |
+    /// |#####|            |
+    /// |#####|            |
+    /// +-----+------------+
+    ///    ^
+    ///    |
+    ///   vert_strip
+    /// ```
+    ///
+    /// You can see that they are redundant where they overlap. This is not
+    /// handled to keep the code from becoming more complex. Also, either may
+    /// be empty, which is the case for purely horizontal/vertical shifts.
+    ///
+    /// These strips have to be inserted correctly into the OpenGL texture,
+    /// which starts not at 0 but at `texture_offset` because of wrapping indexing.
+    /// Updating that texture from such a strip can typically not be done in one
+    /// step, but requires breaking it into up to four subregions. This is
+    /// because OpenGL textures can be read with wrapping indexing, but not
+    /// written with wrapping indexing, so we need to do it ourselves.
+    /// Let's look at the vertical strip:
+    ///
+    /// ```text
+    /// <- width ->
+    /// +---+-+
+    /// | 3 |4|
+    /// +---+-+
+    /// |   | |  vert_strip
+    /// | 1 |2|
+    /// |   | |
+    /// +---+-+
+    /// ```
+    ///
+    /// Wraparound at the right texture edge causes the split into regions 1/3
+    /// vs 2/4, and wraparound at the upper texture edge causes the split into
+    /// regions 1/2 vs 3/4.
+    /// Here's the texture with the vert_strip placed correctly:
+    ///
+    /// ```text
+    /// <- self.size ->
+    /// +-+-------+---+
+    /// | |       |   |
+    /// |2|       | 1 |
+    /// | |       |   |
+    /// +-+       +---+ <- texture_offset.y
+    /// |4|       | 3 |
+    /// +-+-------+---+
+    ///           ^
+    ///           |
+    ///           xoff
+    /// ```
+    ///
+    /// `xoff` is not equal to `texture_offset.x` if the texture moved right.
+    ///
+    /// The way this is handled is by creating regions as if they always need
+    /// splitting, and skipping empty regions that result from that.
     pub fn incremental_update(
         &mut self,
         delta_x: i32,
@@ -259,8 +247,6 @@ where
     ) {
         // width/height are always positive, but if the delta is negative, the
         // start of the new region is actually offset + delta, not offset
-        let width = delta_x.abs();
-        let height = delta_y.abs();
         let xoff = if delta_x > 0 {
             self.u_texture_offset.value.x
         } else {
@@ -285,7 +271,7 @@ where
 
         unsafe {
             self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
-            for mut r in regions {
+            for r in regions {
                 let width = i32::try_from(r.pixels.width()).unwrap();
                 let height = i32::try_from(r.pixels.height()).unwrap();
                 let image = r.pixels.to_image();
@@ -304,6 +290,7 @@ where
         }
     }
 
+    /// Updates the offset and binds the texture
     pub fn submit(&mut self) {
         unsafe {
             self.u_texture_offset.submit();
@@ -312,4 +299,23 @@ where
             self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
         }
     }
+}
+
+/// Trait to associate pixel formats with OpenGL constants
+pub trait TextureFormat: Pixel {
+    const INTERNALFORMAT: GLint;
+    const FORMAT: GLuint;
+    const DTYPE: GLuint;
+}
+
+impl TextureFormat for LumaA<f32> {
+    const INTERNALFORMAT: GLint = opengl::RG32F as GLint;
+    const FORMAT: GLuint = opengl::RG;
+    const DTYPE: GLuint = opengl::FLOAT;
+}
+
+impl TextureFormat for Rgba<u8> {
+    const INTERNALFORMAT: GLint = opengl::RGBA8 as GLint;
+    const FORMAT: GLuint = opengl::RGBA;
+    const DTYPE: GLuint = opengl::UNSIGNED_BYTE;
 }

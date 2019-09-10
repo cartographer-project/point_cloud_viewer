@@ -1,4 +1,4 @@
-use crate::graphic::moving_texture::GlTexture;
+use crate::graphic::moving_window_texture::GlMovingWindowTexture;
 use crate::graphic::uniform::GlUniform;
 use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use crate::opengl;
@@ -26,8 +26,8 @@ pub struct TerrainRenderer {
     program: GlProgram,
     u_transform: GlUniform<Matrix4<f64>>,
     u_terrain_pos: GlUniform<Vector2<i32>>,
-    heightmap: GlTexture<LumaA<f32>>,
-    colormap: GlTexture<Rgba<u8>>,
+    heightmap: GlMovingWindowTexture<LumaA<f32>>,
+    colormap: GlMovingWindowTexture<Rgba<u8>>,
     camera_pos_xy_m: Vector2<f64>,
     vertex_array: GlVertexArray,
     buffer_position: GlBuffer,
@@ -91,7 +91,7 @@ impl TerrainRenderer {
             GRID_SIZE + 1,
             GRID_SIZE + 1,
         );
-        let heightmap = GlTexture::new(
+        let heightmap = GlMovingWindowTexture::new(
             &program,
             Rc::clone(&gl),
             "height",
@@ -99,7 +99,7 @@ impl TerrainRenderer {
             height_and_color.height,
         );
 
-        let colormap = GlTexture::new(
+        let colormap = GlMovingWindowTexture::new(
             &program,
             Rc::clone(&gl),
             "color_sampler",
