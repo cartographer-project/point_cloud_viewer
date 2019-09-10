@@ -19,6 +19,7 @@ pub mod errors;
 pub mod math;
 pub mod octree;
 pub mod read_write;
+pub mod s2_cells;
 
 use cgmath::Vector3;
 use std::collections::BTreeMap;
@@ -62,7 +63,7 @@ pub enum AttributeData {
     F64Vec3(Vec<Vector3<f64>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeDataType {
     U8,
     I64,
