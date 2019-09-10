@@ -171,7 +171,7 @@ impl Octree {
 
         let meta_proto = data_provider.meta_proto()?;
         match meta_proto.version {
-            9 | 10 => {
+            9 | 10 | 11 => {
                 println!(
                     "Data is an older octree version: {}, current would be {}. \
                      If feasible, try upgrading this octree using `upgrade_octree`.",
@@ -184,24 +184,11 @@ impl Octree {
                 };
                 nodes_proto = meta_proto.get_deprecated_nodes();
             }
-            11 => {
-                println!(
-                    "Data is an older octree version: {}, current would be {}. \
-                     If feasible, try upgrading this octree using `upgrade_octree`.",
-                    meta_proto.version, CURRENT_VERSION
-                );
-                bounding_box = bounding_box_to_aabb(&meta_proto.get_deprecated_bounding_box());
-                meta = OctreeMeta {
-                    resolution: meta_proto.deprecated_resolution,
-                    bounding_box,
-                };
-                nodes_proto = meta_proto.get_deprecated_nodes();
-            }
             CURRENT_VERSION => {
                 if !meta_proto.has_octree() {
                     return Err(ErrorKind::InvalidInput("No octree meta found".to_string()).into());
                 }
-                let octree_meta = Some(meta_proto.get_octree()).unwrap();
+                let octree_meta = meta_proto.get_octree();
                 bounding_box = bounding_box_to_aabb(octree_meta.get_bounding_box());
                 meta = OctreeMeta {
                     resolution: octree_meta.resolution,
