@@ -165,39 +165,41 @@ fn bounding_box_to_aabb(bounding_box: &proto::AxisAlignedCuboid) -> Aabb3<f64> {
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
     pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
-        let bounding_box;
-        let meta;
-        let nodes_proto;
-
         let meta_proto = data_provider.meta_proto()?;
-        match meta_proto.version {
+        let (bounding_box, meta, nodes_proto) = match meta_proto.version {
             9 | 10 | 11 => {
                 println!(
                     "Data is an older octree version: {}, current would be {}. \
                      If feasible, try upgrading this octree using `upgrade_octree`.",
                     meta_proto.version, CURRENT_VERSION
                 );
-                bounding_box = bounding_box_to_aabb(meta_proto.get_deprecated_bounding_box());
-                meta = OctreeMeta {
-                    resolution: meta_proto.deprecated_resolution,
-                    bounding_box,
-                };
-                nodes_proto = meta_proto.get_deprecated_nodes();
+                let bounding_box = bounding_box_to_aabb(meta_proto.get_deprecated_bounding_box());
+                (
+                    bounding_box, 
+                    OctreeMeta {
+                        resolution: meta_proto.deprecated_resolution,
+                        bounding_box,
+                    },
+                    meta_proto.get_deprecated_nodes(),
+                )
             }
             CURRENT_VERSION => {
                 if !meta_proto.has_octree() {
                     return Err(ErrorKind::InvalidInput("No octree meta found".to_string()).into());
                 }
                 let octree_meta = meta_proto.get_octree();
-                bounding_box = bounding_box_to_aabb(octree_meta.get_bounding_box());
-                meta = OctreeMeta {
-                    resolution: octree_meta.resolution,
+                let bounding_box = bounding_box_to_aabb(octree_meta.get_bounding_box());
+                (
                     bounding_box,
-                };
-                nodes_proto = octree_meta.get_nodes();
+                    OctreeMeta {
+                        resolution: octree_meta.resolution,
+                        bounding_box,
+                    },
+                    octree_meta.get_nodes(),
+                )
             }
             _ => return Err(ErrorKind::InvalidVersion(meta_proto.version).into()),
-        }
+        };
 
         let mut nodes = FnvHashMap::default();
 
