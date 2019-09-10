@@ -30,7 +30,7 @@ struct CommandlineArguments {
 
 fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 9 => 10.");
-    for node_proto in &mut meta.nodes.iter_mut() {
+    for node_proto in &mut meta.deprecated_nodes.iter_mut() {
         let mut id = node_proto.id.as_mut().unwrap();
         let node_id = NodeId::from_proto(id);
         id.deprecated_level = 0;
@@ -44,7 +44,7 @@ fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
 
 fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 10 => 11.");
-    let bbox = meta.bounding_box.as_mut().unwrap();
+    let bbox = meta.deprecated_bounding_box.as_mut().unwrap();
     let deprecated_min = bbox.deprecated_min.as_ref().unwrap();
     let mut min = point_viewer::proto::Vector3d::new();
     min.set_x(f64::from(deprecated_min.x));
@@ -68,17 +68,16 @@ fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
 
 fn upgrade_version11(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 11 => 12.");
-    let octree = proto::OctreeMeta::new();
+    let mut octree = proto::OctreeMeta::new();
 
-    octree.set_bounding_box(meta.deprecated_bounding_box.unwrap());
-    meta.deprecated_bounding_box.clear();
+    octree.set_bounding_box(meta.take_deprecated_bounding_box());
 
-    octree.set_resolution(meta.deprecated_resolution.unwrap());
-    meta.deprecated_resolution.clear();
+    octree.set_resolution(meta.deprecated_resolution);
+    meta.deprecated_resolution = 0.0;
 
-    octree.set_nodes(meta.deprecated_nodes.unwrap());
-    meta.deprecated_nodes.clear();
-    meta.set_data(octree);
+    octree.set_nodes(meta.take_deprecated_nodes());
+
+    meta.set_octree(octree);
     meta.version = 12;
     let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
