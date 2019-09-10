@@ -23,7 +23,6 @@ pub struct GlTexture<P: Pixel> {
     size: i32,
     u_texture_offset: GlUniform<Vector2<i32>>,
     pixel_type: PhantomData<P>,
-    pub debug_tex: ImageBuffer<P, Vec<P::Subpixel>>,
 }
 
 /// Specifies the offsets and sizes in the destination, as well as the image to
@@ -68,7 +67,6 @@ where
         size: i32,
         pixels: ImageBuffer<P, Vec<P::Subpixel>>,
     ) -> Self {
-        let debug_tex = pixels.clone();
         let mut id = 0;
         unsafe {
             gl.UseProgram(program.id);
@@ -129,7 +127,6 @@ where
             size,
             u_texture_offset,
             pixel_type: PhantomData,
-            debug_tex,
         }
     }
 
@@ -281,7 +278,6 @@ where
             let buf =
                 ImageBuffer::from_raw(r.width as u32, r.height as u32, r.pixels.clone().into_raw())
                     .unwrap();
-            self.debug_tex.copy_from(&buf, r.xoff as u32, r.yoff as u32);
 
             unsafe {
                 self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
