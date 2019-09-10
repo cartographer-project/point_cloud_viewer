@@ -175,7 +175,7 @@ impl Octree {
                 );
                 let bounding_box = bounding_box_to_aabb(meta_proto.get_deprecated_bounding_box());
                 (
-                    bounding_box, 
+                    bounding_box,
                     OctreeMeta {
                         resolution: meta_proto.deprecated_resolution,
                         bounding_box,
