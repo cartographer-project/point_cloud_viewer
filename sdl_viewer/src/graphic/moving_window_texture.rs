@@ -40,25 +40,30 @@ struct UpdateRegion<'a, P: Pixel + 'static> {
 impl<'a, P: Pixel + 'static> UpdateRegion<'a, P> {
     /// Splits an image with offset into update regions. See
     /// [`incremental_update()`] for a detailed explanation.
+    /// This works not only for full-width/full-height strips, but
+    /// here are vertical (left) and horizontal (right) strips
+    /// visualized:
     ///
-    /// ```text
-    ///     +---+-+
-    ///     | 3 |4|
-    ///     +---+-+
-    ///     |   | |
-    ///     | 1 |2|
-    ///     |   | |
-    ///     +---+-+
-    ///        |
-    ///        V
-    /// +-+-------+---+
-    /// | |       |   |
-    /// |2|       | 1 |
-    /// | |       |   |
-    /// +-+       +---+
-    /// |4|       | 3 |
-    /// +-+-------+---+
-    /// ```
+    /// ```text              
+    ///     +---+-+          
+    ///     | 3 |4|              
+    ///     +---+-+              +---+---------+
+    ///     |   | |              | 3 |    4    |
+    ///     | 1 |2|              +---+---------+
+    ///     |   | |              | 1 |    2    |
+    ///     +---+-+              +---+---------+
+    ///        |                        |
+    ///        V                        V
+    /// +-+-------+---+          +---------+---+
+    /// | |       |   |          |    2    | 1 |
+    /// |2|       | 1 |          +---------+---+
+    /// | |       |   |          |             |
+    /// +-+       +---+          +---------+---+
+    /// |4|       | 3 |          |    4    | 3 |
+    /// +-+-------+---+          +---------+---+
+    /// ```                      
+    ///
+
     pub fn new_regions(
         xoff: i32,
         yoff: i32,
@@ -70,8 +75,8 @@ impl<'a, P: Pixel + 'static> UpdateRegion<'a, P> {
         let height: i32 = pixels.height().try_into().unwrap();
         let width_1_3 = width.min(size - xoff);
         let width_2_4 = width - width_1_3;
-        let height_3_4 = height.min(size - yoff);
-        let height_1_2 = height - height_3_4;
+        let height_1_2 = height.min(size - yoff);
+        let height_3_4 = height - height_1_2;
         // The image crate likes unsigned ints
         let width_1_3 = u32::try_from(width_1_3).unwrap();
         let width_2_4 = u32::try_from(width_2_4).unwrap();
@@ -321,4 +326,39 @@ impl TextureFormat for Rgba<u8> {
     const INTERNALFORMAT: GLint = opengl::RGBA8 as GLint;
     const FORMAT: GLuint = opengl::RGBA;
     const DTYPE: GLuint = opengl::UNSIGNED_BYTE;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::GenericImage;
+
+    fn assert_same<I, J, P>(left: &I, right: &J)
+    where
+        I: GenericImageView<Pixel = P>,
+        J: GenericImageView<Pixel = P>,
+        P: Pixel + Eq + std::fmt::Debug,
+    {
+        assert_eq!(left.bounds(), right.bounds());
+        for x in 0..left.width() {
+            for y in 0..left.height() {
+                assert_eq!(left.get_pixel(x, y), right.get_pixel(x, y));
+            }
+        }
+    }
+
+    #[test]
+    fn test_regions() {
+        let test_src = ImageBuffer::from_fn(16, 16, |x, y| Rgba::<u8>([x as u8, y as u8, 0, 255]));
+        let regions = UpdateRegion::new_regions(4, 7, 16, &test_src);
+
+        let mut dest = ImageBuffer::from_pixel(16, 16, Rgba::<u8>([0, 0, 0, 0]));
+        for r in regions {
+            dest.copy_from(&r.pixels, r.x as u32, r.y as u32);
+        }
+        let reference = ImageBuffer::from_fn(16, 16, |x, y| {
+            Rgba::<u8>([(x + 16 - 4) as u8 % 16, (y + 16 - 7) as u8 % 16, 0, 255])
+        });
+        assert_same(&dest, &reference);
+    }
 }
