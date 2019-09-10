@@ -4,6 +4,7 @@ use crate::errors::*;
 use crate::math::{Isometry3, Obb};
 use crate::octree::FilteredPointsIterator;
 use crate::read_write::{Encoding, NodeIterator};
+use crate::AttributeDataType;
 use cgmath::{Point3, Transform, Vector4};
 use fnv::FnvHashMap;
 use s2::cell::Cell;
@@ -12,21 +13,21 @@ use s2::cellunion::CellUnion;
 use s2::point::Point as S2Point;
 use s2::region::Region;
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 pub struct S2Cells {
     data_provider: Box<dyn DataProvider>,
-    // meta: S2CellsMeta, - for attributes?
-    nodes: FnvHashMap<CellID, S2CellMeta>,
+    cells: FnvHashMap<CellID, Cell>,
+    meta: S2Meta,
 }
 
-impl S2Cells {
-    pub fn cells(&self) -> impl Iterator<Item = &Cell> {
-        self.nodes.values().map(|meta| &meta.cell)
-    }
+pub struct S2Meta {
+    pub nodes: FnvHashMap<CellID, S2CellMeta>,
+    pub attributes: HashMap<String, AttributeDataType>,
 }
 
+#[derive(Copy, Clone)]
 pub struct S2CellMeta {
-    pub cell: Cell,
     pub num_points: u64,
 }
 
@@ -47,21 +48,21 @@ impl PointCloud for S2Cells {
 
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         match &query.location {
-            PointLocation::AllPoints() => self.nodes.keys().cloned().map(S2CellId).collect(),
+            PointLocation::AllPoints() => self.cells.keys().cloned().map(S2CellId).collect(),
             PointLocation::Aabb(aabb) => cells_in_obb(
-                self.cells(),
+                self.cells.values(),
                 &Obb::from(aabb),
                 query.global_from_local.as_ref(),
             ),
             PointLocation::Obb(obb) => {
-                cells_in_obb(self.cells(), &obb, query.global_from_local.as_ref())
+                cells_in_obb(self.cells.values(), &obb, query.global_from_local.as_ref())
             }
             PointLocation::Frustum(mat) => {
                 let world_from_clip = mat.inverse_transform().unwrap();
                 let points = CLIP_CUBE_CORNERS
                     .iter()
                     .map(|p| Point3::from_homogeneous(world_from_clip * p));
-                cells_in_convex_hull(self.cells(), points)
+                cells_in_convex_hull(self.cells.values(), points)
             }
             PointLocation::OrientedBeam(_) => unimplemented!(),
         }
@@ -77,7 +78,7 @@ impl PointCloud for S2Cells {
         node_id: Self::Id,
     ) -> Result<Self::PointsIter> {
         let culling = query.get_point_culling();
-        let num_points = self.nodes[&node_id.0].num_points as usize;
+        let num_points = self.meta.nodes[&node_id.0].num_points as usize;
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
             self.encoding_for_node(node_id),

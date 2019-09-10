@@ -37,7 +37,7 @@ mod raw;
 pub use self::raw::{RawNodeReader, RawNodeWriter};
 
 mod s2;
-pub use self::s2::{s2_cell_to_proto, s2_cloud_to_meta_proto, S2Splitter};
+pub use self::s2::{s2_cloud_to_meta_proto, S2Splitter};
 
 use std::io::{BufReader, Read};
 

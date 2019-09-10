@@ -63,7 +63,7 @@ pub enum AttributeData {
     F64Vec3(Vec<Vector3<f64>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeDataType {
     U8,
     I64,
