@@ -281,5 +281,5 @@ impl WriteEncoded for Vec<Vector3<f64>> {
 
 pub trait NodeWriter<P> {
     fn new(path: impl Into<PathBuf>, codec: Encoding, open_mode: OpenMode) -> Self;
-    fn write(&mut self, p: &P) -> Result<()>;
+    fn write(&mut self, p: &P) -> Result<usize>;
 }
