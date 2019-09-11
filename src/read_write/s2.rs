@@ -132,6 +132,8 @@ where
         self.writers.get_mut(cell_id).unwrap()
     }
 
+    /// Records the list of attributes seen in the first batch, and checks
+    /// that the following batches contain the same attributes.
     fn check_attributes(&mut self, batch: &PointsBatch) -> Result<()> {
         let mut attr_iter = batch
             .attributes
