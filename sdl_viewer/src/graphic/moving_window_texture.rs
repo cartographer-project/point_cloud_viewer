@@ -337,7 +337,7 @@ mod tests {
     where
         I: GenericImageView<Pixel = P>,
         J: GenericImageView<Pixel = P>,
-        P: Pixel + Eq + std::fmt::Debug,
+        P: Pixel + Eq,
     {
         assert_eq!(left.bounds(), right.bounds());
         for x in 0..left.width() {
@@ -353,7 +353,7 @@ mod tests {
         let regions = UpdateRegion::new_regions(4, 7, 16, &test_src);
 
         let mut dest = ImageBuffer::from_pixel(16, 16, Rgba::<u8>([0, 0, 0, 0]));
-        for r in regions {
+        for r in &regions {
             dest.copy_from(&r.pixels, r.x as u32, r.y as u32);
         }
         let reference = ImageBuffer::from_fn(16, 16, |x, y| {
