@@ -52,9 +52,9 @@ impl DataProvider for OnDiskDataProvider {
         &self,
         node_id: &str,
         node_attributes: &[&str],
-    ) -> Result<HashMap<String, Box<dyn Read>>> {
+    ) -> Result<HashMap<String, Box<dyn Read + Send>>> {
         let stem = self.stem(node_id);
-        let mut readers = HashMap::<String, Box<dyn Read>>::new();
+        let mut readers = HashMap::<String, Box<dyn Read + Send>>::new();
         for node_attribute in node_attributes {
             let file = match File::open(&stem.with_extension(attribute_extension(node_attribute))) {
                 Err(ref err) if err.kind() == ::std::io::ErrorKind::NotFound => {
