@@ -1,18 +1,15 @@
-use crate::proto;
 use crate::read_write::{Encoding, NodeWriter, OpenMode};
-use crate::{AttributeData, AttributeDataType, PointsBatch, CURRENT_VERSION};
+use crate::s2_cells::{S2CellMeta, S2Meta};
+use crate::{AttributeData, AttributeDataType, PointsBatch};
 use cgmath::InnerSpace;
 use fnv::FnvHashMap;
 use lru::LruCache;
-use protobuf::Message;
 use s2::cellid::CellID;
 use s2::point::Point;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::fs::File;
-use std::io::{BufWriter, Error, ErrorKind, Result};
+use std::io::{Error, ErrorKind, Result};
 use std::iter::Iterator;
 use std::path::PathBuf;
-use crate::s2_cells::{S2CellMeta, S2Meta};
 
 /// The actual number of underlying writers is MAX_NUM_NODE_WRITERS * num_attributes.
 const MAX_NUM_NODE_WRITERS: usize = 25;
@@ -70,7 +67,10 @@ where
             }
             let s2_point = Point::from_coords(pos.x, pos.y, pos.z);
             let s2_cell_id = CellID::from(s2_point).parent(S2_SPLIT_LEVEL);
-            self.cell_stats.entry(s2_cell_id).or_insert(S2CellMeta { num_points: 0 }).num_points += 1;
+            self.cell_stats
+                .entry(s2_cell_id)
+                .or_insert(S2CellMeta { num_points: 0 })
+                .num_points += 1;
             let s2_cell_batch = batches_by_s2_cell.entry(s2_cell_id).or_insert(PointsBatch {
                 position: Vec::new(),
                 attributes: BTreeMap::new(),
@@ -139,7 +139,7 @@ where
             .attributes
             .iter()
             .map(|(name, data)| (name, data.data_type()));
-        if self.attributes_seen.len() == 0 {
+        if self.attributes_seen.is_empty() {
             self.attributes_seen
                 .extend(attr_iter.map(|(key, val)| (key.to_owned(), val)));
             Ok(())
@@ -160,41 +160,10 @@ where
         }
     }
 
-    fn get_meta(self) -> S2Meta {
+    pub fn get_meta(self) -> S2Meta {
         S2Meta {
             attributes: self.attributes_seen.into_iter().collect(),
-            nodes: self.cell_stats,
+            cells: self.cell_stats,
         }
     }
-}
-
-pub fn s2_cloud_to_meta_proto(
-    cells: Vec<proto::S2Cell>,
-    attributes: &BTreeMap<String, AttributeDataType>,
-) -> proto::Meta {
-    let mut meta = proto::Meta::new();
-    meta.set_version(CURRENT_VERSION);
-    let mut s2_meta = proto::S2Meta::new();
-    s2_meta.set_cells(::protobuf::RepeatedField::<proto::S2Cell>::from_vec(cells));
-    let attributes_meta = attributes
-        .iter()
-        .map(|(name, attribute)| {
-            let mut attr_meta = proto::Attribute::new();
-            attr_meta.set_name(name.to_string());
-            attr_meta.set_data_type(attribute.to_proto());
-            attr_meta
-        })
-        .collect();
-    s2_meta.set_attributes(::protobuf::RepeatedField::<proto::Attribute>::from_vec(
-        attributes_meta,
-    ));
-    meta.set_s2(s2_meta);
-    meta
-}
-
-pub fn s2_cell_to_proto(cell_id: u64, num_points: i64) -> proto::S2Cell {
-    let mut meta = proto::S2Cell::new();
-    meta.set_id(cell_id);
-    meta.set_num_points(num_points);
-    meta
 }
