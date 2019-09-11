@@ -23,6 +23,11 @@ pub struct S2Cells {
     meta: S2Meta,
 }
 
+#[derive(Copy, Clone)]
+pub struct S2CellMeta {
+    pub num_points: u64,
+}
+
 pub struct S2Meta {
     pub cells: FnvHashMap<CellID, S2CellMeta>,
     pub attributes: HashMap<String, AttributeDataType>,
@@ -62,11 +67,6 @@ impl S2Meta {
         meta.set_s2(s2_meta);
         meta
     }
-}
-
-#[derive(Copy, Clone)]
-pub struct S2CellMeta {
-    pub num_points: u64,
 }
 
 /// Just a wrapper that implements Display

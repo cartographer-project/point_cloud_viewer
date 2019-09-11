@@ -123,7 +123,7 @@ impl DataProvider for GrpcOctreeDataProvider {
         &self,
         node_id: &str,
         node_attributes: &[&str],
-    ) -> Result<HashMap<String, Box<dyn Read>>> {
+    ) -> Result<HashMap<String, Box<dyn Read + Send>>> {
         let mut req = proto::GetNodeDataRequest::new();
         req.set_octree_id(self.octree_id.clone());
         req.set_id(node_id.to_string());
@@ -131,9 +131,9 @@ impl DataProvider for GrpcOctreeDataProvider {
             .client
             .get_node_data(&req)
             .map_err(|_| point_viewer::errors::ErrorKind::Grpc)?;
-        let mut readers = HashMap::<String, Box<dyn Read>>::new();
+        let mut readers = HashMap::<String, Box<dyn Read + Send>>::new();
         for node_attribute in node_attributes {
-            let reader: Box<dyn Read> = match *node_attribute {
+            let reader: Box<dyn Read + Send> = match *node_attribute {
                 "position" => Box::new(Cursor::new(reply.position.clone())),
                 "color" => Box::new(Cursor::new(reply.color.clone())),
                 _ => {

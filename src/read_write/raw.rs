@@ -27,7 +27,7 @@ use std::io::{self, BufReader, ErrorKind, Read};
 use std::path::PathBuf;
 
 pub struct RawNodeReader {
-    xyz_reader: BufReader<Box<dyn Read>>,
+    xyz_reader: BufReader<Box<dyn Read + Send>>,
     attribute_readers: HashMap<String, AttributeReader>,
     encoding: Encoding,
 }
@@ -311,7 +311,7 @@ impl RawNodeReader {
 
 impl RawNodeReader {
     pub fn new(
-        xyz_reader: Box<dyn Read>,
+        xyz_reader: Box<dyn Read + Send>,
         attribute_readers: HashMap<String, AttributeReader>,
         encoding: Encoding,
     ) -> Result<Self> {

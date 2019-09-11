@@ -9,5 +9,5 @@ pub trait DataProvider: Send + Sync {
         &self,
         node_id: &str,
         node_attributes: &[&str],
-    ) -> Result<HashMap<String, Box<dyn Read>>>;
+    ) -> Result<HashMap<String, Box<dyn Read + Send>>>;
 }
