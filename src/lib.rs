@@ -87,7 +87,7 @@ impl AttributeDataType {
         }
     }
 
-    pub fn byte_size(&self) -> usize {
+    pub fn size_of(&self) -> usize {
         match self {
             AttributeDataType::U8 => 1,
             AttributeDataType::F32 => 4,
