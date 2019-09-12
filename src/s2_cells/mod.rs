@@ -14,7 +14,6 @@ use s2::point::Point as S2Point;
 use s2::region::Region;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::convert::TryInto;
 
 pub struct S2Cells {
     data_provider: Box<dyn DataProvider>,
@@ -40,7 +39,7 @@ impl S2Meta {
             .map(|(cell_id, cell_meta)| {
                 let mut meta = proto::S2Cell::new();
                 meta.set_id(cell_id.0);
-                meta.set_num_points(cell_meta.num_points.try_into().unwrap());
+                meta.set_num_points(cell_meta.num_points);
                 meta
             })
             .collect();

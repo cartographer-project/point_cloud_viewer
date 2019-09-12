@@ -116,7 +116,7 @@ message Attribute {
 
 message S2Cell {
   uint64 id = 1;
-  int64 num_points = 2;
+  uint64 num_points = 2;
 }
 
 message OctreeMeta {
