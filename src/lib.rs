@@ -22,6 +22,7 @@ pub mod read_write;
 pub mod s2_cells;
 
 use cgmath::Vector3;
+use errors::{ErrorKind, Result};
 use std::collections::BTreeMap;
 
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
@@ -85,6 +86,25 @@ impl AttributeDataType {
             AttributeDataType::U8Vec3 => proto::AttributeDataType::U8Vec3,
             AttributeDataType::F64Vec3 => proto::AttributeDataType::F64Vec3,
         }
+    }
+
+    pub fn from_proto(attr_proto: proto::AttributeDataType) -> Result<Self> {
+        let attr = match attr_proto {
+            proto::AttributeDataType::U8 => AttributeDataType::U8,
+            proto::AttributeDataType::I64 => AttributeDataType::I64,
+            proto::AttributeDataType::U64 => AttributeDataType::U64,
+            proto::AttributeDataType::F32 => AttributeDataType::F32,
+            proto::AttributeDataType::F64 => AttributeDataType::F64,
+            proto::AttributeDataType::U8Vec3 => AttributeDataType::U8Vec3,
+            proto::AttributeDataType::F64Vec3 => AttributeDataType::F64Vec3,
+            _ => {
+                return Err(ErrorKind::InvalidInput(
+                    "Attribute data type not supported".to_string(),
+                )
+                .into())
+            }
+        };
+        Ok(attr)
     }
 
     pub fn size_of(&self) -> usize {
