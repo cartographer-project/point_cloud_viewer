@@ -14,9 +14,9 @@
 use crate::errors::*;
 use crate::math::Cube;
 use crate::proto;
-use crate::read_write::PositionEncoding;
+use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::CURRENT_VERSION;
-use cgmath::{Matrix4, Point3};
+use cgmath::{EuclideanSpace, Matrix4, Point3};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
@@ -25,7 +25,7 @@ use std::collections::BinaryHeap;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
 
-use crate::batch_iterator::{PointCloud, PointQuery};
+use crate::batch_iterator::{FilteredPointsIterator, PointCloud, PointQuery};
 
 mod generation;
 pub use self::generation::{build_octree, build_octree_from_file};
@@ -37,7 +37,7 @@ mod node;
 pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta};
 
 mod octree_iterator;
-pub use self::octree_iterator::{FilteredPointsIterator, NodeIdsIterator};
+pub use self::octree_iterator::NodeIdsIterator;
 
 pub use crate::data_provider::{DataProvider, OnDiskDataProvider};
 
@@ -48,6 +48,18 @@ mod octree_test;
 pub struct OctreeMeta {
     pub resolution: f64,
     pub bounding_box: Aabb3<f64>,
+}
+
+impl OctreeMeta {
+    pub fn encoding_for_node(&self, id: NodeId) -> Encoding {
+        let bounding_cube = id.find_bounding_cube(&Cube::bounding(&self.bounding_box));
+        let position_encoding = PositionEncoding::new(&bounding_cube, self.resolution);
+        Encoding::ScaledToCube(
+            bounding_cube.min().to_vec(),
+            bounding_cube.edge_length(),
+            position_encoding,
+        )
+    }
 }
 
 pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::OctreeNode>) -> proto::Meta {
@@ -324,17 +336,34 @@ impl PointCloud for Octree {
     type Id = NodeId;
     type PointsIter = FilteredPointsIterator;
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
-        let container = query.get_point_culling();
+        let culling = query.get_point_culling();
         let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
             let current = &octree.nodes[&node_id];
-            container.intersects_aabb3(&current.bounding_cube.to_aabb3())
+            culling.intersects_aabb3(&current.bounding_cube.to_aabb3())
         };
         NodeIdsIterator::new(&self, filter_func).collect()
     }
 
-    fn points_in_node<'a>(&'a self, query: &PointQuery, node_id: NodeId) -> FilteredPointsIterator {
-        let container = query.get_point_culling();
-        FilteredPointsIterator::new(&self, node_id, container)
+    fn encoding_for_node(&self, id: Self::Id) -> Encoding {
+        self.meta.encoding_for_node(id)
+    }
+
+    fn points_in_node<'a>(
+        &'a self,
+        query: &PointQuery,
+        node_id: NodeId,
+    ) -> Result<FilteredPointsIterator> {
+        let culling = query.get_point_culling();
+        let node_iterator = NodeIterator::from_data_provider(
+            &*self.data_provider,
+            self.meta.encoding_for_node(node_id),
+            &node_id,
+            self.nodes[&node_id].num_points as usize,
+        )?;
+        Ok(FilteredPointsIterator {
+            culling,
+            node_iterator,
+        })
     }
 }
 
