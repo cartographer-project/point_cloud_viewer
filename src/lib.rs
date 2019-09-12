@@ -75,7 +75,7 @@ pub enum AttributeDataType {
 }
 
 impl AttributeDataType {
-    pub fn num_bytes(&self) -> usize {
+    pub fn num_bytes(&self) -> u64 {
         match self {
             AttributeDataType::U8 => 1,
             AttributeDataType::I64 => 8,
