@@ -26,6 +26,15 @@ pub struct S2CellMeta {
     pub num_points: u64,
 }
 
+impl S2CellMeta {
+    pub fn to_proto(self, cell_id: u64) -> proto::S2Cell {
+        let mut meta = proto::S2Cell::new();
+        meta.set_id(cell_id);
+        meta.set_num_points(self.num_points);
+        meta
+    }
+}
+
 pub struct S2Meta {
     pub cells: FnvHashMap<CellID, S2CellMeta>,
     pub attributes: HashMap<String, AttributeDataType>,
@@ -36,12 +45,7 @@ impl S2Meta {
         let cell_protos = self
             .cells
             .iter()
-            .map(|(cell_id, cell_meta)| {
-                let mut meta = proto::S2Cell::new();
-                meta.set_id(cell_id.0);
-                meta.set_num_points(cell_meta.num_points);
-                meta
-            })
+            .map(|(cell_id, cell_meta)| cell_meta.to_proto(cell_id.0))
             .collect();
         let mut meta = proto::Meta::new();
         meta.set_version(CURRENT_VERSION);
