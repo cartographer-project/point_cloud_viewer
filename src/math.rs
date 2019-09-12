@@ -243,10 +243,10 @@ impl<S: BaseFloat> Isometry3<S> {
 
 #[derive(Debug, Clone)]
 pub struct Obb<S> {
-    isometry_inv: Isometry3<S>,
-    half_extent: Vector3<S>,
-    corners: [Point3<S>; 8],
-    separating_axes: Vec<Vector3<S>>,
+    pub isometry_inv: Isometry3<S>,
+    pub half_extent: Vector3<S>,
+    pub corners: [Point3<S>; 8],
+    pub separating_axes: Vec<Vector3<S>>,
 }
 
 impl<S: BaseFloat> From<&Aabb3<S>> for Obb<S> {

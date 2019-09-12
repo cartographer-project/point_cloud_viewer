@@ -43,7 +43,7 @@ use std::io::{BufReader, Read};
 
 pub struct AttributeReader {
     pub data_type: crate::AttributeDataType,
-    pub reader: BufReader<Box<dyn Read>>,
+    pub reader: BufReader<Box<dyn Read + Send>>,
 }
 
 /// We open a lot of files during our work. Sometimes users see errors with 'cannot open more

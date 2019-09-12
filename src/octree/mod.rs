@@ -14,9 +14,9 @@
 use crate::errors::*;
 use crate::math::Cube;
 use crate::proto;
-use crate::read_write::PositionEncoding;
+use crate::read_write::{Encoding, PositionEncoding};
 use crate::CURRENT_VERSION;
-use cgmath::{Matrix4, Point3};
+use cgmath::{EuclideanSpace, Matrix4, Point3};
 use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
@@ -48,6 +48,18 @@ mod octree_test;
 pub struct OctreeMeta {
     pub resolution: f64,
     pub bounding_box: Aabb3<f64>,
+}
+
+impl OctreeMeta {
+    pub fn encoding_for_node(&self, id: NodeId) -> Encoding {
+        let bounding_cube = id.find_bounding_cube(&Cube::bounding(&self.bounding_box));
+        let position_encoding = PositionEncoding::new(&bounding_cube, self.resolution);
+        Encoding::ScaledToCube(
+            bounding_cube.min().to_vec(),
+            bounding_cube.edge_length(),
+            position_encoding,
+        )
+    }
 }
 
 pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::OctreeNode>) -> proto::Meta {
@@ -332,9 +344,17 @@ impl PointCloud for Octree {
         NodeIdsIterator::new(&self, filter_func).collect()
     }
 
-    fn points_in_node<'a>(&'a self, query: &PointQuery, node_id: NodeId) -> FilteredPointsIterator {
+    fn encoding_for_node(&self, id: Self::Id) -> Encoding {
+        self.meta.encoding_for_node(id)
+    }
+
+    fn points_in_node<'a>(
+        &'a self,
+        query: &PointQuery,
+        node_id: NodeId,
+    ) -> Result<FilteredPointsIterator> {
         let container = query.get_point_culling();
-        FilteredPointsIterator::new(&self, node_id, container)
+        FilteredPointsIterator::from_octree(&self, node_id, container)
     }
 }
 

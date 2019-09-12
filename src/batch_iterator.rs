@@ -1,6 +1,7 @@
 use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Frustum, Isometry3, Obb, OrientedBeam};
+use crate::read_write::Encoding;
 use crate::{AttributeData, Point, PointsBatch};
 use cgmath::{Matrix4, Vector3};
 use collision::Aabb3;
@@ -125,11 +126,13 @@ where
     }
 }
 
+// TODO(nnmm): Move this somewhere else
 pub trait PointCloud: Sync {
-    type Id: ToString + Send;
+    type Id: ToString + Send + Copy;
     type PointsIter: Iterator<Item = Point>;
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id>;
-    fn points_in_node(&self, query: &PointQuery, node_id: Self::Id) -> Self::PointsIter;
+    fn encoding_for_node(&self, id: Self::Id) -> Encoding;
+    fn points_in_node(&self, query: &PointQuery, node_id: Self::Id) -> Result<Self::PointsIter>;
 }
 
 /// Iterator on point batches
@@ -215,7 +218,10 @@ where
                             .find(|task| !task.is_retry())
                             .and_then(Steal::success)
                     }) {
-                        let point_iterator = octree.points_in_node(&point_location, node_id);
+                        // TODO(nnmm): This crashes on error. We should bubble up an error.
+                        let point_iterator = octree
+                            .points_in_node(&point_location, node_id)
+                            .expect("Could not read node points");
                         // executing on the available next task if the function still requires it
                         match point_stream.push_points_and_callback(point_iterator) {
                             Ok(_) => continue,
