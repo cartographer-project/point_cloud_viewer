@@ -1,9 +1,7 @@
 use crate::errors::*;
-use crate::math::PointCulling;
 use crate::octree::{ChildIndex, DataProvider, NodeId, Octree};
 use crate::read_write::{AttributeReader, Encoding, NodeIterator, RawNodeReader};
-use crate::{AttributeDataType, Point};
-use cgmath::{EuclideanSpace, Point3};
+use crate::AttributeDataType;
 use std::collections::{HashMap, VecDeque};
 use std::io::BufReader;
 
@@ -53,43 +51,6 @@ impl NodeIterator<RawNodeReader> {
             RawNodeReader::new(position_read, attributes, encoding)?,
             num_points,
         ))
-    }
-}
-
-/// iterator over the points of a octree node that satisfy the condition expressed by a boolean function
-pub struct FilteredPointsIterator {
-    pub culling: Box<dyn PointCulling<f64>>,
-    pub node_iterator: NodeIterator<RawNodeReader>,
-}
-
-impl FilteredPointsIterator {
-    pub fn from_octree(
-        octree: &Octree,
-        node_id: NodeId,
-        culling: Box<dyn PointCulling<f64>>,
-    ) -> Result<FilteredPointsIterator> {
-        let node_iterator = NodeIterator::from_data_provider(
-            &*octree.data_provider,
-            octree.meta.encoding_for_node(node_id),
-            &node_id,
-            octree.nodes[&node_id].num_points as usize,
-        )?;
-        Ok(FilteredPointsIterator {
-            culling,
-            node_iterator,
-        })
-    }
-}
-
-impl Iterator for FilteredPointsIterator {
-    type Item = Point;
-
-    fn next(&mut self) -> Option<Point> {
-        let culling = &self.culling;
-        self.node_iterator.find(|pt| {
-            let pos = Point3::from_vec(pt.position);
-            culling.contains(&pos)
-        })
     }
 }
 

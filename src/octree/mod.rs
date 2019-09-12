@@ -14,7 +14,7 @@
 use crate::errors::*;
 use crate::math::Cube;
 use crate::proto;
-use crate::read_write::{Encoding, PositionEncoding};
+use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::CURRENT_VERSION;
 use cgmath::{EuclideanSpace, Matrix4, Point3};
 use collision::{Aabb, Aabb3, Relation};
@@ -25,7 +25,7 @@ use std::collections::BinaryHeap;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
 
-use crate::batch_iterator::{PointCloud, PointQuery};
+use crate::batch_iterator::{FilteredPointsIterator, PointCloud, PointQuery};
 
 mod generation;
 pub use self::generation::{build_octree, build_octree_from_file};
@@ -37,7 +37,7 @@ mod node;
 pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta};
 
 mod octree_iterator;
-pub use self::octree_iterator::{FilteredPointsIterator, NodeIdsIterator};
+pub use self::octree_iterator::NodeIdsIterator;
 
 pub use crate::data_provider::{DataProvider, OnDiskDataProvider};
 
@@ -336,10 +336,10 @@ impl PointCloud for Octree {
     type Id = NodeId;
     type PointsIter = FilteredPointsIterator;
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
-        let container = query.get_point_culling();
+        let culling = query.get_point_culling();
         let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
             let current = &octree.nodes[&node_id];
-            container.intersects_aabb3(&current.bounding_cube.to_aabb3())
+            culling.intersects_aabb3(&current.bounding_cube.to_aabb3())
         };
         NodeIdsIterator::new(&self, filter_func).collect()
     }
@@ -353,8 +353,17 @@ impl PointCloud for Octree {
         query: &PointQuery,
         node_id: NodeId,
     ) -> Result<FilteredPointsIterator> {
-        let container = query.get_point_culling();
-        FilteredPointsIterator::from_octree(&self, node_id, container)
+        let culling = query.get_point_culling();
+        let node_iterator = NodeIterator::from_data_provider(
+            &*self.data_provider,
+            self.meta.encoding_for_node(node_id),
+            &node_id,
+            self.nodes[&node_id].num_points as usize,
+        )?;
+        Ok(FilteredPointsIterator {
+            culling,
+            node_iterator,
+        })
     }
 }
 

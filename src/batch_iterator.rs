@@ -1,9 +1,9 @@
 use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Frustum, Isometry3, Obb, OrientedBeam};
-use crate::read_write::Encoding;
+use crate::read_write::{Encoding, NodeIterator, RawNodeReader};
 use crate::{AttributeData, Point, PointsBatch};
-use cgmath::{Matrix4, Vector3};
+use cgmath::{Matrix4, Point3, Vector3};
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
 use std::collections::BTreeMap;
@@ -38,6 +38,25 @@ impl PointQuery {
             Some(global_from_local) => culling.transform(&global_from_local),
             None => culling,
         }
+    }
+}
+
+/// Iterator over the points of a point cloud node within the specified PointCulling
+/// Essentially a specialized version of the Filter iterator adapter
+pub struct FilteredPointsIterator {
+    pub culling: Box<dyn PointCulling<f64>>,
+    pub node_iterator: NodeIterator<RawNodeReader>,
+}
+
+impl Iterator for FilteredPointsIterator {
+    type Item = Point;
+
+    fn next(&mut self) -> Option<Point> {
+        let culling = &self.culling;
+        self.node_iterator.find(|pt| {
+            let pos = <Point3<f64> as cgmath::EuclideanSpace>::from_vec(pt.position);
+            culling.contains(&pos)
+        })
     }
 }
 
