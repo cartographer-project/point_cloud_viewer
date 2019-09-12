@@ -75,6 +75,17 @@ pub enum AttributeDataType {
 }
 
 impl AttributeDataType {
+    pub fn num_bytes(&self) -> usize {
+        match self {
+            AttributeDataType::U8 => 1,
+            AttributeDataType::I64 => 8,
+            AttributeDataType::U64 => 8,
+            AttributeDataType::F32 => 4,
+            AttributeDataType::F64 => 8,
+            AttributeDataType::U8Vec3 => 3,
+            AttributeDataType::F64Vec3 => 24,
+        }
+    }
     pub fn to_proto(&self) -> proto::AttributeDataType {
         match self {
             AttributeDataType::U8 => proto::AttributeDataType::U8,
