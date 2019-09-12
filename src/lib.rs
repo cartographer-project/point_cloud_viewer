@@ -92,7 +92,7 @@ impl AttributeDataType {
             AttributeDataType::U8 => 1,
             AttributeDataType::F32 => 4,
             AttributeDataType::I64 | AttributeDataType::U64 | AttributeDataType::F64 => 8,
-            AttributeDataType::U8Vec3 => 3 * 1,
+            AttributeDataType::U8Vec3 => 3,
             AttributeDataType::F64Vec3 => 3 * 8,
         }
     }
