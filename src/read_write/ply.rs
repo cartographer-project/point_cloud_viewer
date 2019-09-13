@@ -465,6 +465,9 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
     }
 
     fn write(&mut self, p: &PointsBatch) -> io::Result<()> {
+        if p.position.is_empty() {
+            return Ok(());
+        }
         if self.point_count == 0 {
             self.create_header(
                 &p.attributes
