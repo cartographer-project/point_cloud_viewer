@@ -97,9 +97,14 @@ impl AttributeDataType {
             proto::AttributeDataType::F64 => AttributeDataType::F64,
             proto::AttributeDataType::U8Vec3 => AttributeDataType::U8Vec3,
             proto::AttributeDataType::F64Vec3 => AttributeDataType::F64Vec3,
-            _ => {
+            proto::AttributeDataType::U16
+            | proto::AttributeDataType::U32
+            | proto::AttributeDataType::I8
+            | proto::AttributeDataType::I16
+            | proto::AttributeDataType::I32
+            | proto::AttributeDataType::I64 => {
                 return Err(ErrorKind::InvalidInput(
-                    "Attribute data type not supported".to_string(),
+                    "Attribute data type not supported yet".to_string(),
                 )
                 .into())
             }
