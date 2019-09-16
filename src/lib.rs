@@ -101,8 +101,7 @@ impl AttributeDataType {
             | proto::AttributeDataType::U32
             | proto::AttributeDataType::I8
             | proto::AttributeDataType::I16
-            | proto::AttributeDataType::I32
-            | proto::AttributeDataType::I64 => {
+            | proto::AttributeDataType::I32 => {
                 return Err(ErrorKind::InvalidInput(
                     "Attribute data type not supported yet".to_string(),
                 )
@@ -110,7 +109,7 @@ impl AttributeDataType {
             }
             proto::AttributeDataType::INVALID_DATA_TYPE => {
                 return Err(
-                    ErrorKind::InvalidInput("Attribute data type invalidca".to_string()).into(),
+                    ErrorKind::InvalidInput("Attribute data type invalid".to_string()).into(),
                 )
             }
         };
