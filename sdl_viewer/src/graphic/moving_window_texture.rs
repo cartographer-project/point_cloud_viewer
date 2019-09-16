@@ -323,7 +323,7 @@ impl TextureFormat for LumaA<f32> {
 }
 
 impl TextureFormat for Rgba<u8> {
-    const INTERNALFORMAT: GLint = opengl::RGBA8 as GLint;
+    const INTERNALFORMAT: GLint = opengl::RGBA8UI as GLint;
     const FORMAT: GLuint = opengl::RGBA;
     const DTYPE: GLuint = opengl::UNSIGNED_BYTE;
 }
