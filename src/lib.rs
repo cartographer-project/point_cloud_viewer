@@ -108,6 +108,11 @@ impl AttributeDataType {
                 )
                 .into())
             }
+            proto::AttributeDataType::INVALID_DATA_TYPE => {
+                return Err(
+                    ErrorKind::InvalidInput("Attribute data type invalidca".to_string()).into(),
+                )
+            }
         };
         Ok(attr)
     }
