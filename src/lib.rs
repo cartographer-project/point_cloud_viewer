@@ -52,18 +52,6 @@ pub fn attribute_extension(attribute: &str) -> &str {
     }
 }
 
-/// General field to describe point feature attributes such as color, intensity, ...
-#[derive(Debug, Clone)]
-pub enum AttributeData {
-    U8(Vec<u8>),
-    I64(Vec<i64>),
-    U64(Vec<u64>),
-    F32(Vec<f32>),
-    F64(Vec<f64>),
-    U8Vec3(Vec<Vector3<u8>>),
-    F64Vec3(Vec<Vector3<f64>>),
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeDataType {
     U8,
@@ -125,6 +113,18 @@ impl AttributeDataType {
             AttributeDataType::F64Vec3 => 3 * 8,
         }
     }
+}
+
+/// General field to describe point feature attributes such as color, intensity, ...
+#[derive(Debug, Clone)]
+pub enum AttributeData {
+    U8(Vec<u8>),
+    I64(Vec<i64>),
+    U64(Vec<u64>),
+    F32(Vec<f32>),
+    F64(Vec<f64>),
+    U8Vec3(Vec<Vector3<u8>>),
+    F64Vec3(Vec<Vector3<f64>>),
 }
 
 impl AttributeData {
