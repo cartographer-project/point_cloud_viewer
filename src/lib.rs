@@ -170,14 +170,6 @@ impl AttributeData {
 
 macro_rules! from_attribute_data {
     ($attribute_data_type:ident, $vec_data_type:ty) => {
-        impl From<AttributeData> for Option<Vec<$vec_data_type>> {
-            fn from(data: AttributeData) -> Self {
-                match data {
-                    AttributeData::$attribute_data_type(data) => Some(data),
-                    _ => None,
-                }
-            }
-        }
         impl<'a> From<&'a AttributeData> for Option<&'a Vec<$vec_data_type>> {
             fn from(data: &'a AttributeData) -> Self {
                 match *data {
