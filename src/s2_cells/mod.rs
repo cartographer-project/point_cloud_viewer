@@ -69,6 +69,48 @@ impl S2Meta {
         meta.set_s2(s2_meta);
         meta
     }
+
+    pub fn from_proto(meta_proto: proto::Meta) -> Result<Self> {
+        // check if the meta is meant to be for S2 point cloud
+        if !(meta_proto.version == CURRENT_VERSION && meta_proto.has_s2()) {
+            return Err(ErrorKind::InvalidInput("No s2 meta found".to_string()).into());
+        }
+        let s2_meta_proto = meta_proto.get_s2();
+        // cells, num_points
+        let mut cells = FnvHashMap::default();
+        s2_meta_proto.get_cells().iter().for_each(|cell| {
+            let cell_id = CellID(cell.id as u64);
+            cells.insert(
+                cell_id,
+                S2CellMeta {
+                    num_points: cell.num_points,
+                },
+            );
+        });
+
+        // attributes
+        let mut attributes = HashMap::default();
+        // s2_meta_proto.attributes.iter().try_for_each( |attr: proto::Attribute| -> Result<()> {
+        //     let d_type: proto::AttributeDataType = attr.get_data_type();
+        //     let attr_type: crate::AttributeDataType = crate::AttributeDataType::from_proto(d_type)?;//
+        //     attributes.insert(
+        //         attr.name,
+        //         attr_type,
+        //     )
+        // })?;
+        for attr in s2_meta_proto.attributes.iter() {
+            let d_type: proto::AttributeDataType = attr.get_data_type();
+            let attr_type: crate::AttributeDataType = crate::AttributeDataType::from_proto(d_type)?; //
+            attributes.insert(attr.name.to_owned(), attr_type);
+        }
+
+        Ok(S2Meta { cells, attributes })
+    }
+
+    pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
+        let meta = data_provider.meta_proto()?;
+        S2Meta::from_proto(meta)
+    }
 }
 
 /// Just a wrapper that implements Display
