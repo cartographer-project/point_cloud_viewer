@@ -212,6 +212,22 @@ pub struct PointsBatch {
     pub attributes: BTreeMap<String, AttributeData>,
 }
 
+impl PointsBatch {
+    pub fn attribute_vec<'a, T>(&'a self, key: impl AsRef<str>) -> Option<&'a Vec<T>>
+    where
+        Option<&'a Vec<T>>: From<&'a AttributeData>,
+    {
+        self.attributes.get(key.as_ref()).and_then(Option::from)
+    }
+
+    pub fn attribute_vec_mut<'a, T>(&'a mut self, key: impl AsRef<str>) -> Option<&'a mut Vec<T>>
+    where
+        Option<&'a mut Vec<T>>: From<&'a mut AttributeData>,
+    {
+        self.attributes.get_mut(key.as_ref()).and_then(Option::from)
+    }
+}
+
 pub use point_viewer_proto_rust::proto;
 
 /// size for batch
