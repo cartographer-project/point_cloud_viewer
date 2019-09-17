@@ -168,6 +168,42 @@ impl AttributeData {
     }
 }
 
+macro_rules! from_attribute_data {
+    ($attribute_data_type:ident, $vec_data_type:ty) => {
+        impl From<AttributeData> for Option<Vec<$vec_data_type>> {
+            fn from(data: AttributeData) -> Self {
+                match data {
+                    AttributeData::$attribute_data_type(data) => Some(data),
+                    _ => None,
+                }
+            }
+        }
+        impl<'a> From<&'a AttributeData> for Option<&'a Vec<$vec_data_type>> {
+            fn from(data: &'a AttributeData) -> Self {
+                match *data {
+                    AttributeData::$attribute_data_type(ref data) => Some(data),
+                    _ => None,
+                }
+            }
+        }
+        impl<'a> From<&'a mut AttributeData> for Option<&'a mut Vec<$vec_data_type>> {
+            fn from(data: &'a mut AttributeData) -> Self {
+                match *data {
+                    AttributeData::$attribute_data_type(ref mut data) => Some(data),
+                    _ => None,
+                }
+            }
+        }
+    };
+}
+from_attribute_data!(U8, u8);
+from_attribute_data!(I64, i64);
+from_attribute_data!(U64, u64);
+from_attribute_data!(F32, f32);
+from_attribute_data!(F64, f64);
+from_attribute_data!(U8Vec3, Vector3<u8>);
+from_attribute_data!(F64Vec3, Vector3<f64>);
+
 /// General structure that contains points and attached feature attributes.
 #[derive(Debug, Clone)]
 pub struct PointsBatch {
