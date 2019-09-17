@@ -163,11 +163,11 @@ where
             // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glTexImage2D.xhtml
             gl.TexImage2D(
                 opengl::TEXTURE_2D,
-                0,
+                0, // level
                 P::INTERNALFORMAT,
-                size,
-                size,
-                0,
+                size, // width
+                size, // height
+                0, // border
                 P::FORMAT,
                 P::DTYPE,
                 pixels.into_raw().as_ptr() as *const c_void,
@@ -308,7 +308,7 @@ where
                 // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glTexSubImage2D.xhtml
                 self.gl.TexSubImage2D(
                     opengl::TEXTURE_2D,
-                    0,
+                    0, // level
                     r.x,
                     r.y,
                     width,
