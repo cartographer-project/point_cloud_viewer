@@ -2,6 +2,7 @@ use crate::graphic::GlProgram;
 use crate::opengl;
 use crate::opengl::types::{GLboolean, GLint};
 use cgmath::{Matrix, Matrix4, Vector2, Vector3};
+use std::ffi::CString;
 use std::rc::Rc;
 
 pub trait Uniform {
@@ -65,11 +66,12 @@ pub struct GlUniform<T> {
 impl<T: Uniform> GlUniform<T> {
     pub fn new(program: &GlProgram, name: &str, value: T) -> Self {
         let location;
+        let name_c = CString::new(name).unwrap();
         unsafe {
             program.gl.UseProgram(program.id);
             location = program
                 .gl
-                .GetUniformLocation(program.id, (name.to_string() + "\0").as_ptr() as *const i8);
+                .GetUniformLocation(program.id, name_c.as_ptr() as *const i8);
         }
         GlUniform {
             location,

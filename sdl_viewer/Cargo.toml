@@ -22,7 +22,6 @@ edition = "2018"
 gl_generator = "0.13.0"
 
 [dependencies]
-arrayvec = "0.4.11"
 cgmath = "0.17.0"
 clap = "2.33.0"
 collision = "0.20.1"
