@@ -301,6 +301,7 @@ where
         self.u_texture_offset.value = texture_offset_after_update;
 
         unsafe {
+            self.gl.ActiveTexture(opengl::TEXTURE0 + self.texture_unit);
             self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
             for r in regions {
                 let width = i32::try_from(r.pixels.width()).unwrap();
@@ -309,7 +310,6 @@ where
                     continue;
                 }
                 let image = r.pixels.to_image();
-                dbg!(image.get_pixel(0, 0).channels());
                 // For an explanation of the different parameters, see
                 // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glTexSubImage2D.xhtml
                 self.gl.TexSubImage2D(
