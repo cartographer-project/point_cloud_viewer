@@ -72,19 +72,15 @@ impl S2Meta {
 
     pub fn from_proto(meta_proto: proto::Meta) -> Result<Self> {
         // check if the meta is meant to be for S2 point cloud
-        match meta_proto.version {
-            CURRENT_VERSION => {
-                if !(meta_proto.version == CURRENT_VERSION && meta_proto.has_s2()) {
-                    return Err(ErrorKind::InvalidInput("No s2 meta found".to_string()).into());
-                }
-            } //12
-            _ => {
-                return Err(ErrorKind::InvalidInput(format!(
-                    "No s2 meta supported with version {}",
-                    meta_proto.version
-                ))
-                .into())
-            }
+        if meta_proto.version != CURRENT_VERSION {
+            return Err(ErrorKind::InvalidInput(format!(
+                "No S2 Point cloud supported with version {}",
+                meta_proto.version
+            ))
+            .into());
+        }
+        if !(meta_proto.version == CURRENT_VERSION && meta_proto.has_s2()) {
+            return Err(ErrorKind::InvalidInput("No s2 meta found".to_string()).into());
         }
 
         let s2_meta_proto = meta_proto.get_s2();
