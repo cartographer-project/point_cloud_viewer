@@ -174,8 +174,8 @@ macro_rules! try_from_impl {
         match $data {
             AttributeData::$attribute_data_type(data) => Ok(data),
             _ => Err(format!(
-                "Attribute data type '{}' is incompatible with requested type '{}'.",
-                stringify!($attribute_data_type),
+                "Attribute data type '{:?}' is incompatible with requested type '{}'.",
+                $data.data_type(),
                 stringify!($vec_data_type)
             )),
         }
