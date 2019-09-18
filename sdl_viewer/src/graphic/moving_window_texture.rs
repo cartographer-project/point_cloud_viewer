@@ -309,6 +309,7 @@ where
                     continue;
                 }
                 let image = r.pixels.to_image();
+                dbg!(image.get_pixel(0, 0).channels());
                 // For an explanation of the different parameters, see
                 // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glTexSubImage2D.xhtml
                 self.gl.TexSubImage2D(
