@@ -72,9 +72,21 @@ impl S2Meta {
 
     pub fn from_proto(meta_proto: proto::Meta) -> Result<Self> {
         // check if the meta is meant to be for S2 point cloud
-        if !(meta_proto.version == CURRENT_VERSION && meta_proto.has_s2()) {
-            return Err(ErrorKind::InvalidInput("No s2 meta found".to_string()).into());
+        match meta_proto.version {
+            CURRENT_VERSION => {
+                if !(meta_proto.version == CURRENT_VERSION && meta_proto.has_s2()) {
+                    return Err(ErrorKind::InvalidInput("No s2 meta found".to_string()).into());
+                }
+            } //12
+            _ => {
+                return Err(ErrorKind::InvalidInput(format!(
+                    "No s2 meta supported with version {}",
+                    meta_proto.version
+                ))
+                .into())
+            }
         }
+
         let s2_meta_proto = meta_proto.get_s2();
         // cells, num_points
         let mut cells = FnvHashMap::default();
@@ -90,24 +102,17 @@ impl S2Meta {
 
         // attributes
         let mut attributes = HashMap::default();
-        // s2_meta_proto.attributes.iter().try_for_each( |attr: proto::Attribute| -> Result<()> {
-        //     let d_type: proto::AttributeDataType = attr.get_data_type();
-        //     let attr_type: crate::AttributeDataType = crate::AttributeDataType::from_proto(d_type)?;//
-        //     attributes.insert(
-        //         attr.name,
-        //         attr_type,
-        //     )
-        // })?;
         for attr in s2_meta_proto.attributes.iter() {
-            let d_type: proto::AttributeDataType = attr.get_data_type();
-            let attr_type: crate::AttributeDataType = crate::AttributeDataType::from_proto(d_type)?; //
+            //let d_type: proto::AttributeDataType = ;
+            let attr_type: crate::AttributeDataType =
+                crate::AttributeDataType::from_proto(attr.get_data_type())?;
             attributes.insert(attr.name.to_owned(), attr_type);
         }
 
         Ok(S2Meta { cells, attributes })
     }
 
-    pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
+    pub fn from_data_provider(data_provider: &dyn DataProvider) -> Result<Self> {
         let meta = data_provider.meta_proto()?;
         S2Meta::from_proto(meta)
     }
