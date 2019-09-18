@@ -107,8 +107,7 @@ impl<'a, P: Pixel + 'static> UpdateRegion<'a, P> {
 
 impl<P> GlMovingWindowTexture<P>
 where
-    P: TextureFormat,
-    P: 'static,
+    P: TextureFormat + 'static,
     P::Subpixel: 'static + std::fmt::Debug,
 {
     pub fn new(
