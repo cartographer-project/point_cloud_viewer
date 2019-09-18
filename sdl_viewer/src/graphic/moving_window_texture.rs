@@ -25,6 +25,7 @@ pub struct GlMovingWindowTexture<P: Pixel> {
     id: GLuint,
     gl: Rc<opengl::Gl>,
     size: u32,
+    texture_unit: u32,
     u_texture_offset: GlUniform<Vector2<i32>>,
     pixel_type: PhantomData<P>,
 }
@@ -110,11 +111,13 @@ where
     P: TextureFormat + 'static,
     P::Subpixel: 'static + std::fmt::Debug,
 {
+    /// The texture_unit parameter is just a sequence number for textures
     pub fn new(
         program: &GlProgram,
         gl: Rc<opengl::Gl>,
         name: &str,
         size: u32,
+        texture_unit: u32,
         pixels: ImageBuffer<P, Vec<P::Subpixel>>,
     ) -> Self {
         let mut id = 0;
@@ -122,7 +125,7 @@ where
         unsafe {
             gl.UseProgram(program.id);
             let loc = gl.GetUniformLocation(program.id, name_c.as_ptr());
-            gl.Uniform1i(loc, 0);
+            gl.Uniform1i(loc, i32::try_from(texture_unit).unwrap());
 
             gl.GenTextures(1, &mut id);
             gl.BindTexture(opengl::TEXTURE_2D, id);
@@ -175,6 +178,7 @@ where
             id,
             gl,
             size,
+            texture_unit,
             u_texture_offset,
             pixel_type: PhantomData,
         }
@@ -297,6 +301,7 @@ where
         self.u_texture_offset.value = texture_offset_after_update;
 
         unsafe {
+            self.gl.ActiveTexture(opengl::TEXTURE0 + self.texture_unit);
             self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
             for r in regions {
                 let width = i32::try_from(r.pixels.width()).unwrap();
@@ -326,9 +331,6 @@ where
     pub fn submit(&mut self) {
         unsafe {
             self.u_texture_offset.submit();
-
-            self.gl.ActiveTexture(opengl::TEXTURE0);
-            self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
         }
     }
 }
