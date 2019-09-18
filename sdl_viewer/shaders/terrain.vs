@@ -15,7 +15,7 @@ uniform ivec2 color_texture_offset;
 uniform dmat4 world_to_gl; // the full projective transform
 uniform dmat4 terrain_to_world;
 uniform sampler2D height;
-uniform sampler2D color;
+uniform usampler2D color;
 
 out VS_OUT {
     vec4 color;
@@ -34,5 +34,7 @@ void main() {
   local_pos.xy += terrain_res_m * (dvec2(aPos.xy) + dvec2(terrain_pos));
   local_pos.z += double(tex.x);
   vs_out.color = texelFetch(color, texCoordModSize, 0);
+  vs_out.color.x = 1.0f;
+  vs_out.color.w = 1.0f;
   gl_Position = vec4(world_to_gl * terrain_to_world * local_pos);
 }

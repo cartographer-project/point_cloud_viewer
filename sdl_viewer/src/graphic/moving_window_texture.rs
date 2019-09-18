@@ -166,6 +166,7 @@ where
             );
         }
 
+
         let u_texture_offset = GlUniform::new(
             &program,
             &(name.to_string() + "_texture_offset"),
@@ -283,6 +284,14 @@ where
                     continue;
                 }
                 let image = r.pixels.to_image();
+                dbg!(image.get_pixel(0, 0));
+                println!("A {:?}", self.gl.GetError());
+                assert!(width > 0);
+                assert!(height > 0);
+                assert_eq!(width, image.width() as i32);
+                assert_eq!(height, image.height() as i32);
+                assert!(r.x + width <= self.size);
+                assert!(r.y + height <= self.size);
                 self.gl.TexSubImage2D(
                     opengl::TEXTURE_2D,
                     0,
@@ -294,6 +303,7 @@ where
                     P::DTYPE,
                     image.into_raw().as_ptr() as *const c_void,
                 );
+                println!("B {:?}", self.gl.GetError());
             }
         }
     }
@@ -303,7 +313,6 @@ where
         unsafe {
             self.u_texture_offset.submit();
 
-            self.gl.ActiveTexture(opengl::TEXTURE0);
             self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
         }
     }

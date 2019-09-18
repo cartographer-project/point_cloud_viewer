@@ -309,6 +309,7 @@ impl TerrainRenderer {
             self.u_terrain_pos.submit();
 
             self.heightmap.submit();
+            self.colormap.submit();
 
             self.program.gl.Enable(opengl::BLEND);
             self.program
