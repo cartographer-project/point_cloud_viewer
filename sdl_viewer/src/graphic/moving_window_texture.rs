@@ -24,7 +24,7 @@ use std::rc::Rc;
 pub struct GlMovingWindowTexture<P: Pixel> {
     id: GLuint,
     gl: Rc<opengl::Gl>,
-    size: i32,
+    size: u32,
     u_texture_offset: GlUniform<Vector2<i32>>,
     pixel_type: PhantomData<P>,
 }
@@ -32,8 +32,8 @@ pub struct GlMovingWindowTexture<P: Pixel> {
 /// Specifies the offsets in the destination, as well as the image to be pasted
 /// there.
 struct UpdateRegion<'a, P: Pixel + 'static> {
-    x: i32,
-    y: i32,
+    x: u32,
+    y: u32,
     pixels: SubImage<&'a ImageBuffer<P, Vec<P::Subpixel>>>,
 }
 
@@ -67,27 +67,19 @@ impl<'a, P: Pixel + 'static> UpdateRegion<'a, P> {
     /// corner of region 1.
 
     pub fn new_regions(
-        xoff: i32,
-        yoff: i32,
-        size: i32,
+        xoff: u32,
+        yoff: u32,
+        size: u32,
         pixels: &'a ImageBuffer<P, Vec<P::Subpixel>>,
     ) -> [UpdateRegion<'a, P>; 4] {
         // Check invariant
-        debug_assert!(0 <= xoff && xoff < size && 0 <= yoff && yoff <= size);
-        // Do subtractions in signed numbers to avoid overflow
-        let width: i32 = pixels.width().try_into().unwrap();
-        let height: i32 = pixels.height().try_into().unwrap();
+        debug_assert!(xoff < size && yoff <= size);
         // These variables are named after the regions they apply to. For
         // instance, regions 1 and 3 share the same width.
-        let width_1_3 = width.min(size - xoff);
-        let width_2_4 = width - width_1_3;
-        let height_1_2 = height.min(size - yoff);
-        let height_3_4 = height - height_1_2;
-        // The image crate likes unsigned ints
-        let width_1_3 = u32::try_from(width_1_3).unwrap();
-        let width_2_4 = u32::try_from(width_2_4).unwrap();
-        let height_3_4 = u32::try_from(height_3_4).unwrap();
-        let height_1_2 = u32::try_from(height_1_2).unwrap();
+        let width_1_3 = pixels.width().min(size - xoff);
+        let width_2_4 = pixels.width() - width_1_3;
+        let height_1_2 = pixels.height().min(size - yoff);
+        let height_3_4 = pixels.height() - height_1_2;
         [
             UpdateRegion {
                 x: xoff,
@@ -123,14 +115,14 @@ where
         program: &GlProgram,
         gl: Rc<opengl::Gl>,
         name: &str,
-        size: i32,
+        size: u32,
         pixels: ImageBuffer<P, Vec<P::Subpixel>>,
     ) -> Self {
         let mut id = 0;
         let name_c = CString::new(name).unwrap();
         unsafe {
             gl.UseProgram(program.id);
-            let loc = gl.GetUniformLocation(program.id, name_c.as_ptr() as *const i8);
+            let loc = gl.GetUniformLocation(program.id, name_c.as_ptr());
             gl.Uniform1i(loc, 0);
 
             gl.GenTextures(1, &mut id);
@@ -165,9 +157,9 @@ where
                 opengl::TEXTURE_2D,
                 0, // level
                 P::INTERNALFORMAT,
-                size, // width
-                size, // height
-                0, // border
+                size as i32, // width
+                size as i32, // height
+                0,           // border
                 P::FORMAT,
                 P::DTYPE,
                 pixels.into_raw().as_ptr() as *const c_void,
@@ -259,8 +251,10 @@ where
         hori_strip: ImageBuffer<P, Vec<P::Subpixel>>,
     ) {
         // Calculate the updated texture offset, which is always in [0; self.size)
-        let x_after_update = (self.u_texture_offset.value.x + delta_x).mod_floor(&self.size);
-        let y_after_update = (self.u_texture_offset.value.y + delta_y).mod_floor(&self.size);
+        let x_after_update =
+            (self.u_texture_offset.value.x + delta_x).mod_floor(&i32::try_from(self.size).unwrap());
+        let y_after_update =
+            (self.u_texture_offset.value.y + delta_y).mod_floor(&i32::try_from(self.size).unwrap());
         let texture_offset_after_update = Vector2::new(x_after_update, y_after_update);
 
         // The vertical region's x coordinate needs to be the "lower" (but not
@@ -286,10 +280,18 @@ where
         } else {
             y_after_update
         };
-        let vert_regions =
-            UpdateRegion::new_regions(vert_x, y_after_update, self.size, &vert_strip);
-        let hori_regions =
-            UpdateRegion::new_regions(x_after_update, hori_y, self.size, &hori_strip);
+        let vert_regions = UpdateRegion::new_regions(
+            vert_x.try_into().unwrap(),
+            y_after_update.try_into().unwrap(),
+            self.size,
+            &vert_strip,
+        );
+        let hori_regions = UpdateRegion::new_regions(
+            x_after_update.try_into().unwrap(),
+            hori_y.try_into().unwrap(),
+            self.size,
+            &hori_strip,
+        );
         let regions = vert_regions.iter().chain(hori_regions.iter());
 
         // Now we can overwrite the old texture offset
@@ -309,8 +311,8 @@ where
                 self.gl.TexSubImage2D(
                     opengl::TEXTURE_2D,
                     0, // level
-                    r.x,
-                    r.y,
+                    i32::try_from(r.x).unwrap(),
+                    i32::try_from(r.y).unwrap(),
                     width,
                     height,
                     P::FORMAT,

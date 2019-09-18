@@ -69,9 +69,7 @@ impl<T: Uniform> GlUniform<T> {
         let name_c = CString::new(name).unwrap();
         unsafe {
             program.gl.UseProgram(program.id);
-            location = program
-                .gl
-                .GetUniformLocation(program.id, name_c.as_ptr() as *const i8);
+            location = program.gl.GetUniformLocation(program.id, name_c.as_ptr());
         }
         GlUniform {
             location,
