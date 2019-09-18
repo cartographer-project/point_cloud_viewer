@@ -24,6 +24,7 @@ pub mod s2_cells;
 use cgmath::Vector3;
 use errors::{ErrorKind, Result};
 use std::collections::BTreeMap;
+use std::convert::{TryFrom, TryInto};
 
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
 // (u64). We are able to convert the proto on read, so the tools can still read version 9.
@@ -168,33 +169,53 @@ impl AttributeData {
     }
 }
 
-macro_rules! from_attribute_data {
+macro_rules! try_from_impl {
+    ($data:ident, $attribute_data_type:ident, $vec_data_type:ty) => {
+        match $data {
+            AttributeData::$attribute_data_type(data) => Ok(data),
+            _ => Err(format!(
+                "Attribute data type '{}' is incompatible with requested type '{}'.",
+                stringify!($attribute_data_type),
+                stringify!($vec_data_type)
+            )),
+        }
+    };
+}
+
+macro_rules! try_from_attribute_data {
     ($attribute_data_type:ident, $vec_data_type:ty) => {
-        impl<'a> From<&'a AttributeData> for Option<&'a Vec<$vec_data_type>> {
-            fn from(data: &'a AttributeData) -> Self {
-                match *data {
-                    AttributeData::$attribute_data_type(ref data) => Some(data),
-                    _ => None,
-                }
+        impl TryFrom<AttributeData> for Vec<$vec_data_type> {
+            type Error = String;
+
+            fn try_from(data: AttributeData) -> std::result::Result<Self, Self::Error> {
+                try_from_impl!(data, $attribute_data_type, $vec_data_type)
             }
         }
-        impl<'a> From<&'a mut AttributeData> for Option<&'a mut Vec<$vec_data_type>> {
-            fn from(data: &'a mut AttributeData) -> Self {
-                match *data {
-                    AttributeData::$attribute_data_type(ref mut data) => Some(data),
-                    _ => None,
-                }
+
+        impl<'a> TryFrom<&'a AttributeData> for &'a Vec<$vec_data_type> {
+            type Error = String;
+
+            fn try_from(data: &'a AttributeData) -> std::result::Result<Self, Self::Error> {
+                try_from_impl!(data, $attribute_data_type, $vec_data_type)
+            }
+        }
+
+        impl<'a> TryFrom<&'a mut AttributeData> for &'a mut Vec<$vec_data_type> {
+            type Error = String;
+
+            fn try_from(data: &'a mut AttributeData) -> std::result::Result<Self, Self::Error> {
+                try_from_impl!(data, $attribute_data_type, $vec_data_type)
             }
         }
     };
 }
-from_attribute_data!(U8, u8);
-from_attribute_data!(I64, i64);
-from_attribute_data!(U64, u64);
-from_attribute_data!(F32, f32);
-from_attribute_data!(F64, f64);
-from_attribute_data!(U8Vec3, Vector3<u8>);
-from_attribute_data!(F64Vec3, Vector3<f64>);
+try_from_attribute_data!(U8, u8);
+try_from_attribute_data!(I64, i64);
+try_from_attribute_data!(U64, u64);
+try_from_attribute_data!(F32, f32);
+try_from_attribute_data!(F64, f64);
+try_from_attribute_data!(U8Vec3, Vector3<u8>);
+try_from_attribute_data!(F64Vec3, Vector3<f64>);
 
 /// General structure that contains points and attached feature attributes.
 #[derive(Debug, Clone)]
@@ -205,18 +226,43 @@ pub struct PointsBatch {
 }
 
 impl PointsBatch {
-    pub fn attribute_vec<'a, T>(&'a self, key: impl AsRef<str>) -> Option<&'a Vec<T>>
+    pub fn get_attribute_vec<'a, T>(
+        &'a self,
+        key: impl AsRef<str>,
+    ) -> std::result::Result<&'a Vec<T>, String>
     where
-        Option<&'a Vec<T>>: From<&'a AttributeData>,
+        &'a Vec<T>: TryFrom<&'a AttributeData, Error = String>,
     {
-        self.attributes.get(key.as_ref()).and_then(Option::from)
+        self.attributes
+            .get(key.as_ref())
+            .ok_or_else(|| format!("Attribute '{}' not found.", key.as_ref()))
+            .and_then(|val| val.try_into())
     }
 
-    pub fn attribute_vec_mut<'a, T>(&'a mut self, key: impl AsRef<str>) -> Option<&'a mut Vec<T>>
+    pub fn get_attribute_vec_mut<'a, T>(
+        &'a mut self,
+        key: impl AsRef<str>,
+    ) -> std::result::Result<&'a mut Vec<T>, String>
     where
-        Option<&'a mut Vec<T>>: From<&'a mut AttributeData>,
+        &'a mut Vec<T>: TryFrom<&'a mut AttributeData, Error = String>,
     {
-        self.attributes.get_mut(key.as_ref()).and_then(Option::from)
+        self.attributes
+            .get_mut(key.as_ref())
+            .ok_or_else(|| format!("Attribute '{}' not found.", key.as_ref()))
+            .and_then(|val| val.try_into())
+    }
+
+    pub fn remove_attribute_vec<T>(
+        &mut self,
+        key: impl AsRef<str>,
+    ) -> std::result::Result<Vec<T>, String>
+    where
+        Vec<T>: TryFrom<AttributeData, Error = String>,
+    {
+        self.attributes
+            .remove(key.as_ref())
+            .ok_or_else(|| format!("Attribute '{}' not found.", key.as_ref()))
+            .and_then(|val| val.try_into())
     }
 }
 
