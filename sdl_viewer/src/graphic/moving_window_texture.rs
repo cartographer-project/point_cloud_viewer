@@ -2,12 +2,11 @@ use crate::graphic::uniform::GlUniform;
 use crate::graphic::GlProgram;
 use crate::opengl;
 use crate::opengl::types::{GLint, GLuint};
-use arrayvec::ArrayVec;
 use cgmath::Vector2;
 use image::{GenericImageView, ImageBuffer, LumaA, Pixel, Rgba, SubImage};
 use num_integer::Integer;
 use std::convert::{TryFrom, TryInto};
-use std::ffi::c_void;
+use std::ffi::{c_void, CString};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -15,7 +14,8 @@ use std::rc::Rc;
 /// Incrementality is achieved by using wraparound indexing and overwriting the
 /// parts that moved off the texture with the newly loaded parts.
 /// See `https://developer.nvidia.com/gpugems/GPUGems2/gpugems2_chapter02.html`,
-/// section 2.4 for an illustration.
+/// section 2.4 for an illustration, but note that this page does not describe
+/// the present implementation, which is simpler.
 /// Also publishes an `<texture_name>_texture_offset` uniform whose unit is
 /// pixels (not UV coordinates).
 ///
@@ -24,7 +24,8 @@ use std::rc::Rc;
 pub struct GlMovingWindowTexture<P: Pixel> {
     id: GLuint,
     gl: Rc<opengl::Gl>,
-    size: i32,
+    size: u32,
+    texture_unit: u32,
     u_texture_offset: GlUniform<Vector2<i32>>,
     pixel_type: PhantomData<P>,
 }
@@ -32,8 +33,8 @@ pub struct GlMovingWindowTexture<P: Pixel> {
 /// Specifies the offsets in the destination, as well as the image to be pasted
 /// there.
 struct UpdateRegion<'a, P: Pixel + 'static> {
-    x: i32,
-    y: i32,
+    x: u32,
+    y: u32,
     pixels: SubImage<&'a ImageBuffer<P, Vec<P::Subpixel>>>,
 }
 
@@ -63,25 +64,23 @@ impl<'a, P: Pixel + 'static> UpdateRegion<'a, P> {
     /// +-+-------+---+          +---------+---+
     /// ```                      
     ///
+    /// x is right and y is up, so the origin of the image is the lower left
+    /// corner of region 1.
 
     pub fn new_regions(
-        xoff: i32,
-        yoff: i32,
-        size: i32,
+        xoff: u32,
+        yoff: u32,
+        size: u32,
         pixels: &'a ImageBuffer<P, Vec<P::Subpixel>>,
     ) -> [UpdateRegion<'a, P>; 4] {
-        // Do subtractions in signed numbers to avoid overflow
-        let width: i32 = pixels.width().try_into().unwrap();
-        let height: i32 = pixels.height().try_into().unwrap();
-        let width_1_3 = width.min(size - xoff);
-        let width_2_4 = width - width_1_3;
-        let height_1_2 = height.min(size - yoff);
-        let height_3_4 = height - height_1_2;
-        // The image crate likes unsigned ints
-        let width_1_3 = u32::try_from(width_1_3).unwrap();
-        let width_2_4 = u32::try_from(width_2_4).unwrap();
-        let height_3_4 = u32::try_from(height_3_4).unwrap();
-        let height_1_2 = u32::try_from(height_1_2).unwrap();
+        // Check invariant
+        debug_assert!(xoff < size && yoff <= size);
+        // These variables are named after the regions they apply to. For
+        // instance, regions 1 and 3 share the same width.
+        let width_1_3 = pixels.width().min(size - xoff);
+        let width_2_4 = pixels.width() - width_1_3;
+        let height_1_2 = pixels.height().min(size - yoff);
+        let height_3_4 = pixels.height() - height_1_2;
         [
             UpdateRegion {
                 x: xoff,
@@ -109,23 +108,24 @@ impl<'a, P: Pixel + 'static> UpdateRegion<'a, P> {
 
 impl<P> GlMovingWindowTexture<P>
 where
-    P: TextureFormat,
-    P: Pixel + 'static + std::fmt::Debug,
+    P: TextureFormat + 'static,
     P::Subpixel: 'static + std::fmt::Debug,
 {
+    /// The texture_unit parameter is just a sequence number for textures
     pub fn new(
         program: &GlProgram,
         gl: Rc<opengl::Gl>,
         name: &str,
-        size: i32,
+        size: u32,
+        texture_unit: u32,
         pixels: ImageBuffer<P, Vec<P::Subpixel>>,
     ) -> Self {
         let mut id = 0;
+        let name_c = CString::new(name).unwrap();
         unsafe {
             gl.UseProgram(program.id);
-            let loc =
-                gl.GetUniformLocation(program.id, (name.to_string() + "\0").as_ptr() as *const i8);
-            gl.Uniform1i(loc, 0);
+            let loc = gl.GetUniformLocation(program.id, name_c.as_ptr());
+            gl.Uniform1i(loc, i32::try_from(texture_unit).unwrap());
 
             gl.GenTextures(1, &mut id);
             gl.BindTexture(opengl::TEXTURE_2D, id);
@@ -153,23 +153,24 @@ where
                 opengl::TEXTURE_MAG_FILTER,
                 opengl::NEAREST as i32,
             );
+            // For an explanation of the different parameters, see
+            // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glTexImage2D.xhtml
             gl.TexImage2D(
                 opengl::TEXTURE_2D,
-                0,
+                0, // level
                 P::INTERNALFORMAT,
-                size,
-                size,
-                0,
+                size as i32, // width
+                size as i32, // height
+                0,           // border
                 P::FORMAT,
                 P::DTYPE,
                 pixels.into_raw().as_ptr() as *const c_void,
             );
         }
 
-
         let u_texture_offset = GlUniform::new(
             &program,
-            &(name.to_string() + "_texture_offset"),
+            &format!("{}_texture_offset", name),
             Vector2::new(0, 0),
         );
 
@@ -177,6 +178,7 @@ where
             id,
             gl,
             size,
+            texture_unit,
             u_texture_offset,
             pixel_type: PhantomData,
         }
@@ -251,29 +253,52 @@ where
         vert_strip: ImageBuffer<P, Vec<P::Subpixel>>,
         hori_strip: ImageBuffer<P, Vec<P::Subpixel>>,
     ) {
-        // width/height are always positive, but if the delta is negative, the
-        // start of the new region is actually offset + delta, not offset
-        let xoff = if delta_x > 0 {
+        // Calculate the updated texture offset, which is always in [0; self.size)
+        let x_after_update =
+            (self.u_texture_offset.value.x + delta_x).mod_floor(&i32::try_from(self.size).unwrap());
+        let y_after_update =
+            (self.u_texture_offset.value.y + delta_y).mod_floor(&i32::try_from(self.size).unwrap());
+        let texture_offset_after_update = Vector2::new(x_after_update, y_after_update);
+
+        // The vertical region's x coordinate needs to be the "lower" (but not
+        // really, because of wraparound, so don't use min) of the old and new
+        // horizontal texture offset. Why? If delta_x > 0 and we use the new
+        // offset, we'll overwrite the wrong data. The y coordinate is just the
+        // new vertical texture offset however, which may not seem intuitive.
+        // You can convince yourself by staring at the illustration in section
+        // 2.4 of the page linked above,
+        // https://developer.nvidia.com/gpugems/GPUGems2/gpugems2_chapter02.html,
+        // remembering that y is up and recalling where the L shape originates.
+        // If that doesn't help, draw an image with named pixels and a texture
+        // window in it and perform a few updates in different directions,
+        // noting where the L-shaped region (aka vert_strip + hori_strip) are
+        // placed in the texture.
+        let vert_x = if delta_x > 0 {
             self.u_texture_offset.value.x
         } else {
-            (self.u_texture_offset.value.x + delta_x).mod_floor(&self.size)
+            x_after_update
         };
-        let yoff = if delta_y > 0 {
+        let hori_y = if delta_y > 0 {
             self.u_texture_offset.value.y
         } else {
-            (self.u_texture_offset.value.y + delta_y).mod_floor(&self.size)
+            y_after_update
         };
+        let vert_regions = UpdateRegion::new_regions(
+            vert_x.try_into().unwrap(),
+            y_after_update.try_into().unwrap(),
+            self.size,
+            &vert_strip,
+        );
+        let hori_regions = UpdateRegion::new_regions(
+            x_after_update.try_into().unwrap(),
+            hori_y.try_into().unwrap(),
+            self.size,
+            &hori_strip,
+        );
+        let regions = vert_regions.iter().chain(hori_regions.iter());
 
-        // u_texture_offset.value is always in [0; self.size)
-        let x = (self.u_texture_offset.value.x + delta_x).mod_floor(&self.size);
-        let y = (self.u_texture_offset.value.y + delta_y).mod_floor(&self.size);
-        self.u_texture_offset.value = Vector2::new(x, y);
-
-        let vert_regions = UpdateRegion::new_regions(xoff, y, self.size, &vert_strip);
-        let hori_regions = UpdateRegion::new_regions(x, yoff, self.size, &hori_strip);
-        let regions = ArrayVec::from(vert_regions)
-            .into_iter()
-            .chain(ArrayVec::from(hori_regions));
+        // Now we can overwrite the old texture offset
+        self.u_texture_offset.value = texture_offset_after_update;
 
         unsafe {
             self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
@@ -284,26 +309,19 @@ where
                     continue;
                 }
                 let image = r.pixels.to_image();
-                dbg!(image.get_pixel(0, 0));
-                println!("A {:?}", self.gl.GetError());
-                assert!(width > 0);
-                assert!(height > 0);
-                assert_eq!(width, image.width() as i32);
-                assert_eq!(height, image.height() as i32);
-                assert!(r.x + width <= self.size);
-                assert!(r.y + height <= self.size);
+                // For an explanation of the different parameters, see
+                // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glTexSubImage2D.xhtml
                 self.gl.TexSubImage2D(
                     opengl::TEXTURE_2D,
-                    0,
-                    r.x,
-                    r.y,
+                    0, // level
+                    i32::try_from(r.x).unwrap(),
+                    i32::try_from(r.y).unwrap(),
                     width,
                     height,
                     P::FORMAT,
                     P::DTYPE,
                     image.into_raw().as_ptr() as *const c_void,
                 );
-                println!("B {:?}", self.gl.GetError());
             }
         }
     }
@@ -313,6 +331,7 @@ where
         unsafe {
             self.u_texture_offset.submit();
 
+            self.gl.ActiveTexture(opengl::TEXTURE0 + self.texture_unit);
             self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
         }
     }
@@ -332,7 +351,7 @@ impl TextureFormat for LumaA<f32> {
 }
 
 impl TextureFormat for Rgba<u8> {
-    const INTERNALFORMAT: GLint = opengl::RGBA8UI as GLint;
+    const INTERNALFORMAT: GLint = opengl::RGBA8 as GLint;
     const FORMAT: GLuint = opengl::RGBA;
     const DTYPE: GLuint = opengl::UNSIGNED_BYTE;
 }
@@ -342,32 +361,18 @@ mod tests {
     use super::*;
     use image::GenericImage;
 
-    fn assert_same<I, J, P>(left: &I, right: &J)
-    where
-        I: GenericImageView<Pixel = P>,
-        J: GenericImageView<Pixel = P>,
-        P: Pixel + Eq + std::fmt::Debug,
-    {
-        assert_eq!(left.bounds(), right.bounds());
-        for x in 0..left.width() {
-            for y in 0..left.height() {
-                assert_eq!(left.get_pixel(x, y), right.get_pixel(x, y));
-            }
-        }
-    }
-
     #[test]
     fn test_regions() {
         let test_src = ImageBuffer::from_fn(16, 16, |x, y| Rgba::<u8>([x as u8, y as u8, 0, 255]));
         let regions = UpdateRegion::new_regions(4, 7, 16, &test_src);
 
         let mut dest = ImageBuffer::from_pixel(16, 16, Rgba::<u8>([0, 0, 0, 0]));
-        for r in regions {
+        for r in &regions {
             dest.copy_from(&r.pixels, r.x as u32, r.y as u32);
         }
         let reference = ImageBuffer::from_fn(16, 16, |x, y| {
             Rgba::<u8>([(x + 16 - 4) as u8 % 16, (y + 16 - 7) as u8 % 16, 0, 255])
         });
-        assert_same(&dest, &reference);
+        assert!(dest.pixels().eq(reference.pixels()));
     }
 }

@@ -4,12 +4,12 @@ use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use crate::opengl;
 use crate::sparse_texture_loader::SparseTextureLoader;
 use crate::{c_str, Extension};
-use cgmath::{Decomposed, Matrix4, SquareMatrix, Transform, Vector2, Zero};
+use cgmath::{Decomposed, Matrix4, SquareMatrix, Vector2, Zero};
 use image::{LumaA, Rgba};
 use opengl::types::{GLsizeiptr, GLuint};
 use point_viewer::math::Isometry3;
 use point_viewer::octree::Octree;
-use std::convert::TryInto;
+use std::convert::{TryInto, TryFrom};
 use std::ffi::c_void;
 use std::mem;
 use std::rc::Rc;
@@ -94,15 +94,17 @@ impl TerrainRenderer {
             &program,
             Rc::clone(&gl),
             "height",
-            (GRID_SIZE + 1) as i32,
+            u32::try_from(GRID_SIZE + 1).unwrap(),
+            0,
             height_and_color.height,
         );
 
         let colormap = GlMovingWindowTexture::new(
             &program,
             Rc::clone(&gl),
-            "color_sampler",
-            (GRID_SIZE + 1) as i32,
+            "color",
+            u32::try_from(GRID_SIZE + 1).unwrap(),
+            1,
             height_and_color.color,
         );
 
@@ -309,7 +311,7 @@ impl TerrainRenderer {
             self.u_terrain_pos.submit();
 
             self.heightmap.submit();
-            self.colormap.submit();
+            // self.colormap.submit();
 
             self.program.gl.Enable(opengl::BLEND);
             self.program
