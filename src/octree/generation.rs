@@ -161,7 +161,7 @@ fn split_node<'a, P>(
         scope.recurse(move |scope| {
             let stream = NodeIterator::from_data_provider(
                 octree_data_provider,
-                octree_meta,
+                octree_meta.encoding_for_node(child_id),
                 &child_id,
                 octree_data_provider
                     .number_of_points(&child_id.to_string())
@@ -201,7 +201,7 @@ fn subsample_children_into(
         };
         let node_iterator = NodeIterator::from_data_provider(
             octree_data_provider,
-            octree_meta,
+            octree_meta.encoding_for_node(child_id),
             &child_id,
             num_points as usize,
         )?;
@@ -388,7 +388,7 @@ pub fn build_octree(
     }
 
     // Add all non-zero node meta data to meta.pb
-    let nodes: Vec<proto::Node> = finished_nodes
+    let nodes: Vec<proto::OctreeNode> = finished_nodes
         .iter()
         .map(|(id, num_points)| {
             let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));

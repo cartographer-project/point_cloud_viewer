@@ -39,25 +39,26 @@ impl PositionEncoding {
     }
 
     // TODO(sirver): Returning a Result here makes this function more expensive than needed - since
-    // we require stack space for the full Result. This shuold be fixable to moving to failure.
-    pub fn from_proto(proto: proto::Node_PositionEncoding) -> Result<Self> {
+    // we require stack space for the full Result. This should be fixable to moving to failure.
+    pub fn from_proto(proto: proto::PositionEncoding) -> Result<Self> {
         match proto {
-            proto::Node_PositionEncoding::INVALID => {
-                Err(ErrorKind::InvalidInput("Invalid PositionEncoding".to_string()).into())
-            }
-            proto::Node_PositionEncoding::Uint8 => Ok(PositionEncoding::Uint8),
-            proto::Node_PositionEncoding::Uint16 => Ok(PositionEncoding::Uint16),
-            proto::Node_PositionEncoding::Float32 => Ok(PositionEncoding::Float32),
-            proto::Node_PositionEncoding::Float64 => Ok(PositionEncoding::Float64),
+            proto::PositionEncoding::Uint8 => Ok(PositionEncoding::Uint8),
+            proto::PositionEncoding::Uint16 => Ok(PositionEncoding::Uint16),
+            proto::PositionEncoding::Float32 => Ok(PositionEncoding::Float32),
+            proto::PositionEncoding::Float64 => Ok(PositionEncoding::Float64),
+            proto::PositionEncoding::INVALID => Err(ErrorKind::InvalidInput(
+                "Proto: PositionEncoding is invalid".to_string(),
+            )
+            .into()),
         }
     }
 
-    pub fn to_proto(&self) -> proto::Node_PositionEncoding {
+    pub fn to_proto(&self) -> proto::PositionEncoding {
         match *self {
-            PositionEncoding::Uint8 => proto::Node_PositionEncoding::Uint8,
-            PositionEncoding::Uint16 => proto::Node_PositionEncoding::Uint16,
-            PositionEncoding::Float32 => proto::Node_PositionEncoding::Float32,
-            PositionEncoding::Float64 => proto::Node_PositionEncoding::Float64,
+            PositionEncoding::Uint8 => proto::PositionEncoding::Uint8,
+            PositionEncoding::Uint16 => proto::PositionEncoding::Uint16,
+            PositionEncoding::Float32 => proto::PositionEncoding::Float32,
+            PositionEncoding::Float64 => proto::PositionEncoding::Float64,
         }
     }
 

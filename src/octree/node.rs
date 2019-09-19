@@ -261,8 +261,8 @@ pub fn to_node_proto(
     node_id: &NodeId,
     num_points: i64,
     position_encoding: &PositionEncoding,
-) -> proto::Node {
-    let mut proto = proto::Node::new();
+) -> proto::OctreeNode {
+    let mut proto = proto::OctreeNode::new();
     *proto.mut_id() = node_id.to_proto();
     proto.set_num_points(num_points);
     proto.set_position_encoding(position_encoding.to_proto());

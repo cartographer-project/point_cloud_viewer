@@ -19,10 +19,20 @@ pub mod errors;
 pub mod math;
 pub mod octree;
 pub mod read_write;
-pub mod s2_geo;
+pub mod s2_cells;
 
 use cgmath::Vector3;
+use errors::{ErrorKind, Result};
 use std::collections::BTreeMap;
+use std::convert::{TryFrom, TryInto};
+
+// Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
+// (u64). We are able to convert the proto on read, so the tools can still read version 9.
+// Version 10 -> 11: Change in AxisAlignedCuboid proto from Vector3f min/max to Vector3d min/max.
+// We are able to convert the proto on read, so the tools can still read version 9/10.
+// Version 11 -> 12: Change in Meta names and structures, to allow both s2 and octree meta.
+// We are able to convert the proto on read, so the tools can still read version 9/10/11.
+pub const CURRENT_VERSION: i32 = 12;
 
 #[derive(Debug, Clone)]
 pub struct Point {
@@ -40,6 +50,69 @@ pub fn attribute_extension(attribute: &str) -> &str {
         "position" => "xyz",
         "color" => "rgb",
         _ => attribute,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AttributeDataType {
+    U8,
+    I64,
+    U64,
+    F32,
+    F64,
+    U8Vec3,
+    F64Vec3,
+}
+
+impl AttributeDataType {
+    pub fn to_proto(&self) -> proto::AttributeDataType {
+        match self {
+            AttributeDataType::U8 => proto::AttributeDataType::U8,
+            AttributeDataType::I64 => proto::AttributeDataType::I64,
+            AttributeDataType::U64 => proto::AttributeDataType::U64,
+            AttributeDataType::F32 => proto::AttributeDataType::F32,
+            AttributeDataType::F64 => proto::AttributeDataType::F64,
+            AttributeDataType::U8Vec3 => proto::AttributeDataType::U8Vec3,
+            AttributeDataType::F64Vec3 => proto::AttributeDataType::F64Vec3,
+        }
+    }
+
+    pub fn from_proto(attr_proto: proto::AttributeDataType) -> Result<Self> {
+        let attr = match attr_proto {
+            proto::AttributeDataType::U8 => AttributeDataType::U8,
+            proto::AttributeDataType::I64 => AttributeDataType::I64,
+            proto::AttributeDataType::U64 => AttributeDataType::U64,
+            proto::AttributeDataType::F32 => AttributeDataType::F32,
+            proto::AttributeDataType::F64 => AttributeDataType::F64,
+            proto::AttributeDataType::U8Vec3 => AttributeDataType::U8Vec3,
+            proto::AttributeDataType::F64Vec3 => AttributeDataType::F64Vec3,
+            proto::AttributeDataType::U16
+            | proto::AttributeDataType::U32
+            | proto::AttributeDataType::I8
+            | proto::AttributeDataType::I16
+            | proto::AttributeDataType::I32 => {
+                return Err(ErrorKind::InvalidInput(
+                    "Attribute data type not supported yet".to_string(),
+                )
+                .into())
+            }
+            proto::AttributeDataType::INVALID_DATA_TYPE => {
+                return Err(
+                    ErrorKind::InvalidInput("Attribute data type invalid".to_string()).into(),
+                )
+            }
+        };
+        Ok(attr)
+    }
+
+    pub fn size_of(&self) -> usize {
+        match self {
+            AttributeDataType::U8 => 1,
+            AttributeDataType::F32 => 4,
+            AttributeDataType::I64 | AttributeDataType::U64 | AttributeDataType::F64 => 8,
+            AttributeDataType::U8Vec3 => 3,
+            AttributeDataType::F64Vec3 => 3 * 8,
+        }
     }
 }
 
@@ -82,13 +155,115 @@ impl AttributeData {
             AttributeData::U8Vec3(_) | AttributeData::F64Vec3(_) => 3,
         }
     }
+
+    pub fn data_type(&self) -> AttributeDataType {
+        match self {
+            AttributeData::U8(_) => AttributeDataType::U8,
+            AttributeData::I64(_) => AttributeDataType::I64,
+            AttributeData::U64(_) => AttributeDataType::U64,
+            AttributeData::F32(_) => AttributeDataType::F32,
+            AttributeData::F64(_) => AttributeDataType::F64,
+            AttributeData::U8Vec3(_) => AttributeDataType::U8Vec3,
+            AttributeData::F64Vec3(_) => AttributeDataType::F64Vec3,
+        }
+    }
 }
 
+macro_rules! try_from_impl {
+    ($data:ident, $attribute_data_type:ident, $vec_data_type:ty) => {
+        match $data {
+            AttributeData::$attribute_data_type(data) => Ok(data),
+            _ => Err(format!(
+                "Attribute data type '{:?}' is incompatible with requested type '{}'.",
+                $data.data_type(),
+                stringify!($vec_data_type)
+            )),
+        }
+    };
+}
+
+macro_rules! try_from_attribute_data {
+    ($attribute_data_type:ident, $vec_data_type:ty) => {
+        impl TryFrom<AttributeData> for Vec<$vec_data_type> {
+            type Error = String;
+
+            fn try_from(data: AttributeData) -> std::result::Result<Self, Self::Error> {
+                try_from_impl!(data, $attribute_data_type, $vec_data_type)
+            }
+        }
+
+        impl<'a> TryFrom<&'a AttributeData> for &'a Vec<$vec_data_type> {
+            type Error = String;
+
+            fn try_from(data: &'a AttributeData) -> std::result::Result<Self, Self::Error> {
+                try_from_impl!(data, $attribute_data_type, $vec_data_type)
+            }
+        }
+
+        impl<'a> TryFrom<&'a mut AttributeData> for &'a mut Vec<$vec_data_type> {
+            type Error = String;
+
+            fn try_from(data: &'a mut AttributeData) -> std::result::Result<Self, Self::Error> {
+                try_from_impl!(data, $attribute_data_type, $vec_data_type)
+            }
+        }
+    };
+}
+try_from_attribute_data!(U8, u8);
+try_from_attribute_data!(I64, i64);
+try_from_attribute_data!(U64, u64);
+try_from_attribute_data!(F32, f32);
+try_from_attribute_data!(F64, f64);
+try_from_attribute_data!(U8Vec3, Vector3<u8>);
+try_from_attribute_data!(F64Vec3, Vector3<f64>);
+
 /// General structure that contains points and attached feature attributes.
+#[derive(Debug, Clone)]
 pub struct PointsBatch {
     pub position: Vec<Vector3<f64>>,
     // BTreeMap for deterministic iteration order.
     pub attributes: BTreeMap<String, AttributeData>,
+}
+
+impl PointsBatch {
+    pub fn get_attribute_vec<'a, T>(
+        &'a self,
+        key: impl AsRef<str>,
+    ) -> std::result::Result<&'a Vec<T>, String>
+    where
+        &'a Vec<T>: TryFrom<&'a AttributeData, Error = String>,
+    {
+        self.attributes
+            .get(key.as_ref())
+            .ok_or_else(|| format!("Attribute '{}' not found.", key.as_ref()))
+            .and_then(|val| val.try_into())
+    }
+
+    pub fn get_attribute_vec_mut<'a, T>(
+        &'a mut self,
+        key: impl AsRef<str>,
+    ) -> std::result::Result<&'a mut Vec<T>, String>
+    where
+        &'a mut Vec<T>: TryFrom<&'a mut AttributeData, Error = String>,
+    {
+        self.attributes
+            .get_mut(key.as_ref())
+            .ok_or_else(|| format!("Attribute '{}' not found.", key.as_ref()))
+            .and_then(|val| val.try_into())
+    }
+
+    pub fn remove_attribute_vec<T>(
+        &mut self,
+        key: impl AsRef<str>,
+    ) -> std::result::Result<Vec<T>, String>
+    where
+        Vec<T>: TryFrom<AttributeData, Error = String>,
+    {
+        self.attributes
+            .remove(key.as_ref())
+            .ok_or_else(|| format!("Attribute '{}' not found.", key.as_ref()))
+            .and_then(|val| val.try_into())
+    }
 }
 
 pub use point_viewer_proto_rust::proto;

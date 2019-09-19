@@ -465,6 +465,9 @@ impl NodeWriter<PointsBatch> for PlyNodeWriter {
     }
 
     fn write(&mut self, p: &PointsBatch) -> io::Result<()> {
+        if p.position.is_empty() {
+            return Ok(());
+        }
         if self.point_count == 0 {
             self.create_header(
                 &p.attributes
@@ -596,7 +599,7 @@ impl PlyNodeWriter {
         }
         for (name, data_str, num_properties) in elements {
             match &name[..] {
-                "color" => {
+                "color" | "rgb" | "rgba" => {
                     let colors = ["red", "green", "blue", "alpha"];
                     for color in colors.iter().take(*num_properties) {
                         let prop = &["property", " ", data_str, " ", color, "\n"].concat();

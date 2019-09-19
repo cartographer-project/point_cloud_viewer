@@ -329,12 +329,7 @@ where
 
     /// Updates the offset and binds the texture
     pub fn submit(&mut self) {
-        unsafe {
-            self.u_texture_offset.submit();
-
-            self.gl.ActiveTexture(opengl::TEXTURE0 + self.texture_unit);
-            self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
-        }
+        self.u_texture_offset.submit();
     }
 }
 
