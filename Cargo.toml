@@ -41,10 +41,6 @@ structopt = "0.2.18"
 walkdir = "2.2.8"
 rand = "0.7.2"
 
-[[bin]]
-name = "generate_and_query"
-path = "src/bench/generate_and_query.rs"
-
 [dependencies.point_viewer_proto_rust]
 path = "point_viewer_proto_rust"
 
