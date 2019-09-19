@@ -236,7 +236,7 @@ impl Camera {
 
         let elapsed_seconds = elapsed.num_milliseconds() as f64 / 1000.;
 
-        const TURNING_SPEED: Rad<f64> = Rad(0.15);
+        const TURNING_SPEED: Rad<f64> = Rad(0.5);
         if self.turning_left {
             self.rotation_speed.theta += TURNING_SPEED;
         }
