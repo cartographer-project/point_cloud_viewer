@@ -73,6 +73,7 @@ impl S2Meta {
     pub fn from_proto(meta_proto: proto::Meta) -> Result<Self> {
         // check if the meta is meant to be for S2 point cloud
         if meta_proto.version != CURRENT_VERSION {
+            // from version 12
             return Err(ErrorKind::InvalidInput(format!(
                 "No S2 Point cloud supported with version {}",
                 meta_proto.version
@@ -80,7 +81,10 @@ impl S2Meta {
             .into());
         }
         if !(meta_proto.version == CURRENT_VERSION && meta_proto.has_s2()) {
-            return Err(ErrorKind::InvalidInput("No s2 meta found".to_string()).into());
+            return Err(ErrorKind::InvalidInput(
+                "This meta does not describe s2 point clouds".to_string(),
+            )
+            .into());
         }
 
         let s2_meta_proto = meta_proto.get_s2();
@@ -99,7 +103,6 @@ impl S2Meta {
         // attributes
         let mut attributes = HashMap::default();
         for attr in s2_meta_proto.attributes.iter() {
-            //let d_type: proto::AttributeDataType = ;
             let attr_type: crate::AttributeDataType =
                 crate::AttributeDataType::from_proto(attr.get_data_type())?;
             attributes.insert(attr.name.to_owned(), attr_type);
