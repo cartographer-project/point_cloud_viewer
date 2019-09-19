@@ -329,9 +329,7 @@ where
 
     /// Updates the offset and binds the texture
     pub fn submit(&mut self) {
-        unsafe {
-            self.u_texture_offset.submit();
-        }
+        self.u_texture_offset.submit();
     }
 }
 
