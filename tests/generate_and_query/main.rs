@@ -1,7 +1,7 @@
 use point_viewer::octree::build_octree;
 use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2Splitter};
 use random_points::{Batched, RandomPointsOnEarth};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 use structopt::StructOpt;
 
@@ -9,8 +9,8 @@ mod random_points;
 
 #[derive(StructOpt, Debug)]
 struct CommandlineArguments {
-    /// Output directory to write the octree into.
-    #[structopt(long = "output_directory", parse(from_os_str))]
+    /// Output directory to write the point clouds into.
+    #[structopt(long = "output_directory", parse(from_os_str), default_value = "/tmp/test_point_clouds")]
     output_directory: PathBuf,
 
     /// Minimal precision that this point cloud should have.
@@ -18,15 +18,15 @@ struct CommandlineArguments {
     #[structopt(long = "resolution", default_value = "0.001")]
     resolution: f64,
 
-    /// Width of the area to generate points for (used for local x and y)
+    /// Width of the area to generate points for (used for local x and y), in meters
     #[structopt(long = "width", default_value = "200.0")]
     width: f64,
 
-    /// Height of the area to generate points for
+    /// Height of the area to generate points for, in meters
     #[structopt(long = "height", default_value = "20.0")]
     height: f64,
 
-    /// The number of threads used to shard octree building. Set this as high as possible for SSDs.
+    /// The number of threads used to shard octree building.
     #[structopt(long = "num_threads", default_value = "10")]
     num_threads: usize,
 
@@ -34,13 +34,15 @@ struct CommandlineArguments {
     #[structopt(long = "num_points", default_value = "1000000")]
     num_points: usize,
 
-    /// The number of points in the test point cloud
+    /// The batch size used for building the S2 point cloud
     #[structopt(long = "batch_size", default_value = "1000")]
     batch_size: usize,
 }
 
+#[test]
 fn main() {
     let args = CommandlineArguments::from_args();
+    assert!(!Path::new(&args.output_directory).exists());
     let mut points_oct = RandomPointsOnEarth::new(args.width, args.height);
     let points_s2 = points_oct.clone();
     let pool = scoped_pool::Pool::new(args.num_threads);
@@ -77,4 +79,5 @@ fn main() {
         args.num_threads, elapsed_oct
     );
     println!("S2 cells creation (single thread) took {:?}", elapsed_s2);
+    std::fs::remove_dir_all(args.output_directory).unwrap();
 }
