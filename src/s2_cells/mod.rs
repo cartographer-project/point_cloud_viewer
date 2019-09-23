@@ -15,8 +15,6 @@ use s2::region::Region;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-const XYZ : &'static str = "xyz";
-
 pub struct S2Cells {
     data_provider: Box<dyn DataProvider>,
     cells: FnvHashMap<CellID, Cell>,
@@ -39,23 +37,25 @@ impl S2CellMeta {
 
 pub struct S2Meta {
     cells: FnvHashMap<CellID, S2CellMeta>,
-    attributes: HashMap<String, AttributeDataType>
+    attributes: HashMap<String, AttributeDataType>,
 }
 
 impl S2Meta {
-    pub fn new( cells : FnvHashMap<CellID, S2CellMeta>, attributes: HashMap<String, AttributeDataType>) -> Self{
-        S2Meta{ cells, attributes}
+    pub fn new(
+        cells: FnvHashMap<CellID, S2CellMeta>,
+        attributes: HashMap<String, AttributeDataType>,
+    ) -> Self {
+        S2Meta { cells, attributes }
     }
 
-
-    pub fn clone_attr_with_xyz<'a>(&'a self) -> HashMap<String, AttributeDataType> {
-       let mut attributes = self.attributes.clone();
-       attributes.insert(XYZ.to_string(), AttributeDataType::F64Vec3 );
-       assert!(self.attributes.contains_key(XYZ));
-       attributes
+    pub fn clone_attr_with_xyz(&self) -> HashMap<String, AttributeDataType> {
+        let mut attributes = self.attributes.clone();
+        attributes.insert("xyz".to_string(), AttributeDataType::F64Vec3);
+        assert!(self.attributes.contains_key("xyz"));
+        attributes
     }
 
-    pub fn get_cells(&self) -> &FnvHashMap<CellID, S2CellMeta>{
+    pub fn get_cells(&self) -> &FnvHashMap<CellID, S2CellMeta> {
         &self.cells
     }
 

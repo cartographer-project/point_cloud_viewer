@@ -161,6 +161,6 @@ where
     }
 
     pub fn get_meta(self) -> S2Meta {
-        S2Meta::new( self.cell_stats, self.attributes_seen.into_iter().collect())
+        S2Meta::new(self.cell_stats, self.attributes_seen.into_iter().collect())
     }
 }
