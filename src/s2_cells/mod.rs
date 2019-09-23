@@ -49,10 +49,11 @@ impl S2Meta {
         S2Meta { cells, attributes }
     }
 
-
-    pub fn iter_attr_with_xyz<'a>(&'a self) -> impl Iterator <Item = (&'a str, AttributeDataType)> {
-        self.attributes.iter().map(|(name, d_type)| (name.as_str(), *d_type)).chain(iter::once(("xyz", AttributeDataType::F64Vec3)))
-       
+    pub fn iter_attr_with_xyz<'a>(&'a self) -> impl Iterator<Item = (&'a str, AttributeDataType)> {
+        self.attributes
+            .iter()
+            .map(|(name, d_type)| (name.as_str(), *d_type))
+            .chain(iter::once(("xyz", AttributeDataType::F64Vec3)))
     }
 
     pub fn get_cells(&self) -> &FnvHashMap<CellID, S2CellMeta> {
