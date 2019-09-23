@@ -53,7 +53,7 @@ pub fn attribute_extension(attribute: &str) -> &str {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq)]
 pub enum AttributeDataType {
     U8,
     I64,
