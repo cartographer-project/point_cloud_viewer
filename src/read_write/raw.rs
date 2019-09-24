@@ -305,9 +305,7 @@ impl RawNodeReader {
             ))
         }
     }
-}
 
-impl RawNodeReader {
     pub fn new(
         xyz_reader: Box<dyn Read + Send>,
         attribute_readers: HashMap<String, AttributeReader>,
