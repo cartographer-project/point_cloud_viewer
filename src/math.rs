@@ -22,6 +22,13 @@ use num_traits::Float;
 use std::fmt::Debug;
 use std::ops::Mul;
 
+/// Lower bound for distance from earth's center.
+/// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
+pub const EARTH_RADIUS_MIN_M: f64 = 6_352_800.0;
+/// Upper bound for distance from earth's center.
+/// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
+pub const EARTH_RADIUS_MAX_M: f64 = 6_384_400.0;
+
 pub fn clamp<T>(value: Vector3<T>, low: Vector3<T>, high: Vector3<T>) -> Vector3<T>
 where
     T: BaseNum,
@@ -260,10 +267,27 @@ impl<S: BaseFloat> From<&Aabb3<S>> for Obb<S> {
 
 impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
     fn from(aabb: Aabb3<S>) -> Self {
-        Obb::new(
-            Isometry3::new(Quaternion::one(), EuclideanSpace::to_vec(aabb.center())),
-            aabb.dim() / (S::one() + S::one()),
-        )
+        Self::from(&aabb)
+    }
+}
+
+impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
+    fn from(beam: &OrientedBeam<S>) -> Self {
+        let beam_isometry = beam.isometry_inv.inverse();
+        let z_off = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap()
+            - beam_isometry.translation.magnitude();
+        let pt_off = Point3::new(S::zero(), S::zero(), z_off);
+        let translation = beam_isometry.rotation.rotate_point(pt_off) + beam_isometry.translation;
+        let isometry = Isometry3::new(beam_isometry.rotation, translation.to_vec());
+        let z_half_extent = S::from(0.5 * (EARTH_RADIUS_MAX_M - EARTH_RADIUS_MIN_M)).unwrap();
+        let half_extent = Vector3::new(beam.half_extent.x, beam.half_extent.y, z_half_extent);
+        Self::new(isometry, half_extent)
+    }
+}
+
+impl<S: BaseFloat> From<OrientedBeam<S>> for Obb<S> {
+    fn from(beam: OrientedBeam<S>) -> Self {
+        Self::from(&beam)
     }
 }
 

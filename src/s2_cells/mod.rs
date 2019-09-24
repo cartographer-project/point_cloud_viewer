@@ -145,7 +145,9 @@ impl PointCloud for S2Cells {
                     .map(|p| Point3::from_homogeneous(world_from_clip * p));
                 self.cells_in_convex_hull(points)
             }
-            PointLocation::OrientedBeam(_) => unimplemented!(),
+            PointLocation::OrientedBeam(beam) => {
+                self.cells_in_obb(&Obb::from(beam), query.global_from_local.as_ref())
+            }
         }
     }
 
