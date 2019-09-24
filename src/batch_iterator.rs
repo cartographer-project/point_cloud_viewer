@@ -1,7 +1,7 @@
 use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Frustum, Isometry3, Obb, OrientedBeam};
-use crate::read_write::{Encoding, NodeIterator, RawNodeReader};
+use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeData, Point, PointsBatch};
 use cgmath::{Matrix4, Point3, Vector3};
 use collision::Aabb3;
@@ -45,7 +45,7 @@ impl PointQuery {
 /// Essentially a specialized version of the Filter iterator adapter
 pub struct FilteredPointsIterator {
     pub culling: Box<dyn PointCulling<f64>>,
-    pub node_iterator: NodeIterator<RawNodeReader>,
+    pub node_iterator: NodeIterator,
 }
 
 impl Iterator for FilteredPointsIterator {

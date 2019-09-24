@@ -5,7 +5,7 @@ use crate::AttributeDataType;
 use std::collections::{HashMap, VecDeque};
 use std::io::BufReader;
 
-impl NodeIterator<RawNodeReader> {
+impl NodeIterator {
     pub fn from_data_provider<Id: ToString>(
         data_provider: &dyn DataProvider,
         encoding: Encoding,
