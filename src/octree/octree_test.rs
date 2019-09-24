@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use crate::batch_iterator::{BatchIterator, PointLocation, PointQuery};
     use crate::color::Color;
     use crate::errors::Result;
     use crate::octree::{self, build_octree, Octree};
+    use crate::parallel_iterator::{ParallelIterator, PointLocation, PointQuery};
     use crate::{Point, PointsBatch};
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};
@@ -96,7 +96,7 @@ mod tests {
             global_from_local: None,
         };
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
-        let mut batch_iterator = BatchIterator::new(
+        let mut parallel_iterator = ParallelIterator::new(
             octree_slice,
             &location,
             batch_size,
@@ -104,7 +104,7 @@ mod tests {
             4,
         );
 
-        let _err_stop = batch_iterator
+        let _err_stop = parallel_iterator
             .try_for_each_batch(callback_func)
             .expect_err("Test error");
 
@@ -154,9 +154,10 @@ mod tests {
         };
 
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
-        let mut batch_iterator = BatchIterator::new(octree_slice, &location, batch_size, 2, 2);
+        let mut parallel_iterator =
+            ParallelIterator::new(octree_slice, &location, batch_size, 2, 2);
 
-        let _err_stop = batch_iterator
+        let _err_stop = parallel_iterator
             .try_for_each_batch(callback_func)
             .expect("Test OK");
         assert!(delivered_points == NUM_POINTS); // only delivers all the points in the octree
@@ -198,7 +199,7 @@ mod tests {
             global_from_local: None,
         };
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
-        let mut batch_iterator = BatchIterator::new(
+        let mut parallel_iterator = ParallelIterator::new(
             octree_slice,
             &location,
             batch_size,
@@ -206,7 +207,7 @@ mod tests {
             4,
         );
 
-        let _err_stop = batch_iterator
+        let _err_stop = parallel_iterator
             .try_for_each_batch(callback_func)
             .expect_err("Test error");
 

@@ -1,7 +1,7 @@
-use crate::batch_iterator::{FilteredPointsIterator, PointCloud, PointLocation, PointQuery};
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::math::{Isometry3, Obb};
+use crate::parallel_iterator::{FilteredPointsIterator, PointCloud, PointLocation, PointQuery};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, CURRENT_VERSION};
