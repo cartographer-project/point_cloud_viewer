@@ -274,12 +274,12 @@ impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
 impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
     fn from(beam: &OrientedBeam<S>) -> Self {
         let beam_isometry = beam.isometry_inv.inverse();
-        let z_off = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap()
-            - beam_isometry.translation.magnitude();
+        let earth_radius_mean = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap();
+        let z_off = earth_radius_mean - beam_isometry.translation.magnitude();
         let pt_off = Point3::new(S::zero(), S::zero(), z_off);
         let translation = beam_isometry.rotation.rotate_point(pt_off) + beam_isometry.translation;
         let isometry = Isometry3::new(beam_isometry.rotation, translation.to_vec());
-        let z_half_extent = S::from(0.5 * (EARTH_RADIUS_MAX_M - EARTH_RADIUS_MIN_M)).unwrap();
+        let z_half_extent = S::from(EARTH_RADIUS_MAX_M).unwrap() - earth_radius_mean;
         let half_extent = Vector3::new(beam.half_extent.x, beam.half_extent.y, z_half_extent);
         Self::new(isometry, half_extent)
     }
