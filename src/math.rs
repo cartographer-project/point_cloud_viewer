@@ -362,7 +362,8 @@ where
     }
 
     fn contains(&self, p: &Point3<S>) -> bool {
-        let Vector3 { x, y, z } = &self.isometry_inv * &p.to_vec();
+        let Point3 { x, y, z } =
+            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
@@ -440,7 +441,8 @@ where
 
     fn contains(&self, p: &Point3<S>) -> bool {
         // What is the point in beam coordinates?
-        let Vector3 { x, y, .. } = &self.isometry_inv * &p.to_vec();
+        let Point3 { x, y, .. } =
+            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
 
