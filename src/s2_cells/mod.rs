@@ -69,6 +69,51 @@ impl S2Meta {
         meta.set_s2(s2_meta);
         meta
     }
+
+    pub fn from_proto(meta_proto: proto::Meta) -> Result<Self> {
+        // check if the meta is meant to be for S2 point cloud
+        if meta_proto.version != CURRENT_VERSION {
+            // from version 12
+            return Err(ErrorKind::InvalidInput(format!(
+                "No S2 point cloud supported with version {}",
+                meta_proto.version
+            ))
+            .into());
+        }
+        if !(meta_proto.version == CURRENT_VERSION && meta_proto.has_s2()) {
+            return Err(ErrorKind::InvalidInput(
+                "This meta does not describe S2 point clouds".to_string(),
+            )
+            .into());
+        }
+
+        let s2_meta_proto = meta_proto.get_s2();
+        // cells, num_points
+        let mut cells = FnvHashMap::default();
+        s2_meta_proto.get_cells().iter().for_each(|cell| {
+            let cell_id = CellID(cell.id as u64);
+            cells.insert(
+                cell_id,
+                S2CellMeta {
+                    num_points: cell.num_points,
+                },
+            );
+        });
+
+        // attributes
+        let mut attributes = HashMap::default();
+        for attr in s2_meta_proto.attributes.iter() {
+            let attr_type: AttributeDataType = AttributeDataType::from_proto(attr.get_data_type())?;
+            attributes.insert(attr.name.to_owned(), attr_type);
+        }
+
+        Ok(S2Meta { cells, attributes })
+    }
+
+    pub fn from_data_provider(data_provider: &dyn DataProvider) -> Result<Self> {
+        let meta = data_provider.meta_proto()?;
+        S2Meta::from_proto(meta)
+    }
 }
 
 /// Just a wrapper that implements Display
