@@ -43,12 +43,12 @@ impl PointQuery {
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
 /// Essentially a specialized version of the Filter iterator adapter
-pub struct FilteredPointsIterator {
+pub struct FilteredIterator {
     pub culling: Box<dyn PointCulling<f64>>,
     pub point_iterator: PointIterator,
 }
 
-impl Iterator for FilteredPointsIterator {
+impl Iterator for FilteredIterator {
     type Item = Point;
 
     fn next(&mut self) -> Option<Point> {

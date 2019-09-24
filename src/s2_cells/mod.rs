@@ -1,6 +1,6 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
-use crate::iterator::{FilteredPointsIterator, PointCloud, PointLocation, PointQuery};
+use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
 use crate::math::{Isometry3, Obb};
 use crate::proto;
 use crate::read_write::{Encoding, PointIterator};
@@ -129,7 +129,7 @@ impl std::fmt::Display for S2CellId {
 
 impl PointCloud for S2Cells {
     type Id = S2CellId;
-    type PointsIter = FilteredPointsIterator;
+    type PointsIter = FilteredIterator;
 
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         match &query.location {
@@ -166,7 +166,7 @@ impl PointCloud for S2Cells {
             &node_id,
             num_points,
         )?;
-        Ok(FilteredPointsIterator {
+        Ok(FilteredIterator {
             culling,
             point_iterator,
         })

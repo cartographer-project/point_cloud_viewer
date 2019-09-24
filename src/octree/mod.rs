@@ -25,7 +25,7 @@ use std::collections::BinaryHeap;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
 
-use crate::iterator::{FilteredPointsIterator, PointCloud, PointQuery};
+use crate::iterator::{FilteredIterator, PointCloud, PointQuery};
 
 mod generation;
 pub use self::generation::{build_octree, build_octree_from_file};
@@ -334,7 +334,7 @@ impl Octree {
 
 impl PointCloud for Octree {
     type Id = NodeId;
-    type PointsIter = FilteredPointsIterator;
+    type PointsIter = FilteredIterator;
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         let culling = query.get_point_culling();
         let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
@@ -352,7 +352,7 @@ impl PointCloud for Octree {
         &'a self,
         query: &PointQuery,
         node_id: NodeId,
-    ) -> Result<FilteredPointsIterator> {
+    ) -> Result<FilteredIterator> {
         let culling = query.get_point_culling();
         let point_iterator = PointIterator::from_data_provider(
             &*self.data_provider,
@@ -360,7 +360,7 @@ impl PointCloud for Octree {
             &node_id,
             self.nodes[&node_id].num_points as usize,
         )?;
-        Ok(FilteredPointsIterator {
+        Ok(FilteredIterator {
             culling,
             point_iterator,
         })
