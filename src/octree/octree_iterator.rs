@@ -1,11 +1,11 @@
 use crate::errors::*;
 use crate::octree::{ChildIndex, DataProvider, NodeId, Octree};
-use crate::read_write::{AttributeReader, Encoding, NodeIterator, RawNodeReader};
+use crate::read_write::{AttributeReader, Encoding, PointIterator, RawNodeReader};
 use crate::AttributeDataType;
 use std::collections::{HashMap, VecDeque};
 use std::io::BufReader;
 
-impl NodeIterator {
+impl PointIterator {
     pub fn from_data_provider<Id: ToString>(
         data_provider: &dyn DataProvider,
         encoding: Encoding,
@@ -13,7 +13,7 @@ impl NodeIterator {
         num_points: usize,
     ) -> Result<Self> {
         if num_points == 0 {
-            return Ok(NodeIterator::default());
+            return Ok(PointIterator::default());
         }
 
         let mut attributes = HashMap::new();

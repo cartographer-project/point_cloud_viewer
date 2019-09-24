@@ -1,7 +1,7 @@
 use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Frustum, Isometry3, Obb, OrientedBeam};
-use crate::read_write::{Encoding, NodeIterator};
+use crate::read_write::{Encoding, PointIterator};
 use crate::{AttributeData, Point, PointsBatch};
 use cgmath::{Matrix4, Point3, Vector3};
 use collision::Aabb3;
@@ -45,7 +45,7 @@ impl PointQuery {
 /// Essentially a specialized version of the Filter iterator adapter
 pub struct FilteredPointsIterator {
     pub culling: Box<dyn PointCulling<f64>>,
-    pub node_iterator: NodeIterator,
+    pub point_iterator: PointIterator,
 }
 
 impl Iterator for FilteredPointsIterator {
@@ -53,7 +53,7 @@ impl Iterator for FilteredPointsIterator {
 
     fn next(&mut self) -> Option<Point> {
         let culling = &self.culling;
-        self.node_iterator.find(|pt| {
+        self.point_iterator.find(|pt| {
             let pos = <Point3<f64> as cgmath::EuclideanSpace>::from_vec(pt.position);
             culling.contains(&pos)
         })

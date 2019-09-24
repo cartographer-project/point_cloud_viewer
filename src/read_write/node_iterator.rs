@@ -16,15 +16,15 @@ use crate::read_write::RawNodeReader;
 use crate::Point;
 
 /// Streams points from our data provider representation.
-pub struct NodeIterator {
+pub struct PointIterator {
     reader: Option<RawNodeReader>,
     num_points: usize,
     point_count: usize,
 }
 
-impl Default for NodeIterator {
+impl Default for PointIterator {
     fn default() -> Self {
-        NodeIterator {
+        PointIterator {
             reader: None,
             num_points: 0,
             point_count: 0,
@@ -32,13 +32,13 @@ impl Default for NodeIterator {
     }
 }
 
-impl NodeIterator {
+impl PointIterator {
     pub fn new(reader: RawNodeReader, num_points: usize) -> Self {
         if num_points == 0 {
-            return NodeIterator::default();
+            return PointIterator::default();
         }
 
-        NodeIterator {
+        PointIterator {
             reader: Some(reader),
             num_points,
             point_count: 0,
@@ -46,7 +46,7 @@ impl NodeIterator {
     }
 }
 
-impl Iterator for NodeIterator {
+impl Iterator for PointIterator {
     type Item = Point;
 
     fn size_hint(&self) -> (usize, Option<usize>) {
