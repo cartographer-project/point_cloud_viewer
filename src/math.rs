@@ -250,6 +250,7 @@ impl<S: BaseFloat> Isometry3<S> {
 
 #[derive(Debug, Clone)]
 pub struct Obb<S> {
+    pub isometry: Isometry3<S>,
     pub isometry_inv: Isometry3<S>,
     pub half_extent: Vector3<S>,
     pub corners: [Point3<S>; 8],
@@ -273,12 +274,10 @@ impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
 
 impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
     fn from(beam: &OrientedBeam<S>) -> Self {
-        let beam_isometry = beam.isometry_inv.inverse();
         let earth_radius_mean = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap();
-        let z_off = earth_radius_mean - beam_isometry.translation.magnitude();
-        let pt_off = Point3::new(S::zero(), S::zero(), z_off);
-        let translation = beam_isometry.rotation.rotate_point(pt_off) + beam_isometry.translation;
-        let isometry = Isometry3::new(beam_isometry.rotation, translation.to_vec());
+        let z_off = earth_radius_mean - beam.isometry.translation.magnitude();
+        let vec_off = Vector3::new(S::zero(), S::zero(), z_off);
+        let isometry = Isometry3::new(beam.isometry.rotation, &beam.isometry * &vec_off);
         let z_half_extent = S::from(EARTH_RADIUS_MAX_M).unwrap() - earth_radius_mean;
         let half_extent = Vector3::new(beam.half_extent.x, beam.half_extent.y, z_half_extent);
         Self::new(isometry, half_extent)
@@ -298,6 +297,7 @@ impl<S: BaseFloat> Obb<S> {
             half_extent,
             corners: Obb::precompute_corners(&isometry, &half_extent),
             separating_axes: Obb::precompute_separating_axes(&isometry.rotation),
+            isometry,
         }
     }
 
@@ -360,18 +360,14 @@ where
     }
 
     fn contains(&self, p: &Point3<S>) -> bool {
-        let Point3 { x, y, z } =
-            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
+        let Vector3 { x, y, z } = &self.isometry_inv * &p.to_vec();
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(
-            isometry * &self.isometry_inv.inverse(),
-            self.half_extent,
-        ))
+        Box::new(Self::new(isometry * &self.isometry, self.half_extent))
     }
 }
 
@@ -380,6 +376,7 @@ pub struct OrientedBeam<S> {
     // The members here are an implementation detail and differ from the
     // minimal representation in the gRPC message to speed up operations.
     // Isometry_inv is the transform from world coordinates into "beam coordinates".
+    isometry: Isometry3<S>,
     isometry_inv: Isometry3<S>,
     half_extent: Vector2<S>,
     corners: [Point3<S>; 4],
@@ -393,6 +390,7 @@ impl<S: BaseFloat> OrientedBeam<S> {
             half_extent,
             corners: OrientedBeam::precompute_corners(&isometry, &half_extent),
             separating_axes: OrientedBeam::precompute_separating_axes(&isometry.rotation),
+            isometry,
         }
     }
 
@@ -440,16 +438,12 @@ where
 
     fn contains(&self, p: &Point3<S>) -> bool {
         // What is the point in beam coordinates?
-        let Point3 { x, y, .. } =
-            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
+        let Vector3 { x, y, .. } = &self.isometry_inv * &p.to_vec();
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(
-            isometry * &self.isometry_inv.inverse(),
-            self.half_extent,
-        ))
+        Box::new(Self::new(isometry * &self.isometry, self.half_extent))
     }
 }
 
