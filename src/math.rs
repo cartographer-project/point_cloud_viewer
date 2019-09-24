@@ -272,6 +272,8 @@ impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
     }
 }
 
+/// Creates an object oriented box by intersecting the oriented beam with the minimum and maximum
+/// earth radius. The OBB has the same orientation and extents as the beam.
 impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
     fn from(beam: &OrientedBeam<S>) -> Self {
         let earth_radius_mean = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap();
