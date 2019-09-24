@@ -5,7 +5,10 @@ extern crate test;
 use lazy_static::lazy_static;
 use point_viewer::octree::build_octree;
 use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2Splitter};
+use protobuf::Message;
 use random_points::{Batched, RandomPointsOnEarth};
+use std::fs::File;
+use std::io::BufWriter;
 use std::path::Path;
 use tempdir::TempDir;
 use test::Bencher;
@@ -63,6 +66,9 @@ fn make_s2_cells(args: &Arguments, dir: &Path) {
     Batched::new(points_s2, args.batch_size)
         .try_for_each(|batch| s2_writer.write(&batch))
         .expect("Writing failed");
+    let meta = s2_writer.get_meta().to_proto();
+    let mut meta_writer = BufWriter::new(File::create(dir.join("meta.pb")).unwrap());
+    meta.write_to_writer(&mut meta_writer).unwrap();
 }
 
 lazy_static! {
@@ -82,7 +88,8 @@ lazy_static! {
 
 #[bench]
 fn bench_octree_building_multithreaded(b: &mut Bencher) {
-    let args = Arguments::default();
+    let mut args = Arguments::default();
+    args.num_points = 100_000;
     b.iter(|| {
         let temp_dir = TempDir::new("octree").unwrap();
         make_octree(&args, temp_dir.path());
@@ -91,7 +98,8 @@ fn bench_octree_building_multithreaded(b: &mut Bencher) {
 
 #[bench]
 fn bench_s2_building_singlethreaded(b: &mut Bencher) {
-    let args = Arguments::default();
+    let mut args = Arguments::default();
+    args.num_points = 100_000;
     b.iter(|| {
         let temp_dir = TempDir::new("s2").unwrap();
         make_s2_cells(&args, temp_dir.path());
