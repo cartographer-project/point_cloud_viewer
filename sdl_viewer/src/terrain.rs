@@ -9,7 +9,7 @@ use image::{LumaA, Rgba};
 use opengl::types::{GLsizeiptr, GLuint};
 use point_viewer::math::Isometry3;
 use point_viewer::octree::Octree;
-use std::convert::{TryInto, TryFrom};
+use std::convert::{TryFrom, TryInto};
 use std::ffi::c_void;
 use std::mem;
 use std::rc::Rc;

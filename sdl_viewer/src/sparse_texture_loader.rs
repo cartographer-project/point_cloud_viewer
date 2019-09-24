@@ -1,11 +1,116 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::{Decomposed, Quaternion, Vector2, Vector3};
-use image::{GenericImage, GenericImageView, ImageBuffer, LumaA, Rgba};
+use image::{GenericImage, GenericImageView, ImageBuffer, LumaA, Pixel, Rgba};
 use num_integer::Integer;
 use point_viewer::math::Isometry3;
 use std::collections::HashMap;
 use std::fs::File; // for div_floor
-use std::io::{BufReader, Read};
+use std::io::{BufReader};
+use std::path::Path;
+
+/// Little trait that just dispatches to the correct read_xyz_into call for the image type
+pub trait ReadLittleEndian {
+    fn read_from<R: ReadBytesExt>(&mut self, rdr: &mut R) -> Result<(), std::io::Error>;
+}
+
+impl ReadLittleEndian for ImageBuffer<LumaA<f32>, Vec<f32>> {
+    fn read_from<R: ReadBytesExt>(&mut self, rdr: &mut R) -> Result<(), std::io::Error> {
+        rdr.read_f32_into::<LittleEndian>(self)
+    }
+}
+
+impl ReadLittleEndian for ImageBuffer<Rgba<u8>, Vec<u8>> {
+    fn read_from<R: ReadBytesExt>(&mut self, rdr: &mut R) -> Result<(), std::io::Error> {
+        rdr.read_exact(self)
+    }
+}
+
+type TilePos = (i32, i32);
+
+pub struct TiledTexture<P: Pixel> {
+    tile_size: u32,
+    tiles: HashMap<TilePos, ImageBuffer<P, Vec<P::Subpixel>>>,
+}
+
+impl<P> TiledTexture<P>
+where
+    P: Pixel + 'static,
+    ImageBuffer<P, Vec<P::Subpixel>>: ReadLittleEndian,
+{
+    pub fn new<I, Q>(tile_size: u32, tile_iter: I) -> Result<Self, std::io::Error>
+    where
+        I: Iterator<Item = ((i32, i32), Q)>,
+        Q: AsRef<Path>,
+    {
+        let mut tiles = HashMap::new();
+        for (xy, file_path) in tile_iter {
+            let mut tile = ImageBuffer::new(tile_size, tile_size);
+            let mut tile_reader = BufReader::new(File::open(file_path)?);
+            tile.read_from(&mut tile_reader)?;
+            let previous_entry = tiles.insert(xy, tile);
+            assert!(previous_entry.is_none());
+        }
+
+        Ok(TiledTexture { tile_size, tiles })
+    }
+
+    /// Loads the specified region of the sparse texture into a ImageBuffer
+    pub fn load(
+        &self,
+        min_x: i64,
+        min_y: i64,
+        width: usize,
+        height: usize,
+    ) -> ImageBuffer<P, Vec<P::Subpixel>> {
+        let ts = &i64::from(self.tile_size);
+        let max_x = min_x + width as i64;
+        let max_y = min_y + height as i64;
+        // Compute the tile position and within-tile position of the tile in the lower left corner
+        let (min_tile_x, min_mod_x) = min_x.div_mod_floor(ts);
+        let (min_tile_y, min_mod_y) = min_y.div_mod_floor(ts);
+        // Same for the upper right corner
+        let (max_tile_x, max_mod_x) = max_x.div_mod_floor(ts);
+        let (max_tile_y, max_mod_y) = max_y.div_mod_floor(ts);
+        let mut output_buffer = ImageBuffer::new(width as u32, height as u32);
+        for tile_x in min_tile_x..=max_tile_x {
+            for tile_y in min_tile_y..=max_tile_y {
+                // At the left border, start with the correct offset
+                let x_off_src = if tile_x == min_tile_x {
+                    min_mod_x
+                } else {
+                    0
+                };
+                // Same for the lower border
+                let y_off_src = if tile_y == min_tile_y {
+                    min_mod_y
+                } else {
+                    0
+                };
+                // Where to place the tile in the destination image
+                let x_off_dst = tile_x * i64::from(self.tile_size) + x_off_src - min_x;
+                let y_off_dst = tile_y * i64::from(self.tile_size) + y_off_src - min_y;
+
+                let len_x = if tile_x == max_tile_x {
+                    max_mod_x - x_off_src
+                } else {
+                    self.tile_size as i64 - x_off_src
+                };
+
+                let len_y = if tile_y == max_tile_y {
+                    max_mod_y - y_off_src
+                } else {
+                    self.tile_size as i64 - y_off_src
+                };
+                if let Some(src) = self.tiles.get(&(tile_x as i32, tile_y as i32)) {
+                    let roi = src.view(x_off_src as u32, y_off_src as u32, len_x as u32, len_y as u32);
+                    output_buffer.copy_from(&roi, x_off_dst as u32, y_off_dst as u32);
+                }
+            }
+        }
+        output_buffer
+    }
+}
+
 
 pub struct HeightAndColor {
     pub height: ImageBuffer<LumaA<f32>, Vec<f32>>,
@@ -17,8 +122,8 @@ pub struct SparseTextureLoader {
     origin_y: f64,
     origin_z: f64,
     resolution_m: f64,
-    tile_size: u32,
-    tiles: HashMap<(i32, i32), HeightAndColor>,
+    height_tiles: TiledTexture<LumaA<f32>>,
+    color_tiles: TiledTexture<Rgba<u8>>,
 }
 
 impl SparseTextureLoader {
@@ -49,41 +154,32 @@ impl SparseTextureLoader {
         }
         .into();
         let num_tiles = meta.read_u32::<LittleEndian>()?;
-
-        let mut tiles = HashMap::new();
-        let mut height_contents = vec![0.0; tile_size as usize * tile_size as usize * 2];
-        let mut color_contents = vec![0; tile_size as usize * tile_size as usize * 4];
+        let mut tile_positions = Vec::with_capacity(num_tiles as usize);
         for _ in 0..num_tiles {
             let x = meta.read_i32::<LittleEndian>()?;
             let y = meta.read_i32::<LittleEndian>()?;
-            let height_file_path = path.as_ref().join(format!("x{:08}_y{:08}.height", x, y));
-            let color_file_path = path.as_ref().join(format!("x{:08}_y{:08}.color", x, y));
-            let mut height_rdr = BufReader::new(File::open(height_file_path)?);
-            height_rdr.read_f32_into::<LittleEndian>(&mut height_contents)?;
-            let height_buffer =
-                ImageBuffer::from_raw(tile_size, tile_size, height_contents.clone())
-                    .expect("Corrupt contents");
-            let mut color_rdr = BufReader::new(File::open(color_file_path)?);
-            color_rdr.read_exact(&mut color_contents)?;
-            let color_buffer = ImageBuffer::from_raw(tile_size, tile_size, color_contents.clone())
-                .expect("Corrupt contents");
-            let previous_entry = tiles.insert(
-                (x, y),
-                HeightAndColor {
-                    height: height_buffer,
-                    color: color_buffer,
-                },
-            );
-            assert!(previous_entry.is_none());
+            tile_positions.push((x, y));
         }
+        let height_tiles = tile_positions.iter().map(|xy| {
+            let (x, y) = xy;
+            let height_file_path = path.as_ref().join(format!("x{:08}_y{:08}.height", x, y));
+            (*xy, height_file_path)
+        });
+        let color_tiles = tile_positions.iter().map(|xy| {
+            let (x, y) = xy;
+            let color_file_path = path.as_ref().join(format!("x{:08}_y{:08}.color", x, y));
+            (*xy, color_file_path)
+        });
+        let height_tiles = TiledTexture::new(tile_size, height_tiles)?;
+        let color_tiles = TiledTexture::new(tile_size, color_tiles)?;
 
         let loader = SparseTextureLoader {
             origin_x,
             origin_y,
             origin_z,
             resolution_m,
-            tile_size,
-            tiles,
+            height_tiles,
+            color_tiles,
         };
         Ok((loader, world_from_terrain))
     }
@@ -97,123 +193,12 @@ impl SparseTextureLoader {
     }
 
     pub fn load(&self, min_x: i64, min_y: i64, width: usize, height: usize) -> HeightAndColor {
-        // return self.load_dummy2(min_x, min_y, width, height);
-        let ts = &i64::from(self.tile_size);
-        let (min_tile_x, min_mod_x) = min_x.div_mod_floor(ts);
-        let (min_tile_y, min_mod_y) = min_y.div_mod_floor(ts);
-        let max_x = min_x + width as i64;
-        let max_y = min_y + height as i64;
-        let (max_tile_x, max_mod_x) = max_x.div_mod_floor(ts);
-        let (max_tile_y, max_mod_y) = max_y.div_mod_floor(ts);
-        let mut height_buffer =
-            ImageBuffer::from_pixel(width as u32, height as u32, LumaA([0.0; 2]));
-        let mut color_buffer = ImageBuffer::from_pixel(width as u32, height as u32, Rgba([0; 4]));
-        (min_tile_x..=max_tile_x)
-            .flat_map(|tile_x| (min_tile_y..=max_tile_y).map(move |tile_y| (tile_x, tile_y)))
-            .for_each(|(tile_x, tile_y)| {
-                let x_off_src = if tile_x == min_tile_x {
-                    min_mod_x as u32
-                } else {
-                    0
-                };
-                let y_off_src = if tile_y == min_tile_y {
-                    min_mod_y as u32
-                } else {
-                    0
-                };
-
-                let x_off_dst = tile_x * i64::from(self.tile_size) + i64::from(x_off_src) - min_x;
-                let y_off_dst = tile_y * i64::from(self.tile_size) + i64::from(y_off_src) - min_y;
-
-                let len_x = if tile_x == max_tile_x {
-                    max_mod_x as u32 - x_off_src
-                } else {
-                    self.tile_size as u32 - x_off_src
-                };
-
-                let len_y = if tile_y == max_tile_y {
-                    max_mod_y as u32 - y_off_src
-                } else {
-                    self.tile_size as u32 - y_off_src
-                };
-                if let Some(src) = self.tiles.get(&(tile_x as i32, tile_y as i32)) {
-                    let height_roi = src.height.view(x_off_src, y_off_src, len_x, len_y);
-                    let color_roi = src.color.view(x_off_src, y_off_src, len_x, len_y);
-                    height_buffer.copy_from(&height_roi, x_off_dst as u32, y_off_dst as u32);
-                    color_buffer.copy_from(&color_roi, x_off_dst as u32, y_off_dst as u32);
-                }
-            });
-        // super::graphic::debug(&buffer, format!("tex_{}_{}_{}_{}.png", min_x, min_y, width, height));
+        // TODO(nnmm): Make more efficient by computing the intersection in a separate step and sharing the resutl
         HeightAndColor {
-            height: height_buffer,
-            color: color_buffer,
+            height: self.height_tiles.load(min_x, min_y, width, height),
+            color: self.color_tiles.load(min_x, min_y, width, height),
         }
     }
-
-    // fn load_dummy(
-    //     &self,
-    //     min_x: i64,
-    //     min_y: i64,
-    //     width: usize,
-    //     height: usize,
-    // ) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
-    //     use std::collections::hash_map::DefaultHasher;
-    //     use std::hash::Hasher;
-    //     let mut pixels: Vec<f32> = Vec::with_capacity(height * width);
-    //     for iy in min_y..min_y + height as i64 {
-    //         for ix in min_x..min_x + width as i64 {
-    //             let mut h = DefaultHasher::new();
-    //             h.write_i64(ix);
-    //             h.write_i64(iy);
-    //             let hash = h.finish() % 256;
-    //             let hash = hash as f32 / 255.0;
-    //             pixels.push(hash);
-    //             pixels.push(0.0); // TODO
-    //         }
-    //     }
-
-    //     ImageBuffer::from_raw(width as u32, height as u32, pixels).unwrap()
-    // }
-
-    // fn load_dummy2(
-    //     &self,
-    //     min_x: i64,
-    //     min_y: i64,
-    //     width: usize,
-    //     height: usize,
-    // ) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
-    //     let mut pixels: Vec<f32> = Vec::with_capacity(height * width);
-    //     for iy in min_y..min_y + height as i64 {
-    //         for ix in min_x..min_x + width as i64 {
-    //             pixels.push(if ix % 5 == 0 || iy % 5 == 0 { 1.0 } else { 0.0 });
-    //             pixels.push(131071.0); // TODO
-    //         }
-    //     }
-
-    //     ImageBuffer::from_raw(width as u32, height as u32, pixels).unwrap()
-    // }
-
-    // fn load_dummy3(
-    //     &self,
-    //     min_x: i64,
-    //     min_y: i64,
-    //     width: usize,
-    //     height: usize,
-    // ) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
-    //     println!(
-    //         "load(min_x={}, min_y={}, width={}, height={})",
-    //         min_x, min_y, width, height
-    //     );
-    //     let mut pixels: Vec<f32> = Vec::with_capacity(height * width);
-    //     for iy in min_y..min_y + height as i64 {
-    //         for ix in min_x..min_x + width as i64 {
-    //             pixels.push((ix + 4) as f32 + (iy + 4) as f32 / 100.0);
-    //             pixels.push(0.0); // TODO
-    //         }
-    //     }
-    //     println!("{:?}", pixels);
-    //     ImageBuffer::from_raw(width as u32, height as u32, pixels).unwrap()
-    // }
 
     pub fn to_grid_coords(&self, value: &Vector2<f64>) -> Vector2<i64> {
         // TODO: Does this work even for negative values?
