@@ -49,7 +49,7 @@ impl S2Meta {
         S2Meta { cells, attributes }
     }
 
-    pub fn iter_attr_with_xyz<'a>(&'a self) -> impl Iterator<Item = (&'a str, AttributeDataType)> {
+    pub fn iter_attr_with_xyz(&self) -> impl Iterator<Item = (&str, AttributeDataType)> {
         self.attributes
             .iter()
             .map(|(name, d_type)| (name.as_str(), *d_type))
