@@ -1,7 +1,7 @@
 use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Frustum, Isometry3, Obb, OrientedBeam};
-use crate::read_write::{Encoding, NodeIterator, RawNodeReader};
+use crate::read_write::{Encoding, PointIterator};
 use crate::{AttributeData, Point, PointsBatch};
 use cgmath::{Matrix4, Point3, Vector3};
 use collision::Aabb3;
@@ -43,24 +43,24 @@ impl PointQuery {
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
 /// Essentially a specialized version of the Filter iterator adapter
-pub struct FilteredPointsIterator {
+pub struct FilteredIterator {
     pub culling: Box<dyn PointCulling<f64>>,
-    pub node_iterator: NodeIterator<RawNodeReader>,
+    pub point_iterator: PointIterator,
 }
 
-impl Iterator for FilteredPointsIterator {
+impl Iterator for FilteredIterator {
     type Item = Point;
 
     fn next(&mut self) -> Option<Point> {
         let culling = &self.culling;
-        self.node_iterator.find(|pt| {
+        self.point_iterator.find(|pt| {
             let pos = <Point3<f64> as cgmath::EuclideanSpace>::from_vec(pt.position);
             culling.contains(&pos)
         })
     }
 }
 
-/// current implementation of the stream of points used in BatchIterator
+/// current implementation of the stream of points used in ParallelIterator
 struct PointStream<'a, F>
 where
     F: Fn(PointsBatch) -> Result<()>,
@@ -155,7 +155,7 @@ pub trait PointCloud: Sync {
 }
 
 /// Iterator on point batches
-pub struct BatchIterator<'a, C> {
+pub struct ParallelIterator<'a, C> {
     point_clouds: &'a [C],
     point_location: &'a PointQuery,
     batch_size: usize,
@@ -163,7 +163,7 @@ pub struct BatchIterator<'a, C> {
     buffer_size: usize,
 }
 
-impl<'a, C> BatchIterator<'a, C>
+impl<'a, C> ParallelIterator<'a, C>
 where
     C: PointCloud,
 {
@@ -174,7 +174,7 @@ where
         num_threads: usize,
         buffer_size: usize,
     ) -> Self {
-        BatchIterator {
+        ParallelIterator {
             point_clouds,
             point_location,
             batch_size,
@@ -247,7 +247,7 @@ where
                             Err(ref e) => {
                                 match e.kind() {
                                     ErrorKind::Channel(ref _s) => break, // done with the function computation
-                                    _ => panic!("BatchIterator: Thread error {}", e), //some other error
+                                    _ => panic!("ParallelIterator: Thread error {}", e), //some other error
                                 }
                             }
                         }
@@ -256,7 +256,7 @@ where
                     if let Err(ref e) = point_stream.callback() {
                         match e.kind() {
                             ErrorKind::Channel(ref _s) => (), // done with the function computation
-                            _ => panic!("BatchIterator: Thread error {}", e), //some other error
+                            _ => panic!("ParallelIterator: Thread error {}", e), //some other error
                         }
                     }
                 });
@@ -267,6 +267,6 @@ where
             // receiver collects all the messages
             rx.iter().try_for_each(func)
         })
-        .expect("BatchIterator: Panic in try_for_each_batch child thread")
+        .expect("ParallelIterator: Panic in try_for_each_batch child thread")
     }
 }

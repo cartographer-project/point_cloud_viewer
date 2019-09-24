@@ -22,7 +22,7 @@ mod input_file_iterator;
 pub use self::input_file_iterator::{make_stream, InputFile, InputFileIterator};
 
 mod node_iterator;
-pub use self::node_iterator::{NodeIterator, NodeReader};
+pub use self::node_iterator::PointIterator;
 
 mod node_writer;
 pub use self::node_writer::{DataWriter, NodeWriter, OpenMode, WriteEncoded, WriteLE, WriteLEPos};

@@ -15,8 +15,8 @@
 use crate::color;
 use crate::errors::*;
 use crate::read_write::{
-    decode, fixpoint_decode, AttributeReader, DataWriter, Encoding, NodeReader, NodeWriter,
-    OpenMode, PositionEncoding, WriteEncoded, WriteLE,
+    decode, fixpoint_decode, AttributeReader, DataWriter, Encoding, NodeWriter, OpenMode,
+    PositionEncoding, WriteEncoded, WriteLE,
 };
 use crate::{attribute_extension, AttributeData, AttributeDataType, Point, PointsBatch};
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -32,8 +32,8 @@ pub struct RawNodeReader {
     encoding: Encoding,
 }
 
-impl NodeReader for RawNodeReader {
-    fn read(&mut self) -> io::Result<Point> {
+impl RawNodeReader {
+    pub fn read(&mut self) -> io::Result<Point> {
         let mut point = Point {
             position: Vector3::zero(),
             color: color::RED.to_u8(), // is overwritten
@@ -124,9 +124,7 @@ impl NodeReader for RawNodeReader {
 
         Ok(point)
     }
-}
 
-impl RawNodeReader {
     pub fn read_batch(&mut self, num_points: usize) -> io::Result<PointsBatch> {
         let mut batch = PointsBatch {
             position: vec![],
@@ -307,9 +305,7 @@ impl RawNodeReader {
             ))
         }
     }
-}
 
-impl RawNodeReader {
     pub fn new(
         xyz_reader: Box<dyn Read + Send>,
         attribute_readers: HashMap<String, AttributeReader>,

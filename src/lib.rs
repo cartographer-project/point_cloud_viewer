@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod batch_iterator;
 pub mod color;
 pub mod data_provider;
 pub mod errors;
+pub mod iterator;
 pub mod math;
 pub mod octree;
 pub mod read_write;
