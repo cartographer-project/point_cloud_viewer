@@ -45,6 +45,7 @@ rand = "0.7.2"
 path = "point_viewer_proto_rust"
 
 [dev-dependencies]
+lazy_static = "1.4.0"
 tempdir = "0.3.7"
 
 [workspace]
