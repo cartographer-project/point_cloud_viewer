@@ -14,6 +14,7 @@ use s2::point::Point as S2Point;
 use s2::region::Region;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::iter;
 
 pub struct S2Cells {
     data_provider: Box<dyn DataProvider>,
@@ -36,11 +37,29 @@ impl S2CellMeta {
 }
 
 pub struct S2Meta {
-    pub cells: FnvHashMap<CellID, S2CellMeta>,
-    pub attributes: HashMap<String, AttributeDataType>,
+    cells: FnvHashMap<CellID, S2CellMeta>,
+    attributes: HashMap<String, AttributeDataType>,
 }
 
 impl S2Meta {
+    pub fn new(
+        cells: FnvHashMap<CellID, S2CellMeta>,
+        attributes: HashMap<String, AttributeDataType>,
+    ) -> Self {
+        S2Meta { cells, attributes }
+    }
+
+    pub fn iter_attr_with_xyz(&self) -> impl Iterator<Item = (&str, AttributeDataType)> {
+        self.attributes
+            .iter()
+            .map(|(name, d_type)| (name.as_str(), *d_type))
+            .chain(iter::once(("xyz", AttributeDataType::F64Vec3)))
+    }
+
+    pub fn get_cells(&self) -> &FnvHashMap<CellID, S2CellMeta> {
+        &self.cells
+    }
+
     pub fn to_proto(&self) -> proto::Meta {
         let cell_protos = self
             .cells
