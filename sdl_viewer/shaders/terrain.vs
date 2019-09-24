@@ -15,7 +15,7 @@ uniform ivec2 color_texture_offset;
 uniform dmat4 world_to_gl; // the full projective transform
 uniform dmat4 terrain_to_world;
 uniform sampler2D height;
-uniform usampler2D color;
+uniform sampler2D color;
 
 out VS_OUT {
     vec4 color;
