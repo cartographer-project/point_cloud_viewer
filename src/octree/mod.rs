@@ -25,7 +25,7 @@ use std::collections::BinaryHeap;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
 
-use crate::parallel_iterator::{FilteredPointsIterator, PointCloud, PointQuery};
+use crate::iterator::{FilteredPointsIterator, PointCloud, PointQuery};
 
 mod generation;
 pub use self::generation::{build_octree, build_octree_from_file};

@@ -27,9 +27,9 @@ use grpcio::{
 };
 use num_cpus;
 use point_viewer::errors::*;
+use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
 use point_viewer::math::{Isometry3, OrientedBeam};
 use point_viewer::octree::{NodeId, Octree, OctreeFactory};
-use point_viewer::parallel_iterator::{ParallelIterator, PointLocation, PointQuery};
 use point_viewer::{AttributeData, PointsBatch};
 use protobuf::Message;
 use std::collections::HashMap;

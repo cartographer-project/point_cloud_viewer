@@ -20,8 +20,8 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
+use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
 use point_viewer::octree::{octree_from_directory, Octree, OctreeFactory};
-use point_viewer::parallel_iterator::{ParallelIterator, PointLocation, PointQuery};
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
 use point_viewer_grpc_proto_rust::proto;

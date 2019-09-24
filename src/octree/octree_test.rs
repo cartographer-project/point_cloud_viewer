@@ -2,8 +2,8 @@
 mod tests {
     use crate::color::Color;
     use crate::errors::Result;
+    use crate::iterator::{ParallelIterator, PointLocation, PointQuery};
     use crate::octree::{self, build_octree, Octree};
-    use crate::parallel_iterator::{ParallelIterator, PointLocation, PointQuery};
     use crate::{Point, PointsBatch};
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};

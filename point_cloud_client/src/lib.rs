@@ -1,7 +1,7 @@
 use collision::{Aabb, Aabb3, Union};
 use point_viewer::errors::*;
+use point_viewer::iterator::{ParallelIterator, PointQuery};
 use point_viewer::octree::{Octree, OctreeFactory};
-use point_viewer::parallel_iterator::{ParallelIterator, PointQuery};
 use point_viewer::{PointsBatch, NUM_POINTS_PER_BATCH};
 
 pub struct PointCloudClient {
