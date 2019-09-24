@@ -1,3 +1,4 @@
+use crate::math::{EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
 use crate::read_write::{Encoding, NodeWriter, OpenMode};
 use crate::s2_cells::{S2CellMeta, S2Meta};
 use crate::{AttributeData, AttributeDataType, PointsBatch};
@@ -15,12 +16,6 @@ use std::path::PathBuf;
 const MAX_NUM_NODE_WRITERS: usize = 25;
 /// Corresponds to cells of up to about 10m x 10m.
 const S2_SPLIT_LEVEL: u64 = 20;
-/// Lower bound for distance from earth's center.
-/// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
-const EARTH_RADIUS_MIN_M: f64 = 6_352_800.0;
-/// Upper bound for distance from earth's center.
-/// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
-const EARTH_RADIUS_MAX_M: f64 = 6_384_400.0;
 
 pub struct S2Splitter<W> {
     writers: LruCache<CellID, W>,

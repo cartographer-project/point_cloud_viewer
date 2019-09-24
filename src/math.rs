@@ -22,6 +22,13 @@ use num_traits::Float;
 use std::fmt::Debug;
 use std::ops::Mul;
 
+/// Lower bound for distance from earth's center.
+/// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
+pub const EARTH_RADIUS_MIN_M: f64 = 6_352_800.0;
+/// Upper bound for distance from earth's center.
+/// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
+pub const EARTH_RADIUS_MAX_M: f64 = 6_384_400.0;
+
 pub fn clamp<T>(value: Vector3<T>, low: Vector3<T>, high: Vector3<T>) -> Vector3<T>
 where
     T: BaseNum,
@@ -243,6 +250,7 @@ impl<S: BaseFloat> Isometry3<S> {
 
 #[derive(Debug, Clone)]
 pub struct Obb<S> {
+    pub isometry: Isometry3<S>,
     pub isometry_inv: Isometry3<S>,
     pub half_extent: Vector3<S>,
     pub corners: [Point3<S>; 8],
@@ -260,10 +268,27 @@ impl<S: BaseFloat> From<&Aabb3<S>> for Obb<S> {
 
 impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
     fn from(aabb: Aabb3<S>) -> Self {
-        Obb::new(
-            Isometry3::new(Quaternion::one(), EuclideanSpace::to_vec(aabb.center())),
-            aabb.dim() / (S::one() + S::one()),
-        )
+        Self::from(&aabb)
+    }
+}
+
+/// Creates an object oriented box by intersecting the oriented beam with the minimum and maximum
+/// earth radius. The OBB has the same orientation and extents as the beam.
+impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
+    fn from(beam: &OrientedBeam<S>) -> Self {
+        let earth_radius_mean = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap();
+        let z_off = earth_radius_mean - beam.isometry.translation.magnitude();
+        let vec_off = Vector3::new(S::zero(), S::zero(), z_off);
+        let isometry = Isometry3::new(beam.isometry.rotation, &beam.isometry * &vec_off);
+        let z_half_extent = S::from(EARTH_RADIUS_MAX_M).unwrap() - earth_radius_mean;
+        let half_extent = Vector3::new(beam.half_extent.x, beam.half_extent.y, z_half_extent);
+        Self::new(isometry, half_extent)
+    }
+}
+
+impl<S: BaseFloat> From<OrientedBeam<S>> for Obb<S> {
+    fn from(beam: OrientedBeam<S>) -> Self {
+        Self::from(&beam)
     }
 }
 
@@ -274,6 +299,7 @@ impl<S: BaseFloat> Obb<S> {
             half_extent,
             corners: Obb::precompute_corners(&isometry, &half_extent),
             separating_axes: Obb::precompute_separating_axes(&isometry.rotation),
+            isometry,
         }
     }
 
@@ -344,10 +370,7 @@ where
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(
-            isometry * &self.isometry_inv.inverse(),
-            self.half_extent,
-        ))
+        Box::new(Self::new(isometry * &self.isometry, self.half_extent))
     }
 }
 
@@ -356,6 +379,7 @@ pub struct OrientedBeam<S> {
     // The members here are an implementation detail and differ from the
     // minimal representation in the gRPC message to speed up operations.
     // Isometry_inv is the transform from world coordinates into "beam coordinates".
+    isometry: Isometry3<S>,
     isometry_inv: Isometry3<S>,
     half_extent: Vector2<S>,
     corners: [Point3<S>; 4],
@@ -369,6 +393,7 @@ impl<S: BaseFloat> OrientedBeam<S> {
             half_extent,
             corners: OrientedBeam::precompute_corners(&isometry, &half_extent),
             separating_axes: OrientedBeam::precompute_separating_axes(&isometry.rotation),
+            isometry,
         }
     }
 
@@ -422,10 +447,7 @@ where
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(
-            isometry * &self.isometry_inv.inverse(),
-            self.half_extent,
-        ))
+        Box::new(Self::new(isometry * &self.isometry, self.half_extent))
     }
 }
 
