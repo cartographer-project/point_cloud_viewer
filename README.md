@@ -13,6 +13,7 @@ The project consist of a root crate that can build and read octrees on disk and 
 - Install the rust gRPC protobuf plugin: `cargo install grpcio-compiler` and
   make sure it is in your `$PATH`. This has more dependencies, it requires cmake
   and go. On mac: `brew install cmake go`.
+- Initialize all submodules: `git submodule update --init --recursive`.
 
 ### Creating Octrees
 
