@@ -183,10 +183,7 @@ impl S2Cells {
         global_from_local: Option<&Isometry3<f64>>,
     ) -> Vec<S2CellId> {
         let obb = match global_from_local {
-            Some(isometry) => Cow::Owned(Obb::new(
-                isometry * &obb.isometry_inv.inverse(),
-                obb.half_extent,
-            )),
+            Some(isometry) => Cow::Owned(Obb::new(isometry * &obb.isometry, obb.half_extent)),
             None => Cow::Borrowed(obb),
         };
         let points = obb.corners;
