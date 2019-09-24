@@ -21,6 +21,7 @@ use std::rc::Rc;
 use std::str;
 
 pub mod moving_window_texture;
+pub mod tiled_texture_loader;
 pub mod uniform;
 
 pub struct GlProgram {
