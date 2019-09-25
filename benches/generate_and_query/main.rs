@@ -20,15 +20,15 @@ struct Arguments {
     // Minimal precision that this point cloud should have.
     // This decides on the number of bits used to encode each node.
     resolution: f64,
-    // Width of the area to generate points for (used for local x and y), in meters
+    // Width of the area to generate points for (used for local x and y), in meters.
     width: f64,
     // Height of the area to generate points for, in meters
     height: f64,
     // The number of threads used to shard octree building.
     num_threads: usize,
-    // The number of points in the test point cloud
+    // The number of points in the test point cloud.
     num_points: usize,
-    // The batch size used for building the S2 point cloud
+    // The batch size used for building the S2 point cloud.
     batch_size: usize,
 }
 
