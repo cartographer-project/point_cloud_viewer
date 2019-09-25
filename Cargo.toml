@@ -39,11 +39,13 @@ s2 = "0.0.9"
 scoped-pool = "1.0.0"
 structopt = "0.2.18"
 walkdir = "2.2.8"
+rand = "0.7.2"
 
 [dependencies.point_viewer_proto_rust]
 path = "point_viewer_proto_rust"
 
 [dev-dependencies]
+lazy_static = "1.4.0"
 tempdir = "0.3.7"
 
 [workspace]

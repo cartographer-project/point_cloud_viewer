@@ -13,10 +13,11 @@
 // limitations under the License.
 
 use cgmath::{
-    BaseFloat, BaseNum, Decomposed, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion,
-    Rotation, Vector2, Vector3, Vector4,
+    BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3,
+    Quaternion, Rotation, Vector2, Vector3, Vector4,
 };
 use collision::{Aabb, Aabb3, Contains, Relation};
+use nav_types::{ECEF, WGS84};
 use num_traits::identities::One;
 use num_traits::Float;
 use std::fmt::Debug;
@@ -575,4 +576,27 @@ where
         ) * self.matrix;
         Box::new(Frustum::new(matrix))
     }
+}
+
+// Returns transform needed to go from local frame to ECEF with the specified origin where
+// the axes are ENU (east, north, up <in the direction normal to the oblate spheroid
+// used as Earth's ellipsoid, which does not generally pass through the center of the Earth>)
+// https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
+pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Matrix4<f64> {
+    const PI_HALF: Deg<f64> = Deg(90.0);
+    let lat_lng_alt = WGS84::new(lat, lon, 0.0);
+    let origin = ECEF::from(lat_lng_alt);
+    let origin_vector = Vector3::new(origin.x(), origin.y(), origin.z());
+    println!("origin_vector {:?}", origin_vector);
+    let rotation_matrix = Matrix3::from_angle_z(-PI_HALF)
+        * Matrix3::from_angle_y(Deg(lat_lng_alt.latitude_degrees()) - PI_HALF)
+        * Matrix3::from_angle_z(Deg(-lat_lng_alt.longitude_degrees()));
+    let rotation = Quaternion::from(rotation_matrix);
+
+    let frame = Decomposed {
+        scale: 1.0,
+        rot: rotation,
+        disp: rotation.rotate_vector(-origin_vector),
+    };
+    Matrix4::from(frame)
 }
