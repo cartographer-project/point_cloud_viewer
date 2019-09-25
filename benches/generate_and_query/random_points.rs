@@ -15,9 +15,11 @@ pub struct RandomPointsOnEarth {
     ecef_from_local: Matrix4<f64>,
 }
 
+pub const SEED: u64 = 80_293_751_234;
+
 impl RandomPointsOnEarth {
-    pub fn new(width: f64, height: f64) -> Self {
-        let mut rng = StdRng::seed_from_u64(80_293_751_234);
+    pub fn new(width: f64, height: f64, seed: u64) -> Self {
+        let mut rng = StdRng::seed_from_u64(seed);
         let lat = rng.gen_range(-90.0, 90.0);
         let lon = rng.gen_range(-180.0, 180.0);
         let ecef_from_local = local_frame_from_lat_lng(lat, lon);
@@ -41,6 +43,10 @@ impl RandomPointsOnEarth {
         let local_min = Point3::new(-self.half_width, -self.half_width, -self.half_height);
         let local_max = Point3::new(self.half_width, self.half_width, self.half_height);
         Aabb3::new(local_min, local_max).transform(&self.ecef_from_local)
+    }
+
+    pub fn ecef_from_local(&self) -> Matrix4<f64> {
+        self.ecef_from_local.clone()
     }
 }
 

@@ -3,10 +3,14 @@
 extern crate test;
 
 use lazy_static::lazy_static;
-use point_viewer::octree::build_octree;
+use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
+use point_viewer::iterator::{PointCloud, PointLocation, PointQuery};
+use point_viewer::octree::{build_octree, Octree};
 use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2Splitter};
+use point_viewer::s2_cells::S2Cells;
+use point_viewer::Point;
 use protobuf::Message;
-use random_points::{Batched, RandomPointsOnEarth};
+use random_points::{Batched, RandomPointsOnEarth, SEED};
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
@@ -46,7 +50,7 @@ impl Default for Arguments {
 }
 
 fn make_octree(args: &Arguments, dir: &Path) {
-    let mut points_oct = RandomPointsOnEarth::new(args.width, args.height);
+    let mut points_oct = RandomPointsOnEarth::new(args.width, args.height, SEED);
     let pool = scoped_pool::Pool::new(args.num_threads);
 
     build_octree(
@@ -59,7 +63,7 @@ fn make_octree(args: &Arguments, dir: &Path) {
 }
 
 fn make_s2_cells(args: &Arguments, dir: &Path) {
-    let points_s2 = RandomPointsOnEarth::new(args.width, args.height);
+    let points_s2 = RandomPointsOnEarth::new(args.width, args.height, SEED);
     let mut s2_writer: S2Splitter<RawNodeWriter> =
         S2Splitter::new(dir, Encoding::Plain, OpenMode::Truncate);
     let points_s2 = points_s2.take(args.num_points);
@@ -107,7 +111,7 @@ fn bench_s2_building_singlethreaded(b: &mut Bencher) {
 }
 
 #[test]
-fn num_points_in_octree() {
+fn num_points_in_octree_meta() {
     let path_buf = OCTREE_DIR.path().to_owned();
     use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
     let data_provider = OnDiskDataProvider {
@@ -125,9 +129,8 @@ fn num_points_in_octree() {
 }
 
 #[test]
-fn num_points_in_s2() {
+fn num_points_in_s2_meta() {
     let path_buf = S2_DIR.path().to_owned();
-    use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
     let data_provider = OnDiskDataProvider {
         directory: path_buf,
     };
@@ -135,4 +138,57 @@ fn num_points_in_s2() {
     assert!(meta.has_s2());
     let num_points: u64 = meta.get_s2().get_cells().iter().map(|c| c.num_points).sum();
     assert_eq!(num_points, Arguments::default().num_points as u64);
+}
+
+fn query_and_sort<C>(point_cloud: &C, query: &PointQuery) -> Vec<Point>
+where
+    C: PointCloud,
+{
+    let mut points = Vec::new();
+    for node_id in point_cloud.nodes_in_location(query).into_iter() {
+        let points_iter = point_cloud.points_in_node(query, node_id).unwrap();
+        points.extend(points_iter);
+    }
+    points.sort_unstable_by(|p1, p2| {
+        let x_order = p1.position.x.partial_cmp(&p2.position.x).unwrap();
+        let y_order = p1.position.y.partial_cmp(&p2.position.y).unwrap();
+        let z_order = p1.position.z.partial_cmp(&p2.position.z).unwrap();
+        x_order.then(y_order).then(z_order)
+    });
+    points
+}
+
+fn get_s2_cells() -> S2Cells {
+    let path_buf = S2_DIR.path().to_owned();
+    let data_provider = OnDiskDataProvider {
+        directory: path_buf,
+    };
+    S2Cells::from_data_provider(Box::new(data_provider)).unwrap()
+}
+
+fn get_octree() -> Octree {
+    let path_buf = OCTREE_DIR.path().to_owned();
+    let data_provider = OnDiskDataProvider {
+        directory: path_buf,
+    };
+    Octree::from_data_provider(Box::new(data_provider)).unwrap()
+}
+
+#[test]
+fn check_box_query_equality() {
+    let s2 = get_s2_cells();
+    let oct = get_octree();
+
+    let bbox = RandomPointsOnEarth::new(4.0, 4.0, SEED).bbox();
+    let query = PointQuery {
+        location: PointLocation::Aabb(bbox),
+        global_from_local: None,
+    };
+    let points_s2 = query_and_sort(&s2, &query);
+    let points_oct = query_and_sort(&oct, &query);
+    assert_eq!(points_s2.len(), points_oct.len());
+    for (p_s2, p_oct) in points_s2.iter().zip(points_oct.iter()) {
+        println!("Aye");
+        assert!(p_s2.position.eq(&p_oct.position), "s2 point: {:?}, octree point: {:?}", p_s2.position, p_oct.position)
+    }
 }

@@ -164,7 +164,7 @@ mod tests {
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn test_batch_iterator_big_octree() {
         let batch_size = 5000;
         // define function
