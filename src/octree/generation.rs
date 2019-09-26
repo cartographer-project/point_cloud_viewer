@@ -17,8 +17,8 @@ use crate::math::Cube;
 use crate::octree::{self, to_meta_proto, to_node_proto, NodeId, OctreeMeta, OnDiskDataProvider};
 use crate::proto;
 use crate::read_write::{
-    attempt_increasing_rlimit_to_max, make_stream, Encoding, InputFile, NodeIterator, NodeWriter,
-    OpenMode, PositionEncoding, RawNodeWriter,
+    attempt_increasing_rlimit_to_max, make_stream, Encoding, InputFile, NodeWriter, OpenMode,
+    PointIterator, PositionEncoding, RawNodeWriter,
 };
 use crate::Point;
 use cgmath::{EuclideanSpace, Point3, Vector3};
@@ -159,7 +159,7 @@ fn split_node<'a, P>(
     for child_id in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
         scope.recurse(move |scope| {
-            let stream = NodeIterator::from_data_provider(
+            let stream = PointIterator::from_data_provider(
                 octree_data_provider,
                 octree_meta.encoding_for_node(child_id),
                 &child_id,
@@ -199,7 +199,7 @@ fn subsample_children_into(
             Err(Error(ErrorKind::NodeNotFound, _)) => continue,
             Err(err) => return Err(err),
         };
-        let node_iterator = NodeIterator::from_data_provider(
+        let point_iterator = PointIterator::from_data_provider(
             octree_data_provider,
             octree_meta.encoding_for_node(child_id),
             &child_id,
@@ -208,8 +208,8 @@ fn subsample_children_into(
 
         // We read all points into memory, because the new node writer will rewrite this child's
         // file(s).
-        let mut points = Vec::with_capacity(node_iterator.size_hint().1.unwrap());
-        node_iterator.for_each(|p| points.push(p));
+        let mut points = Vec::with_capacity(point_iterator.size_hint().1.unwrap());
+        point_iterator.for_each(|p| points.push(p));
 
         let mut child_writer =
             RawNodeWriter::from_data_provider(octree_data_provider, octree_meta, &child_id);

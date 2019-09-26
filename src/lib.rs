@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod batch_iterator;
 pub mod color;
 pub mod data_provider;
 pub mod errors;
+pub mod iterator;
 pub mod math;
 pub mod octree;
 pub mod read_write;
@@ -53,7 +53,7 @@ pub fn attribute_extension(attribute: &str) -> &str {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq)]
 pub enum AttributeDataType {
     U8,
     I64,
@@ -65,7 +65,7 @@ pub enum AttributeDataType {
 }
 
 impl AttributeDataType {
-    pub fn to_proto(&self) -> proto::AttributeDataType {
+    pub fn to_proto(self) -> proto::AttributeDataType {
         match self {
             AttributeDataType::U8 => proto::AttributeDataType::U8,
             AttributeDataType::I64 => proto::AttributeDataType::I64,
@@ -105,7 +105,7 @@ impl AttributeDataType {
         Ok(attr)
     }
 
-    pub fn size_of(&self) -> usize {
+    pub fn size_of(self) -> usize {
         match self {
             AttributeDataType::U8 => 1,
             AttributeDataType::F32 => 4,

@@ -4,8 +4,8 @@
 use cgmath::Point3;
 use collision::Aabb3;
 use point_cloud_client::PointCloudClient;
-use point_viewer::batch_iterator::{PointLocation, PointQuery};
 use point_viewer::errors::{ErrorKind, Result};
+use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::octree::OctreeFactory;
 use point_viewer::PointsBatch;
 use structopt::StructOpt;

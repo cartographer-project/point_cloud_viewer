@@ -13,14 +13,22 @@
 // limitations under the License.
 
 use cgmath::{
-    BaseFloat, BaseNum, Decomposed, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion,
-    Rotation, Vector2, Vector3, Vector4,
+    BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3,
+    Quaternion, Rotation, Vector2, Vector3, Vector4,
 };
 use collision::{Aabb, Aabb3, Contains, Relation};
+use nav_types::{ECEF, WGS84};
 use num_traits::identities::One;
 use num_traits::Float;
 use std::fmt::Debug;
 use std::ops::Mul;
+
+/// Lower bound for distance from earth's center.
+/// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
+pub const EARTH_RADIUS_MIN_M: f64 = 6_352_800.0;
+/// Upper bound for distance from earth's center.
+/// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
+pub const EARTH_RADIUS_MAX_M: f64 = 6_384_400.0;
 
 pub fn clamp<T>(value: Vector3<T>, low: Vector3<T>, high: Vector3<T>) -> Vector3<T>
 where
@@ -243,6 +251,7 @@ impl<S: BaseFloat> Isometry3<S> {
 
 #[derive(Debug, Clone)]
 pub struct Obb<S> {
+    pub isometry: Isometry3<S>,
     pub isometry_inv: Isometry3<S>,
     pub half_extent: Vector3<S>,
     pub corners: [Point3<S>; 8],
@@ -260,10 +269,27 @@ impl<S: BaseFloat> From<&Aabb3<S>> for Obb<S> {
 
 impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
     fn from(aabb: Aabb3<S>) -> Self {
-        Obb::new(
-            Isometry3::new(Quaternion::one(), EuclideanSpace::to_vec(aabb.center())),
-            aabb.dim() / (S::one() + S::one()),
-        )
+        Self::from(&aabb)
+    }
+}
+
+/// Creates an object oriented box by intersecting the oriented beam with the minimum and maximum
+/// earth radius. The OBB has the same orientation and extents as the beam.
+impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
+    fn from(beam: &OrientedBeam<S>) -> Self {
+        let earth_radius_mean = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap();
+        let z_off = earth_radius_mean - beam.isometry.translation.magnitude();
+        let vec_off = Vector3::new(S::zero(), S::zero(), z_off);
+        let isometry = Isometry3::new(beam.isometry.rotation, &beam.isometry * &vec_off);
+        let z_half_extent = S::from(EARTH_RADIUS_MAX_M).unwrap() - earth_radius_mean;
+        let half_extent = Vector3::new(beam.half_extent.x, beam.half_extent.y, z_half_extent);
+        Self::new(isometry, half_extent)
+    }
+}
+
+impl<S: BaseFloat> From<OrientedBeam<S>> for Obb<S> {
+    fn from(beam: OrientedBeam<S>) -> Self {
+        Self::from(&beam)
     }
 }
 
@@ -274,6 +300,7 @@ impl<S: BaseFloat> Obb<S> {
             half_extent,
             corners: Obb::precompute_corners(&isometry, &half_extent),
             separating_axes: Obb::precompute_separating_axes(&isometry.rotation),
+            isometry,
         }
     }
 
@@ -344,10 +371,7 @@ where
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(
-            isometry * &self.isometry_inv.inverse(),
-            self.half_extent,
-        ))
+        Box::new(Self::new(isometry * &self.isometry, self.half_extent))
     }
 }
 
@@ -356,6 +380,7 @@ pub struct OrientedBeam<S> {
     // The members here are an implementation detail and differ from the
     // minimal representation in the gRPC message to speed up operations.
     // Isometry_inv is the transform from world coordinates into "beam coordinates".
+    isometry: Isometry3<S>,
     isometry_inv: Isometry3<S>,
     half_extent: Vector2<S>,
     corners: [Point3<S>; 4],
@@ -369,6 +394,7 @@ impl<S: BaseFloat> OrientedBeam<S> {
             half_extent,
             corners: OrientedBeam::precompute_corners(&isometry, &half_extent),
             separating_axes: OrientedBeam::precompute_separating_axes(&isometry.rotation),
+            isometry,
         }
     }
 
@@ -422,10 +448,7 @@ where
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(
-            isometry * &self.isometry_inv.inverse(),
-            self.half_extent,
-        ))
+        Box::new(Self::new(isometry * &self.isometry, self.half_extent))
     }
 }
 
@@ -553,4 +576,27 @@ where
         ) * self.matrix;
         Box::new(Frustum::new(matrix))
     }
+}
+
+// Returns transform needed to go from local frame to ECEF with the specified origin where
+// the axes are ENU (east, north, up <in the direction normal to the oblate spheroid
+// used as Earth's ellipsoid, which does not generally pass through the center of the Earth>)
+// https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
+pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Matrix4<f64> {
+    const PI_HALF: Deg<f64> = Deg(90.0);
+    let lat_lng_alt = WGS84::new(lat, lon, 0.0);
+    let origin = ECEF::from(lat_lng_alt);
+    let origin_vector = Vector3::new(origin.x(), origin.y(), origin.z());
+    println!("origin_vector {:?}", origin_vector);
+    let rotation_matrix = Matrix3::from_angle_z(-PI_HALF)
+        * Matrix3::from_angle_y(Deg(lat_lng_alt.latitude_degrees()) - PI_HALF)
+        * Matrix3::from_angle_z(Deg(-lat_lng_alt.longitude_degrees()));
+    let rotation = Quaternion::from(rotation_matrix);
+
+    let frame = Decomposed {
+        scale: 1.0,
+        rot: rotation,
+        disp: rotation.rotate_vector(-origin_vector),
+    };
+    Matrix4::from(frame)
 }

@@ -12,23 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::read_write::RawNodeReader;
 use crate::Point;
-use std::io::Result;
-
-pub trait NodeReader {
-    fn read(&mut self) -> Result<Point>;
-}
 
 /// Streams points from our data provider representation.
-pub struct NodeIterator<R> {
-    reader: Option<R>,
+pub struct PointIterator {
+    reader: Option<RawNodeReader>,
     num_points: usize,
     point_count: usize,
 }
 
-impl<R> Default for NodeIterator<R> {
+impl Default for PointIterator {
     fn default() -> Self {
-        NodeIterator {
+        PointIterator {
             reader: None,
             num_points: 0,
             point_count: 0,
@@ -36,16 +32,13 @@ impl<R> Default for NodeIterator<R> {
     }
 }
 
-impl<R> NodeIterator<R>
-where
-    R: NodeReader,
-{
-    pub fn new(reader: R, num_points: usize) -> Self {
+impl PointIterator {
+    pub fn new(reader: RawNodeReader, num_points: usize) -> Self {
         if num_points == 0 {
-            return NodeIterator::default();
+            return PointIterator::default();
         }
 
-        NodeIterator {
+        PointIterator {
             reader: Some(reader),
             num_points,
             point_count: 0,
@@ -53,10 +46,7 @@ where
     }
 }
 
-impl<R> Iterator for NodeIterator<R>
-where
-    R: NodeReader,
-{
+impl Iterator for PointIterator {
     type Item = Point;
 
     fn size_hint(&self) -> (usize, Option<usize>) {

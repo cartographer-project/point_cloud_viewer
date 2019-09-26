@@ -1,9 +1,9 @@
-use crate::batch_iterator::{FilteredPointsIterator, PointCloud, PointLocation, PointQuery};
 use crate::data_provider::DataProvider;
 use crate::errors::*;
+use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
 use crate::math::{Isometry3, Obb};
 use crate::proto;
-use crate::read_write::{Encoding, NodeIterator};
+use crate::read_write::{Encoding, PointIterator};
 use crate::{AttributeDataType, CURRENT_VERSION};
 use cgmath::{Point3, Transform, Vector4};
 use fnv::FnvHashMap;
@@ -14,6 +14,7 @@ use s2::point::Point as S2Point;
 use s2::region::Region;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::iter;
 
 pub struct S2Cells {
     data_provider: Box<dyn DataProvider>,
@@ -36,11 +37,29 @@ impl S2CellMeta {
 }
 
 pub struct S2Meta {
-    pub cells: FnvHashMap<CellID, S2CellMeta>,
-    pub attributes: HashMap<String, AttributeDataType>,
+    cells: FnvHashMap<CellID, S2CellMeta>,
+    attributes: HashMap<String, AttributeDataType>,
 }
 
 impl S2Meta {
+    pub fn new(
+        cells: FnvHashMap<CellID, S2CellMeta>,
+        attributes: HashMap<String, AttributeDataType>,
+    ) -> Self {
+        S2Meta { cells, attributes }
+    }
+
+    pub fn iter_attr_with_xyz(&self) -> impl Iterator<Item = (&str, AttributeDataType)> {
+        self.attributes
+            .iter()
+            .map(|(name, d_type)| (name.as_str(), *d_type))
+            .chain(iter::once(("xyz", AttributeDataType::F64Vec3)))
+    }
+
+    pub fn get_cells(&self) -> &FnvHashMap<CellID, S2CellMeta> {
+        &self.cells
+    }
+
     pub fn to_proto(&self) -> proto::Meta {
         let cell_protos = self
             .cells
@@ -129,7 +148,7 @@ impl std::fmt::Display for S2CellId {
 
 impl PointCloud for S2Cells {
     type Id = S2CellId;
-    type PointsIter = FilteredPointsIterator;
+    type PointsIter = FilteredIterator;
 
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         match &query.location {
@@ -145,7 +164,9 @@ impl PointCloud for S2Cells {
                     .map(|p| Point3::from_homogeneous(world_from_clip * p));
                 self.cells_in_convex_hull(points)
             }
-            PointLocation::OrientedBeam(_) => unimplemented!(),
+            PointLocation::OrientedBeam(beam) => {
+                self.cells_in_obb(&Obb::from(beam), query.global_from_local.as_ref())
+            }
         }
     }
 
@@ -160,15 +181,15 @@ impl PointCloud for S2Cells {
     ) -> Result<Self::PointsIter> {
         let culling = query.get_point_culling();
         let num_points = self.meta.cells[&node_id.0].num_points as usize;
-        let node_iterator = NodeIterator::from_data_provider(
+        let point_iterator = PointIterator::from_data_provider(
             &*self.data_provider,
             self.encoding_for_node(node_id),
             &node_id,
             num_points,
         )?;
-        Ok(FilteredPointsIterator {
+        Ok(FilteredIterator {
             culling,
-            node_iterator,
+            point_iterator,
         })
     }
 }
@@ -181,10 +202,7 @@ impl S2Cells {
         global_from_local: Option<&Isometry3<f64>>,
     ) -> Vec<S2CellId> {
         let obb = match global_from_local {
-            Some(isometry) => Cow::Owned(Obb::new(
-                isometry * &obb.isometry_inv.inverse(),
-                obb.half_extent,
-            )),
+            Some(isometry) => Cow::Owned(Obb::new(isometry * &obb.isometry, obb.half_extent)),
             None => Cow::Borrowed(obb),
         };
         let points = obb.corners;

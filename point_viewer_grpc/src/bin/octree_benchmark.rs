@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use point_viewer::batch_iterator::{BatchIterator, PointLocation, PointQuery};
+use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
 use point_viewer::octree::{octree_from_directory, Octree, OctreeFactory};
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
@@ -100,7 +100,7 @@ fn server_benchmark(
         global_from_local: None,
     };
     let octree_slice: &[Octree] = std::slice::from_ref(&octree);
-    let mut batch_iterator = BatchIterator::new(
+    let mut parallel_iterator = ParallelIterator::new(
         octree_slice,
         &all_points,
         BATCH_SIZE,
@@ -108,7 +108,7 @@ fn server_benchmark(
         buffer_size,
     );
     println!("Server benchmark:");
-    let _result = batch_iterator.try_for_each_batch(move |points_batch| {
+    let _result = parallel_iterator.try_for_each_batch(move |points_batch| {
         counter += points_batch.position.len();
 
         if points_streamed_m < counter / 1_000_000 {
