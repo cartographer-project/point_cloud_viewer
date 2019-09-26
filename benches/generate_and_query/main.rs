@@ -2,6 +2,7 @@
 
 extern crate test;
 
+use cgmath::InnerSpace;
 use lazy_static::lazy_static;
 use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
 use point_viewer::iterator::{PointCloud, PointLocation, PointQuery};
@@ -174,26 +175,39 @@ where
     points
 }
 
+// Checks that the points are equal up to a precision of the default resolution
+fn assert_points_equal(points_s2: &[Point], points_oct: &[Point]) {
+    assert!(
+        points_s2.len() == points_oct.len(),
+        "Number of points differs: {} in points_s2, {} in points_oct",
+        points_s2.len(),
+        points_oct.len()
+    );
+    let args = Arguments::default();
+    let mut idx = 0;
+    for (p_s2, p_oct) in points_s2.iter().zip(points_oct.iter()) {
+        assert!(
+            (p_s2.position - p_oct.position).magnitude() <= args.resolution,
+            "Inequality at index {}: s2 point: {:?}, octree point: {:?}",
+            idx,
+            p_s2.position,
+            p_oct.position
+        );
+        idx += 1;
+    }
+}
+
 #[test]
 #[ignore]
 fn check_box_query_equality() {
     let s2 = get_s2_cells();
     let oct = get_octree();
-
-    let bbox = RandomPointsOnEarth::new(4.0, 4.0, SEED).bbox();
+    let bbox = RandomPointsOnEarth::new(10.0, 10.0, SEED).bbox();
     let query = PointQuery {
         location: PointLocation::Aabb(bbox),
         global_from_local: None,
     };
     let points_s2 = query_and_sort(&s2, &query);
     let points_oct = query_and_sort(&oct, &query);
-    assert_eq!(points_s2.len(), points_oct.len());
-    for (p_s2, p_oct) in points_s2.iter().zip(points_oct.iter()) {
-        assert!(
-            p_s2.position.eq(&p_oct.position),
-            "s2 point: {:?}, octree point: {:?}",
-            p_s2.position,
-            p_oct.position
-        )
-    }
+    assert_points_equal(&points_s2, &points_oct);
 }
