@@ -90,6 +90,22 @@ lazy_static! {
     };
 }
 
+fn get_s2_cells() -> S2Cells {
+    let path_buf = S2_DIR.path().to_owned();
+    let data_provider = OnDiskDataProvider {
+        directory: path_buf,
+    };
+    S2Cells::from_data_provider(Box::new(data_provider)).unwrap()
+}
+
+fn get_octree() -> Octree {
+    let path_buf = OCTREE_DIR.path().to_owned();
+    let data_provider = OnDiskDataProvider {
+        directory: path_buf,
+    };
+    Octree::from_data_provider(Box::new(data_provider)).unwrap()
+}
+
 #[bench]
 fn bench_octree_building_multithreaded(b: &mut Bencher) {
     let mut args = Arguments::default();
@@ -158,23 +174,8 @@ where
     points
 }
 
-fn get_s2_cells() -> S2Cells {
-    let path_buf = S2_DIR.path().to_owned();
-    let data_provider = OnDiskDataProvider {
-        directory: path_buf,
-    };
-    S2Cells::from_data_provider(Box::new(data_provider)).unwrap()
-}
-
-fn get_octree() -> Octree {
-    let path_buf = OCTREE_DIR.path().to_owned();
-    let data_provider = OnDiskDataProvider {
-        directory: path_buf,
-    };
-    Octree::from_data_provider(Box::new(data_provider)).unwrap()
-}
-
 #[test]
+#[ignore]
 fn check_box_query_equality() {
     let s2 = get_s2_cells();
     let oct = get_octree();
@@ -188,7 +189,11 @@ fn check_box_query_equality() {
     let points_oct = query_and_sort(&oct, &query);
     assert_eq!(points_s2.len(), points_oct.len());
     for (p_s2, p_oct) in points_s2.iter().zip(points_oct.iter()) {
-        println!("Aye");
-        assert!(p_s2.position.eq(&p_oct.position), "s2 point: {:?}, octree point: {:?}", p_s2.position, p_oct.position)
+        assert!(
+            p_s2.position.eq(&p_oct.position),
+            "s2 point: {:?}, octree point: {:?}",
+            p_s2.position,
+            p_oct.position
+        )
     }
 }

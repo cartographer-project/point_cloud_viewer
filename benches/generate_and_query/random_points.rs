@@ -44,10 +44,6 @@ impl RandomPointsOnEarth {
         let local_max = Point3::new(self.half_width, self.half_width, self.half_height);
         Aabb3::new(local_min, local_max).transform(&self.ecef_from_local)
     }
-
-    pub fn ecef_from_local(&self) -> Matrix4<f64> {
-        self.ecef_from_local.clone()
-    }
 }
 
 impl Iterator for RandomPointsOnEarth {
