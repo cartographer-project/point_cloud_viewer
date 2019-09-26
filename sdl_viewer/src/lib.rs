@@ -36,7 +36,6 @@ pub mod opengl {
 pub mod box_drawer;
 pub mod graphic;
 pub mod node_drawer;
-mod sparse_texture_loader;
 pub mod terrain;
 
 use crate::box_drawer::BoxDrawer;
