@@ -20,6 +20,9 @@ pub struct TerrainLayer {
     u_origin: GlUniform<Vector3<f64>>,
     u_world_from_terrain: GlUniform<Matrix4<f64>>,
     u_resolution_m: GlUniform<f64>,
+    // The terrain pos is the coordinate of the lower corner of the terrain.
+    // It converted to f64 at the latest possible moment, so that all
+    // calculations have 64-bit integer precision.
     terrain_pos: Vector2<i64>,
     u_terrain_pos: GlUniform<Vector2<f64>>,
     height_tiles: TiledTextureLoader<LumaA<f32>>,
@@ -131,7 +134,8 @@ impl TerrainLayer {
     // Only fetch the "L" shape that is needed, as separate horizontal and vertical strips.
     // Don't get confused, the horizontal strip is determined by the movement in y direction and
     // the vertical strip is determined by the movement in x direction.
-    pub fn update_grid(&mut self, cur_pos: Vector2<i64>) {
+    pub fn update_grid(&mut self, cur_world_pos: Vector3<f64>) {
+        let cur_pos = self.terrain_pos_for_camera_pos(cur_world_pos);
         assert!(
             cur_pos.x < F64_MAX_INT && cur_pos.x > -F64_MAX_INT,
             "Terrain location not representable."
@@ -190,10 +194,13 @@ impl TerrainLayer {
         );
     }
 
-    pub fn to_grid_coords(&self, value: &Vector2<f64>) -> Vector2<i64> {
-        let x = ((value.x - self.u_origin.value.x) / self.u_resolution_m.value).floor();
-        let y = ((value.y - self.u_origin.value.y) / self.u_resolution_m.value).floor();
-        (Vector2::new(x, y)).cast().unwrap()
+    /// Returns the terrain pos (i.e. the coordinate of the lower corner of the terrain) for
+    /// a given camera position.
+    fn terrain_pos_for_camera_pos(&self, world_pos: Vector3<f64>) -> Vector2<i64> {
+        let local_pos = &self.terrain_from_world * &world_pos;
+        let x = ((local_pos.x - self.u_origin.value.x) / self.u_resolution_m.value).floor();
+        let y = ((local_pos.y - self.u_origin.value.y) / self.u_resolution_m.value).floor();
+        (Vector2::new(x, y)).cast().unwrap() - Vector2::new(self.texture_size/2, self.texture_size/2).cast().unwrap()
     }
 
     pub fn terrain_from_world(&self) -> Isometry3<f64> {

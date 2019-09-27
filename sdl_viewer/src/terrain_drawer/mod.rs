@@ -144,17 +144,7 @@ impl TerrainRenderer {
     // ======================================= End setup =======================================
 
     pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f64>, camera_to_world: &Matrix4<f64>) {
-        // TODO: Do not convert each time
-        let terrain_from_world = Matrix4::from({
-            let decomp: Decomposed<_, _> = self.terrain_layer.terrain_from_world().into();
-            decomp
-        });
-        let camera_to_terrain: Matrix4<f64> = terrain_from_world * camera_to_world;
-        self.camera_pos_xy_m = Vector2::new(camera_to_terrain.w.x, camera_to_terrain.w.y);
-
-        let terrain_pos: Vector2<i64> = self.terrain_layer.to_grid_coords(&self.camera_pos_xy_m)
-            + Vector2::new(INIT_TERRAIN_POS, INIT_TERRAIN_POS);
-        self.terrain_layer.update_grid(terrain_pos);
+        self.terrain_layer.update_grid(camera_to_world.w.truncate());
 
         self.u_transform.value = *world_to_gl;
     }
