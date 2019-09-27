@@ -20,8 +20,8 @@ use collision::{Aabb, Aabb3, Contains, Relation};
 use nav_types::{ECEF, WGS84};
 use num_traits::identities::One;
 use num_traits::Float;
-use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::ops::Mul;
 
 /// Lower bound for distance from earth's center.

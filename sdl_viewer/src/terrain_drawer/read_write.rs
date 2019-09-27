@@ -23,11 +23,10 @@ impl Metadata {
     pub fn from_dir<P: AsRef<std::path::Path>>(dir: P) -> io::Result<Self> {
         let meta_path = dir.as_ref().join("meta.json");
         let reader = File::open(meta_path)?;
-        let meta = serde_json::from_reader(reader).map_err(|e| {
+        serde_json::from_reader(reader).map_err(|e| {
             let msg = format!("Could not parse meta.json: {}", e.to_string());
             io::Error::new(ErrorKind::InvalidData, msg)
-        })?;
-        Ok(meta)
+        })
     }
 
     pub fn read_tiles<P: AsRef<std::path::Path>>(&self, dir: P) -> io::Result<TextureLoaders> {
