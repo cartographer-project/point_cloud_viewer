@@ -100,7 +100,7 @@ impl TerrainLayer {
     // the vertical strip is determined by the movement in x direction.
     pub fn update(&mut self, cur_world_pos: Vector3<f64>) {
         let cur_pos = self
-            .coordinate_transform
+            .grid_coordinates
             .terrain_pos_for_camera_pos(cur_world_pos);
         let moved = cur_pos - self.terrain_pos;
         self.terrain_pos = cur_pos;
@@ -161,11 +161,11 @@ impl TerrainLayer {
     }
 
     pub fn terrain_from_world(&self) -> Isometry3<f64> {
-        self.coordinate_transform.terrain_from_world.clone()
+        self.grid_coordinates.terrain_from_world.clone()
     }
 
     pub fn submit(&self) {
-        self.coordinate_transform.submit();
+        self.grid_coordinates.submit();
         self.u_terrain_pos.submit();
         self.heightmap.submit();
         self.colormap.submit();
