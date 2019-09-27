@@ -1,12 +1,14 @@
 use crate::graphic::uniform::GlUniform;
 use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use crate::opengl;
+use crate::terrain::layer::TerrainLayer;
 use crate::{c_str, Extension};
 use cgmath::{Decomposed, Matrix4, SquareMatrix, Vector2, Zero};
-use layer::TerrainLayer;
+
 use opengl::types::{GLsizeiptr, GLuint};
 use point_viewer::math::Isometry3;
 use point_viewer::octree::Octree;
+
 use std::ffi::c_void;
 use std::mem;
 use std::rc::Rc;
@@ -41,12 +43,13 @@ impl TerrainRenderer {
             TERRAIN_GEOMETRY_SHADER,
         );
 
-        let terrain_layer = TerrainLayer::new(&program, heightmap_path, GRID_SIZE + 1).unwrap();
+        let terrain_layer =
+            TerrainLayer::new(&program, heightmap_path, GRID_SIZE + 1).unwrap();
 
         let vertex_array = GlVertexArray::new(Rc::clone(&gl));
 
         // These need to be set only once
-        GlUniform::new(&program, "grid_size", f64::from(GRID_SIZE)).submit();
+        GlUniform::new(&program, "grid_size", GRID_SIZE as f64).submit();
 
         let u_transform = GlUniform::new(&program, "world_to_gl", Matrix4::identity());
 
@@ -84,8 +87,7 @@ impl TerrainRenderer {
         }
 
         let flat_ix = |x: GLuint, y: GLuint| y * (GRID_SIZE + 1) as GLuint + x;
-        let mut indices: Vec<GLuint> =
-            Vec::with_capacity(GRID_SIZE as usize * GRID_SIZE as usize * 3 * 2);
+        let mut indices: Vec<GLuint> = Vec::with_capacity(GRID_SIZE as usize * GRID_SIZE as usize * 3 * 2);
         for iy in 0..GRID_SIZE as GLuint {
             for ix in 0..GRID_SIZE as GLuint {
                 indices.push(flat_ix(ix, iy));
@@ -151,14 +153,21 @@ impl TerrainRenderer {
             println!("Movement too large");
             return;
         }
-        let cur_lower_corner: Vector2<i64> =
-            self.terrain_layer.to_grid_coords(&cur_camera_pos_xy_m)
-                + Vector2::new(INIT_TERRAIN_POS, INIT_TERRAIN_POS);
-
-        self.terrain_layer.update_grid(cur_lower_corner);
+        self.update(self.camera_pos_xy_m, cur_camera_pos_xy_m);
 
         self.u_transform.value = *world_to_gl;
         self.camera_pos_xy_m = cur_camera_pos_xy_m;
+    }
+
+    fn update(&mut self, prev_camera_pos: Vector2<f64>, camera_pos: Vector2<f64>) {
+        let cur_lower_corner: Vector2<i64> = self.terrain_layer.to_grid_coords(&camera_pos)
+            + Vector2::new(INIT_TERRAIN_POS, INIT_TERRAIN_POS);
+
+        // We already have the data between prev_lower_corner and prev_lower_corner + size
+        // Only fetch the "L" shape that is needed, as separate horizontal and vertical strips.
+        // Don't get confused, the horizontal strip is determined by the movement in y direction and
+        // the vertical strip is determined by the movement in x direction.
+        self.terrain_layer.update_grid(cur_lower_corner);
     }
 
     pub fn draw(&mut self) {
@@ -171,8 +180,8 @@ impl TerrainRenderer {
             // self.program.gl.Disable(opengl::CULL_FACE);
 
             self.u_transform.submit();
-
             self.terrain_layer.submit();
+            // self.colormap.submit();
 
             self.program.gl.Enable(opengl::BLEND);
             self.program

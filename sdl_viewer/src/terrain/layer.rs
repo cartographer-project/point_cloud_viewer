@@ -5,25 +5,26 @@ use crate::graphic::GlProgram;
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::{Decomposed, Matrix4, Quaternion, Vector2, Vector3};
 use image::{ImageBuffer, LumaA, Rgba};
-use num_integer::Integer;
+
 use point_viewer::math::Isometry3;
 use std::convert::TryInto;
 use std::fs::File;
-use std::io::ErrorKind;
-use std::io::Read;
+
 use std::rc::Rc;
 
-pub struct HeightAndColor {
-    pub height: ImageBuffer<LumaA<f32>, Vec<f32>>,
-    pub color: ImageBuffer<Rgba<u8>, Vec<u8>>,
+const F64_MAX_INT: i64 = 9007199254740992;
+
+struct HeightAndColor {
+    height: ImageBuffer<LumaA<f32>, Vec<f32>>,
+    color: ImageBuffer<Rgba<u8>, Vec<u8>>,
 }
 
 pub struct TerrainLayer {
     u_origin: GlUniform<Vector3<f64>>,
     u_world_from_terrain: GlUniform<Matrix4<f64>>,
     u_resolution_m: GlUniform<f64>,
-    u_terrain_pos_wrapped: GlUniform<Vector2<i32>>,
-    terrain_pos: Vector2<i64>, // GLSL doesn't have i64
+    terrain_pos: Vector2<i64>,
+    u_terrain_pos: GlUniform<Vector2<f64>>,
     height_tiles: TiledTextureLoader<LumaA<f32>>,
     color_tiles: TiledTextureLoader<Rgba<u8>>,
     heightmap: GlMovingWindowTexture<LumaA<f32>>,
@@ -82,13 +83,10 @@ impl TerrainLayer {
             ((-metadata.origin.y) / metadata.resolution_m).floor() as i64
                 - i64::from(texture_size) / 2,
         );
-        let u_terrain_pos_wrapped = GlUniform::new(
+        let u_terrain_pos = GlUniform::new(
             &program,
             "terrain_pos",
-            Vector2::new(
-                terrain_pos.x.try_into().unwrap(),
-                terrain_pos.y.try_into().unwrap(),
-            ),
+            Vector2::new(terrain_pos.x as f64, terrain_pos.y as f64),
         );
 
         let height_initial = height_tiles.load(
@@ -126,8 +124,8 @@ impl TerrainLayer {
             u_origin,
             u_world_from_terrain,
             u_resolution_m,
-            u_terrain_pos_wrapped,
             terrain_pos,
+            u_terrain_pos,
             height_tiles,
             color_tiles,
             heightmap,
@@ -140,15 +138,15 @@ impl TerrainLayer {
     // Custom serialization of some values
     fn read_meta<P: AsRef<std::path::Path>>(path: P) -> Result<Metadata, std::io::Error> {
         let mut meta = File::open(path)?;
-        const META_SIGNATURE: &[u8; 9] = b"TERRAIN00";
-        let mut signature = [0u8; 9];
-        meta.read_exact(&mut signature)?;
-        if &signature != META_SIGNATURE {
-            return Err(std::io::Error::new(
-                ErrorKind::InvalidData,
-                "Wrong signature in meta file.",
-            ));
-        }
+        // const META_SIGNATURE: &[u8; 9] = b"TERRAIN00";
+        // let mut signature = [0u8; 9];
+        // meta.read_exact(&mut signature)?;
+        // if &signature != META_SIGNATURE {
+        //     return Err(std::io::Error::new(
+        //         ErrorKind::InvalidData,
+        //         "Wrong signature in meta file.",
+        //     ));
+        // }
         let tile_size = meta.read_u32::<LittleEndian>()?;
         let resolution_m = meta.read_f64::<LittleEndian>()?;
         let origin_x = meta.read_f64::<LittleEndian>()?;
@@ -190,12 +188,11 @@ impl TerrainLayer {
         self.u_origin.submit();
         self.u_world_from_terrain.submit();
         self.u_resolution_m.submit();
-        self.u_terrain_pos_wrapped.submit();
+        self.u_terrain_pos.submit();
         self.heightmap.submit();
-        self.colormap.submit();
     }
 
-    pub fn load(&self, min_x: i64, min_y: i64, width: usize, height: usize) -> HeightAndColor {
+    fn load(&self, min_x: i64, min_y: i64, width: usize, height: usize) -> HeightAndColor {
         HeightAndColor {
             height: self.height_tiles.load(min_x, min_y, width, height),
             color: self.color_tiles.load(min_x, min_y, width, height),
@@ -209,9 +206,9 @@ impl TerrainLayer {
     pub fn update_grid(&mut self, cur_pos: Vector2<i64>) {
         let prev_pos = self.terrain_pos;
         self.terrain_pos = cur_pos;
-        let wrapped_x = cur_pos.x.mod_floor(&i64::from(self.texture_size)) as i32;
-        let wrapped_y = cur_pos.y.mod_floor(&i64::from(self.texture_size)) as i32;
-        self.u_terrain_pos_wrapped.value = Vector2::new(wrapped_x, wrapped_y);
+        assert!(cur_pos.x < F64_MAX_INT, "Terrain location not representable.");
+        assert!(cur_pos.y < F64_MAX_INT, "Terrain location not representable.");
+        self.u_terrain_pos.value = cur_pos.cast().unwrap();
         let moved = cur_pos - prev_pos;
 
         let hori_strip = if moved.y > 0 {
