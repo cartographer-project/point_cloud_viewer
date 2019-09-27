@@ -17,7 +17,7 @@ struct HeightAndColor {
 }
 
 pub struct TerrainLayer {
-    coordinate_transform: CoordinateTransform,
+    grid_coordinates: GridCoordinateFrame,
     // The terrain pos is the coordinate of the lower corner of the terrain.
     // It converted to f64 at the latest possible moment, so that all
     // calculations have 64-bit integer precision.
@@ -43,11 +43,11 @@ impl TerrainLayer {
         let metadata = Metadata::from_dir(&path)?;
         let (height_tiles, color_tiles) = metadata.read_tiles(&path)?;
 
-        let coordinate_transform = CoordinateTransform::new(program, metadata, texture_size);
+        let grid_coordinates = GridCoordinateFrame::new(program, metadata, texture_size);
 
         // Initial terrain pos
         let terrain_pos: Vector2<i64> =
-            coordinate_transform.terrain_pos_for_camera_pos(Vector3::zero());
+            grid_coordinates.terrain_pos_for_camera_pos(Vector3::zero());
         let u_terrain_pos = GlUniform::new(&program, "terrain_pos", terrain_pos.cast().unwrap());
 
         let height_initial = height_tiles.load(
@@ -83,7 +83,7 @@ impl TerrainLayer {
 
         println!("Loading terrain complete.");
         Ok(TerrainLayer {
-            coordinate_transform,
+            grid_coordinates,
             terrain_pos,
             u_terrain_pos,
             height_tiles,
@@ -94,7 +94,7 @@ impl TerrainLayer {
         })
     }
 
-    // We already have the data between prev_pos and prev_pos + texture_size
+    // We already have the data between self.terrain_pos and self.terrain_pos + texture_size
     // Only fetch the "L" shape that is needed, as separate horizontal and vertical strips.
     // Don't get confused, the horizontal strip is determined by the movement in y direction and
     // the vertical strip is determined by the movement in x direction.
@@ -102,6 +102,9 @@ impl TerrainLayer {
         let cur_pos = self
             .coordinate_transform
             .terrain_pos_for_camera_pos(cur_world_pos);
+        let moved = cur_pos - self.terrain_pos;
+        self.terrain_pos = cur_pos;
+        // Convert to f64, because GLSL doesn't understand i64
         assert!(
             cur_pos.x < F64_MAX_INT && cur_pos.x > -F64_MAX_INT,
             "Terrain location not representable."
@@ -110,15 +113,12 @@ impl TerrainLayer {
             cur_pos.y < F64_MAX_INT && cur_pos.y > -F64_MAX_INT,
             "Terrain location not representable."
         );
-        let prev_pos = self.terrain_pos;
-        self.terrain_pos = cur_pos;
         self.u_terrain_pos.value = cur_pos.cast().unwrap();
-        let moved = cur_pos - prev_pos;
 
         let hori_strip = if moved.y > 0 {
             self.load(
                 cur_pos.x,
-                prev_pos.y + i64::from(self.texture_size),
+                self.terrain_pos.y + self.texture_size,
                 self.texture_size.try_into().unwrap(),
                 moved.y.try_into().unwrap(),
             )
@@ -132,7 +132,7 @@ impl TerrainLayer {
         };
         let vert_strip = if moved.x > 0 {
             self.load(
-                prev_pos.x + i64::from(self.texture_size),
+                self.terrain_pos.x + self.texture_size,
                 cur_pos.y,
                 moved.x.try_into().unwrap(),
                 self.texture_size.try_into().unwrap(),
@@ -182,7 +182,7 @@ impl TerrainLayer {
 /// This struct's job is to convert from continuous world positions to discrete
 /// terrain positions and to provide the necessary variables to do the inverse
 /// calculation to the vertex shader.
-struct CoordinateTransform {
+struct GridCoordinateFrame {
     u_origin: GlUniform<Vector3<f64>>,
     u_world_from_terrain: GlUniform<Matrix4<f64>>,
     u_resolution_m: GlUniform<f64>,
@@ -190,7 +190,7 @@ struct CoordinateTransform {
     terrain_from_world: Isometry3<f64>,
 }
 
-impl CoordinateTransform {
+impl GridCoordinateFrame {
     fn new(program: &GlProgram, metadata: Metadata, texture_size: u32) -> Self {
         let u_origin = GlUniform::new(&program, "terrain_origin_m", metadata.origin);
         let u_world_from_terrain = GlUniform::new(
@@ -205,7 +205,7 @@ impl CoordinateTransform {
         let terrain_from_world = metadata.world_from_terrain.inverse();
         let texture_half_extent =
             Vector2::new(i64::from(texture_size) / 2, i64::from(texture_size) / 2);
-        CoordinateTransform {
+        GridCoordinateFrame {
             u_origin,
             u_world_from_terrain,
             u_resolution_m,
