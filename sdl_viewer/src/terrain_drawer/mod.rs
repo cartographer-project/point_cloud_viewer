@@ -16,6 +16,8 @@ use std::rc::Rc;
 mod layer;
 mod read_write;
 
+pub use read_write::Metadata;
+
 const TERRAIN_FRAGMENT_SHADER: &str = include_str!("../../shaders/terrain.fs");
 const TERRAIN_VERTEX_SHADER: &str = include_str!("../../shaders/terrain.vs");
 const TERRAIN_GEOMETRY_SHADER: &str = include_str!("../../shaders/terrain.gs");
@@ -148,27 +150,13 @@ impl TerrainRenderer {
             decomp
         });
         let camera_to_terrain: Matrix4<f64> = terrain_from_world * camera_to_world;
-        let cur_camera_pos_xy_m = Vector2::new(camera_to_terrain.w.x, camera_to_terrain.w.y);
-        use cgmath::InnerSpace;
-        if (cur_camera_pos_xy_m - self.camera_pos_xy_m).magnitude() > 1000.0 {
-            println!("Movement too large");
-            return;
-        }
-        self.update(self.camera_pos_xy_m, cur_camera_pos_xy_m);
+        self.camera_pos_xy_m = Vector2::new(camera_to_terrain.w.x, camera_to_terrain.w.y);
+
+        let terrain_pos: Vector2<i64> = self.terrain_layer.to_grid_coords(&self.camera_pos_xy_m)
+            + Vector2::new(INIT_TERRAIN_POS, INIT_TERRAIN_POS);
+        self.terrain_layer.update_grid(terrain_pos);
 
         self.u_transform.value = *world_to_gl;
-        self.camera_pos_xy_m = cur_camera_pos_xy_m;
-    }
-
-    fn update(&mut self, _prev_camera_pos: Vector2<f64>, camera_pos: Vector2<f64>) {
-        let cur_lower_corner: Vector2<i64> = self.terrain_layer.to_grid_coords(&camera_pos)
-            + Vector2::new(INIT_TERRAIN_POS, INIT_TERRAIN_POS);
-
-        // We already have the data between prev_lower_corner and prev_lower_corner + size
-        // Only fetch the "L" shape that is needed, as separate horizontal and vertical strips.
-        // Don't get confused, the horizontal strip is determined by the movement in y direction and
-        // the vertical strip is determined by the movement in x direction.
-        self.terrain_layer.update_grid(cur_lower_corner);
     }
 
     pub fn draw(&mut self) {
@@ -223,11 +211,7 @@ impl Extension for TerrainExtension {
         _matches: &clap::ArgMatches,
         _octree: &Octree,
     ) -> Option<Isometry3<f64>> {
-        Some(
-            self.terrain_renderer
-                .terrain_layer
-                .terrain_from_world(),
-        )
+        Some(self.terrain_renderer.terrain_layer.terrain_from_world())
     }
 
     fn camera_changed(&mut self, transform: &Matrix4<f64>, camera_to_world: &Matrix4<f64>) {

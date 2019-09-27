@@ -27,8 +27,7 @@ pub struct TerrainLayer {
     heightmap: GlMovingWindowTexture<LumaA<f32>>,
     colormap: GlMovingWindowTexture<Rgba<u8>>,
     texture_size: u32,
-    // TODO
-    pub terrain_from_world: Isometry3<f64>,
+    terrain_from_world: Isometry3<f64>,
 }
 
 impl TerrainLayer {
