@@ -13,16 +13,17 @@ pub struct Metadata {
     pub origin: Vector3<f64>,
     pub resolution_m: f64,
     pub tile_positions: Vec<TilePos>,
-    pub path: PathBuf,
+    pub dir: PathBuf,
 }
+
+const META_SIGNATURE: &[u8; 9] = b"TERRAIN00";
 
 impl Metadata {
     // Custom serialization of some values
-    pub fn from_dir<P: AsRef<std::path::Path>>(path: P) -> Result<Self, std::io::Error> {
-        let path = path.as_ref().to_owned();
-        let meta_path = path.join("meta");
+    pub fn from_dir<P: AsRef<std::path::Path>>(dir: P) -> Result<Self, std::io::Error> {
+        let dir = dir.as_ref().to_owned();
+        let meta_path = dir.join("meta");
         let mut meta = File::open(meta_path)?;
-        const META_SIGNATURE: &[u8; 9] = b"TERRAIN00";
         let mut signature = [0u8; 9];
         meta.read_exact(&mut signature)?;
         if &signature != META_SIGNATURE {
@@ -65,7 +66,7 @@ impl Metadata {
             origin,
             resolution_m,
             tile_positions,
-            path,
+            dir,
         })
     }
 
@@ -75,12 +76,12 @@ impl Metadata {
     {
         let height_tiles = self.tile_positions.iter().map(|xy| {
             let (x, y) = xy;
-            let height_file_path = self.path.join(format!("x{:08}_y{:08}.height", x, y));
+            let height_file_path = self.dir.join(format!("x{:08}_y{:08}.height", x, y));
             (*xy, height_file_path)
         });
         let color_tiles = self.tile_positions.iter().map(|xy| {
             let (x, y) = xy;
-            let color_file_path = self.path.join(format!("x{:08}_y{:08}.color", x, y));
+            let color_file_path = self.dir.join(format!("x{:08}_y{:08}.color", x, y));
             (*xy, color_file_path)
         });
         let height_tiles = TiledTextureLoader::new(self.tile_size, height_tiles)?;
