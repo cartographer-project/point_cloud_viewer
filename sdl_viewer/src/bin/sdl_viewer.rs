@@ -15,7 +15,7 @@
 use point_viewer::octree::OctreeFactory;
 use point_viewer_grpc::octree_from_grpc_address;
 use sdl_viewer::run;
-use sdl_viewer::terrain::TerrainExtension;
+use sdl_viewer::terrain_drawer::TerrainExtension;
 
 fn main() {
     let octree_factory = OctreeFactory::new().register("grpc://", octree_from_grpc_address);

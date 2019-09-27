@@ -36,7 +36,7 @@ pub mod opengl {
 pub mod box_drawer;
 pub mod graphic;
 pub mod node_drawer;
-pub mod terrain;
+pub mod terrain_drawer;
 
 use crate::box_drawer::BoxDrawer;
 use crate::camera::Camera;
