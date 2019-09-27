@@ -18,6 +18,9 @@ pub struct Metadata {
 
 const META_SIGNATURE: &[u8; 9] = b"TERRAIN00";
 
+pub type TextureLoaders = (TiledTextureLoader<LumaA<f32>>, TiledTextureLoader<Rgba<u8>>);
+
+#[allow(dead_code)]
 impl Metadata {
     // Custom serialization of some values
     pub fn from_dir<P: AsRef<std::path::Path>>(dir: P) -> Result<Self, std::io::Error> {
@@ -70,10 +73,7 @@ impl Metadata {
         })
     }
 
-    pub fn read_tiles(
-        &self,
-    ) -> Result<(TiledTextureLoader<LumaA<f32>>, TiledTextureLoader<Rgba<u8>>), std::io::Error>
-    {
+    pub fn read_tiles(&self) -> Result<TextureLoaders, std::io::Error> {
         let height_tiles = self.tile_positions.iter().map(|xy| {
             let (x, y) = xy;
             let height_file_path = self.dir.join(format!("x{:08}_y{:08}.height", x, y));
