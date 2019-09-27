@@ -49,7 +49,7 @@ impl TerrainRenderer {
         let vertex_array = GlVertexArray::new(Rc::clone(&gl));
 
         // These need to be set only once
-        GlUniform::new(&program, "grid_size", GRID_SIZE as f64).submit();
+        GlUniform::new(&program, "grid_size", f64::from(GRID_SIZE)).submit();
 
         let u_transform = GlUniform::new(&program, "world_to_gl", Matrix4::identity());
 

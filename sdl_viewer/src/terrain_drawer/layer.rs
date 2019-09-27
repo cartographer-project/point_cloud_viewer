@@ -9,7 +9,7 @@ use point_viewer::math::Isometry3;
 use std::convert::TryInto;
 use std::rc::Rc;
 
-const F64_MAX_INT: i64 = 9007199254740992;
+const F64_MAX_INT: i64 = 9_007_199_254_740_992;
 
 struct HeightAndColor {
     height: ImageBuffer<LumaA<f32>, Vec<f32>>,

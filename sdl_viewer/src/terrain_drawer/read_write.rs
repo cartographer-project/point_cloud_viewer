@@ -1,11 +1,10 @@
 use crate::graphic::tiled_texture_loader::{TilePos, TiledTextureLoader};
-use byteorder::{LittleEndian, ReadBytesExt};
-use cgmath::{Decomposed, Quaternion, Vector3};
+use cgmath::{Quaternion, Vector3};
 use image::{LumaA, Rgba};
 use point_viewer::math::Isometry3;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{Error, ErrorKind, Read};
+use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -18,17 +17,16 @@ pub struct Metadata {
     pub dir: PathBuf,
 }
 
-const META_SIGNATURE: &[u8; 9] = b"TERRAIN00";
-
 pub type TextureLoaders = (TiledTextureLoader<LumaA<f32>>, TiledTextureLoader<Rgba<u8>>);
 
+#[allow(dead_code)]
 impl Metadata {
     // Custom serialization of some values
     pub fn from_dir<P: AsRef<std::path::Path>>(dir: P) -> Result<Self, Error> {
         let dir = dir.as_ref().to_owned();
         let meta_path = dir.join("meta.json");
-        let mut meta = File::open(meta_path)?;
-        let meta_serde = serde_json::from_reader(meta).map_err(|e| {
+        let reader = File::open(meta_path)?;
+        let meta_serde = serde_json::from_reader(reader).map_err(|e| {
             let msg = format!("Could not parse meta.json: {}", e.to_string());
             Error::new(ErrorKind::InvalidData, msg)
         })?;
@@ -53,7 +51,7 @@ impl Metadata {
 
     pub fn write(&self) -> Result<(), Error> {
         let meta_serde = self.clone().into_serde();
-        let mut writer = File::create(self.dir.join("meta.json"))?;
+        let writer = File::create(self.dir.join("meta.json"))?;
         serde_json::to_writer(writer, &meta_serde).map_err(|e| {
             let msg = format!("Could not write meta.json: {}", e.to_string());
             Error::new(ErrorKind::InvalidData, msg)
@@ -81,6 +79,8 @@ impl Metadata {
         }
     }
 }
+
+// Some Serde-derivable types we can convert into and from
 
 #[derive(Serialize, Deserialize)]
 struct Vector3f64 {
