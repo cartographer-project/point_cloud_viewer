@@ -2,13 +2,11 @@ use crate::graphic::moving_window_texture::GlMovingWindowTexture;
 use crate::graphic::tiled_texture_loader::{TilePos, TiledTextureLoader};
 use crate::graphic::uniform::GlUniform;
 use crate::graphic::GlProgram;
-use byteorder::{LittleEndian, ReadBytesExt};
+use crate::terrain::read_write::Metadata;
 use cgmath::{Decomposed, Matrix4, Quaternion, Vector2, Vector3};
 use image::{ImageBuffer, LumaA, Rgba};
-
 use point_viewer::math::Isometry3;
 use std::convert::TryInto;
-use std::fs::File;
 
 use std::rc::Rc;
 
@@ -34,14 +32,6 @@ pub struct TerrainLayer {
     pub terrain_from_world: Isometry3<f64>,
 }
 
-struct Metadata {
-    tile_size: u32,
-    world_from_terrain: Isometry3<f64>,
-    origin: Vector3<f64>,
-    resolution_m: f64,
-    tile_positions: Vec<TilePos>,
-}
-
 impl TerrainLayer {
     pub fn new<P: AsRef<std::path::Path>>(
         program: &GlProgram,
@@ -49,20 +39,8 @@ impl TerrainLayer {
         texture_size: u32,
     ) -> Result<Self, std::io::Error> {
         println!("Loading terrain.");
-        let meta_path = path.as_ref().join("meta");
-        let metadata = Self::read_meta(meta_path)?;
-        let height_tiles = metadata.tile_positions.iter().map(|xy| {
-            let (x, y) = xy;
-            let height_file_path = path.as_ref().join(format!("x{:08}_y{:08}.height", x, y));
-            (*xy, height_file_path)
-        });
-        let color_tiles = metadata.tile_positions.iter().map(|xy| {
-            let (x, y) = xy;
-            let color_file_path = path.as_ref().join(format!("x{:08}_y{:08}.color", x, y));
-            (*xy, color_file_path)
-        });
-        let height_tiles = TiledTextureLoader::new(metadata.tile_size, height_tiles)?;
-        let color_tiles = TiledTextureLoader::new(metadata.tile_size, color_tiles)?;
+        let metadata = Metadata::from_dir(path)?;
+        let (height_tiles, color_tiles) = metadata.read_tiles()?;
 
         let u_origin = GlUniform::new(&program, "terrain_origin_m", metadata.origin);
         let u_world_from_terrain = GlUniform::new(
@@ -135,55 +113,6 @@ impl TerrainLayer {
         })
     }
 
-    // Custom serialization of some values
-    fn read_meta<P: AsRef<std::path::Path>>(path: P) -> Result<Metadata, std::io::Error> {
-        let mut meta = File::open(path)?;
-        // const META_SIGNATURE: &[u8; 9] = b"TERRAIN00";
-        // let mut signature = [0u8; 9];
-        // meta.read_exact(&mut signature)?;
-        // if &signature != META_SIGNATURE {
-        //     return Err(std::io::Error::new(
-        //         ErrorKind::InvalidData,
-        //         "Wrong signature in meta file.",
-        //     ));
-        // }
-        let tile_size = meta.read_u32::<LittleEndian>()?;
-        let resolution_m = meta.read_f64::<LittleEndian>()?;
-        let origin_x = meta.read_f64::<LittleEndian>()?;
-        let origin_y = meta.read_f64::<LittleEndian>()?;
-        let origin_z = meta.read_f64::<LittleEndian>()?;
-        let origin = Vector3::new(origin_x, origin_y, origin_z);
-        let t_x = meta.read_f64::<LittleEndian>()?;
-        let t_y = meta.read_f64::<LittleEndian>()?;
-        let t_z = meta.read_f64::<LittleEndian>()?;
-        let translation = Vector3::new(t_x, t_y, t_z);
-        let q_x = meta.read_f64::<LittleEndian>()?;
-        let q_y = meta.read_f64::<LittleEndian>()?;
-        let q_z = meta.read_f64::<LittleEndian>()?;
-        let q_w = meta.read_f64::<LittleEndian>()?;
-        let rotation = Quaternion::new(q_w, q_x, q_y, q_z);
-        let world_from_terrain = Decomposed {
-            scale: 1.0,
-            disp: translation,
-            rot: rotation,
-        }
-        .into();
-        let num_tiles = meta.read_u32::<LittleEndian>()?;
-        let mut tile_positions = Vec::with_capacity(num_tiles as usize);
-        for _ in 0..num_tiles {
-            let x = meta.read_i32::<LittleEndian>()?;
-            let y = meta.read_i32::<LittleEndian>()?;
-            tile_positions.push((x, y));
-        }
-        Ok(Metadata {
-            tile_size,
-            world_from_terrain,
-            origin,
-            resolution_m,
-            tile_positions,
-        })
-    }
-
     pub fn submit(&self) {
         self.u_origin.submit();
         self.u_world_from_terrain.submit();
@@ -206,8 +135,14 @@ impl TerrainLayer {
     pub fn update_grid(&mut self, cur_pos: Vector2<i64>) {
         let prev_pos = self.terrain_pos;
         self.terrain_pos = cur_pos;
-        assert!(cur_pos.x < F64_MAX_INT, "Terrain location not representable.");
-        assert!(cur_pos.y < F64_MAX_INT, "Terrain location not representable.");
+        assert!(
+            cur_pos.x < F64_MAX_INT && cur_pos.x > -F64_MAX_INT,
+            "Terrain location not representable."
+        );
+        assert!(
+            cur_pos.y < F64_MAX_INT && cur_pos.y > -F64_MAX_INT,
+            "Terrain location not representable."
+        );
         self.u_terrain_pos.value = cur_pos.cast().unwrap();
         let moved = cur_pos - prev_pos;
 

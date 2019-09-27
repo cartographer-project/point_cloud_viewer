@@ -14,6 +14,7 @@ use std::mem;
 use std::rc::Rc;
 
 mod layer;
+mod read_write;
 
 const TERRAIN_FRAGMENT_SHADER: &str = include_str!("../../shaders/terrain.fs");
 const TERRAIN_VERTEX_SHADER: &str = include_str!("../../shaders/terrain.vs");
@@ -43,8 +44,7 @@ impl TerrainRenderer {
             TERRAIN_GEOMETRY_SHADER,
         );
 
-        let terrain_layer =
-            TerrainLayer::new(&program, heightmap_path, GRID_SIZE + 1).unwrap();
+        let terrain_layer = TerrainLayer::new(&program, heightmap_path, GRID_SIZE + 1).unwrap();
 
         let vertex_array = GlVertexArray::new(Rc::clone(&gl));
 
@@ -87,7 +87,8 @@ impl TerrainRenderer {
         }
 
         let flat_ix = |x: GLuint, y: GLuint| y * (GRID_SIZE + 1) as GLuint + x;
-        let mut indices: Vec<GLuint> = Vec::with_capacity(GRID_SIZE as usize * GRID_SIZE as usize * 3 * 2);
+        let mut indices: Vec<GLuint> =
+            Vec::with_capacity(GRID_SIZE as usize * GRID_SIZE as usize * 3 * 2);
         for iy in 0..GRID_SIZE as GLuint {
             for ix in 0..GRID_SIZE as GLuint {
                 indices.push(flat_ix(ix, iy));
