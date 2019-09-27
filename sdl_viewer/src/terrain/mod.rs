@@ -182,7 +182,6 @@ impl TerrainRenderer {
 
             self.u_transform.submit();
             self.terrain_layer.submit();
-            // self.colormap.submit();
 
             self.program.gl.Enable(opengl::BLEND);
             self.program

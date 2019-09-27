@@ -119,6 +119,7 @@ impl TerrainLayer {
         self.u_resolution_m.submit();
         self.u_terrain_pos.submit();
         self.heightmap.submit();
+        self.colormap.submit();
     }
 
     fn load(&self, min_x: i64, min_y: i64, width: usize, height: usize) -> HeightAndColor {

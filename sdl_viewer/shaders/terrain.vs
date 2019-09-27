@@ -9,7 +9,7 @@ uniform dvec3 terrain_origin_m;
 uniform double terrain_res_m;
 
 // The min corner of the currently visible terrain
-uniform ivec2 terrain_pos;
+uniform dvec2 terrain_pos;
 uniform ivec2 height_texture_offset;
 uniform ivec2 color_texture_offset;
 uniform dmat4 world_to_gl; // the full projective transform
@@ -31,7 +31,7 @@ void main() {
   vec4 tex = texelFetch(height, texCoordModSize, 0);
   vs_out.quads = uint(tex.y);
   dvec4 local_pos = dvec4(terrain_origin_m, 1.0lf);
-  local_pos.xy += terrain_res_m * (dvec2(aPos.xy) + dvec2(terrain_pos));
+  local_pos.xy += terrain_res_m * (dvec2(aPos.xy) + terrain_pos);
   local_pos.z += double(tex.x);
   vs_out.color = texelFetch(color, texCoordModSize, 0);
   vs_out.color.w = 1.0f;
