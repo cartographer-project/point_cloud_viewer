@@ -38,8 +38,8 @@ impl TerrainLayer {
         texture_size: u32,
     ) -> Result<Self, std::io::Error> {
         println!("Loading terrain.");
-        let metadata = Metadata::from_dir(path)?;
-        let (height_tiles, color_tiles) = metadata.read_tiles()?;
+        let metadata = Metadata::from_dir(&path)?;
+        let (height_tiles, color_tiles) = metadata.read_tiles(&path)?;
 
         let u_origin = GlUniform::new(&program, "terrain_origin_m", metadata.origin);
         let u_world_from_terrain = GlUniform::new(
