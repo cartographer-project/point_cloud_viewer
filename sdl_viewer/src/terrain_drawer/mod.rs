@@ -144,7 +144,7 @@ impl TerrainRenderer {
     pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f64>, camera_to_world: &Matrix4<f64>) {
         // TODO: Do not convert each time
         let terrain_from_world = Matrix4::from({
-            let decomp: Decomposed<_, _> = self.terrain_layer.terrain_from_world.clone().into();
+            let decomp: Decomposed<_, _> = self.terrain_layer.terrain_from_world().into();
             decomp
         });
         let camera_to_terrain: Matrix4<f64> = terrain_from_world * camera_to_world;
@@ -226,8 +226,7 @@ impl Extension for TerrainExtension {
         Some(
             self.terrain_renderer
                 .terrain_layer
-                .terrain_from_world
-                .clone(),
+                .terrain_from_world(),
         )
     }
 

@@ -192,9 +192,12 @@ impl TerrainLayer {
     }
 
     pub fn to_grid_coords(&self, value: &Vector2<f64>) -> Vector2<i64> {
-        // TODO: Does this work even for negative values?
         let x = ((value.x - self.u_origin.value.x) / self.u_resolution_m.value).floor();
         let y = ((value.y - self.u_origin.value.y) / self.u_resolution_m.value).floor();
         (Vector2::new(x, y)).cast().unwrap()
+    }
+
+    pub fn terrain_from_world(&self) -> Isometry3<f64> {
+        self.terrain_from_world.clone()
     }
 }
