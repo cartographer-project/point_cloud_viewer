@@ -1,5 +1,5 @@
 use crate::graphic::moving_window_texture::GlMovingWindowTexture;
-use crate::graphic::tiled_texture_loader::{TiledTextureLoader};
+use crate::graphic::tiled_texture_loader::TiledTextureLoader;
 use crate::graphic::uniform::GlUniform;
 use crate::graphic::GlProgram;
 use crate::terrain::read_write::Metadata;
@@ -134,8 +134,6 @@ impl TerrainLayer {
     // Don't get confused, the horizontal strip is determined by the movement in y direction and
     // the vertical strip is determined by the movement in x direction.
     pub fn update_grid(&mut self, cur_pos: Vector2<i64>) {
-        let prev_pos = self.terrain_pos;
-        self.terrain_pos = cur_pos;
         assert!(
             cur_pos.x < F64_MAX_INT && cur_pos.x > -F64_MAX_INT,
             "Terrain location not representable."
@@ -144,6 +142,8 @@ impl TerrainLayer {
             cur_pos.y < F64_MAX_INT && cur_pos.y > -F64_MAX_INT,
             "Terrain location not representable."
         );
+        let prev_pos = self.terrain_pos;
+        self.terrain_pos = cur_pos;
         self.u_terrain_pos.value = cur_pos.cast().unwrap();
         let moved = cur_pos - prev_pos;
 
