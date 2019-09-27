@@ -3,7 +3,7 @@ use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use crate::opengl;
 use crate::terrain_drawer::layer::TerrainLayer;
 use crate::{c_str, Extension};
-use cgmath::{Decomposed, Matrix4, SquareMatrix, Vector2, Zero};
+use cgmath::{Matrix4, SquareMatrix, Vector2, Zero};
 
 use opengl::types::{GLsizeiptr, GLuint};
 use point_viewer::math::Isometry3;
@@ -23,7 +23,6 @@ const TERRAIN_VERTEX_SHADER: &str = include_str!("../../shaders/terrain.vs");
 const TERRAIN_GEOMETRY_SHADER: &str = include_str!("../../shaders/terrain.gs");
 
 const GRID_SIZE: u32 = 1023;
-const INIT_TERRAIN_POS: i64 = -((GRID_SIZE + 1) as i64 / 2);
 
 #[allow(dead_code)]
 pub struct TerrainRenderer {
@@ -144,7 +143,7 @@ impl TerrainRenderer {
     // ======================================= End setup =======================================
 
     pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f64>, camera_to_world: &Matrix4<f64>) {
-        self.terrain_layer.update_grid(camera_to_world.w.truncate());
+        self.terrain_layer.update(camera_to_world.w.truncate());
 
         self.u_transform.value = *world_to_gl;
     }
