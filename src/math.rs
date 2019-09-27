@@ -21,6 +21,7 @@ use nav_types::{ECEF, WGS84};
 use num_traits::identities::One;
 use num_traits::Float;
 use std::fmt::Debug;
+use serde::{Deserialize, Serialize};
 use std::ops::Mul;
 
 /// Lower bound for distance from earth's center.
@@ -177,7 +178,7 @@ fn intersects_aabb3<S: BaseFloat>(
     true
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Isometry3<S> {
     pub rotation: Quaternion<S>,
     pub translation: Vector3<S>,
