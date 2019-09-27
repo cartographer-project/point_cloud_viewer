@@ -77,8 +77,10 @@ impl TerrainLayer {
 
         // Initial terrain pos
         let terrain_pos: Vector2<i64> = Vector2::new(
-            ((-metadata.origin.x) / metadata.resolution_m).floor() as i64 - i64::from(texture_size) / 2,
-            ((-metadata.origin.y) / metadata.resolution_m).floor() as i64 - i64::from(texture_size) / 2,
+            ((-metadata.origin.x) / metadata.resolution_m).floor() as i64
+                - i64::from(texture_size) / 2,
+            ((-metadata.origin.y) / metadata.resolution_m).floor() as i64
+                - i64::from(texture_size) / 2,
         );
         let u_terrain_pos_wrapped = GlUniform::new(
             &program,

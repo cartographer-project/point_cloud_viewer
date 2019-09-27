@@ -151,8 +151,9 @@ impl TerrainRenderer {
             println!("Movement too large");
             return;
         }
-        let cur_lower_corner: Vector2<i64> = self.terrain_layer.to_grid_coords(&cur_camera_pos_xy_m)
-            + Vector2::new(INIT_TERRAIN_POS, INIT_TERRAIN_POS);
+        let cur_lower_corner: Vector2<i64> =
+            self.terrain_layer.to_grid_coords(&cur_camera_pos_xy_m)
+                + Vector2::new(INIT_TERRAIN_POS, INIT_TERRAIN_POS);
 
         self.terrain_layer.update_grid(cur_lower_corner);
 
