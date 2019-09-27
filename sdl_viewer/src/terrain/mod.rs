@@ -160,7 +160,7 @@ impl TerrainRenderer {
         self.camera_pos_xy_m = cur_camera_pos_xy_m;
     }
 
-    fn update(&mut self, prev_camera_pos: Vector2<f64>, camera_pos: Vector2<f64>) {
+    fn update(&mut self, _prev_camera_pos: Vector2<f64>, camera_pos: Vector2<f64>) {
         let cur_lower_corner: Vector2<i64> = self.terrain_layer.to_grid_coords(&camera_pos)
             + Vector2::new(INIT_TERRAIN_POS, INIT_TERRAIN_POS);
 

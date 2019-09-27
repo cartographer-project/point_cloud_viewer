@@ -1,6 +1,6 @@
 use crate::graphic::tiled_texture_loader::{TilePos, TiledTextureLoader};
 use byteorder::{LittleEndian, ReadBytesExt};
-use cgmath::{Decomposed, Matrix4, Quaternion, Vector2, Vector3};
+use cgmath::{Decomposed, Quaternion, Vector3};
 use image::{LumaA, Rgba};
 use point_viewer::math::Isometry3;
 use std::fs::File;

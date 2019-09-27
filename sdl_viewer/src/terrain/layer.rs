@@ -1,9 +1,9 @@
 use crate::graphic::moving_window_texture::GlMovingWindowTexture;
-use crate::graphic::tiled_texture_loader::{TilePos, TiledTextureLoader};
+use crate::graphic::tiled_texture_loader::{TiledTextureLoader};
 use crate::graphic::uniform::GlUniform;
 use crate::graphic::GlProgram;
 use crate::terrain::read_write::Metadata;
-use cgmath::{Decomposed, Matrix4, Quaternion, Vector2, Vector3};
+use cgmath::{Decomposed, Matrix4, Vector2, Vector3};
 use image::{ImageBuffer, LumaA, Rgba};
 use point_viewer::math::Isometry3;
 use std::convert::TryInto;
