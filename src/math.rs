@@ -20,6 +20,7 @@ use collision::{Aabb, Aabb3, Contains, Relation};
 use nav_types::{ECEF, WGS84};
 use num_traits::identities::One;
 use num_traits::Float;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::Mul;
 
@@ -177,7 +178,7 @@ fn intersects_aabb3<S: BaseFloat>(
     true
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Isometry3<S> {
     pub rotation: Quaternion<S>,
     pub translation: Vector3<S>,
