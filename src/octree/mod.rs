@@ -376,19 +376,13 @@ struct OpenNode {
 
 impl Ord for OpenNode {
     fn cmp(&self, other: &OpenNode) -> Ordering {
-        if self.size_on_screen > other.size_on_screen {
-            Ordering::Greater
-        } else if self.size_on_screen < other.size_on_screen {
-            Ordering::Less
-        } else {
-            Ordering::Equal
-        }
+        self.partial_cmp(other).unwrap()
     }
 }
 
 impl PartialOrd for OpenNode {
     fn partial_cmp(&self, other: &OpenNode) -> Option<Ordering> {
-        Some(self.cmp(other))
+        self.size_on_screen.partial_cmp(&other.size_on_screen)
     }
 }
 
