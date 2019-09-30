@@ -34,6 +34,13 @@ use std::convert::{TryFrom, TryInto};
 // We are able to convert the proto on read, so the tools can still read version 9/10/11.
 pub const CURRENT_VERSION: i32 = 12;
 
+/// size for batch
+pub const NUM_POINTS_PER_BATCH: usize = 500_000;
+
+pub trait NumberOfPoints {
+    fn num_points(&self) -> Option<usize>;
+}
+
 #[derive(Debug, Clone)]
 pub struct Point {
     pub position: cgmath::Vector3<f64>,
@@ -217,6 +224,20 @@ try_from_attribute_data!(F64, f64);
 try_from_attribute_data!(U8Vec3, Vector3<u8>);
 try_from_attribute_data!(F64Vec3, Vector3<f64>);
 
+fn append_attribute<'a, T: 'a>(
+    name: &str,
+    to: &'a mut PointsBatch,
+    from: &'a mut PointsBatch,
+) -> std::result::Result<(), String>
+where
+    &'a mut Vec<T>: TryFrom<&'a mut AttributeData, Error = String>,
+{
+    let to_vec: &'a mut Vec<T> = to.get_attribute_vec_mut(name)?;
+    let from_vec: &'a mut Vec<T> = from.get_attribute_vec_mut(name)?;
+    to_vec.append(from_vec);
+    Ok(())
+}
+
 /// General structure that contains points and attached feature attributes.
 #[derive(Debug, Clone)]
 pub struct PointsBatch {
@@ -226,6 +247,71 @@ pub struct PointsBatch {
 }
 
 impl PointsBatch {
+    pub fn append(&mut self, other: &mut PointsBatch) -> std::result::Result<(), String> {
+        if self.position.is_empty() {
+            *self = other.split_off(0);
+        } else {
+            assert_eq!(self.attributes.len(), other.attributes.len());
+            self.position.append(&mut other.position);
+            let data_types: Vec<(String, AttributeDataType)> = self
+                .attributes
+                .iter()
+                .map(|(name, attrib)| (name.clone(), attrib.data_type()))
+                .collect();
+            for (name, dtype) in &data_types {
+                use AttributeDataType::*;
+                match dtype {
+                    U8 => append_attribute::<u8>(name, self, other)?,
+                    U64 => append_attribute::<u64>(name, self, other)?,
+                    I64 => append_attribute::<i64>(name, self, other)?,
+                    F32 => append_attribute::<f32>(name, self, other)?,
+                    F64 => append_attribute::<f64>(name, self, other)?,
+                    U8Vec3 => append_attribute::<Vector3<u8>>(name, self, other)?,
+                    F64Vec3 => append_attribute::<Vector3<f64>>(name, self, other)?,
+                };
+            }
+        }
+        Ok(())
+    }
+
+    pub fn split_off(&mut self, at: usize) -> Self {
+        let mut res = Self {
+            position: self.position.split_off(at),
+            attributes: BTreeMap::new(),
+        };
+        for (name, attribute) in self.attributes.iter_mut() {
+            let name = name.clone();
+            use AttributeData::*;
+            match attribute {
+                U8(data) => res.attributes.insert(name, U8(data.split_off(at))),
+                U64(data) => res.attributes.insert(name, U64(data.split_off(at))),
+                I64(data) => res.attributes.insert(name, I64(data.split_off(at))),
+                F32(data) => res.attributes.insert(name, F32(data.split_off(at))),
+                F64(data) => res.attributes.insert(name, F64(data.split_off(at))),
+                U8Vec3(data) => res.attributes.insert(name, U8Vec3(data.split_off(at))),
+                F64Vec3(data) => res.attributes.insert(name, F64Vec3(data.split_off(at))),
+            };
+        }
+        res
+    }
+
+    pub fn retain(&mut self, keep: &[bool]) {
+        assert_eq!(self.position.len(), keep.len());
+        let mut keep = keep.iter().copied().cycle();
+        self.position.retain(|_| keep.next().unwrap());
+        for a in self.attributes.values_mut() {
+            match a {
+                AttributeData::U8(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::U64(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::I64(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::F32(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::F64(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::U8Vec3(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::F64Vec3(data) => data.retain(|_| keep.next().unwrap()),
+            }
+        }
+    }
+
     pub fn get_attribute_vec<'a, T>(
         &'a self,
         key: impl AsRef<str>,
@@ -267,6 +353,3 @@ impl PointsBatch {
 }
 
 pub use point_viewer_proto_rust::proto;
-
-/// size for batch
-pub const NUM_POINTS_PER_BATCH: usize = 500_000;
