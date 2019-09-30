@@ -32,6 +32,7 @@ pub struct TerrainLayer {
     texture_size: i64,
 }
 
+#[allow(dead_code)]
 impl TerrainLayer {
     pub fn new<P: AsRef<std::path::Path>>(
         program: &GlProgram,
