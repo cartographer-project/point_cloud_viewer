@@ -395,7 +395,7 @@ pub fn build_parent(
         child_size_px * 2,
         child_size_px * 2,
         image::Rgba {
-            data: [
+            0: [
                 tile_background_color.red,
                 tile_background_color.green,
                 tile_background_color.blue,
@@ -485,7 +485,7 @@ pub fn xray_from_points(
                 x,
                 y,
                 image::Rgba {
-                    data: [color.red, color.green, color.blue, color.alpha],
+                    0: [color.red, color.green, color.blue, color.alpha],
                 },
             );
         }
