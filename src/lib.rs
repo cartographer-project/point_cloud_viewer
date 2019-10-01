@@ -174,6 +174,38 @@ impl AttributeData {
             AttributeData::F64Vec3(_) => AttributeDataType::F64Vec3,
         }
     }
+
+    pub fn append(&mut self, other: &mut Self) -> std::result::Result<(), String> {
+        match (self, other) {
+            (AttributeData::U8(s), AttributeData::U8(o)) => s.append(o),
+            (AttributeData::U64(s), AttributeData::U64(o)) => s.append(o),
+            (AttributeData::I64(s), AttributeData::I64(o)) => s.append(o),
+            (AttributeData::F32(s), AttributeData::F32(o)) => s.append(o),
+            (AttributeData::F64(s), AttributeData::F64(o)) => s.append(o),
+            (AttributeData::U8Vec3(s), AttributeData::U8Vec3(o)) => s.append(o),
+            (AttributeData::F64Vec3(s), AttributeData::F64Vec3(o)) => s.append(o),
+            (s, o) => {
+                return Err(format!(
+                    "Own data type '{:?}' is incompatible with other type '{:?}'.",
+                    s.data_type(),
+                    o.data_type(),
+                ))
+            }
+        };
+        Ok(())
+    }
+
+    pub fn split_off(&mut self, at: usize) -> Self {
+        match self {
+            AttributeData::U8(data) => AttributeData::U8(data.split_off(at)),
+            AttributeData::U64(data) => AttributeData::U64(data.split_off(at)),
+            AttributeData::I64(data) => AttributeData::I64(data.split_off(at)),
+            AttributeData::F32(data) => AttributeData::F32(data.split_off(at)),
+            AttributeData::F64(data) => AttributeData::F64(data.split_off(at)),
+            AttributeData::U8Vec3(data) => AttributeData::U8Vec3(data.split_off(at)),
+            AttributeData::F64Vec3(data) => AttributeData::F64Vec3(data.split_off(at)),
+        }
+    }
 }
 
 macro_rules! try_from_impl {
@@ -224,20 +256,6 @@ try_from_attribute_data!(F64, f64);
 try_from_attribute_data!(U8Vec3, Vector3<u8>);
 try_from_attribute_data!(F64Vec3, Vector3<f64>);
 
-fn append_attribute<'a, T: 'a>(
-    name: &str,
-    to: &'a mut PointsBatch,
-    from: &'a mut PointsBatch,
-) -> std::result::Result<(), String>
-where
-    &'a mut Vec<T>: TryFrom<&'a mut AttributeData, Error = String>,
-{
-    let to_vec: &'a mut Vec<T> = to.get_attribute_vec_mut(name)?;
-    let from_vec: &'a mut Vec<T> = from.get_attribute_vec_mut(name)?;
-    to_vec.append(from_vec);
-    Ok(())
-}
-
 /// General structure that contains points and attached feature attributes.
 #[derive(Debug, Clone)]
 pub struct PointsBatch {
@@ -253,46 +271,28 @@ impl PointsBatch {
         } else {
             assert_eq!(self.attributes.len(), other.attributes.len());
             self.position.append(&mut other.position);
-            let data_types: Vec<(String, AttributeDataType)> = self
+            for (s, o) in self
                 .attributes
-                .iter()
-                .map(|(name, attrib)| (name.clone(), attrib.data_type()))
-                .collect();
-            for (name, dtype) in &data_types {
-                use AttributeDataType::*;
-                match dtype {
-                    U8 => append_attribute::<u8>(name, self, other)?,
-                    U64 => append_attribute::<u64>(name, self, other)?,
-                    I64 => append_attribute::<i64>(name, self, other)?,
-                    F32 => append_attribute::<f32>(name, self, other)?,
-                    F64 => append_attribute::<f64>(name, self, other)?,
-                    U8Vec3 => append_attribute::<Vector3<u8>>(name, self, other)?,
-                    F64Vec3 => append_attribute::<Vector3<f64>>(name, self, other)?,
-                };
+                .values_mut()
+                .zip(other.attributes.values_mut())
+            {
+                s.append(o)?;
             }
         }
         Ok(())
     }
 
     pub fn split_off(&mut self, at: usize) -> Self {
-        let mut res = Self {
-            position: self.position.split_off(at),
-            attributes: BTreeMap::new(),
-        };
-        for (name, attribute) in self.attributes.iter_mut() {
-            let name = name.clone();
-            use AttributeData::*;
-            match attribute {
-                U8(data) => res.attributes.insert(name, U8(data.split_off(at))),
-                U64(data) => res.attributes.insert(name, U64(data.split_off(at))),
-                I64(data) => res.attributes.insert(name, I64(data.split_off(at))),
-                F32(data) => res.attributes.insert(name, F32(data.split_off(at))),
-                F64(data) => res.attributes.insert(name, F64(data.split_off(at))),
-                U8Vec3(data) => res.attributes.insert(name, U8Vec3(data.split_off(at))),
-                F64Vec3(data) => res.attributes.insert(name, F64Vec3(data.split_off(at))),
-            };
+        let position = self.position.split_off(at);
+        let attributes = self
+            .attributes
+            .iter_mut()
+            .map(|(n, a)| (n.clone(), a.split_off(at)))
+            .collect();
+        Self {
+            position,
+            attributes,
         }
-        res
     }
 
     pub fn retain(&mut self, keep: &[bool]) {
