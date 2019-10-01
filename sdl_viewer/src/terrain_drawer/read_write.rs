@@ -17,9 +17,7 @@ pub struct Metadata {
 
 pub type TextureLoaders = (TiledTextureLoader<LumaA<f32>>, TiledTextureLoader<Rgba<u8>>);
 
-#[allow(dead_code)]
 impl Metadata {
-    // Custom serialization of some values
     pub fn from_dir<P: AsRef<std::path::Path>>(dir: P) -> io::Result<Self> {
         let meta_path = dir.as_ref().join("meta.json");
         let reader = File::open(meta_path)?;
