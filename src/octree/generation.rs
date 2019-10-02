@@ -19,7 +19,7 @@ use crate::octree::{
 };
 use crate::proto;
 use crate::read_write::{
-    attempt_increasing_rlimit_to_max, Encoding, NodeWriter, OpenMode, PlyIterator, PointIterator,
+    attempt_increasing_rlimit_to_max, Encoding, NodeIterator, NodeWriter, OpenMode, PlyIterator,
     PositionEncoding, RawNodeWriter,
 };
 use crate::{NumberOfPoints, PointsBatch, NUM_POINTS_PER_BATCH};
@@ -252,25 +252,11 @@ fn subsample_children_into(
     Ok(())
 }
 
-// TODO(feuerste): Remove once all iterators work on PointsBatch
-struct OnePointPlyIterator {
-    inner: PlyIterator,
-}
-impl Iterator for OnePointPlyIterator {
-    type Item = Point;
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-    fn next(&mut self) -> Option<Point> {
-        self.inner.next().map(Point::from)
-    }
-}
-
 /// Returns the bounding box containing all points
 fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb3<f64> {
     let mut bounding_box = None;
-    let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap(),
-    let mut progress_bar = ProgressBar::new(stream.size_hint().1.unwrap() as u64);
+    let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap();
+    let mut progress_bar = ProgressBar::new(stream.num_points() as u64);
     progress_bar.message("Determining bounding box: ");
 
     stream.for_each(|batch| {
@@ -281,8 +267,8 @@ fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb3<f64> {
             } else {
                 bounding_box.map(|b| b.grow(p3))
             };
+            progress_bar.inc();
         }
-        progress_bar.inc();
     });
     progress_bar.finish();
     bounding_box.unwrap_or_else(Aabb3::zero)
@@ -295,10 +281,7 @@ pub fn build_octree_from_file(
     filename: impl AsRef<Path>,
 ) {
     let bounding_box = find_bounding_box(filename.as_ref());
-    // TODO(feuerste): Adjust batch size once all iterators work on PointsBatch
-    let stream = OnePointPlyIterator {
-        inner: PlyIterator::from_file(filename, 1).unwrap(),
-    };
+    let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap();
     build_octree(pool, output_directory, resolution, bounding_box, stream)
 }
 
