@@ -47,7 +47,7 @@ use point_viewer::math::Isometry3;
 use point_viewer::octree::{self, Octree, OctreeFactory};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Mod, Scancode};
-use sdl2::video::GLProfile;
+use sdl2::video::{GLProfile, SwapInterval};
 use std::cmp;
 use std::io;
 use std::path::PathBuf;
@@ -451,7 +451,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     // We need to create a context now, only after can we actually legally load the gl functions
     // and query 'gl_attr'.
     let _context = window.gl_create_context().unwrap();
-    let _swap_interval = video_subsystem.gl_set_swap_interval(1);
+    let _swap_interval = video_subsystem.gl_set_swap_interval(SwapInterval::VSync);
 
     assert_eq!(gl_attr.context_profile(), GLProfile::Core);
 

@@ -394,14 +394,12 @@ pub fn build_parent(
     let mut large_image = image::RgbaImage::from_pixel(
         child_size_px * 2,
         child_size_px * 2,
-        image::Rgba {
-            0: [
-                tile_background_color.red,
-                tile_background_color.green,
-                tile_background_color.blue,
-                tile_background_color.alpha,
-            ],
-        },
+        image::Rgba([
+            tile_background_color.red,
+            tile_background_color.green,
+            tile_background_color.blue,
+            tile_background_color.alpha,
+        ]),
     );
 
     // We want the x-direction to be up in the octree. Since (0, 0) is the top left
@@ -484,9 +482,7 @@ pub fn xray_from_points(
             image.put_pixel(
                 x,
                 y,
-                image::Rgba {
-                    0: [color.red, color.green, color.blue, color.alpha],
-                },
+                image::Rgba([color.red, color.green, color.blue, color.alpha]),
             );
         }
     }
