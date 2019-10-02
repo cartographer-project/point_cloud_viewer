@@ -13,15 +13,17 @@
 // limitations under the License.
 
 use crate::proto_grpc::OctreeClient;
-use cgmath::{Deg, EuclideanSpace, Point3, Rad};
+use cgmath::{Deg, EuclideanSpace, Point3, Rad, Vector3};
 use collision::{Aabb, Aabb3};
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
+use num_integer::div_ceil;
 use point_viewer::color::Color;
 use point_viewer::octree::build_octree;
-use point_viewer::Point;
+use point_viewer::{AttributeData, NumberOfPoints, Point, PointsBatch, NUM_POINTS_PER_BATCH};
 pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
 pub use point_viewer_grpc_proto_rust::proto_grpc;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 struct Points {
@@ -38,20 +40,53 @@ impl Points {
     }
 }
 
-impl Iterator for Points {
-    type Item = Point;
+impl NumberOfPoints for Points {
+    fn num_points(&self) -> usize {
+        self.points.len()
+    }
+}
 
-    fn next(&mut self) -> Option<Point> {
+impl Iterator for Points {
+    type Item = PointsBatch;
+
+    fn next(&mut self) -> Option<PointsBatch> {
         if self.point_count == self.points.len() {
             return None;
         }
-        let point = self.points[self.point_count].clone();
-        self.point_count += 1;
-        Some(point)
+        let batch_size = std::cmp::min(NUM_POINTS_PER_BATCH, self.points.len() - self.point_count);
+        let mut position = Vec::with_capacity(batch_size);
+        let mut color = Vec::with_capacity(batch_size);
+        let mut intensity = None;
+        for _ in 0..batch_size {
+            let point = &self.points[self.point_count];
+            position.push(point.position);
+            color.push(Vector3::new(
+                point.color.red,
+                point.color.green,
+                point.color.blue,
+            ));
+            if let Some(i) = point.intensity {
+                if intensity.is_none() {
+                    intensity = Some(Vec::with_capacity(batch_size));
+                }
+                intensity.as_mut().unwrap().push(i);
+            }
+            self.point_count += 1;
+        }
+        let mut attributes = BTreeMap::new();
+        attributes.insert("color".to_string(), AttributeData::U8Vec3(color));
+        if let Some(intensity) = intensity {
+            attributes.insert("intensity".to_string(), AttributeData::F32(intensity));
+        }
+        Some(PointsBatch {
+            position,
+            attributes,
+        })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.points.len(), Some(self.points.len()))
+        let num_batches = div_ceil(self.points.len(), NUM_POINTS_PER_BATCH);
+        (num_batches, Some(num_batches))
     }
 }
 

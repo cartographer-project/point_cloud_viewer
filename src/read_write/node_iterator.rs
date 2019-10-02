@@ -13,50 +13,65 @@
 // limitations under the License.
 
 use crate::read_write::RawNodeReader;
-use crate::Point;
+use crate::{NumberOfPoints, PointsBatch};
+use num_integer::div_ceil;
 
 /// Streams points from our data provider representation.
-pub struct PointIterator {
+pub struct NodeIterator {
     reader: Option<RawNodeReader>,
     num_points: usize,
     point_count: usize,
+    batch_size: usize,
 }
 
-impl Default for PointIterator {
+impl Default for NodeIterator {
     fn default() -> Self {
-        PointIterator {
+        NodeIterator {
             reader: None,
             num_points: 0,
             point_count: 0,
+            batch_size: 0,
         }
     }
 }
 
-impl PointIterator {
-    pub fn new(reader: RawNodeReader, num_points: usize) -> Self {
+impl NodeIterator {
+    pub fn new(reader: RawNodeReader, num_points: usize, batch_size: usize) -> Self {
         if num_points == 0 {
-            return PointIterator::default();
+            return NodeIterator::default();
         }
 
-        PointIterator {
+        NodeIterator {
             reader: Some(reader),
             num_points,
             point_count: 0,
+            batch_size,
         }
     }
 }
 
-impl Iterator for PointIterator {
-    type Item = Point;
+impl NumberOfPoints for NodeIterator {
+    fn num_points(&self) -> usize {
+        self.num_points
+    }
+}
+
+impl Iterator for NodeIterator {
+    type Item = PointsBatch;
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.num_points, Some(self.num_points))
+        let num_batches = div_ceil(self.num_points, self.batch_size);
+        (num_batches, Some(num_batches))
     }
-    fn next(&mut self) -> Option<Point> {
+    fn next(&mut self) -> Option<PointsBatch> {
         if let Some(reader) = &mut self.reader {
             if self.point_count < self.num_points {
-                let res = reader.read().expect("Couldn't read from node.");
-                self.point_count += 1;
+                let num_points_to_read =
+                    std::cmp::min(self.batch_size, self.num_points - self.point_count);
+                let res = reader
+                    .read_batch(num_points_to_read)
+                    .expect("Couldn't read from node.");
+                self.point_count += num_points_to_read;
                 return Some(res);
             }
         }

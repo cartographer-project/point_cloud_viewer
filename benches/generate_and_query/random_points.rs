@@ -2,7 +2,7 @@ use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 use collision::{Aabb, Aabb3};
 use point_viewer::color::RED;
 use point_viewer::math::local_frame_from_lat_lng;
-use point_viewer::{AttributeData, Point, PointsBatch};
+use point_viewer::{AttributeData, NumberOfPoints, Point, PointsBatch};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::collections::BTreeMap;
@@ -13,10 +13,12 @@ pub struct RandomPointsOnEarth {
     half_width: f64,
     half_height: f64,
     ecef_from_local: Matrix4<f64>,
+    size: usize,
+    count: usize,
 }
 
 impl RandomPointsOnEarth {
-    pub fn new(width: f64, height: f64) -> Self {
+    pub fn new(width: f64, height: f64, size: usize) -> Self {
         let mut rng = StdRng::seed_from_u64(80_293_751_234);
         let lat = rng.gen_range(-90.0, 90.0);
         let lon = rng.gen_range(-180.0, 180.0);
@@ -26,6 +28,8 @@ impl RandomPointsOnEarth {
             half_width: width * 0.5,
             half_height: height * 0.5,
             ecef_from_local,
+            size,
+            count: 0,
         }
     }
 
@@ -48,12 +52,20 @@ impl Iterator for RandomPointsOnEarth {
     type Item = Point;
 
     fn next(&mut self) -> Option<Point> {
+        if self.count == self.size {
+            return None;
+        }
         let pos = self.next_pos();
+        self.count += 1;
         Some(Point {
             position: pos.to_vec(),
             color: RED.to_u8(),
             intensity: None,
         })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.size, Some(self.size))
     }
 }
 
@@ -89,6 +101,15 @@ where
             batch,
             batch_size,
         }
+    }
+}
+
+impl<T> NumberOfPoints for Batched<T>
+where
+    T: Iterator<Item = Point>,
+{
+    fn num_points(&self) -> usize {
+        self.inner.size_hint().1.unwrap()
     }
 }
 

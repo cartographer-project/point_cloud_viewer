@@ -19,7 +19,7 @@ pub use self::codec::{
 };
 
 mod node_iterator;
-pub use self::node_iterator::PointIterator;
+pub use self::node_iterator::NodeIterator;
 
 mod node_writer;
 pub use self::node_writer::{DataWriter, NodeWriter, OpenMode, WriteEncoded, WriteLE, WriteLEPos};

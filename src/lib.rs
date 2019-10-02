@@ -38,7 +38,7 @@ pub const CURRENT_VERSION: i32 = 12;
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
 pub trait NumberOfPoints {
-    fn num_points(&self) -> Option<usize>;
+    fn num_points(&self) -> usize;
 }
 
 #[derive(Debug, Clone)]
@@ -50,29 +50,6 @@ pub struct Point {
     // The intensity of the point if it exists. This value is usually handed through directly by a
     // sensor and has therefore no defined range - or even meaning.
     pub intensity: Option<f32>,
-}
-
-// TODO(feuerste): Remove this temporary helper, once all iterators work on PointsBatch
-impl From<PointsBatch> for Point {
-    fn from(batch: PointsBatch) -> Self {
-        assert!(batch.position.len() == 1);
-        let color_vec: &Vec<Vector3<u8>> = batch.get_attribute_vec("color").unwrap();
-        let rgb = color_vec[0];
-        let color = color::Color {
-            red: rgb.x,
-            green: rgb.y,
-            blue: rgb.z,
-            alpha: 255,
-        };
-        let intensity_vec: Option<&Vec<f32>> = batch.get_attribute_vec("intensity").ok();
-        let intensity = intensity_vec.map(|vec| vec[0]);
-        let position = batch.position[0];
-        Self {
-            position,
-            color,
-            intensity,
-        }
-    }
 }
 
 pub fn attribute_extension(attribute: &str) -> &str {

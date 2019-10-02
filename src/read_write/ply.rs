@@ -16,7 +16,7 @@ use crate::errors::*;
 use crate::read_write::{
     DataWriter, Encoding, NodeWriter, OpenMode, PositionEncoding, WriteEncoded, WriteLE, WriteLEPos,
 };
-use crate::{AttributeData, Point, PointsBatch};
+use crate::{AttributeData, NumberOfPoints, Point, PointsBatch};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
 use num_integer::div_ceil;
@@ -507,6 +507,12 @@ fn batch_from_readers(readers: &mut [PropertyReader], offset: &Vector3<f64>) -> 
     PointsBatch {
         position,
         attributes,
+    }
+}
+
+impl NumberOfPoints for PlyIterator {
+    fn num_points(&self) -> usize {
+        self.num_total_points as usize
     }
 }
 
