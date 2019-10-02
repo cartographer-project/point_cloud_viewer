@@ -254,10 +254,7 @@ impl Iterator for OnePointPlyIterator {
 fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb3<f64> {
     let mut num_points = 0i64;
     let mut bounding_box = Aabb3::zero();
-    // TODO(feuerste): Adjust batch size once all iterators work on PointsBatch
-    let stream = OnePointPlyIterator {
-        inner: PlyIterator::from_file(filename, 1).unwrap(),
-    };
+    let stream = PlyIterator::from_file(filename).unwrap();
     let mut progress_bar = ProgressBar::new(stream.size_hint().1.unwrap() as u64);
     progress_bar.message("Determining bounding box: ");
 
@@ -283,10 +280,7 @@ pub fn build_octree_from_file(
     filename: impl AsRef<Path>,
 ) {
     let bounding_box = find_bounding_box(filename.as_ref());
-    // TODO(feuerste): Adjust batch size once all iterators work on PointsBatch
-    let stream = OnePointPlyIterator {
-        inner: PlyIterator::from_file(filename, 1).unwrap(),
-    };
+    let stream = PlyIterator::from_file(filename).unwrap();
     build_octree(pool, output_directory, resolution, bounding_box, stream)
 }
 
