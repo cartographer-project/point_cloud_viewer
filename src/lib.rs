@@ -52,6 +52,29 @@ pub struct Point {
     pub intensity: Option<f32>,
 }
 
+// TODO(feuerste): Remove this temporary helper, once all iterators work on PointsBatch
+impl From<PointsBatch> for Point {
+    fn from(batch: PointsBatch) -> Self {
+        assert!(batch.position.len() == 1);
+        let color_vec: &Vec<Vector3<u8>> = batch.get_attribute_vec("color").unwrap();
+        let rgb = color_vec[0];
+        let color = color::Color {
+            red: rgb.x,
+            green: rgb.y,
+            blue: rgb.z,
+            alpha: 255,
+        };
+        let intensity_vec: Option<&Vec<f32>> = batch.get_attribute_vec("intensity").ok();
+        let intensity = intensity_vec.map(|vec| vec[0]);
+        let position = batch.position[0];
+        Self {
+            position,
+            color,
+            intensity,
+        }
+    }
+}
+
 pub fn attribute_extension(attribute: &str) -> &str {
     match attribute {
         "position" => "xyz",
