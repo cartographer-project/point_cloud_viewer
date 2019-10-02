@@ -17,8 +17,8 @@ use crate::math::Cube;
 use crate::octree::{self, to_meta_proto, to_node_proto, NodeId, OctreeMeta, OnDiskDataProvider};
 use crate::proto;
 use crate::read_write::{
-    attempt_increasing_rlimit_to_max, make_stream, Encoding, InputFile, NodeWriter, OpenMode,
-    PointIterator, PositionEncoding, RawNodeWriter,
+    attempt_increasing_rlimit_to_max, Encoding, NodeWriter, OpenMode, PlyIterator, PointIterator,
+    PositionEncoding, RawNodeWriter,
 };
 use crate::Point;
 use cgmath::{EuclideanSpace, Point3, Vector3};
@@ -237,13 +237,12 @@ fn subsample_children_into(
 }
 
 /// Returns the bounding box containing all points
-fn find_bounding_box(input: &InputFile) -> Aabb3<f64> {
+fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb3<f64> {
     let mut num_points = 0i64;
     let mut bounding_box = Aabb3::zero();
-    let (stream, mut progress_bar) = make_stream(input);
-    if let Some(pb) = progress_bar.as_mut() {
-        pb.message("Determining bounding box: ")
-    }
+    let stream = PlyIterator::from_file(filename).unwrap();
+    let mut progress_bar = ProgressBar::new(stream.size_hint().1.unwrap() as u64);
+    progress_bar.message("Determining bounding box: ");
 
     stream.for_each(|p| {
         if num_points == 0 {
@@ -253,12 +252,10 @@ fn find_bounding_box(input: &InputFile) -> Aabb3<f64> {
         bounding_box = bounding_box.grow(Point3::from_vec(p.position));
         num_points += 1;
         if num_points % UPDATE_COUNT == 0 {
-            progress_bar.as_mut().map(|pb| pb.add(UPDATE_COUNT as u64));
+            progress_bar.add(UPDATE_COUNT as u64);
         }
     });
-    if let Some(mut f) = progress_bar {
-        f.finish()
-    }
+    progress_bar.finish();
     bounding_box
 }
 
@@ -268,19 +265,8 @@ pub fn build_octree_from_file(
     resolution: f64,
     filename: impl AsRef<Path>,
 ) {
-    // TODO(ksavinash9): This function should return a Result.
-    let input = {
-        match filename
-            .as_ref()
-            .extension()
-            .and_then(std::ffi::OsStr::to_str)
-        {
-            Some("ply") => InputFile::Ply(filename.as_ref().to_path_buf()),
-            other => panic!("Unknown input file format: {:?}", other),
-        }
-    };
-    let bounding_box = find_bounding_box(&input);
-    let (stream, _) = make_stream(&input);
+    let bounding_box = find_bounding_box(filename.as_ref());
+    let stream = PlyIterator::from_file(filename).unwrap();
     build_octree(pool, output_directory, resolution, bounding_box, stream)
 }
 

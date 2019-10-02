@@ -18,9 +18,6 @@ pub use self::codec::{
     PositionEncoding,
 };
 
-mod input_file_iterator;
-pub use self::input_file_iterator::{make_stream, InputFile, InputFileIterator};
-
 mod node_iterator;
 pub use self::node_iterator::PointIterator;
 
