@@ -30,9 +30,6 @@ pub use self::node_writer::{DataWriter, NodeWriter, OpenMode, WriteEncoded, Writ
 mod ply;
 pub use self::ply::{PlyIterator, PlyNodeWriter};
 
-mod pts;
-pub use self::pts::PtsIterator;
-
 mod raw;
 pub use self::raw::{RawNodeReader, RawNodeWriter};
 

@@ -276,7 +276,6 @@ pub fn build_octree_from_file(
             .and_then(std::ffi::OsStr::to_str)
         {
             Some("ply") => InputFile::Ply(filename.as_ref().to_path_buf()),
-            Some("pts") => InputFile::Pts(filename.as_ref().to_path_buf()),
             other => panic!("Unknown input file format: {:?}", other),
         }
     };
