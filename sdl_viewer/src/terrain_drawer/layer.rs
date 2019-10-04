@@ -7,9 +7,12 @@ use cgmath::{Decomposed, Matrix4, Vector2, Vector3, Zero};
 use image::{ImageBuffer, LumaA, Rgba};
 use point_viewer::math::Isometry3;
 use std::convert::TryInto;
+use std::io;
 use std::rc::Rc;
 
-const F64_MAX_INT: i64 = 9_007_199_254_740_992;
+// The last integer that can be exactly represented in a f64
+const F64_MAX_SAFE_INT: i64 = 9_007_199_254_740_992;
+const F64_MIN_SAFE_INT: i64 = -F64_MAX_SAFE_INT;
 
 struct HeightAndColor {
     height: ImageBuffer<LumaA<f32>, Vec<f32>>,
@@ -32,13 +35,13 @@ pub struct TerrainLayer {
     texture_size: i64,
 }
 
+#[allow(dead_code)]
 impl TerrainLayer {
     pub fn new<P: AsRef<std::path::Path>>(
         program: &GlProgram,
         path: P,
         texture_size: u32,
-    ) -> Result<Self, std::io::Error> {
-        println!("Loading terrain.");
+    ) -> io::Result<Self> {
         assert!(texture_size % 2 == 0 && texture_size > 0);
         let metadata = Metadata::from_dir(&path)?;
         let (height_tiles, color_tiles) = metadata.read_tiles(&path)?;
@@ -61,7 +64,7 @@ impl TerrainLayer {
             Rc::clone(&program.gl),
             "height",
             texture_size,
-            0,
+            0, // texture_unit
             height_initial,
         );
 
@@ -76,12 +79,11 @@ impl TerrainLayer {
             Rc::clone(&program.gl),
             "color",
             texture_size,
-            1,
+            1, // texture_unit
             color_initial,
         );
         let texture_size = i64::from(texture_size);
 
-        println!("Loading terrain complete.");
         Ok(TerrainLayer {
             grid_coordinates,
             terrain_pos,
@@ -106,11 +108,11 @@ impl TerrainLayer {
         self.terrain_pos = cur_pos;
         // Convert to f64, because GLSL doesn't understand i64
         assert!(
-            cur_pos.x < F64_MAX_INT && cur_pos.x > -F64_MAX_INT,
+            cur_pos.x < F64_MAX_SAFE_INT && cur_pos.x > F64_MIN_SAFE_INT,
             "Terrain location not representable."
         );
         assert!(
-            cur_pos.y < F64_MAX_INT && cur_pos.y > -F64_MAX_INT,
+            cur_pos.y < F64_MAX_SAFE_INT && cur_pos.y > F64_MIN_SAFE_INT,
             "Terrain location not representable."
         );
         self.u_terrain_pos.value = cur_pos.cast().unwrap();
@@ -193,16 +195,16 @@ struct GridCoordinateFrame {
 impl GridCoordinateFrame {
     fn new(program: &GlProgram, metadata: Metadata, texture_size: u32) -> Self {
         let u_origin = GlUniform::new(&program, "terrain_origin_m", metadata.origin);
+        let terrain_from_world = metadata.world_from_terrain.inverse();
         let u_world_from_terrain = GlUniform::new(
             &program,
             "terrain_to_world",
             Matrix4::from({
-                let decomp: Decomposed<_, _> = metadata.world_from_terrain.clone().into();
+                let decomp: Decomposed<_, _> = metadata.world_from_terrain.into();
                 decomp
             }),
         );
         let u_resolution_m = GlUniform::new(&program, "terrain_res_m", metadata.resolution_m);
-        let terrain_from_world = metadata.world_from_terrain.inverse();
         let texture_half_extent =
             Vector2::new(i64::from(texture_size) / 2, i64::from(texture_size) / 2);
         GridCoordinateFrame {

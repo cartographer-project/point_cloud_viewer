@@ -16,6 +16,7 @@ use std::rc::Rc;
 mod layer;
 mod read_write;
 
+pub use layer::TerrainLayer;
 pub use read_write::Metadata;
 
 const TERRAIN_FRAGMENT_SHADER: &str = include_str!("../../shaders/terrain.fs");

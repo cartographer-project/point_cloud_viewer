@@ -20,6 +20,7 @@ use collision::{Aabb, Aabb3, Contains, Relation};
 use nav_types::{ECEF, WGS84};
 use num_traits::identities::One;
 use num_traits::Float;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use std::ops::Mul;

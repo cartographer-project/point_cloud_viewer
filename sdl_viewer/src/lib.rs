@@ -46,8 +46,8 @@ use point_viewer::color::YELLOW;
 use point_viewer::math::Isometry3;
 use point_viewer::octree::{self, Octree, OctreeFactory};
 use sdl2::event::{Event, WindowEvent};
-use sdl2::keyboard::{Scancode, LCTRLMOD, LSHIFTMOD, NUMMOD, RCTRLMOD, RSHIFTMOD};
-use sdl2::video::GLProfile;
+use sdl2::keyboard::{Mod, Scancode};
+use sdl2::video::{GLProfile, SwapInterval};
 use std::cmp;
 use std::io;
 use std::path::PathBuf;
@@ -455,7 +455,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     // We need to create a context now, only after can we actually legally load the gl functions
     // and query 'gl_attr'.
     let _context = window.gl_create_context().unwrap();
-    video_subsystem.gl_set_swap_interval(1);
+    let _swap_interval = video_subsystem.gl_set_swap_interval(SwapInterval::VSync);
 
     assert_eq!(gl_attr.context_profile(), GLProfile::Core);
 
@@ -481,7 +481,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                     keymod,
                     ..
                 } => {
-                    if keymod.is_empty() || keymod == NUMMOD {
+                    if keymod.is_empty() || keymod == Mod::NUMMOD {
                         match code {
                             Scancode::Escape => break 'outer_loop,
                             Scancode::W => camera.moving_forward = true,
@@ -508,8 +508,8 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                             Scancode::Comma => camera.mouse_wheel(-100),
                             _ => (),
                         }
-                    } else if keymod.intersects(LCTRLMOD | RCTRLMOD)
-                        && keymod.intersects(LSHIFTMOD | RSHIFTMOD)
+                    } else if keymod.intersects(Mod::LCTRLMOD | Mod::RCTRLMOD)
+                        && keymod.intersects(Mod::LSHIFTMOD | Mod::RSHIFTMOD)
                     {
                         // CTRL + SHIFT is pressed.
                         match code {
@@ -525,7 +525,7 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
                             Scancode::Num0 => save_camera(9, &pose_path, &camera),
                             _ => (),
                         }
-                    } else if keymod.intersects(LCTRLMOD | RCTRLMOD) {
+                    } else if keymod.intersects(Mod::LCTRLMOD | Mod::RCTRLMOD) {
                         // CTRL is pressed.
                         match code {
                             Scancode::Num1 => load_camera(0, &pose_path, &mut camera),

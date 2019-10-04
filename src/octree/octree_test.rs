@@ -216,5 +216,4 @@ mod tests {
         assert!(delivered_points as i32 - max_num_points as i32 >= 0);
         assert!(delivered_points as i32 - max_num_points as i32 <= batch_size as i32);
     }
-
 }

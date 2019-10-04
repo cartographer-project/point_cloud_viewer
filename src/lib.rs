@@ -34,6 +34,13 @@ use std::convert::{TryFrom, TryInto};
 // We are able to convert the proto on read, so the tools can still read version 9/10/11.
 pub const CURRENT_VERSION: i32 = 12;
 
+/// size for batch
+pub const NUM_POINTS_PER_BATCH: usize = 500_000;
+
+pub trait NumberOfPoints {
+    fn num_points(&self) -> Option<usize>;
+}
+
 #[derive(Debug, Clone)]
 pub struct Point {
     pub position: cgmath::Vector3<f64>,
@@ -167,6 +174,38 @@ impl AttributeData {
             AttributeData::F64Vec3(_) => AttributeDataType::F64Vec3,
         }
     }
+
+    pub fn append(&mut self, other: &mut Self) -> std::result::Result<(), String> {
+        match (self, other) {
+            (AttributeData::U8(s), AttributeData::U8(o)) => s.append(o),
+            (AttributeData::U64(s), AttributeData::U64(o)) => s.append(o),
+            (AttributeData::I64(s), AttributeData::I64(o)) => s.append(o),
+            (AttributeData::F32(s), AttributeData::F32(o)) => s.append(o),
+            (AttributeData::F64(s), AttributeData::F64(o)) => s.append(o),
+            (AttributeData::U8Vec3(s), AttributeData::U8Vec3(o)) => s.append(o),
+            (AttributeData::F64Vec3(s), AttributeData::F64Vec3(o)) => s.append(o),
+            (s, o) => {
+                return Err(format!(
+                    "Own data type '{:?}' is incompatible with other type '{:?}'.",
+                    s.data_type(),
+                    o.data_type(),
+                ))
+            }
+        };
+        Ok(())
+    }
+
+    pub fn split_off(&mut self, at: usize) -> Self {
+        match self {
+            AttributeData::U8(data) => AttributeData::U8(data.split_off(at)),
+            AttributeData::U64(data) => AttributeData::U64(data.split_off(at)),
+            AttributeData::I64(data) => AttributeData::I64(data.split_off(at)),
+            AttributeData::F32(data) => AttributeData::F32(data.split_off(at)),
+            AttributeData::F64(data) => AttributeData::F64(data.split_off(at)),
+            AttributeData::U8Vec3(data) => AttributeData::U8Vec3(data.split_off(at)),
+            AttributeData::F64Vec3(data) => AttributeData::F64Vec3(data.split_off(at)),
+        }
+    }
 }
 
 macro_rules! try_from_impl {
@@ -226,6 +265,53 @@ pub struct PointsBatch {
 }
 
 impl PointsBatch {
+    pub fn append(&mut self, other: &mut PointsBatch) -> std::result::Result<(), String> {
+        if self.position.is_empty() {
+            *self = other.split_off(0);
+        } else {
+            assert_eq!(self.attributes.len(), other.attributes.len());
+            self.position.append(&mut other.position);
+            for (s, o) in self
+                .attributes
+                .values_mut()
+                .zip(other.attributes.values_mut())
+            {
+                s.append(o)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn split_off(&mut self, at: usize) -> Self {
+        let position = self.position.split_off(at);
+        let attributes = self
+            .attributes
+            .iter_mut()
+            .map(|(n, a)| (n.clone(), a.split_off(at)))
+            .collect();
+        Self {
+            position,
+            attributes,
+        }
+    }
+
+    pub fn retain(&mut self, keep: &[bool]) {
+        assert_eq!(self.position.len(), keep.len());
+        let mut keep = keep.iter().copied().cycle();
+        self.position.retain(|_| keep.next().unwrap());
+        for a in self.attributes.values_mut() {
+            match a {
+                AttributeData::U8(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::U64(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::I64(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::F32(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::F64(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::U8Vec3(data) => data.retain(|_| keep.next().unwrap()),
+                AttributeData::F64Vec3(data) => data.retain(|_| keep.next().unwrap()),
+            }
+        }
+    }
+
     pub fn get_attribute_vec<'a, T>(
         &'a self,
         key: impl AsRef<str>,
@@ -267,6 +353,3 @@ impl PointsBatch {
 }
 
 pub use point_viewer_proto_rust::proto;
-
-/// size for batch
-pub const NUM_POINTS_PER_BATCH: usize = 500_000;
