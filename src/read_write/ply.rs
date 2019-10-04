@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::color;
 use crate::errors::*;
 use crate::read_write::{
     DataWriter, Encoding, NodeWriter, OpenMode, PositionEncoding, WriteEncoded, WriteLE, WriteLEPos,
@@ -20,7 +19,10 @@ use crate::read_write::{
 use crate::{AttributeData, Point, PointsBatch};
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::Vector3;
+use num_integer::div_ceil;
 use num_traits::identities::Zero;
+use std::collections::BTreeMap;
+use std::convert::TryFrom;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::ops::Index;
@@ -96,7 +98,7 @@ enum Format {
 }
 
 // TODO(hrapp): Maybe support list properties too?
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ScalarProperty {
     name: String,
     data_type: DataType,
@@ -222,17 +224,17 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
     ))
 }
 
-type ReadingFn = fn(nread: &mut usize, buf: &[u8], val: &mut Point);
+type ReadingFn = fn(nread: &mut usize, buf: &[u8], data: &mut AttributeData);
 
-// The two macros create a 'ReadingFn' that reads a value of '$data_type' out of a reader, and
+// The three macros create a 'ReadingFn' that reads a value of '$data_type' out of a reader, and
 // calls '$assign' with it while casting it to the correct type. I did not find a way of doing this
 // purely using generic programming, so I resorted to this macro.
 macro_rules! create_and_return_reading_fn {
     ($assign:expr, $size:ident, $num_bytes:expr, $reading_fn:expr) => {{
         $size += $num_bytes;
-        |nread: &mut usize, buf: &[u8], point: &mut Point| {
+        |nread: &mut usize, buf: &[u8], data: &mut AttributeData| {
             #[allow(clippy::cast_lossless)]
-            $assign(point, $reading_fn(buf) as _);
+            $assign(data, $reading_fn(buf) as _);
             *nread += $num_bytes;
         }
     }};
@@ -273,29 +275,57 @@ macro_rules! read_casted_property {
     };
 }
 
-// Similar to 'create_and_return_reading_fn', but creates a function that just advances the read
+macro_rules! push_reader {
+    ($readers:ident, $prop:expr, $data:expr, &mut $num_bytes:ident, $dtype:ty) => {{
+        $readers.push(PropertyReader {
+            prop: $prop.clone(),
+            data: $data,
+            func: read_casted_property!(
+                $prop.data_type,
+                |data: &mut AttributeData, val: $dtype| {
+                    <&mut Vec<$dtype>>::try_from(data).unwrap().push(val);
+                },
+                &mut $num_bytes
+            ),
+        });
+    }};
+}
+
+// Similar to 'push_reader', but creates a read function that just advances the read
 // pointer.
-macro_rules! create_skip_fn {
-    (&mut $size:ident, $num_bytes:expr) => {{
+macro_rules! push_skip_reader {
+    ($prop:expr, &mut $size:ident, $num_bytes:expr) => {{
+        println!("Will ignore property '{}' on 'vertex'.", $prop.name);
         $size += $num_bytes;
-        fn _read_fn(nread: &mut usize, _: &[u8], _: &mut Point) {
+        fn _read_fn(nread: &mut usize, _: &[u8], _: &mut AttributeData) {
             *nread += $num_bytes;
         }
-        _read_fn
+        PropertyReader {
+            prop: $prop.clone(),
+            data: AttributeData::U8(Vec::new()),
+            func: _read_fn,
+        }
     }};
+}
+
+struct PropertyReader {
+    prop: ScalarProperty,
+    data: AttributeData,
+    func: ReadingFn,
 }
 
 /// Abstraction to read binary points from ply files into points.
 pub struct PlyIterator {
     reader: BufReader<File>,
-    readers: Vec<ReadingFn>,
+    readers: Vec<PropertyReader>,
     pub num_total_points: i64,
+    batch_size: usize,
     offset: Vector3<f64>,
     point_count: usize,
 }
 
 impl PlyIterator {
-    pub fn from_file<P: AsRef<Path>>(ply_file: P) -> Result<Self> {
+    pub fn from_file<P: AsRef<Path>>(ply_file: P, batch_size: usize) -> Result<Self> {
         let mut file = File::open(ply_file).chain_err(|| "Could not open input file.")?;
         let mut reader = BufReader::new(file);
         let (header, header_len) = parse_header(&mut reader)?;
@@ -315,83 +345,92 @@ impl PlyIterator {
         let mut seen_y = false;
         let mut seen_z = false;
 
-        let mut readers: Vec<ReadingFn> = Vec::new();
+        let mut readers: Vec<PropertyReader> = Vec::new();
         let mut num_bytes_per_point = 0;
 
         for prop in &vertex.properties {
             match &prop.name as &str {
                 "x" => {
-                    readers.push(read_casted_property!(
-                        prop.data_type,
-                        |p: &mut Point, val: f64| p.position.x = val,
-                        &mut num_bytes_per_point
-                    ));
+                    push_reader!(
+                        readers,
+                        prop,
+                        AttributeData::F64(Vec::with_capacity(batch_size)),
+                        &mut num_bytes_per_point,
+                        f64
+                    );
                     seen_x = true;
                 }
                 "y" => {
-                    readers.push(read_casted_property!(
-                        prop.data_type,
-                        |p: &mut Point, val: f64| p.position.y = val,
-                        &mut num_bytes_per_point
-                    ));
+                    push_reader!(
+                        readers,
+                        prop,
+                        AttributeData::F64(Vec::with_capacity(batch_size)),
+                        &mut num_bytes_per_point,
+                        f64
+                    );
                     seen_y = true;
                 }
                 "z" => {
-                    readers.push(read_casted_property!(
-                        prop.data_type,
-                        |p: &mut Point, val: f64| p.position.z = val,
-                        &mut num_bytes_per_point
-                    ));
+                    push_reader!(
+                        readers,
+                        prop,
+                        AttributeData::F64(Vec::with_capacity(batch_size)),
+                        &mut num_bytes_per_point,
+                        f64
+                    );
                     seen_z = true;
                 }
-                "r" | "red" => {
-                    readers.push(read_casted_property!(
-                        prop.data_type,
-                        |p: &mut Point, val: u8| p.color.red = val,
-                        &mut num_bytes_per_point
-                    ));
-                }
-                "g" | "green" => {
-                    readers.push(read_casted_property!(
-                        prop.data_type,
-                        |p: &mut Point, val: u8| p.color.green = val,
-                        &mut num_bytes_per_point
-                    ));
-                }
-                "b" | "blue" => {
-                    readers.push(read_casted_property!(
-                        prop.data_type,
-                        |p: &mut Point, val: u8| p.color.blue = val,
-                        &mut num_bytes_per_point
-                    ));
-                }
                 "a" | "alpha" => {
-                    readers.push(read_casted_property!(
-                        prop.data_type,
-                        |p: &mut Point, val: u8| p.color.alpha = val,
-                        &mut num_bytes_per_point
-                    ));
-                }
-                "intensity" => {
-                    readers.push(read_casted_property!(
-                        prop.data_type,
-                        |p: &mut Point, val| p.intensity = Some(val),
-                        &mut num_bytes_per_point
-                    ));
+                    readers.push(push_skip_reader!(prop, &mut num_bytes_per_point, 1));
                 }
                 other => {
-                    println!("Will ignore property '{}' on 'vertex'.", other);
+                    // TODO(feuerste): We may need to support multidimensional attributes.
+                    assert!(!other.chars().last().unwrap().is_ascii_digit(),
+                    "Multidimensional attributes other than position and color are currently unsupported.");
                     use self::DataType::*;
                     match prop.data_type {
-                        Uint8 | Int8 => readers.push(create_skip_fn!(&mut num_bytes_per_point, 1)),
+                        Uint8 => push_reader!(
+                            readers,
+                            prop,
+                            AttributeData::U8(Vec::with_capacity(batch_size)),
+                            &mut num_bytes_per_point,
+                            u8
+                        ),
+                        Uint64 => push_reader!(
+                            readers,
+                            prop,
+                            AttributeData::U64(Vec::with_capacity(batch_size)),
+                            &mut num_bytes_per_point,
+                            u64
+                        ),
+                        Int64 => push_reader!(
+                            readers,
+                            prop,
+                            AttributeData::I64(Vec::with_capacity(batch_size)),
+                            &mut num_bytes_per_point,
+                            i64
+                        ),
+                        Float32 => push_reader!(
+                            readers,
+                            prop,
+                            AttributeData::F32(Vec::with_capacity(batch_size)),
+                            &mut num_bytes_per_point,
+                            f32
+                        ),
+                        Float64 => push_reader!(
+                            readers,
+                            prop,
+                            AttributeData::F64(Vec::with_capacity(batch_size)),
+                            &mut num_bytes_per_point,
+                            f64
+                        ),
+                        Int8 => readers.push(push_skip_reader!(prop, &mut num_bytes_per_point, 1)),
                         Uint16 | Int16 => {
-                            readers.push(create_skip_fn!(&mut num_bytes_per_point, 2))
+                            readers.push(push_skip_reader!(prop, &mut num_bytes_per_point, 2))
                         }
-                        Uint32 | Int32 | Float32 => {
-                            readers.push(create_skip_fn!(&mut num_bytes_per_point, 4))
-                        }
-                        Float64 | Uint64 | Int64 => {
-                            readers.push(create_skip_fn!(&mut num_bytes_per_point, 8))
+
+                        Uint32 | Int32 => {
+                            readers.push(push_skip_reader!(prop, &mut num_bytes_per_point, 4))
                         }
                     }
                 }
@@ -408,48 +447,106 @@ impl PlyIterator {
             reader: BufReader::with_capacity(num_bytes_per_point * 1024, file),
             readers,
             num_total_points: header["vertex"].count,
+            batch_size,
             offset: header.offset,
             point_count: 0,
         })
     }
 }
 
+fn batch_from_readers(readers: &mut [PropertyReader], offset: &Vector3<f64>) -> PointsBatch {
+    let (mut x_vec, mut y_vec, mut z_vec) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut r_vec, mut g_vec, mut b_vec) = (Vec::new(), Vec::new(), Vec::new());
+    let mut attributes = BTreeMap::new();
+    for reader in readers {
+        let data = &mut reader.data;
+        match &reader.prop.name as &str {
+            "x" => x_vec = <&mut Vec<f64>>::try_from(data).unwrap().split_off(0),
+            "y" => y_vec = <&mut Vec<f64>>::try_from(data).unwrap().split_off(0),
+            "z" => z_vec = <&mut Vec<f64>>::try_from(data).unwrap().split_off(0),
+            "r" | "red" => r_vec = <&mut Vec<u8>>::try_from(data).unwrap().split_off(0),
+            "g" | "green" => g_vec = <&mut Vec<u8>>::try_from(data).unwrap().split_off(0),
+            "b" | "blue" => b_vec = <&mut Vec<u8>>::try_from(data).unwrap().split_off(0),
+            "a" | "alpha" => {}
+            other => {
+                let other_data = match reader.prop.data_type {
+                    DataType::Uint8
+                    | DataType::Uint64
+                    | DataType::Int64
+                    | DataType::Float32
+                    | DataType::Float64 => data.split_off(0),
+                    DataType::Int8
+                    | DataType::Uint16
+                    | DataType::Int16
+                    | DataType::Uint32
+                    | DataType::Int32 => continue,
+                };
+                attributes.insert(other.to_string(), other_data);
+            }
+        }
+    }
+    let position: Vec<Vector3<f64>> = x_vec
+        .into_iter()
+        .zip(y_vec.into_iter())
+        .zip(z_vec.into_iter())
+        .map(|((x, y), z)| Vector3::new(x, y, z) + offset)
+        .collect();
+    if !r_vec.is_empty() {
+        attributes.insert(
+            "color".to_string(),
+            AttributeData::U8Vec3(
+                r_vec
+                    .into_iter()
+                    .zip(g_vec.into_iter())
+                    .zip(b_vec.into_iter())
+                    .map(|((r, g), b)| Vector3::new(r, g, b))
+                    .collect(),
+            ),
+        );
+    }
+    PointsBatch {
+        position,
+        attributes,
+    }
+}
+
 impl Iterator for PlyIterator {
-    type Item = Point;
+    type Item = PointsBatch;
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let size = self.num_total_points as usize;
-        (size, Some(size))
+        let num_batches = div_ceil(self.num_total_points as usize, self.batch_size);
+        (num_batches, Some(num_batches))
     }
 
-    fn next(&mut self) -> Option<Point> {
+    fn next(&mut self) -> Option<PointsBatch> {
         if self.point_count == self.num_total_points as usize {
             return None;
         }
 
-        let mut point = Point {
-            position: Vector3::zero(),
-            color: color::WHITE.to_u8(),
-            intensity: None,
-        };
+        let cur_batch_size = std::cmp::min(
+            self.batch_size,
+            self.num_total_points as usize - self.point_count,
+        );
 
-        let mut nread = 0;
+        for _ in 0..cur_batch_size {
+            let mut nread = 0;
 
-        // We made sure before that the internal buffer of 'reader' is aligned to the number of
-        // bytes for a single point, therefore we can access it here and know that we can always
-        // read into it and are sure that it contains at least a full point.
-        {
-            let buf = self.reader.fill_buf().unwrap();
-            for r in &self.readers {
-                let cnread = nread;
-                r(&mut nread, &buf[cnread..], &mut point);
+            // We made sure before that the internal buffer of 'reader' is aligned to the number of
+            // bytes for a single point, therefore we can access it here and know that we can always
+            // read into it and are sure that it contains at least a full point.
+            {
+                let buf = self.reader.fill_buf().unwrap();
+                for r in self.readers.iter_mut() {
+                    let cnread = nread;
+                    (r.func)(&mut nread, &buf[cnread..], &mut r.data);
+                }
             }
+            self.reader.consume(nread);
         }
-        point.position += self.offset;
-        self.reader.consume(nread);
-        self.point_count += 1;
+        self.point_count += cur_batch_size;
 
-        Some(point)
+        let batch = batch_from_readers(&mut self.readers, &self.offset);
+        Some(batch)
     }
 }
 
@@ -629,46 +726,60 @@ mod tests {
     use crate::read_write::PlyIterator;
     use tempdir::TempDir;
 
-    fn points_from_file<P: AsRef<Path>>(path: P) -> Vec<Point> {
-        let iterator = PlyIterator::from_file(path).unwrap();
-        let mut points = Vec::new();
-        iterator.for_each(|p| {
-            points.push(p);
+    const BATCH_SIZE: usize = 2;
+    const NUM_BATCHES: usize = 4;
+    const LAST_BATCH: usize = 3;
+
+    fn batches_from_file<P: AsRef<Path>>(path: P) -> Vec<PointsBatch> {
+        let iterator = PlyIterator::from_file(path, BATCH_SIZE).unwrap();
+        let mut batches = Vec::new();
+        iterator.for_each(|batch| {
+            batches.push(batch);
         });
-        points
+        batches
     }
 
     #[test]
     fn test_xyz_f32_rgb_u8_le() {
-        let points = points_from_file("src/test_data/xyz_f32_rgb_u8_le.ply");
-        assert_eq!(8, points.len());
-        assert_eq!(points[0].position.x, 1.);
-        assert_eq!(points[7].position.x, 22.);
-        assert_eq!(points[0].color.red, 255);
-        assert_eq!(points[7].color.red, 234);
+        let batches = batches_from_file("src/test_data/xyz_f32_rgb_u8_le.ply");
+        assert_eq!(NUM_BATCHES, batches.len());
+        assert_eq!(batches[0].position[0].x, 1.);
+        assert_eq!(batches[LAST_BATCH].position.last().unwrap().x, 22.);
+        let color_first: &Vec<Vector3<u8>> = batches[0].get_attribute_vec("color").unwrap();
+        let color_last: &Vec<Vector3<u8>> = batches[LAST_BATCH].get_attribute_vec("color").unwrap();
+        assert_eq!(color_first[0].x, 255);
+        assert_eq!(color_last.last().unwrap().x, 234);
     }
 
     #[test]
     fn test_xyz_f32_rgba_u8_le() {
-        let points = points_from_file("src/test_data/xyz_f32_rgba_u8_le.ply");
-        assert_eq!(8, points.len());
-        assert_eq!(points[0].position.x, 1.);
-        assert_eq!(points[7].position.x, 22.);
-        assert_eq!(points[0].color.red, 255);
-        assert_eq!(points[7].color.red, 227);
+        let batches = batches_from_file("src/test_data/xyz_f32_rgba_u8_le.ply");
+        assert_eq!(NUM_BATCHES, batches.len());
+        assert_eq!(batches[0].position[0].x, 1.);
+        assert_eq!(batches[LAST_BATCH].position.last().unwrap().x, 22.);
+        let color_first: &Vec<Vector3<u8>> = batches[0].get_attribute_vec("color").unwrap();
+        let color_last: &Vec<Vector3<u8>> = batches[LAST_BATCH].get_attribute_vec("color").unwrap();
+        assert_eq!(color_first[0].x, 255);
+        assert_eq!(color_last.last().unwrap().x, 227);
     }
 
     #[test]
     fn test_xyz_f32_rgb_u8_intensity_f32_le() {
         // All intensities in this file are NaN, but set.
-        let points = points_from_file("src/test_data/xyz_f32_rgb_u8_intensity_f32.ply");
-        assert_eq!(8, points.len());
-        assert_eq!(points[0].position.x, 1.);
-        assert!(points[0].intensity.is_some());
-        assert_eq!(points[7].position.x, 22.);
-        assert!(points[7].intensity.is_some());
-        assert_eq!(points[0].color.red, 255);
-        assert_eq!(points[7].color.red, 234);
+        let batches = batches_from_file("src/test_data/xyz_f32_rgb_u8_intensity_f32.ply");
+        assert_eq!(NUM_BATCHES, batches.len());
+        assert_eq!(batches[0].position[0].x, 1.);
+        assert_eq!(batches[LAST_BATCH].position.last().unwrap().x, 22.);
+        let intensity_first: std::result::Result<&Vec<f32>, String> =
+            batches[0].get_attribute_vec("intensity");
+        let intensity_last: std::result::Result<&Vec<f32>, String> =
+            batches[LAST_BATCH].get_attribute_vec("intensity");
+        assert!(intensity_first.is_ok() && intensity_first.unwrap().len() == BATCH_SIZE);
+        assert!(intensity_last.is_ok() && intensity_last.unwrap().len() == BATCH_SIZE);
+        let color_first: &Vec<Vector3<u8>> = batches[0].get_attribute_vec("color").unwrap();
+        let color_last: &Vec<Vector3<u8>> = batches[LAST_BATCH].get_attribute_vec("color").unwrap();
+        assert_eq!(color_first[0].x, 255);
+        assert_eq!(color_last.last().unwrap().x, 234);
     }
 
     #[test]
@@ -679,27 +790,37 @@ mod tests {
         {
             let mut ply_writer =
                 PlyNodeWriter::new(&file_path_test, Encoding::Plain, OpenMode::Truncate);
-            PlyIterator::from_file(file_path_gt).unwrap().for_each(|p| {
-                ply_writer.write(&p).unwrap();
-            });
+            PlyIterator::from_file(file_path_gt, BATCH_SIZE)
+                .unwrap()
+                .for_each(|p| {
+                    ply_writer.write(&p).unwrap();
+                });
         }
         // Now append to the file
         {
             let mut ply_writer =
                 PlyNodeWriter::new(&file_path_test, Encoding::Plain, OpenMode::Append);
-            PlyIterator::from_file(file_path_gt).unwrap().for_each(|p| {
-                ply_writer.write(&p).unwrap();
-            });
+            PlyIterator::from_file(file_path_gt, BATCH_SIZE)
+                .unwrap()
+                .for_each(|p| {
+                    ply_writer.write(&p).unwrap();
+                });
         }
-        PlyIterator::from_file(file_path_gt)
+        PlyIterator::from_file(file_path_gt, BATCH_SIZE)
             .unwrap()
-            .chain(PlyIterator::from_file(file_path_gt).unwrap())
-            .zip(PlyIterator::from_file(&file_path_test).unwrap())
+            .chain(PlyIterator::from_file(file_path_gt, BATCH_SIZE).unwrap())
+            .zip(PlyIterator::from_file(&file_path_test, BATCH_SIZE).unwrap())
             .for_each(|(gt, test)| {
                 assert_eq!(gt.position, test.position);
-                assert_eq!(gt.color, test.color);
+                let gt_color: &Vec<Vector3<u8>> = gt.get_attribute_vec("color").unwrap();
+                let test_color: &Vec<Vector3<u8>> = test.get_attribute_vec("color").unwrap();
+                assert_eq!(gt_color, test_color);
                 // All intensities in this file are NaN, but set.
-                assert_eq!(gt.intensity.is_some(), test.intensity.is_some());
+                let gt_intensity: &Vec<f32> = gt.get_attribute_vec("intensity").unwrap();
+                let test_intensity: &Vec<f32> = test.get_attribute_vec("intensity").unwrap();
+                assert_eq!(gt_intensity.len(), test_intensity.len());
+                assert!(gt_intensity.iter().all(|i| i.is_nan()));
+                assert!(test_intensity.iter().all(|i| i.is_nan()));
             });
     }
 }
