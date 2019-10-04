@@ -43,7 +43,7 @@ pub trait NumberOfPoints {
 
 #[derive(Debug, Clone)]
 pub struct Point {
-    pub position: cgmath::Vector3<f64>,
+    pub position: Vector3<f64>,
     // TODO(sirver): Make color optional, we might not always have it.
     pub color: color::Color<u8>,
 

@@ -2,14 +2,13 @@
 
 extern crate test;
 
-use cgmath::InnerSpace;
+use cgmath::{InnerSpace, Vector3};
 use lazy_static::lazy_static;
 use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
 use point_viewer::iterator::{PointCloud, PointLocation, PointQuery};
 use point_viewer::octree::{build_octree, Octree};
 use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2Splitter};
 use point_viewer::s2_cells::S2Cells;
-use point_viewer::Point;
 use protobuf::Message;
 use random_points::{Batched, RandomPointsOnEarth, SEED};
 use std::fs::File;
@@ -154,28 +153,30 @@ fn num_points_in_s2_meta() {
     assert_eq!(num_points, Arguments::default().num_points as u64);
 }
 
-fn cmp_points(p1: &Point, p2: &Point) -> std::cmp::Ordering {
-    let x_order = p1.position.x.partial_cmp(&p2.position.x).unwrap();
-    let y_order = p1.position.y.partial_cmp(&p2.position.y).unwrap();
-    let z_order = p1.position.z.partial_cmp(&p2.position.z).unwrap();
+fn cmp_points(p1: &Vector3<f64>, p2: &Vector3<f64>) -> std::cmp::Ordering {
+    let x_order = p1.x.partial_cmp(&p2.x).unwrap();
+    let y_order = p1.y.partial_cmp(&p2.y).unwrap();
+    let z_order = p1.z.partial_cmp(&p2.z).unwrap();
     x_order.then(y_order).then(z_order)
 }
 
-fn query_and_sort<C>(point_cloud: &C, query: &PointQuery) -> Vec<Point>
+fn query_and_sort<C>(point_cloud: &C, query: &PointQuery, batch_size: usize) -> Vec<Vector3<f64>>
 where
     C: PointCloud,
 {
     let mut points = Vec::new();
     for node_id in point_cloud.nodes_in_location(query).into_iter() {
-        let points_iter = point_cloud.points_in_node(query, node_id).unwrap();
-        points.extend(points_iter);
+        let points_iter = point_cloud
+            .points_in_node(query, node_id, batch_size)
+            .unwrap();
+        points.extend(points_iter.flat_map(|batch| batch.position));
     }
     points.sort_unstable_by(cmp_points);
     points
 }
 
 // Checks that the points are equal up to a precision of the default resolution
-fn assert_points_equal(points_s2: &[Point], points_oct: &[Point]) {
+fn assert_points_equal(points_s2: &[Vector3<f64>], points_oct: &[Vector3<f64>]) {
     assert!(
         points_s2.len() == points_oct.len(),
         "Number of points differs: {} in points_s2, {} in points_oct",
@@ -188,13 +189,13 @@ fn assert_points_equal(points_s2: &[Point], points_oct: &[Point]) {
     // the distance from the true position may be up to resolution * sqrt(3)
     let threshold = 3.0_f64.sqrt() * args.resolution;
     for (p_s2, p_oct) in points_s2.iter().zip(points_oct.iter()) {
-        let distance = (p_s2.position - p_oct.position).magnitude();
+        let distance = (p_s2 - p_oct).magnitude();
         assert!(
             distance <= threshold,
             "Inequality at index {}: s2 point: {:?}, octree point: {:?}, distance {}",
             idx,
-            p_s2.position,
-            p_oct.position,
+            p_s2,
+            p_oct,
             distance
         );
         idx += 1;
@@ -203,14 +204,15 @@ fn assert_points_equal(points_s2: &[Point], points_oct: &[Point]) {
 
 #[test]
 fn check_box_query_equality() {
+    let args = Arguments::default();
     let s2 = get_s2_cells();
     let oct = get_octree();
-    let bbox = RandomPointsOnEarth::new(10.0, 10.0, SEED).bbox();
+    let bbox = RandomPointsOnEarth::new(10.0, 10.0, args.num_points, SEED).bbox();
     let query = PointQuery {
         location: PointLocation::Aabb(bbox),
         global_from_local: None,
     };
-    let points_s2 = query_and_sort(&s2, &query);
-    let points_oct = query_and_sort(&oct, &query);
+    let points_s2 = query_and_sort(&s2, &query, args.batch_size);
+    let points_oct = query_and_sort(&oct, &query, args.batch_size);
     assert_points_equal(&points_s2, &points_oct);
 }
