@@ -20,6 +20,8 @@ use test::Bencher;
 
 mod random_points;
 
+const RESOLUTION: f64 = 0.00001;
+
 #[derive(Debug)]
 struct Arguments {
     // Minimal precision that this point cloud should have.
@@ -40,7 +42,7 @@ struct Arguments {
 impl Default for Arguments {
     fn default() -> Arguments {
         Arguments {
-            resolution: 0.001,
+            resolution: RESOLUTION,
             width: 200.0,
             height: 20.0,
             num_threads: 10,
@@ -157,6 +159,13 @@ fn num_points_in_s2_meta() {
     assert_eq!(num_points, Arguments::default().num_points as u64);
 }
 
+fn cmp_points(p1: &Point, p2: &Point) -> std::cmp::Ordering {
+    let x_order = p1.position.x.partial_cmp(&p2.position.x).unwrap();
+    let y_order = p1.position.y.partial_cmp(&p2.position.y).unwrap();
+    let z_order = p1.position.z.partial_cmp(&p2.position.z).unwrap();
+    x_order.then(y_order).then(z_order)
+}
+
 fn query_and_sort<C>(point_cloud: &C, query: &PointQuery) -> Vec<Point>
 where
     C: PointCloud,
@@ -166,12 +175,7 @@ where
         let points_iter = point_cloud.points_in_node(query, node_id).unwrap();
         points.extend(points_iter);
     }
-    points.sort_unstable_by(|p1, p2| {
-        let x_order = p1.position.x.partial_cmp(&p2.position.x).unwrap();
-        let y_order = p1.position.y.partial_cmp(&p2.position.y).unwrap();
-        let z_order = p1.position.z.partial_cmp(&p2.position.z).unwrap();
-        x_order.then(y_order).then(z_order)
-    });
+    points.sort_unstable_by(cmp_points);
     points
 }
 
@@ -185,20 +189,24 @@ fn assert_points_equal(points_s2: &[Point], points_oct: &[Point]) {
     );
     let args = Arguments::default();
     let mut idx = 0;
+    // If a point is allowed to be displaced by up to args.resolution in each dimension,
+    // the distance from the true position may be up to resolution * sqrt(3)
+    let threshold = 3.0_f64.sqrt() * args.resolution;
     for (p_s2, p_oct) in points_s2.iter().zip(points_oct.iter()) {
+        let distance = (p_s2.position - p_oct.position).magnitude();
         assert!(
-            (p_s2.position - p_oct.position).magnitude() <= args.resolution,
-            "Inequality at index {}: s2 point: {:?}, octree point: {:?}",
+            distance <= threshold,
+            "Inequality at index {}: s2 point: {:?}, octree point: {:?}, distance {}",
             idx,
             p_s2.position,
-            p_oct.position
+            p_oct.position,
+            distance
         );
         idx += 1;
     }
 }
 
 #[test]
-#[ignore]
 fn check_box_query_equality() {
     let s2 = get_s2_cells();
     let oct = get_octree();
