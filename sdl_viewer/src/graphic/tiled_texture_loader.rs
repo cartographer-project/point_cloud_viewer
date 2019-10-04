@@ -23,7 +23,7 @@ impl ReadLittleEndian for ImageBuffer<Rgba<u8>, Vec<u8>> {
     }
 }
 
-type TilePos = (i32, i32);
+pub type TilePos = (i32, i32);
 
 pub struct TiledTextureLoader<P: Pixel> {
     tile_size: i64,

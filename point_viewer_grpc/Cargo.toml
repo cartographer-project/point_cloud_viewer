@@ -27,6 +27,7 @@ ctrlc = "3.1.2"
 futures = "0.1.17"
 grpcio = "0.4"
 num_cpus ="1.10.1"
+num-integer = "0.1.41"
 protobuf = "2.8.0"
 scoped-pool = "1.0.0"
 

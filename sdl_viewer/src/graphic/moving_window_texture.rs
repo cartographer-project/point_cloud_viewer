@@ -328,7 +328,7 @@ where
     }
 
     /// Updates the offset and binds the texture
-    pub fn submit(&mut self) {
+    pub fn submit(&self) {
         self.u_texture_offset.submit();
     }
 }

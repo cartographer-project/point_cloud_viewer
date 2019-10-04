@@ -18,20 +18,14 @@ pub use self::codec::{
     PositionEncoding,
 };
 
-mod input_file_iterator;
-pub use self::input_file_iterator::{make_stream, InputFile, InputFileIterator};
-
 mod node_iterator;
-pub use self::node_iterator::PointIterator;
+pub use self::node_iterator::NodeIterator;
 
 mod node_writer;
 pub use self::node_writer::{DataWriter, NodeWriter, OpenMode, WriteEncoded, WriteLE, WriteLEPos};
 
 mod ply;
 pub use self::ply::{PlyIterator, PlyNodeWriter};
-
-mod pts;
-pub use self::pts::PtsIterator;
 
 mod raw;
 pub use self::raw::{RawNodeReader, RawNodeWriter};

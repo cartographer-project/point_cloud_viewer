@@ -3,7 +3,7 @@ use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
 use crate::math::{Isometry3, Obb};
 use crate::proto;
-use crate::read_write::{Encoding, PointIterator};
+use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, CURRENT_VERSION};
 use cgmath::{Point3, Transform, Vector4};
 use fnv::FnvHashMap;
@@ -178,18 +178,20 @@ impl PointCloud for S2Cells {
         &'a self,
         query: &PointQuery,
         node_id: Self::Id,
+        batch_size: usize,
     ) -> Result<Self::PointsIter> {
         let culling = query.get_point_culling();
         let num_points = self.meta.cells[&node_id.0].num_points as usize;
-        let point_iterator = PointIterator::from_data_provider(
+        let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
             self.encoding_for_node(node_id),
             &node_id,
             num_points,
+            batch_size,
         )?;
         Ok(FilteredIterator {
             culling,
-            point_iterator,
+            node_iterator,
         })
     }
 }
@@ -210,7 +212,7 @@ impl S2Cells {
         })
     }
 
-    /// Wrapper around cells_in_convex_hull for Obbs
+    /// Wrapper arround cells_in_convex_hull for Obbs
     fn cells_in_obb(
         &self,
         obb: &Obb<f64>,
