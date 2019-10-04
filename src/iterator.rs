@@ -1,9 +1,9 @@
 use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Frustum, Isometry3, Obb, OrientedBeam};
-use crate::read_write::{Encoding, PointIterator};
-use crate::{AttributeData, Point, PointsBatch};
-use cgmath::{Matrix4, Point3, Vector3};
+use crate::read_write::{Encoding, NodeIterator};
+use crate::PointsBatch;
+use cgmath::{Matrix4, Point3};
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
 use std::collections::BTreeMap;
@@ -45,17 +45,24 @@ impl PointQuery {
 /// Essentially a specialized version of the Filter iterator adapter
 pub struct FilteredIterator {
     pub culling: Box<dyn PointCulling<f64>>,
-    pub point_iterator: PointIterator,
+    pub node_iterator: NodeIterator,
 }
 
 impl Iterator for FilteredIterator {
-    type Item = Point;
+    type Item = PointsBatch;
 
-    fn next(&mut self) -> Option<Point> {
+    fn next(&mut self) -> Option<PointsBatch> {
         let culling = &self.culling;
-        self.point_iterator.find(|pt| {
-            let pos = <Point3<f64> as cgmath::EuclideanSpace>::from_vec(pt.position);
-            culling.contains(&pos)
+        self.node_iterator.next().map(|mut batch| {
+            let keep: Vec<bool> = batch
+                .position
+                .iter()
+                .map(|pos| {
+                    culling.contains(&<Point3<f64> as cgmath::EuclideanSpace>::from_vec(*pos))
+                })
+                .collect();
+            batch.retain(&keep);
+            batch
         })
     }
 }
@@ -65,9 +72,8 @@ struct PointStream<'a, F>
 where
     F: Fn(PointsBatch) -> Result<()>,
 {
-    position: Vec<Vector3<f64>>,
-    color: Vec<Vector3<u8>>,
-    intensity: Vec<f32>,
+    buf: PointsBatch,
+    batch_size: usize,
     local_from_global: &'a Option<Isometry3<f64>>,
     func: &'a F,
 }
@@ -76,68 +82,44 @@ impl<'a, F> PointStream<'a, F>
 where
     F: Fn(PointsBatch) -> Result<()>,
 {
-    fn new(
-        num_points_per_batch: usize,
-        local_from_global: &'a Option<Isometry3<f64>>,
-        func: &'a F,
-    ) -> Self {
+    fn new(batch_size: usize, local_from_global: &'a Option<Isometry3<f64>>, func: &'a F) -> Self {
         PointStream {
-            position: Vec::with_capacity(num_points_per_batch),
-            color: Vec::with_capacity(num_points_per_batch),
-            intensity: Vec::with_capacity(num_points_per_batch),
+            buf: PointsBatch {
+                position: Vec::new(),
+                attributes: BTreeMap::new(),
+            },
+            batch_size,
             local_from_global,
             func,
         }
     }
 
-    /// push point in batch
-    fn push_point(&mut self, point: Point) {
-        let position = match &self.local_from_global {
-            Some(local_from_global) => local_from_global * &point.position,
-            None => point.position,
-        };
-        self.position.push(position);
-        self.color.push(Vector3::new(
-            point.color.red,
-            point.color.green,
-            point.color.blue,
-        ));
-        if let Some(point_intensity) = point.intensity {
-            self.intensity.push(point_intensity);
-        };
-    }
-
     /// execute function on batch of points
     fn callback(&mut self) -> Result<()> {
-        if self.position.is_empty() {
+        if self.buf.position.is_empty() {
             return Ok(());
         }
 
-        let mut attributes = BTreeMap::default();
-        attributes.insert(
-            "color".to_string(),
-            AttributeData::U8Vec3(self.color.split_off(0)),
-        );
-        if !self.intensity.is_empty() {
-            attributes.insert(
-                "intensity".to_string(),
-                AttributeData::F32(self.intensity.split_off(0)),
-            );
-        }
-        let points_batch = PointsBatch {
-            position: self.position.split_off(0),
-            attributes,
-        };
-        (self.func)(points_batch)
+        let at = std::cmp::min(self.buf.position.len(), self.batch_size);
+        let mut res = self.buf.split_off(at);
+        std::mem::swap(&mut res, &mut self.buf);
+        (self.func)(res)
     }
 
-    fn push_points_and_callback<I>(&mut self, point_iterator: I) -> Result<()>
+    fn push_points_and_callback<I>(&mut self, node_iterator: I) -> Result<()>
     where
-        I: Iterator<Item = Point>,
+        I: Iterator<Item = PointsBatch>,
     {
-        for point in point_iterator {
-            self.push_point(point);
-            if self.position.len() == self.position.capacity() {
+        for mut batch in node_iterator {
+            if let Some(local_from_global) = &self.local_from_global {
+                batch.position = batch
+                    .position
+                    .iter()
+                    .map(|p| local_from_global * p)
+                    .collect();
+            }
+            self.buf.append(&mut batch)?;
+            while self.buf.position.len() >= self.batch_size {
                 self.callback()?;
             }
         }
@@ -148,10 +130,15 @@ where
 // TODO(nnmm): Move this somewhere else
 pub trait PointCloud: Sync {
     type Id: ToString + Send + Copy;
-    type PointsIter: Iterator<Item = Point>;
+    type PointsIter: Iterator<Item = PointsBatch>;
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id>;
     fn encoding_for_node(&self, id: Self::Id) -> Encoding;
-    fn points_in_node(&self, query: &PointQuery, node_id: Self::Id) -> Result<Self::PointsIter>;
+    fn points_in_node(
+        &self,
+        query: &PointQuery,
+        node_id: Self::Id,
+        batch_size: usize,
+    ) -> Result<Self::PointsIter>;
 }
 
 /// Iterator on point batches
@@ -238,11 +225,11 @@ where
                             .and_then(Steal::success)
                     }) {
                         // TODO(nnmm): This crashes on error. We should bubble up an error.
-                        let point_iterator = octree
-                            .points_in_node(&point_location, node_id)
+                        let node_iterator = octree
+                            .points_in_node(&point_location, node_id, batch_size)
                             .expect("Could not read node points");
                         // executing on the available next task if the function still requires it
-                        match point_stream.push_points_and_callback(point_iterator) {
+                        match point_stream.push_points_and_callback(node_iterator) {
                             Ok(_) => continue,
                             Err(ref e) => {
                                 match e.kind() {

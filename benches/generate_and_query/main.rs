@@ -46,23 +46,18 @@ impl Default for Arguments {
 }
 
 fn make_octree(args: &Arguments, dir: &Path) {
-    let mut points_oct = RandomPointsOnEarth::new(args.width, args.height);
+    let mut points_oct = RandomPointsOnEarth::new(args.width, args.height, args.num_points);
+    let bbox = points_oct.bbox();
+    let batches_oct = Batched::new(points_oct, args.batch_size);
     let pool = scoped_pool::Pool::new(args.num_threads);
 
-    build_octree(
-        &pool,
-        dir,
-        args.resolution,
-        points_oct.bbox(),
-        points_oct.take(args.num_points),
-    );
+    build_octree(&pool, dir, args.resolution, bbox, batches_oct);
 }
 
 fn make_s2_cells(args: &Arguments, dir: &Path) {
-    let points_s2 = RandomPointsOnEarth::new(args.width, args.height);
+    let points_s2 = RandomPointsOnEarth::new(args.width, args.height, args.num_points);
     let mut s2_writer: S2Splitter<RawNodeWriter> =
         S2Splitter::new(dir, Encoding::Plain, OpenMode::Truncate);
-    let points_s2 = points_s2.take(args.num_points);
     Batched::new(points_s2, args.batch_size)
         .try_for_each(|batch| s2_writer.write(&batch))
         .expect("Writing failed");
