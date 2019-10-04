@@ -34,6 +34,7 @@ use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::Path;
 use std::sync::mpsc;
+use std::time::Duration;
 
 const MAX_POINTS_PER_NODE: i64 = 100_000;
 
@@ -257,6 +258,7 @@ fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb3<f64> {
     let mut bounding_box = None;
     let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap();
     let mut progress_bar = ProgressBar::new(stream.num_points() as u64);
+    progress_bar.set_max_refresh_rate(Some(Duration::from_secs(2)));
     progress_bar.message("Determining bounding box: ");
 
     stream.for_each(|batch| {
