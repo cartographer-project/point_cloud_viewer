@@ -135,6 +135,7 @@ message S2Meta {
 
 message Meta {
   int32 version = 1;
+  // This was used in VERSION <= 11 and again in VERSION >= 13.
   AxisAlignedCuboid bounding_box = 4;
   // Either nodes or cells is allowed, both is invalid
   oneof data {
