@@ -44,7 +44,7 @@ fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
 
 fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 10 => 11.");
-    let bbox = meta.deprecated_bounding_box.as_mut().unwrap();
+    let bbox = meta.bounding_box.as_mut().unwrap();
     let deprecated_min = bbox.deprecated_min.as_ref().unwrap();
     let mut min = point_viewer::proto::Vector3d::new();
     min.set_x(f64::from(deprecated_min.x));
@@ -69,8 +69,6 @@ fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
 fn upgrade_version11(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 11 => 12.");
     let mut octree = proto::OctreeMeta::new();
-
-    octree.set_bounding_box(meta.take_deprecated_bounding_box());
 
     octree.set_resolution(meta.deprecated_resolution);
     meta.deprecated_resolution = 0.0;

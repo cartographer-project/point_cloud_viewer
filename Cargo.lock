@@ -1662,6 +1662,8 @@ dependencies = [
 name = "point_viewer_proto_rust"
 version = "0.1.0"
 dependencies = [
+ "cgmath 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "collision 0.20.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf 2.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf_provider 0.1.0",
  "protoc-rust 2.8.1 (registry+https://github.com/rust-lang/crates.io-index)",

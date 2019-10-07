@@ -23,4 +23,6 @@ protobuf_provider = { path = "../protobuf_provider" }
 protoc-rust = "2.8.0"
 
 [dependencies]
+cgmath = "0.17.0"
+collision = "0.20.1"
 protobuf = "2.8.0"

@@ -6,6 +6,7 @@ use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, CURRENT_VERSION};
 use cgmath::{Point3, Transform, Vector4};
+use collision::Aabb3;
 use fnv::FnvHashMap;
 use s2::cell::Cell;
 use s2::cellid::CellID;
@@ -39,14 +40,20 @@ impl S2CellMeta {
 pub struct S2Meta {
     cells: FnvHashMap<CellID, S2CellMeta>,
     attributes: HashMap<String, AttributeDataType>,
+    bounding_box: Aabb3<f64>,
 }
 
 impl S2Meta {
     pub fn new(
         cells: FnvHashMap<CellID, S2CellMeta>,
         attributes: HashMap<String, AttributeDataType>,
+        bounding_box: Aabb3<f64>,
     ) -> Self {
-        S2Meta { cells, attributes }
+        S2Meta {
+            cells,
+            attributes,
+            bounding_box,
+        }
     }
 
     pub fn iter_attr_with_xyz(&self) -> impl Iterator<Item = (&str, AttributeDataType)> {
@@ -68,6 +75,7 @@ impl S2Meta {
             .collect();
         let mut meta = proto::Meta::new();
         meta.set_version(CURRENT_VERSION);
+        meta.set_bounding_box(proto::AxisAlignedCuboid::from(&self.bounding_box));
         let mut s2_meta = proto::S2Meta::new();
         s2_meta.set_cells(::protobuf::RepeatedField::<proto::S2Cell>::from_vec(
             cell_protos,
@@ -106,6 +114,7 @@ impl S2Meta {
             .into());
         }
 
+        let bounding_box = Aabb3::from(meta_proto.get_bounding_box());
         let s2_meta_proto = meta_proto.get_s2();
         // cells, num_points
         let mut cells = FnvHashMap::default();
@@ -126,7 +135,11 @@ impl S2Meta {
             attributes.insert(attr.name.to_owned(), attr_type);
         }
 
-        Ok(S2Meta { cells, attributes })
+        Ok(S2Meta {
+            cells,
+            attributes,
+            bounding_box,
+        })
     }
 
     pub fn from_data_provider(data_provider: &dyn DataProvider) -> Result<Self> {
