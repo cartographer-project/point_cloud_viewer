@@ -197,6 +197,21 @@ impl PointCloud for S2Cells {
 }
 
 impl S2Cells {
+    pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
+        let meta_proto = data_provider.meta_proto()?;
+        let meta = S2Meta::from_proto(meta_proto)?;
+        let cells: FnvHashMap<_, _> = meta
+            .get_cells()
+            .keys()
+            .map(|id| (*id, Cell::from(id)))
+            .collect();
+        Ok(S2Cells {
+            data_provider,
+            cells,
+            meta,
+        })
+    }
+
     /// Wrapper arround cells_in_convex_hull for Obbs
     fn cells_in_obb(
         &self,

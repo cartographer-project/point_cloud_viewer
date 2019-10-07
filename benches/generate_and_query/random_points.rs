@@ -17,9 +17,11 @@ pub struct RandomPointsOnEarth {
     count: usize,
 }
 
+pub const SEED: u64 = 80_293_751_234;
+
 impl RandomPointsOnEarth {
-    pub fn new(width: f64, height: f64, size: usize) -> Self {
-        let mut rng = StdRng::seed_from_u64(80_293_751_234);
+    pub fn new(width: f64, height: f64, size: usize, seed: u64) -> Self {
+        let mut rng = StdRng::seed_from_u64(seed);
         let lat = rng.gen_range(-90.0, 90.0);
         let lon = rng.gen_range(-180.0, 180.0);
         let ecef_from_local = local_frame_from_lat_lng(lat, lon);

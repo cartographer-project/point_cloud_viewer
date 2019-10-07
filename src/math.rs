@@ -588,7 +588,6 @@ pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Matrix4<f64> {
     let lat_lng_alt = WGS84::new(lat, lon, 0.0);
     let origin = ECEF::from(lat_lng_alt);
     let origin_vector = Vector3::new(origin.x(), origin.y(), origin.z());
-    println!("origin_vector {:?}", origin_vector);
     let rotation_matrix = Matrix3::from_angle_z(-PI_HALF)
         * Matrix3::from_angle_y(Deg(lat_lng_alt.latitude_degrees()) - PI_HALF)
         * Matrix3::from_angle_z(Deg(-lat_lng_alt.longitude_degrees()));

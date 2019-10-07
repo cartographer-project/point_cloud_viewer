@@ -2,11 +2,15 @@
 
 extern crate test;
 
+use cgmath::{InnerSpace, Vector3};
 use lazy_static::lazy_static;
-use point_viewer::octree::build_octree;
+use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
+use point_viewer::iterator::{PointCloud, PointLocation, PointQuery};
+use point_viewer::octree::{build_octree, Octree};
 use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2Splitter};
+use point_viewer::s2_cells::S2Cells;
 use protobuf::Message;
-use random_points::{Batched, RandomPointsOnEarth};
+use random_points::{Batched, RandomPointsOnEarth, SEED};
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
@@ -14,6 +18,8 @@ use tempdir::TempDir;
 use test::Bencher;
 
 mod random_points;
+
+const RESOLUTION: f64 = 0.00001;
 
 #[derive(Debug)]
 struct Arguments {
@@ -35,7 +41,7 @@ struct Arguments {
 impl Default for Arguments {
     fn default() -> Arguments {
         Arguments {
-            resolution: 0.001,
+            resolution: RESOLUTION,
             width: 200.0,
             height: 20.0,
             num_threads: 10,
@@ -46,7 +52,7 @@ impl Default for Arguments {
 }
 
 fn make_octree(args: &Arguments, dir: &Path) {
-    let mut points_oct = RandomPointsOnEarth::new(args.width, args.height, args.num_points);
+    let mut points_oct = RandomPointsOnEarth::new(args.width, args.height, args.num_points, SEED);
     let bbox = points_oct.bbox();
     let batches_oct = Batched::new(points_oct, args.batch_size);
     let pool = scoped_pool::Pool::new(args.num_threads);
@@ -55,7 +61,7 @@ fn make_octree(args: &Arguments, dir: &Path) {
 }
 
 fn make_s2_cells(args: &Arguments, dir: &Path) {
-    let points_s2 = RandomPointsOnEarth::new(args.width, args.height, args.num_points);
+    let points_s2 = RandomPointsOnEarth::new(args.width, args.height, args.num_points, SEED);
     let mut s2_writer: S2Splitter<RawNodeWriter> =
         S2Splitter::new(dir, Encoding::Plain, OpenMode::Truncate);
     Batched::new(points_s2, args.batch_size)
@@ -81,6 +87,22 @@ lazy_static! {
     };
 }
 
+fn get_s2_cells() -> S2Cells {
+    let path_buf = S2_DIR.path().to_owned();
+    let data_provider = OnDiskDataProvider {
+        directory: path_buf,
+    };
+    S2Cells::from_data_provider(Box::new(data_provider)).unwrap()
+}
+
+fn get_octree() -> Octree {
+    let path_buf = OCTREE_DIR.path().to_owned();
+    let data_provider = OnDiskDataProvider {
+        directory: path_buf,
+    };
+    Octree::from_data_provider(Box::new(data_provider)).unwrap()
+}
+
 #[bench]
 fn bench_octree_building_multithreaded(b: &mut Bencher) {
     let mut args = Arguments::default();
@@ -102,7 +124,7 @@ fn bench_s2_building_singlethreaded(b: &mut Bencher) {
 }
 
 #[test]
-fn num_points_in_octree() {
+fn num_points_in_octree_meta() {
     let path_buf = OCTREE_DIR.path().to_owned();
     use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
     let data_provider = OnDiskDataProvider {
@@ -120,9 +142,8 @@ fn num_points_in_octree() {
 }
 
 #[test]
-fn num_points_in_s2() {
+fn num_points_in_s2_meta() {
     let path_buf = S2_DIR.path().to_owned();
-    use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
     let data_provider = OnDiskDataProvider {
         directory: path_buf,
     };
@@ -130,4 +151,68 @@ fn num_points_in_s2() {
     assert!(meta.has_s2());
     let num_points: u64 = meta.get_s2().get_cells().iter().map(|c| c.num_points).sum();
     assert_eq!(num_points, Arguments::default().num_points as u64);
+}
+
+fn cmp_points(p1: &Vector3<f64>, p2: &Vector3<f64>) -> std::cmp::Ordering {
+    let x_order = p1.x.partial_cmp(&p2.x).unwrap();
+    let y_order = p1.y.partial_cmp(&p2.y).unwrap();
+    let z_order = p1.z.partial_cmp(&p2.z).unwrap();
+    x_order.then(y_order).then(z_order)
+}
+
+fn query_and_sort<C>(point_cloud: &C, query: &PointQuery, batch_size: usize) -> Vec<Vector3<f64>>
+where
+    C: PointCloud,
+{
+    let mut points = Vec::new();
+    for node_id in point_cloud.nodes_in_location(query).into_iter() {
+        let points_iter = point_cloud
+            .points_in_node(query, node_id, batch_size)
+            .unwrap();
+        points.extend(points_iter.flat_map(|batch| batch.position));
+    }
+    points.sort_unstable_by(cmp_points);
+    points
+}
+
+// Checks that the points are equal up to a precision of the default resolution
+fn assert_points_equal(points_s2: &[Vector3<f64>], points_oct: &[Vector3<f64>]) {
+    assert!(
+        points_s2.len() == points_oct.len(),
+        "Number of points differs: {} in points_s2, {} in points_oct",
+        points_s2.len(),
+        points_oct.len()
+    );
+    let args = Arguments::default();
+    let mut idx = 0;
+    // If a point is allowed to be displaced by up to args.resolution in each dimension,
+    // the distance from the true position may be up to resolution * sqrt(3)
+    let threshold = 3.0_f64.sqrt() * args.resolution;
+    for (p_s2, p_oct) in points_s2.iter().zip(points_oct.iter()) {
+        let distance = (p_s2 - p_oct).magnitude();
+        assert!(
+            distance <= threshold,
+            "Inequality at index {}: s2 point: {:?}, octree point: {:?}, distance {}",
+            idx,
+            p_s2,
+            p_oct,
+            distance
+        );
+        idx += 1;
+    }
+}
+
+#[test]
+fn check_box_query_equality() {
+    let args = Arguments::default();
+    let s2 = get_s2_cells();
+    let oct = get_octree();
+    let bbox = RandomPointsOnEarth::new(10.0, 10.0, args.num_points, SEED).bbox();
+    let query = PointQuery {
+        location: PointLocation::Aabb(bbox),
+        global_from_local: None,
+    };
+    let points_s2 = query_and_sort(&s2, &query, args.batch_size);
+    let points_oct = query_and_sort(&oct, &query, args.batch_size);
+    assert_points_equal(&points_s2, &points_oct);
 }
