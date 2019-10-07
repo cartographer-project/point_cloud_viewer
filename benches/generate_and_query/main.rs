@@ -2,7 +2,7 @@
 
 extern crate test;
 
-use cgmath::{InnerSpace, Vector3};
+use cgmath::{InnerSpace, Matrix4, PerspectiveFov, Rad, Transform, Vector3};
 use lazy_static::lazy_static;
 use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
 use point_viewer::iterator::{PointCloud, PointLocation, PointQuery};
@@ -87,20 +87,20 @@ lazy_static! {
     };
 }
 
-fn get_s2_cells() -> S2Cells {
-    let path_buf = S2_DIR.path().to_owned();
-    let data_provider = OnDiskDataProvider {
-        directory: path_buf,
+fn setup() -> (Arguments, S2Cells, Octree, RandomPointsOnEarth) {
+    let args = Arguments::default();
+    let s2_path_buf = S2_DIR.path().to_owned();
+    let s2_data_provider = OnDiskDataProvider {
+        directory: s2_path_buf,
     };
-    S2Cells::from_data_provider(Box::new(data_provider)).unwrap()
-}
-
-fn get_octree() -> Octree {
-    let path_buf = OCTREE_DIR.path().to_owned();
-    let data_provider = OnDiskDataProvider {
-        directory: path_buf,
+    let s2 = S2Cells::from_data_provider(Box::new(s2_data_provider)).unwrap();
+    let oct_path_buf = OCTREE_DIR.path().to_owned();
+    let oct_data_provider = OnDiskDataProvider {
+        directory: oct_path_buf,
     };
-    Octree::from_data_provider(Box::new(data_provider)).unwrap()
+    let oct = Octree::from_data_provider(Box::new(oct_data_provider)).unwrap();
+    let points = RandomPointsOnEarth::new(10.0, 10.0, args.num_points, SEED);
+    (args, s2, oct, points)
 }
 
 #[bench]
@@ -172,6 +172,7 @@ where
         points.extend(points_iter.flat_map(|batch| batch.position));
     }
     points.sort_unstable_by(cmp_points);
+    assert!(!points.is_empty());
     points
 }
 
@@ -204,12 +205,29 @@ fn assert_points_equal(points_s2: &[Vector3<f64>], points_oct: &[Vector3<f64>]) 
 
 #[test]
 fn check_box_query_equality() {
-    let args = Arguments::default();
-    let s2 = get_s2_cells();
-    let oct = get_octree();
-    let bbox = RandomPointsOnEarth::new(10.0, 10.0, args.num_points, SEED).bbox();
+    let (args, s2, oct, points) = setup();
+    let bbox = points.bbox();
     let query = PointQuery {
         location: PointLocation::Aabb(bbox),
+        global_from_local: None,
+    };
+    let points_s2 = query_and_sort(&s2, &query, args.batch_size);
+    let points_oct = query_and_sort(&oct, &query, args.batch_size);
+    assert_points_equal(&points_s2, &points_oct);
+}
+
+#[test]
+fn check_frustum_query_equality() {
+    let (args, s2, oct, points) = setup();
+    let transform = points.ecef_from_local();
+    let frustum_matrix = Matrix4::from(PerspectiveFov {
+        fovy: Rad(1.2),
+        aspect: 1.0,
+        near: 0.1,
+        far: 10.0,
+    }) * transform.inverse_transform().unwrap();
+    let query = PointQuery {
+        location: PointLocation::Frustum(frustum_matrix),
         global_from_local: None,
     };
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
