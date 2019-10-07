@@ -152,11 +152,11 @@ impl Octree {
                     return Err(ErrorKind::InvalidInput("No octree meta found".to_string()).into());
                 }
                 let octree_meta = meta_proto.get_octree();
-                let bounding_box = if meta_proto.version == 12 {
-                    Aabb3::from(octree_meta.get_deprecated_bounding_box())
+                let bounding_box = Aabb3::from(if meta_proto.version == 12 {
+                    octree_meta.get_deprecated_bounding_box()
                 } else {
-                    Aabb3::from(meta_proto.get_bounding_box())
-                };
+                    meta_proto.get_bounding_box()
+                });
                 (
                     bounding_box,
                     OctreeMeta {
