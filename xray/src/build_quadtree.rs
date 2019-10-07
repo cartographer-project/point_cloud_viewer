@@ -5,8 +5,8 @@ use crate::generation::{
 use clap::value_t;
 use point_cloud_client::PointCloudClient;
 use point_viewer::color::{TRANSPARENT, WHITE};
+use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::Isometry3;
-use point_viewer::octree::OctreeFactory;
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
 use scoped_pool::Pool;
 use std::path::Path;
@@ -87,7 +87,7 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
     app.get_matches()
 }
 
-pub fn run<T: Extension>(octree_factory: OctreeFactory) {
+pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     attempt_increasing_rlimit_to_max();
 
     let args = parse_arguments::<T>();
@@ -145,8 +145,8 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
         .unwrap()
         .map(String::from)
         .collect::<Vec<_>>();
-    let point_cloud_client =
-        PointCloudClient::new(&octree_locations, octree_factory).expect("Could not open octree.");
+    let point_cloud_client = PointCloudClient::new(&octree_locations, data_provider_factory)
+        .expect("Could not create point cloud client.");
 
     let local_from_global = T::local_from_global(&args, &point_cloud_client);
     build_xray_quadtree(

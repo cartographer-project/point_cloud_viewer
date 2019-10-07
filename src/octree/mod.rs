@@ -23,15 +23,11 @@ use num::clamp;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::io::{BufReader, Read};
-use std::path::PathBuf;
 
 use crate::iterator::{FilteredIterator, PointCloud, PointQuery};
 
 mod generation;
 pub use self::generation::{build_octree, build_octree_from_file};
-
-mod factory;
-pub use self::factory::OctreeFactory;
 
 mod node;
 pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta};
@@ -413,13 +409,4 @@ fn maybe_push_node(
             empty: meta.num_points == 0,
         });
     }
-}
-
-//  TODO(catevita): refactor function for octree factory
-pub fn octree_from_directory(directory: impl Into<PathBuf>) -> Result<Box<Octree>> {
-    let data_provider = OnDiskDataProvider {
-        directory: directory.into(),
-    };
-    let octree = Octree::from_data_provider(Box::new(data_provider))?;
-    Ok(Box::new(octree))
 }

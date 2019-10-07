@@ -13,9 +13,10 @@
 // limitations under the License.
 
 use cgmath::Matrix4;
+use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::Isometry3;
-use point_viewer::octree::{Octree, OctreeFactory};
-use point_viewer_grpc::octree_from_grpc_address;
+use point_viewer::octree::Octree;
+use point_viewer_grpc::data_provider_from_grpc_address;
 use sdl_viewer::{opengl, run, Extension};
 use std::rc::Rc;
 
@@ -40,7 +41,8 @@ impl Extension for NullExtension {
 }
 
 fn main() {
-    let octree_factory = OctreeFactory::new().register("grpc://", octree_from_grpc_address);
-    // TODO(catevita): hide octree factory details, simplify the run method interface
-    run::<NullExtension>(octree_factory);
+    let data_provider_factory =
+        DataProviderFactory::new().register("grpc://", data_provider_from_grpc_address);
+    // TODO(catevita): hide data provider factory details, simplify the run method interface
+    run::<NullExtension>(data_provider_factory);
 }

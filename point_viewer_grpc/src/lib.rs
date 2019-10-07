@@ -18,8 +18,9 @@ use collision::Aabb3;
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use point_viewer::color::Color;
+use point_viewer::data_provider::DataProviderFactoryResult;
 use point_viewer::errors::*;
-use point_viewer::octree::{DataProvider, Octree};
+use point_viewer::octree::DataProvider;
 use point_viewer::proto::Meta;
 use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto;
@@ -146,14 +147,12 @@ impl DataProvider for GrpcOctreeDataProvider {
     }
 }
 
-pub fn octree_from_grpc_address(addr: &str) -> Result<Box<Octree>> {
+pub fn data_provider_from_grpc_address(addr: &str) -> DataProviderFactoryResult {
     let prefix = "grpc://";
     if !addr.starts_with(prefix) {
         return Err(format!("Invalid grpc address: it has to start with {}.", prefix).into());
     }
     let addr_no_prefix: &str = &addr[prefix.len()..];
-    let octree = Octree::from_data_provider(Box::new(GrpcOctreeDataProvider::from_address(
-        addr_no_prefix,
-    )?))?;
-    Ok(Box::new(octree))
+    GrpcOctreeDataProvider::from_address(addr_no_prefix)
+        .map(|provider| Box::new(provider) as Box<dyn DataProvider>)
 }

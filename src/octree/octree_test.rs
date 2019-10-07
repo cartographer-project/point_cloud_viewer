@@ -1,8 +1,9 @@
 #[cfg(test)]
 mod tests {
+    use crate::data_provider::OnDiskDataProvider;
     use crate::errors::Result;
     use crate::iterator::{ParallelIterator, PointLocation, PointQuery};
-    use crate::octree::{self, build_octree, Octree};
+    use crate::octree::{build_octree, Octree};
     use crate::{AttributeData, NumberOfPoints, PointsBatch};
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};
@@ -16,7 +17,7 @@ mod tests {
         }
     }
 
-    fn build_big_test_octree() -> Box<octree::Octree> {
+    fn build_big_test_octree() -> Octree {
         let mut batch = PointsBatch {
             //ECEF parking lot porter dr
             position: vec![Vector3::new(-2_699_182.0, -4_294_938.0, 3_853_373.0); 2 * NUM_POINTS],
@@ -37,10 +38,13 @@ mod tests {
         let tmp_dir = TempDir::new("octree").unwrap();
 
         build_octree(&pool, &tmp_dir, 1.0, bounding_box, vec![batch].into_iter());
-        crate::octree::octree_from_directory(tmp_dir.into_path()).unwrap()
+        Octree::from_data_provider(Box::new(OnDiskDataProvider {
+            directory: tmp_dir.into_path(),
+        }))
+        .unwrap()
     }
 
-    fn build_test_octree() -> Box<octree::Octree> {
+    fn build_test_octree() -> Octree {
         let mut batch = PointsBatch {
             position: vec![Vector3::new(0.0, 0.0, 0.0); NUM_POINTS],
             attributes: vec![(
@@ -59,7 +63,10 @@ mod tests {
         let tmp_dir = TempDir::new("octree").unwrap();
 
         build_octree(&pool, &tmp_dir, 1.0, bounding_box, vec![batch].into_iter());
-        crate::octree::octree_from_directory(tmp_dir.into_path()).unwrap()
+        Octree::from_data_provider(Box::new(OnDiskDataProvider {
+            directory: tmp_dir.into_path(),
+        }))
+        .unwrap()
     }
 
     #[test]

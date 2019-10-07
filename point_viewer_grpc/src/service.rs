@@ -26,10 +26,11 @@ use grpcio::{
     UnarySink, WriteFlags,
 };
 use num_cpus;
+use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::*;
 use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
 use point_viewer::math::{Isometry3, OrientedBeam};
-use point_viewer::octree::{NodeId, Octree, OctreeFactory};
+use point_viewer::octree::{NodeId, Octree};
 use point_viewer::{AttributeData, PointsBatch};
 use protobuf::Message;
 use std::collections::HashMap;
@@ -38,7 +39,7 @@ use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 struct OctreeServiceData {
-    octree: Box<Octree>,
+    octree: Octree,
     meta: point_viewer::proto::Meta,
 }
 
@@ -46,7 +47,7 @@ struct OctreeServiceData {
 struct OctreeService {
     location: PathBuf,
     data_cache: Arc<RwLock<HashMap<String, Arc<OctreeServiceData>>>>,
-    factory: OctreeFactory,
+    factory: DataProviderFactory,
 }
 
 fn send_fail_stream<T>(ctx: &RpcContext, sink: ServerStreamingSink<T>, err_str: String) {
@@ -358,9 +359,10 @@ impl OctreeService {
         if let Some(service_data) = self.data_cache.read().unwrap().get(octree_id) {
             return Ok(Arc::clone(service_data));
         };
-        let octree = self
-            .factory
-            .generate_octree(self.location.join(&octree_id).to_string_lossy())?;
+        let octree = Octree::from_data_provider(
+            self.factory
+                .generate_data_provider(self.location.join(&octree_id).to_string_lossy())?,
+        )?;
         let meta = octree.to_meta_proto();
         let service_data = Arc::new(OctreeServiceData { octree, meta });
         self.data_cache
@@ -375,7 +377,7 @@ pub fn start_grpc_server(
     host: &str,
     port: u16,
     location: impl Into<PathBuf>,
-    factory: OctreeFactory,
+    factory: DataProviderFactory,
 ) -> Server {
     let env = Arc::new(Environment::new(1));
     let data_cache = Arc::new(RwLock::new(HashMap::new()));

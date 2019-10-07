@@ -1,7 +1,8 @@
 use collision::{Aabb, Aabb3, Union};
+use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::*;
 use point_viewer::iterator::{ParallelIterator, PointQuery};
-use point_viewer::octree::{Octree, OctreeFactory};
+use point_viewer::octree::Octree;
 use point_viewer::{PointsBatch, NUM_POINTS_PER_BATCH};
 
 pub struct PointCloudClient {
@@ -13,13 +14,13 @@ pub struct PointCloudClient {
 }
 
 impl PointCloudClient {
-    pub fn new(locations: &[String], octree_factory: OctreeFactory) -> Result<Self> {
+    pub fn new(locations: &[String], data_provider_factory: DataProviderFactory) -> Result<Self> {
         let octrees = locations
             .iter()
             .map(|location| {
-                octree_factory
-                    .generate_octree(location)
-                    .map(|octree| *octree)
+                data_provider_factory
+                    .generate_data_provider(location)
+                    .and_then(|provider| Octree::from_data_provider(provider))
             })
             .collect::<Result<Vec<Octree>>>()?;
         let mut aabb = Aabb3::zero();
