@@ -45,21 +45,10 @@ fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
 fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 10 => 11.");
     let bbox = meta.bounding_box.as_mut().unwrap();
-    let deprecated_min = bbox.deprecated_min.as_ref().unwrap();
-    let mut min = point_viewer::proto::Vector3d::new();
-    min.set_x(f64::from(deprecated_min.x));
-    min.set_y(f64::from(deprecated_min.y));
-    min.set_z(f64::from(deprecated_min.z));
-    bbox.set_min(min);
-    bbox.deprecated_min.clear();
-
-    let deprecated_max = bbox.deprecated_max.as_ref().unwrap();
-    let mut max = point_viewer::proto::Vector3d::new();
-    max.set_x(f64::from(deprecated_max.x));
-    max.set_y(f64::from(deprecated_max.y));
-    max.set_z(f64::from(deprecated_max.z));
-    bbox.set_max(max);
-    bbox.deprecated_max.clear();
+    let deprecated_min = bbox.take_deprecated_min();
+    bbox.set_min(point_viewer::proto::Vector3d::from(deprecated_min));
+    let deprecated_max = bbox.take_deprecated_max();
+    bbox.set_max(point_viewer::proto::Vector3d::from(deprecated_max));
 
     meta.version = 11;
     let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
