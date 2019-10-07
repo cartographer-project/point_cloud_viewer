@@ -29,7 +29,7 @@ impl PointCloudClient {
             .map(|location| data_provider_factory.generate_data_provider(location))
             .collect::<Result<Vec<Box<dyn DataProvider>>>>()?;
         let mut aabb: Option<Aabb3<f64>> = None;
-        let append_bbox = |bbox: &Aabb3<f64>, to: &mut Option<Aabb3<f64>>| {
+        let unite = |bbox: &Aabb3<f64>, to: &mut Option<Aabb3<f64>>| {
             if to.is_none() {
                 *to = Some(*bbox);
             } else {
@@ -42,7 +42,7 @@ impl PointCloudClient {
                     .into_iter()
                     .map(|provider| {
                         Octree::from_data_provider(provider).map(|octree| {
-                            append_bbox(octree.bounding_box(), &mut aabb);
+                            unite(octree.bounding_box(), &mut aabb);
                             octree
                         })
                     })
@@ -54,7 +54,7 @@ impl PointCloudClient {
                     .into_iter()
                     .map(|provider| {
                         S2Cells::from_data_provider(provider).map(|s2_cells| {
-                            append_bbox(s2_cells.bounding_box(), &mut aabb);
+                            unite(s2_cells.bounding_box(), &mut aabb);
                             s2_cells
                         })
                     })
