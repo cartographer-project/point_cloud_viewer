@@ -28,12 +28,12 @@ impl From<Point3<f64>> for proto::Vector3d {
 }
 
 impl From<proto::Vector3f> for proto::Vector3d {
-    fn from(vec_f: proto::Vector3f) -> Self {
-        let mut v = proto::Vector3d::new();
-        v.set_x(f64::from(vec_f.x));
-        v.set_y(f64::from(vec_f.y));
-        v.set_z(f64::from(vec_f.z));
-        v
+    fn from(proto_vec_f: proto::Vector3f) -> Self {
+        let mut proto_vec_d = proto::Vector3d::new();
+        proto_vec_d.set_x(f64::from(proto_vec_f.x));
+        proto_vec_d.set_y(f64::from(proto_vec_f.y));
+        proto_vec_d.set_z(f64::from(proto_vec_f.z));
+        proto_vec_d
     }
 }
 
