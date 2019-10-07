@@ -225,6 +225,10 @@ impl S2Cells {
         })
     }
 
+    pub fn bounding_box(&self) -> &Aabb3<f64> {
+        &self.meta.bounding_box
+    }
+
     /// Wrapper arround cells_in_convex_hull for Obbs
     fn cells_in_obb(
         &self,

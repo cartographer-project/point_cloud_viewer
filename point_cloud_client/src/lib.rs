@@ -28,40 +28,43 @@ impl PointCloudClient {
             .iter()
             .map(|location| data_provider_factory.generate_data_provider(location))
             .collect::<Result<Vec<Box<dyn DataProvider>>>>()?;
+        let mut aabb: Option<Aabb3<f64>> = None;
+        let append_bbox = |bbox: &Aabb3<f64>, to: &mut Option<Aabb3<f64>>| {
+            if to.is_none() {
+                *to = Some(*bbox);
+            } else {
+                *to = to.map(|b| b.union(bbox));
+            }
+        };
         let point_clouds = if data_providers[0].meta_proto()?.has_octree() {
             PointClouds::Octrees(
                 data_providers
                     .into_iter()
-                    .map(|provider| Octree::from_data_provider(provider))
+                    .map(|provider| {
+                        Octree::from_data_provider(provider).map(|octree| {
+                            append_bbox(octree.bounding_box(), &mut aabb);
+                            octree
+                        })
+                    })
                     .collect::<Result<Vec<Octree>>>()?,
             )
         } else {
             PointClouds::S2Cells(
                 data_providers
                     .into_iter()
-                    .map(|provider| S2Cells::from_data_provider(provider))
+                    .map(|provider| {
+                        S2Cells::from_data_provider(provider).map(|s2_cells| {
+                            append_bbox(s2_cells.bounding_box(), &mut aabb);
+                            s2_cells
+                        })
+                    })
                     .collect::<Result<Vec<S2Cells>>>()?,
             )
         };
-        let mut aabb = Aabb3::zero();
-        match &point_clouds {
-            PointClouds::Octrees(octrees) => {
-                if let Some((first_octree, remaining_octrees)) = octrees.split_first() {
-                    aabb = *first_octree.bounding_box();
-                    for octree in remaining_octrees {
-                        aabb = aabb.union(octree.bounding_box());
-                    }
-                }
-            }
-            PointClouds::S2Cells(_s2_cells) => {
-                // TODO(feuerste): Add bounding box to s2 meta.
-                unimplemented!();
-            }
-        }
 
         Ok(PointCloudClient {
             point_clouds,
-            aabb,
+            aabb: aabb.unwrap_or_else(Aabb3::zero),
             num_points_per_batch: NUM_POINTS_PER_BATCH,
             num_threads: num_cpus::get() - 1,
             buffer_size: 4,
