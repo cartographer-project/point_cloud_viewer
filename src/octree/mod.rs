@@ -128,15 +128,18 @@ impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
     pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
-        let bounding_box = Aabb3::from(meta_proto.get_bounding_box());
-        let (meta, nodes_proto) = match meta_proto.version {
+        if meta_proto.version < CURRENT_VERSION {
+            println!(
+                "Data is an older octree version: {}, current would be {}. \
+                 If feasible, try upgrading this octree using `upgrade_octree`.",
+                meta_proto.version, CURRENT_VERSION
+            );
+        }
+        let (bounding_box, meta, nodes_proto) = match meta_proto.version {
             9 | 10 | 11 => {
-                println!(
-                    "Data is an older octree version: {}, current would be {}. \
-                     If feasible, try upgrading this octree using `upgrade_octree`.",
-                    meta_proto.version, CURRENT_VERSION
-                );
+                let bounding_box = Aabb3::from(meta_proto.get_bounding_box());
                 (
+                    bounding_box,
                     OctreeMeta {
                         resolution: meta_proto.deprecated_resolution,
                         bounding_box,
@@ -144,12 +147,18 @@ impl Octree {
                     meta_proto.get_deprecated_nodes(),
                 )
             }
-            CURRENT_VERSION => {
+            12 | CURRENT_VERSION => {
                 if !meta_proto.has_octree() {
                     return Err(ErrorKind::InvalidInput("No octree meta found".to_string()).into());
                 }
                 let octree_meta = meta_proto.get_octree();
+                let bounding_box = if meta_proto.version == 12 {
+                    Aabb3::from(octree_meta.get_deprecated_bounding_box())
+                } else {
+                    Aabb3::from(meta_proto.get_bounding_box())
+                };
                 (
+                    bounding_box,
                     OctreeMeta {
                         resolution: octree_meta.resolution,
                         bounding_box,

@@ -99,7 +99,7 @@ impl S2Meta {
 
     pub fn from_proto(meta_proto: proto::Meta) -> Result<Self> {
         // check if the meta is meant to be for S2 point cloud
-        if meta_proto.version != CURRENT_VERSION {
+        if meta_proto.version < 12 {
             // from version 12
             return Err(ErrorKind::InvalidInput(format!(
                 "No S2 point cloud supported with version {}",
@@ -107,7 +107,7 @@ impl S2Meta {
             ))
             .into());
         }
-        if !(meta_proto.version == CURRENT_VERSION && meta_proto.has_s2()) {
+        if !(meta_proto.version >= 12 && meta_proto.has_s2()) {
             return Err(ErrorKind::InvalidInput(
                 "This meta does not describe S2 point clouds".to_string(),
             )

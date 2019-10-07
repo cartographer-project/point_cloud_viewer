@@ -81,6 +81,17 @@ fn upgrade_version11(directory: &Path, mut meta: proto::Meta) {
     meta.write_to_writer(&mut buf_writer).unwrap();
 }
 
+fn upgrade_version12(directory: &Path, mut meta: proto::Meta) {
+    println!("Upgrading version 12 => 13.");
+    if meta.has_octree() {
+        let bounding_box = meta.mut_octree().take_deprecated_bounding_box();
+        meta.set_bounding_box(bounding_box);
+    }
+    meta.version = 13;
+    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
+    meta.write_to_writer(&mut buf_writer).unwrap();
+}
+
 fn main() {
     let args = CommandlineArguments::from_args();
     let data_provider = OnDiskDataProvider {
@@ -95,6 +106,7 @@ fn main() {
             9 => upgrade_version9(&args.directory, meta),
             10 => upgrade_version10(&args.directory, meta),
             11 => upgrade_version11(&args.directory, meta),
+            12 => upgrade_version12(&args.directory, meta),
             other if other == point_viewer::CURRENT_VERSION => {
                 println!(
                     "Octree at current version {}",

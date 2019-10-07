@@ -120,8 +120,11 @@ message S2Cell {
 }
 
 message OctreeMeta {
-  double resolution = 1;
-  repeated OctreeNode nodes = 2;
+  double resolution = 2;
+  repeated OctreeNode nodes = 3;
+  // This was used in VERSION == 12. Once we no longer need to keep it
+  // working, we should remove this entry.
+  AxisAlignedCuboid deprecated_bounding_box = 1;
 }
 
 message S2Meta {
