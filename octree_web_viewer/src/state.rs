@@ -32,7 +32,6 @@ pub struct AppState {
     key_params: OctreeKeyParams,
     /// backward compatibility to input arguments
     init_octree_id: String,
-    /// data provider factory
     data_provider_factory: data_provider::DataProviderFactory,
 }
 
