@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::data_provider::OnDiskDataProvider;
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::{
-    self, to_meta_proto, to_node_proto, ChildIndex, NodeId, OctreeMeta, OnDiskDataProvider,
-};
+use crate::octree::{self, to_meta_proto, to_node_proto, ChildIndex, NodeId, OctreeMeta};
 use crate::proto;
 use crate::read_write::{
     attempt_increasing_rlimit_to_max, Encoding, NodeIterator, NodeWriter, OpenMode, PlyIterator,

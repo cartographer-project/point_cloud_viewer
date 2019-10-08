@@ -1,5 +1,6 @@
+use crate::data_provider::DataProvider;
 use crate::errors::*;
-use crate::octree::{ChildIndex, DataProvider, NodeId, Octree};
+use crate::octree::{ChildIndex, NodeId, Octree};
 use crate::read_write::{AttributeReader, Encoding, NodeIterator, RawNodeReader};
 use crate::AttributeDataType;
 use std::collections::{HashMap, VecDeque};

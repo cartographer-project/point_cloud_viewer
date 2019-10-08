@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use point_viewer::octree::{DataProvider, NodeId, OnDiskDataProvider};
+use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
+use point_viewer::octree::NodeId;
 use point_viewer::proto;
 use protobuf::Message;
 use std::fs::File;

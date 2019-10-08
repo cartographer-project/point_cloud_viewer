@@ -11,7 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use crate::data_provider::DataProvider;
 use crate::errors::*;
+use crate::iterator::{FilteredIterator, PointCloud, PointQuery};
 use crate::math::Cube;
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
@@ -24,8 +26,6 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::io::{BufReader, Read};
 
-use crate::iterator::{FilteredIterator, PointCloud, PointQuery};
-
 mod generation;
 pub use self::generation::{build_octree, build_octree_from_file};
 
@@ -34,8 +34,6 @@ pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta};
 
 mod octree_iterator;
 pub use self::octree_iterator::NodeIdsIterator;
-
-pub use crate::data_provider::{DataProvider, OnDiskDataProvider};
 
 #[cfg(test)]
 mod octree_test;
