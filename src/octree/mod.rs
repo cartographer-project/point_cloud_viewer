@@ -281,11 +281,6 @@ impl Octree {
             meta: self.nodes[node_id].clone(),
         })
     }
-
-    /// return the bounding box saved in meta
-    pub fn bounding_box(&self) -> &Aabb3<f64> {
-        &self.meta.bounding_box
-    }
 }
 
 impl PointCloud for Octree {
@@ -322,6 +317,11 @@ impl PointCloud for Octree {
             culling,
             node_iterator,
         })
+    }
+
+    /// return the bounding box saved in meta
+    fn bounding_box(&self) -> &Aabb3<f64> {
+        &self.meta.bounding_box
     }
 }
 

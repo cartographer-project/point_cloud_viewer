@@ -207,6 +207,10 @@ impl PointCloud for S2Cells {
             node_iterator,
         })
     }
+
+    fn bounding_box(&self) -> &Aabb3<f64> {
+        &self.meta.bounding_box
+    }
 }
 
 impl S2Cells {
@@ -223,10 +227,6 @@ impl S2Cells {
             cells,
             meta,
         })
-    }
-
-    pub fn bounding_box(&self) -> &Aabb3<f64> {
-        &self.meta.bounding_box
     }
 
     /// Wrapper arround cells_in_convex_hull for Obbs

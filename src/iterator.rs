@@ -139,6 +139,7 @@ pub trait PointCloud: Sync {
         node_id: Self::Id,
         batch_size: usize,
     ) -> Result<Self::PointsIter>;
+    fn bounding_box(&self) -> &Aabb3<f64>;
 }
 
 /// Iterator on point batches
