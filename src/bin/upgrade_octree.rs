@@ -28,6 +28,12 @@ struct CommandlineArguments {
     directory: PathBuf,
 }
 
+fn write_meta(directory: &Path, mut meta: proto::Meta, version: i32) {
+    meta.version = version;
+    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
+    meta.write_to_writer(&mut buf_writer).unwrap();
+}
+
 fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 9 => 10.");
     for node_proto in &mut meta.deprecated_nodes.iter_mut() {
@@ -37,9 +43,7 @@ fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
         id.deprecated_index = 0;
         *id = node_id.to_proto();
     }
-    meta.version = 10;
-    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
+    write_meta(directory, meta, 10);
 }
 
 fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
@@ -49,10 +53,7 @@ fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
     bbox.set_min(point_viewer::proto::Vector3d::from(deprecated_min));
     let deprecated_max = bbox.take_deprecated_max();
     bbox.set_max(point_viewer::proto::Vector3d::from(deprecated_max));
-
-    meta.version = 11;
-    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
+    write_meta(directory, meta, 11);
 }
 
 fn upgrade_version11(directory: &Path, mut meta: proto::Meta) {
@@ -65,9 +66,7 @@ fn upgrade_version11(directory: &Path, mut meta: proto::Meta) {
     octree.set_nodes(meta.take_deprecated_nodes());
 
     meta.set_octree(octree);
-    meta.version = 12;
-    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
+    write_meta(directory, meta, 12);
 }
 
 fn upgrade_version12(directory: &Path, mut meta: proto::Meta) {
@@ -76,9 +75,7 @@ fn upgrade_version12(directory: &Path, mut meta: proto::Meta) {
         let bounding_box = meta.mut_octree().take_deprecated_bounding_box();
         meta.set_bounding_box(bounding_box);
     }
-    meta.version = 13;
-    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
+    write_meta(directory, meta, 13);
 }
 
 fn main() {
