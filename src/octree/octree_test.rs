@@ -11,9 +11,9 @@ mod tests {
 
     const NUM_POINTS: usize = 100_001;
 
-    impl<T> NumberOfPoints for std::vec::IntoIter<T> {
+    impl NumberOfPoints for std::vec::IntoIter<PointsBatch> {
         fn num_points(&self) -> usize {
-            self.len()
+            self.clone().map(|b| b.position.len()).sum()
         }
     }
 
