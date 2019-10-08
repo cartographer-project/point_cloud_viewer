@@ -95,9 +95,12 @@ impl NodeIterator {
         for attribute in attributes {
             match all_reads.remove(*attribute) {
                 Some(data) => {
-                    let data_type = *attribute_data_types
-                        .get(*attribute)
-                        .ok_or("Attribute data type not found in meta data.")?;
+                    let data_type = *attribute_data_types.get(*attribute).ok_or_else(|| {
+                        format!(
+                            "Attribute data type for {} not found in meta data.",
+                            attribute
+                        )
+                    })?;
                     let reader = BufReader::new(data);
                     let attribute_reader = AttributeReader { data_type, reader };
                     attribute_readers.insert(attribute.to_string(), attribute_reader);
