@@ -64,11 +64,9 @@ where
                 );
                 return Err(Error::new(ErrorKind::InvalidInput, msg));
             }
-            let box_point = Point3::from_vec(*pos);
-            let b = self
-                .bounding_box
-                .get_or_insert(Aabb3::new(box_point, box_point));
-            *b = b.grow(box_point);
+            let p3 = Point3::from_vec(*pos);
+            let b = self.bounding_box.get_or_insert(Aabb3::new(p3, p3));
+            *b = b.grow(p3);
             let s2_point = Point::from_coords(pos.x, pos.y, pos.z);
             let s2_cell_id = CellID::from(s2_point).parent(S2_SPLIT_LEVEL);
             self.cell_stats
