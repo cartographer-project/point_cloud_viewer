@@ -72,10 +72,9 @@ impl NodeIterator {
                     .get_attributes()
                     .iter()
                     .map(|a| {
-                        (
-                            a.name.clone(),
-                            AttributeDataType::from_proto(a.data_type).unwrap(),
-                        )
+                        let name = a.name.clone();
+                        let data_type = AttributeDataType::from_proto(a.data_type).unwrap();
+                        (name, data_type)
                     })
                     .collect(),
                 _ => vec![
@@ -96,13 +95,12 @@ impl NodeIterator {
         for attribute in attributes {
             match all_reads.remove(*attribute) {
                 Some(data) => {
-                    let reader = AttributeReader {
-                        data_type: *attribute_data_types
-                            .get(*attribute)
-                            .ok_or("Attribute data type not found in meta data.")?,
-                        reader: BufReader::new(data),
-                    };
-                    attribute_readers.insert(attribute.to_string(), reader);
+                    let data_type = *attribute_data_types
+                        .get(*attribute)
+                        .ok_or("Attribute data type not found in meta data.")?;
+                    let reader = BufReader::new(data);
+                    let attribute_reader = AttributeReader { data_type, reader };
+                    attribute_readers.insert(attribute.to_string(), attribute_reader);
                 }
                 None => return Err(format!("No {} reader available.", attribute).into()),
             }
