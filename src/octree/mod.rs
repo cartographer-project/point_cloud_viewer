@@ -306,6 +306,7 @@ impl PointCloud for Octree {
         let culling = query.get_point_culling();
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
+            &query.attributes,
             self.meta.encoding_for_node(node_id),
             &node_id,
             self.nodes[&node_id].num_points as usize,

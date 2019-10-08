@@ -40,5 +40,11 @@ struct CommandlineArguments {
 fn main() {
     let args = CommandlineArguments::from_args();
     let pool = scoped_pool::Pool::new(args.num_threads);
-    build_octree_from_file(&pool, args.output_directory, args.resolution, args.input);
+    build_octree_from_file(
+        &pool,
+        args.output_directory,
+        args.resolution,
+        args.input,
+        &["color", "intensity"],
+    );
 }

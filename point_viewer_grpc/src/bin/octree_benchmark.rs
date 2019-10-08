@@ -100,7 +100,8 @@ fn server_benchmark(
     let mut counter: usize = 0;
     let mut points_streamed_m = 0;
     let all_points = PointQuery {
-        location: PointLocation::AllPoints(),
+        attributes: vec!["color", "intensity"],
+        location: PointLocation::AllPoints,
         global_from_local: None,
     };
     let octree_slice: &[Octree] = std::slice::from_ref(&octree);

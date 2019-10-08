@@ -158,6 +158,7 @@ fn split_node<'a, P>(
     scope: &Scope<'a>,
     octree_data_provider: &'a OnDiskDataProvider,
     octree_meta: &'a octree::OctreeMeta,
+    attributes: &'a [&str],
     node_id: &octree::NodeId,
     stream: P,
     leaf_nodes_sender: &mpsc::Sender<octree::NodeId>,
@@ -170,6 +171,7 @@ fn split_node<'a, P>(
         scope.recurse(move |scope| {
             let stream = NodeIterator::from_data_provider(
                 octree_data_provider,
+                attributes,
                 octree_meta.encoding_for_node(child_id),
                 &child_id,
                 octree_data_provider
@@ -182,6 +184,7 @@ fn split_node<'a, P>(
                 scope,
                 octree_data_provider,
                 octree_meta,
+                attributes,
                 &child_id,
                 stream,
                 &leaf_nodes_sender_clone,
@@ -197,6 +200,7 @@ fn split_node<'a, P>(
 fn subsample_children_into(
     octree_data_provider: &OnDiskDataProvider,
     octree_meta: &octree::OctreeMeta,
+    attributes: &[&str],
     node_id: &octree::NodeId,
     nodes_sender: &mpsc::Sender<(octree::NodeId, i64)>,
 ) -> Result<()> {
@@ -211,6 +215,7 @@ fn subsample_children_into(
         };
         let mut node_iterator = NodeIterator::from_data_provider(
             octree_data_provider,
+            attributes,
             octree_meta.encoding_for_node(child_id),
             &child_id,
             num_points as usize,
@@ -277,10 +282,18 @@ pub fn build_octree_from_file(
     output_directory: impl AsRef<Path>,
     resolution: f64,
     filename: impl AsRef<Path>,
+    attributes: &[&str],
 ) {
     let bounding_box = find_bounding_box(filename.as_ref());
     let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap();
-    build_octree(pool, output_directory, resolution, bounding_box, stream)
+    build_octree(
+        pool,
+        output_directory,
+        resolution,
+        bounding_box,
+        stream,
+        attributes,
+    )
 }
 
 pub fn build_octree(
@@ -289,6 +302,7 @@ pub fn build_octree(
     resolution: f64,
     bounding_box: Aabb3<f64>,
     input: impl Iterator<Item = PointsBatch> + NumberOfPoints,
+    attributes: &[&str],
 ) {
     attempt_increasing_rlimit_to_max();
 
@@ -314,6 +328,7 @@ pub fn build_octree(
             scope,
             octree_data_provider,
             octree_meta,
+            attributes,
             &root_node.id,
             input,
             &leaf_nodes_sender,
@@ -368,6 +383,7 @@ pub fn build_octree(
                     subsample_children_into(
                         octree_data_provider,
                         octree_meta,
+                        attributes,
                         id,
                         &finished_nodes_sender_clone,
                     )
@@ -496,6 +512,13 @@ mod tests {
         }
         let pool = scoped_pool::Pool::new(10);
         let tmp_dir = TempDir::new("octree").unwrap();
-        build_octree(&pool, tmp_dir, 1.0, bounding_box, Points::new(points));
+        build_octree(
+            &pool,
+            tmp_dir,
+            1.0,
+            bounding_box,
+            Points::new(points),
+            &["color"],
+        );
     }
 }

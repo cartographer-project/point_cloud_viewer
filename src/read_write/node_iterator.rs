@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::read_write::RawNodeReader;
-use crate::{NumberOfPoints, PointsBatch};
+use crate::data_provider::DataProvider;
+use crate::errors::*;
+use crate::read_write::{AttributeReader, Encoding, RawNodeReader};
+use crate::{AttributeDataType, NumberOfPoints, PointsBatch};
 use num_integer::div_ceil;
+use std::collections::HashMap;
+use std::io::BufReader;
 
 /// Streams points from our data provider representation.
 pub struct NodeIterator {
@@ -47,6 +51,68 @@ impl NodeIterator {
             point_count: 0,
             batch_size,
         }
+    }
+
+    pub fn from_data_provider<Id: ToString>(
+        data_provider: &dyn DataProvider,
+        point_attributes: &[&str],
+        encoding: Encoding,
+        id: &Id,
+        num_points: usize,
+        batch_size: usize,
+    ) -> Result<Self> {
+        if num_points == 0 {
+            return Ok(NodeIterator::default());
+        }
+
+        let attribute_data_types: HashMap<String, AttributeDataType> =
+            match data_provider.meta_proto() {
+                Ok(meta) if meta.has_s2() => meta
+                    .get_s2()
+                    .get_attributes()
+                    .iter()
+                    .map(|a| {
+                        (
+                            a.name.clone(),
+                            AttributeDataType::from_proto(a.data_type).unwrap(),
+                        )
+                    })
+                    .collect(),
+                _ => vec![
+                    ("color".to_string(), AttributeDataType::U8Vec3),
+                    ("intensity".to_string(), AttributeDataType::F32),
+                ]
+                .into_iter()
+                .collect(),
+            };
+
+        let mut all_reads =
+            data_provider.data(&id.to_string(), &[&["position"], point_attributes].concat())?;
+        let position_read = all_reads
+            .remove("position")
+            .ok_or_else(|| -> Error { "No position reader available.".into() })?;
+
+        let mut attribute_readers = HashMap::new();
+        for point_attr in point_attributes {
+            match all_reads.remove(*point_attr) {
+                Some(data) => {
+                    let reader = AttributeReader {
+                        data_type: *attribute_data_types
+                            .get(*point_attr)
+                            .ok_or("Attribute data type not found in meta data.")?,
+                        reader: BufReader::new(data),
+                    };
+                    attribute_readers.insert(point_attr.to_string(), reader);
+                }
+                None => return Err(format!("No {} reader available.", point_attr).into()),
+            }
+        }
+
+        Ok(Self::new(
+            RawNodeReader::new(position_read, attribute_readers, encoding)?,
+            num_points,
+            batch_size,
+        ))
     }
 }
 

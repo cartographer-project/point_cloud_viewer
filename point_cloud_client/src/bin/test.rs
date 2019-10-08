@@ -70,6 +70,7 @@ fn main() {
     point_cloud_client.num_points_per_batch = args.num_points_per_batch;
 
     let point_location = PointQuery {
+        attributes: vec!["color", "intensity"],
         location: PointLocation::Aabb(Aabb3::new(args.min, args.max)),
         global_from_local: None,
     };

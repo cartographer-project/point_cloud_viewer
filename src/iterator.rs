@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum PointLocation {
-    AllPoints(),
+    AllPoints,
     Aabb(Aabb3<f64>),
     Frustum(Matrix4<f64>),
     Obb(Obb<f64>),
@@ -19,16 +19,17 @@ pub enum PointLocation {
 }
 
 #[derive(Clone, Debug)]
-pub struct PointQuery {
+pub struct PointQuery<'a> {
+    pub attributes: Vec<&'a str>,
     pub location: PointLocation,
     // If set, culling and the returned points are interpreted to be in local coordinates.
     pub global_from_local: Option<Isometry3<f64>>,
 }
 
-impl PointQuery {
+impl<'a> PointQuery<'a> {
     pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
         let culling: Box<dyn PointCulling<f64>> = match &self.location {
-            PointLocation::AllPoints() => return Box::new(AllPoints {}),
+            PointLocation::AllPoints => return Box::new(AllPoints {}),
             PointLocation::Aabb(aabb) => Box::new(*aabb),
             PointLocation::Frustum(matrix) => Box::new(Frustum::new(*matrix)),
             PointLocation::Obb(obb) => Box::new(obb.clone()),
@@ -145,7 +146,7 @@ pub trait PointCloud: Sync {
 /// Iterator on point batches
 pub struct ParallelIterator<'a, C> {
     point_clouds: &'a [C],
-    point_location: &'a PointQuery,
+    point_query: &'a PointQuery<'a>,
     batch_size: usize,
     num_threads: usize,
     buffer_size: usize,
@@ -157,14 +158,14 @@ where
 {
     pub fn new(
         point_clouds: &'a [C],
-        point_location: &'a PointQuery,
+        point_query: &'a PointQuery<'a>,
         batch_size: usize,
         num_threads: usize,
         buffer_size: usize,
     ) -> Self {
         ParallelIterator {
             point_clouds,
-            point_location,
+            point_query,
             batch_size,
             num_threads,
             buffer_size,
@@ -182,7 +183,7 @@ where
         self.point_clouds
             .iter()
             .flat_map(|octree| {
-                std::iter::repeat(octree).zip(octree.nodes_in_location(self.point_location))
+                std::iter::repeat(octree).zip(octree.nodes_in_location(self.point_query))
             })
             .for_each(|(node_id, octree)| {
                 jobs.push((node_id, octree));
@@ -190,7 +191,7 @@ where
             });
 
         let local_from_global = self
-            .point_location
+            .point_query
             .global_from_local
             .as_ref()
             .map(Isometry3::inverse);
@@ -201,7 +202,7 @@ where
             for curr_thread in 0..self.num_threads {
                 let tx = tx.clone();
                 let local_from_global = &local_from_global;
-                let point_location = &self.point_location;
+                let point_query = &self.point_query;
                 let batch_size = self.batch_size;
                 let worker = Worker::new_fifo();
                 let jobs = &jobs;
@@ -227,7 +228,7 @@ where
                     }) {
                         // TODO(nnmm): This crashes on error. We should bubble up an error.
                         let node_iterator = octree
-                            .points_in_node(&point_location, node_id, batch_size)
+                            .points_in_node(&point_query, node_id, batch_size)
                             .expect("Could not read node points");
                         // executing on the available next task if the function still requires it
                         match point_stream.push_points_and_callback(node_iterator) {

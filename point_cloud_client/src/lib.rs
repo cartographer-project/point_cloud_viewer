@@ -73,7 +73,7 @@ impl PointCloudClient {
         &self.aabb
     }
 
-    pub fn for_each_point_data<F>(&self, point_location: &PointQuery, mut func: F) -> Result<()>
+    pub fn for_each_point_data<F>(&self, point_query: &PointQuery, mut func: F) -> Result<()>
     where
         F: FnMut(PointsBatch) -> Result<()>,
     {
@@ -81,7 +81,7 @@ impl PointCloudClient {
             PointClouds::Octrees(octrees) => {
                 let mut parallel_iterator = ParallelIterator::new(
                     octrees,
-                    point_location,
+                    point_query,
                     self.num_points_per_batch,
                     self.num_threads,
                     self.buffer_size,
@@ -91,7 +91,7 @@ impl PointCloudClient {
             PointClouds::S2Cells(s2_cells) => {
                 let mut parallel_iterator = ParallelIterator::new(
                     s2_cells,
-                    point_location,
+                    point_query,
                     self.num_points_per_batch,
                     self.num_threads,
                     self.buffer_size,
