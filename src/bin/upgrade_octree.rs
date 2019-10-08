@@ -98,7 +98,7 @@ fn main() {
             12 => upgrade_version12(&args.directory, meta),
             other if other == point_viewer::CURRENT_VERSION => {
                 println!(
-                    "Octree at current version {}",
+                    "Point cloud at current version {}",
                     point_viewer::CURRENT_VERSION
                 );
                 break;
