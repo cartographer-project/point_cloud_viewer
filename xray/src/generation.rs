@@ -378,6 +378,38 @@ impl HeightStddevColoringStrategy {
     }
 }
 
+impl ColoringStrategy for HeightStddevColoringStrategy {
+    fn process_discretized_point_data(
+        &mut self,
+        points_batch: &PointsBatch,
+        discretized_locations: Vec<Point3<u32>>,
+    ) {
+        for (i, d_loc) in discretized_locations
+            .iter()
+            .enumerate()
+            .take(discretized_locations.len())
+        {
+            self.per_column_data
+                .entry((d_loc.x, d_loc.y))
+                .or_insert_with(OnlineStats::new)
+                .add(points_batch.position[i].z);
+        }
+    }
+
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
+        if !self.per_column_data.contains_key(&(x, y)) {
+            return background_color;
+        }
+        let c = &self.per_column_data[&(x, y)];
+        let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
+        Jet {}.for_value(saturation)
+    }
+
+    fn attributes(&self) -> Vec<String> {
+        vec![]
+    }
+}
+
 /// Build a parent image created of the 4 children tiles. All tiles are optionally, in which case
 /// they are left white in the resulting image. The input images must be square with length N,
 /// the returned image is square with length 2*N.
@@ -430,38 +462,6 @@ pub fn build_parent(
         }
     }
     large_image
-}
-
-impl ColoringStrategy for HeightStddevColoringStrategy {
-    fn process_discretized_point_data(
-        &mut self,
-        points_batch: &PointsBatch,
-        discretized_locations: Vec<Point3<u32>>,
-    ) {
-        for (i, d_loc) in discretized_locations
-            .iter()
-            .enumerate()
-            .take(discretized_locations.len())
-        {
-            self.per_column_data
-                .entry((d_loc.x, d_loc.y))
-                .or_insert_with(OnlineStats::new)
-                .add(points_batch.position[i].z);
-        }
-    }
-
-    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
-        if !self.per_column_data.contains_key(&(x, y)) {
-            return background_color;
-        }
-        let c = &self.per_column_data[&(x, y)];
-        let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
-        Jet {}.for_value(saturation)
-    }
-
-    fn attributes(&self) -> Vec<String> {
-        vec![]
-    }
 }
 
 pub struct Tile {
