@@ -67,6 +67,10 @@ impl S2Meta {
         &self.cells
     }
 
+    pub fn bounding_box(&self) -> &Aabb3<f64> {
+        &self.bounding_box
+    }
+
     pub fn to_proto(&self) -> proto::Meta {
         let cell_protos = self
             .cells
