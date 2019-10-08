@@ -67,7 +67,7 @@ impl NodeIterator {
 
         let attribute_data_types: HashMap<String, AttributeDataType> =
             match data_provider.meta_proto() {
-                Ok(meta) if meta.has_s2() => meta
+                Ok(ref meta) if meta.has_s2() => meta
                     .get_s2()
                     .get_attributes()
                     .iter()
