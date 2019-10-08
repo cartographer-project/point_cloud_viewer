@@ -55,7 +55,7 @@ impl NodeIterator {
 
     pub fn from_data_provider<Id: ToString>(
         data_provider: &dyn DataProvider,
-        point_attributes: &[&str],
+        attributes: &[&str],
         encoding: Encoding,
         id: &Id,
         num_points: usize,
@@ -87,24 +87,24 @@ impl NodeIterator {
             };
 
         let mut all_reads =
-            data_provider.data(&id.to_string(), &[&["position"], point_attributes].concat())?;
+            data_provider.data(&id.to_string(), &[&["position"], attributes].concat())?;
         let position_read = all_reads
             .remove("position")
             .ok_or_else(|| -> Error { "No position reader available.".into() })?;
 
         let mut attribute_readers = HashMap::new();
-        for point_attr in point_attributes {
-            match all_reads.remove(*point_attr) {
+        for attribute in attributes {
+            match all_reads.remove(*attribute) {
                 Some(data) => {
                     let reader = AttributeReader {
                         data_type: *attribute_data_types
-                            .get(*point_attr)
+                            .get(*attribute)
                             .ok_or("Attribute data type not found in meta data.")?,
                         reader: BufReader::new(data),
                     };
-                    attribute_readers.insert(point_attr.to_string(), reader);
+                    attribute_readers.insert(attribute.to_string(), reader);
                 }
-                None => return Err(format!("No {} reader available.", point_attr).into()),
+                None => return Err(format!("No {} reader available.", attribute).into()),
             }
         }
 
