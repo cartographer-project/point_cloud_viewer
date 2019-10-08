@@ -33,7 +33,8 @@ impl PointCloudClient {
             let b = with.get_or_insert(*bbox);
             *b = b.union(bbox);
         };
-        let point_clouds = if data_providers[0].meta_proto()?.has_octree() {
+        let first_meta = data_providers[0].meta_proto()?;
+        let point_clouds = if first_meta.version <= 11 || first_meta.has_octree() {
             PointClouds::Octrees(
                 data_providers
                     .into_iter()
