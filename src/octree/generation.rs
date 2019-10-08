@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::data_provider::OnDiskDataProvider;
 use crate::errors::*;
 use crate::math::Cube;
-use crate::octree::{
-    self, to_meta_proto, to_node_proto, ChildIndex, NodeId, OctreeMeta, OnDiskDataProvider,
-};
+use crate::octree::{self, to_meta_proto, to_node_proto, ChildIndex, NodeId, OctreeMeta};
 use crate::proto;
 use crate::read_write::{
     attempt_increasing_rlimit_to_max, Encoding, NodeIterator, NodeWriter, OpenMode, PlyIterator,
@@ -264,11 +263,8 @@ fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb3<f64> {
     stream.for_each(|batch| {
         for position in batch.position {
             let p3 = Point3::from_vec(position);
-            bounding_box = if bounding_box.is_none() {
-                Some(Aabb3::new(p3, p3))
-            } else {
-                bounding_box.map(|b| b.grow(p3))
-            };
+            let b = bounding_box.get_or_insert(Aabb3::new(p3, p3));
+            *b = b.grow(p3);
             progress_bar.inc();
         }
     });

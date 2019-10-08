@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use point_viewer::octree::{DataProvider, NodeId, OnDiskDataProvider};
+use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
+use point_viewer::octree::NodeId;
 use point_viewer::proto;
 use protobuf::Message;
 use std::fs::File;
@@ -28,6 +29,12 @@ struct CommandlineArguments {
     directory: PathBuf,
 }
 
+fn write_meta(directory: &Path, mut meta: proto::Meta, version: i32) {
+    meta.version = version;
+    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
+    meta.write_to_writer(&mut buf_writer).unwrap();
+}
+
 fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 9 => 10.");
     for node_proto in &mut meta.deprecated_nodes.iter_mut() {
@@ -37,40 +44,22 @@ fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
         id.deprecated_index = 0;
         *id = node_id.to_proto();
     }
-    meta.version = 10;
-    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
+    write_meta(directory, meta, 10);
 }
 
 fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 10 => 11.");
-    let bbox = meta.deprecated_bounding_box.as_mut().unwrap();
-    let deprecated_min = bbox.deprecated_min.as_ref().unwrap();
-    let mut min = point_viewer::proto::Vector3d::new();
-    min.set_x(f64::from(deprecated_min.x));
-    min.set_y(f64::from(deprecated_min.y));
-    min.set_z(f64::from(deprecated_min.z));
-    bbox.set_min(min);
-    bbox.deprecated_min.clear();
-
-    let deprecated_max = bbox.deprecated_max.as_ref().unwrap();
-    let mut max = point_viewer::proto::Vector3d::new();
-    max.set_x(f64::from(deprecated_max.x));
-    max.set_y(f64::from(deprecated_max.y));
-    max.set_z(f64::from(deprecated_max.z));
-    bbox.set_max(max);
-    bbox.deprecated_max.clear();
-
-    meta.version = 11;
-    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
+    let bbox = meta.bounding_box.as_mut().unwrap();
+    let deprecated_min = bbox.take_deprecated_min();
+    bbox.set_min(point_viewer::proto::Vector3d::from(deprecated_min));
+    let deprecated_max = bbox.take_deprecated_max();
+    bbox.set_max(point_viewer::proto::Vector3d::from(deprecated_max));
+    write_meta(directory, meta, 11);
 }
 
 fn upgrade_version11(directory: &Path, mut meta: proto::Meta) {
     println!("Upgrading version 11 => 12.");
     let mut octree = proto::OctreeMeta::new();
-
-    octree.set_bounding_box(meta.take_deprecated_bounding_box());
 
     octree.set_resolution(meta.deprecated_resolution);
     meta.deprecated_resolution = 0.0;
@@ -78,9 +67,16 @@ fn upgrade_version11(directory: &Path, mut meta: proto::Meta) {
     octree.set_nodes(meta.take_deprecated_nodes());
 
     meta.set_octree(octree);
-    meta.version = 12;
-    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
+    write_meta(directory, meta, 12);
+}
+
+fn upgrade_version12(directory: &Path, mut meta: proto::Meta) {
+    println!("Upgrading version 12 => 13.");
+    if meta.has_octree() {
+        let bounding_box = meta.mut_octree().take_deprecated_bounding_box();
+        meta.set_bounding_box(bounding_box);
+    }
+    write_meta(directory, meta, 13);
 }
 
 fn main() {
@@ -97,9 +93,10 @@ fn main() {
             9 => upgrade_version9(&args.directory, meta),
             10 => upgrade_version10(&args.directory, meta),
             11 => upgrade_version11(&args.directory, meta),
+            12 => upgrade_version12(&args.directory, meta),
             other if other == point_viewer::CURRENT_VERSION => {
                 println!(
-                    "Octree at current version {}",
+                    "Point cloud at current version {}",
                     point_viewer::CURRENT_VERSION
                 );
                 break;

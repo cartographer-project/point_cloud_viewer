@@ -32,7 +32,9 @@ use std::convert::{TryFrom, TryInto};
 // We are able to convert the proto on read, so the tools can still read version 9/10.
 // Version 11 -> 12: Change in Meta names and structures, to allow both s2 and octree meta.
 // We are able to convert the proto on read, so the tools can still read version 9/10/11.
-pub const CURRENT_VERSION: i32 = 12;
+// Version 12 -> 13: Change back bounding box from OctreeMeta to Meta.
+// We are able to convert the proto on read, so the tools can still read version 9/10/11/12.
+pub const CURRENT_VERSION: i32 = 13;
 
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
