@@ -64,12 +64,11 @@ where
                 );
                 return Err(Error::new(ErrorKind::InvalidInput, msg));
             }
-            let bbox_point = Point3::from_vec(*pos);
-            self.bounding_box = if self.bounding_box.is_none() {
-                Some(Aabb3::new(bbox_point, bbox_point))
-            } else {
-                self.bounding_box.map(|b| b.grow(bbox_point))
-            };
+            let box_point = Point3::from_vec(*pos);
+            let b = self
+                .bounding_box
+                .get_or_insert(Aabb3::new(box_point, box_point));
+            *b = b.grow(box_point);
             let s2_point = Point::from_coords(pos.x, pos.y, pos.z);
             let s2_cell_id = CellID::from(s2_point).parent(S2_SPLIT_LEVEL);
             self.cell_stats

@@ -29,12 +29,9 @@ impl PointCloudClient {
             .map(|location| data_provider_factory.generate_data_provider(location))
             .collect::<Result<Vec<Box<dyn DataProvider>>>>()?;
         let mut aabb: Option<Aabb3<f64>> = None;
-        let unite = |bbox: &Aabb3<f64>, to: &mut Option<Aabb3<f64>>| {
-            if to.is_none() {
-                *to = Some(*bbox);
-            } else {
-                *to = to.map(|b| b.union(bbox));
-            }
+        let unite = |bbox: &Aabb3<f64>, with: &mut Option<Aabb3<f64>>| {
+            let b = with.get_or_insert(*bbox);
+            *b = b.union(bbox);
         };
         let point_clouds = if data_providers[0].meta_proto()?.has_octree() {
             PointClouds::Octrees(
