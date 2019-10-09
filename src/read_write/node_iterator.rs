@@ -85,30 +85,25 @@ impl NodeIterator {
 
         let mut all_reads =
             data_provider.data(&id.to_string(), &[&["position"], attributes].concat())?;
-        let position_read = all_reads
-            .remove("position")
-            .ok_or_else(|| -> Error { "No position reader available.".into() })?;
+        // Unwrapping all following removals is safe,
+        // as the data provider would already have errored on unavailability.
+        let position_reader = all_reads.remove("position").unwrap();
 
         let mut attribute_readers = HashMap::new();
         for attribute in attributes {
-            match all_reads.remove(*attribute) {
-                Some(data) => {
-                    let data_type = *attribute_data_types.get(*attribute).ok_or_else(|| {
-                        format!(
-                            "Attribute data type for {} not found in meta data.",
-                            attribute
-                        )
-                    })?;
-                    let reader = BufReader::new(data);
-                    let attribute_reader = AttributeReader { data_type, reader };
-                    attribute_readers.insert(attribute.to_string(), attribute_reader);
-                }
-                None => return Err(format!("No {} reader available.", attribute).into()),
-            }
+            let data_type = *attribute_data_types.get(*attribute).ok_or_else(|| {
+                format!(
+                    "Attribute data type for {} not found in meta data.",
+                    attribute
+                )
+            })?;
+            let reader = BufReader::new(all_reads.remove(*attribute).unwrap());
+            let attribute_reader = AttributeReader { data_type, reader };
+            attribute_readers.insert(attribute.to_string(), attribute_reader);
         }
 
         Ok(Self::new(
-            RawNodeReader::new(position_read, attribute_readers, encoding)?,
+            RawNodeReader::new(position_reader, attribute_readers, encoding)?,
             num_points,
             batch_size,
         ))
