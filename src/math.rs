@@ -583,7 +583,7 @@ where
 // the axes are ENU (east, north, up <in the direction normal to the oblate spheroid
 // used as Earth's ellipsoid, which does not generally pass through the center of the Earth>)
 // https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
-pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Matrix4<f64> {
+pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
     const PI_HALF: Deg<f64> = Deg(90.0);
     let lat_lng_alt = WGS84::new(lat, lon, 0.0);
     let origin = ECEF::from(lat_lng_alt);
@@ -598,5 +598,5 @@ pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Matrix4<f64> {
         rot: rotation,
         disp: rotation.rotate_vector(-origin_vector),
     };
-    Matrix4::from(frame)
+    Isometry3::from(frame)
 }
