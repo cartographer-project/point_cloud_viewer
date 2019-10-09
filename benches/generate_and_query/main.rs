@@ -52,12 +52,12 @@ impl Default for Arguments {
 }
 
 fn make_octree(args: &Arguments, dir: &Path) {
-    let mut points_oct = RandomPointsOnEarth::new(args.width, args.height, args.num_points, SEED);
+    let points_oct = RandomPointsOnEarth::new(args.width, args.height, args.num_points, SEED);
     let bbox = points_oct.bbox();
     let batches_oct = Batched::new(points_oct, args.batch_size);
     let pool = scoped_pool::Pool::new(args.num_threads);
 
-    build_octree(&pool, dir, args.resolution, bbox, batches_oct);
+    build_octree(&pool, dir, args.resolution, bbox, batches_oct, &["color"]);
 }
 
 fn make_s2_cells(args: &Arguments, dir: &Path) {
@@ -208,6 +208,7 @@ fn check_box_query_equality() {
     let (args, s2, oct, points) = setup();
     let bbox = points.bbox();
     let query = PointQuery {
+        attributes: vec!["color"],
         location: PointLocation::Aabb(bbox),
         global_from_local: None,
     };
@@ -227,6 +228,7 @@ fn check_frustum_query_equality() {
         far: 10.0,
     }) * transform.inverse_transform().unwrap();
     let query = PointQuery {
+        attributes: vec!["color"],
         location: PointLocation::Frustum(frustum_matrix),
         global_from_local: None,
     };

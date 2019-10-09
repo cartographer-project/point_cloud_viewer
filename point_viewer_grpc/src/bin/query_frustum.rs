@@ -151,5 +151,6 @@ fn main() {
         0.001,
         bounding_box,
         Points::new(points),
+        &["color"],
     );
 }

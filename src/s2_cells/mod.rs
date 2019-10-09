@@ -169,7 +169,7 @@ impl PointCloud for S2Cells {
 
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         match &query.location {
-            PointLocation::AllPoints() => self.cells.keys().cloned().map(S2CellId).collect(),
+            PointLocation::AllPoints => self.cells.keys().cloned().map(S2CellId).collect(),
             PointLocation::Aabb(aabb) => {
                 self.cells_in_obb(&Obb::from(aabb), query.global_from_local.as_ref())
             }
@@ -201,6 +201,7 @@ impl PointCloud for S2Cells {
         let num_points = self.meta.cells[&node_id.0].num_points as usize;
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
+            &query.attributes,
             self.encoding_for_node(node_id),
             &node_id,
             num_points,

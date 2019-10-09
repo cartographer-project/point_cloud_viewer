@@ -141,11 +141,8 @@ impl proto_grpc::Octree for OctreeService {
             disp: translation,
         };
         let frustum_matrix = projection_matrix.concat(&view_transform.into());
-        let point_location = PointQuery {
-            location: PointLocation::Frustum(frustum_matrix),
-            global_from_local: None,
-        };
-        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
+        let location = PointLocation::Frustum(frustum_matrix);
+        self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
     }
 
     fn get_points_in_box(
@@ -163,11 +160,8 @@ impl proto_grpc::Octree for OctreeService {
                 Point3::new(max.x, max.y, max.z),
             )
         };
-        let point_location = PointQuery {
-            location: PointLocation::Aabb(bounding_box),
-            global_from_local: None,
-        };
-        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
+        let location = PointLocation::Aabb(bounding_box);
+        self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
     }
 
     fn get_all_points(
@@ -176,11 +170,8 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetAllPointsRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        let point_location = PointQuery {
-            location: PointLocation::AllPoints(),
-            global_from_local: None,
-        };
-        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
+        let location = PointLocation::AllPoints;
+        self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
     }
 
     fn get_points_in_oriented_beam(
@@ -205,18 +196,15 @@ impl proto_grpc::Octree for OctreeService {
         };
 
         let beam = OrientedBeam::new(Isometry3::new(rotation, translation), half_extent);
-        let point_location = PointQuery {
-            location: PointLocation::OrientedBeam(beam),
-            global_from_local: None,
-        };
-        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
+        let location = PointLocation::OrientedBeam(beam);
+        self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
     }
 }
 
 impl OctreeService {
     fn stream_points_back_to_sink(
         &self,
-        query: PointQuery,
+        location: PointLocation,
         octree_id: &str,
         ctx: &RpcContext,
         resp: ServerStreamingSink<proto::PointsReply>,
@@ -334,9 +322,14 @@ impl OctreeService {
                 };
 
                 let octree_slice: &[Octree] = std::slice::from_ref(&service_data.octree);
+                let point_query = PointQuery {
+                    attributes: vec!["color", "intensity"],
+                    location,
+                    global_from_local: None,
+                };
                 let mut parallel_iterator = ParallelIterator::new(
                     octree_slice,
-                    &query,
+                    &point_query,
                     num_points_per_batch,
                     num_cpus::get() - 1,
                     buffer_size,

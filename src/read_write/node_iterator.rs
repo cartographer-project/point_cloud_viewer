@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::read_write::RawNodeReader;
-use crate::{NumberOfPoints, PointsBatch};
+use crate::data_provider::DataProvider;
+use crate::errors::*;
+use crate::read_write::{AttributeReader, Encoding, RawNodeReader};
+use crate::{AttributeDataType, NumberOfPoints, PointsBatch};
 use num_integer::div_ceil;
+use std::collections::HashMap;
+use std::io::BufReader;
 
 /// Streams points from our data provider representation.
 pub struct NodeIterator {
@@ -47,6 +51,62 @@ impl NodeIterator {
             point_count: 0,
             batch_size,
         }
+    }
+
+    pub fn from_data_provider<Id: ToString>(
+        data_provider: &dyn DataProvider,
+        attributes: &[&str],
+        encoding: Encoding,
+        id: &Id,
+        num_points: usize,
+        batch_size: usize,
+    ) -> Result<Self> {
+        if num_points == 0 {
+            return Ok(NodeIterator::default());
+        }
+
+        let attribute_data_types = match data_provider.meta_proto() {
+            Ok(ref meta) if meta.has_s2() => meta
+                .get_s2()
+                .get_attributes()
+                .iter()
+                .map(|a| {
+                    AttributeDataType::from_proto(a.data_type)
+                        .map(|data_type| (a.name.clone(), data_type))
+                })
+                .collect::<Result<HashMap<String, AttributeDataType>>>()?,
+            _ => vec![
+                ("color".to_string(), AttributeDataType::U8Vec3),
+                ("intensity".to_string(), AttributeDataType::F32),
+            ]
+            .into_iter()
+            .collect(),
+        };
+
+        let mut all_reads =
+            data_provider.data(&id.to_string(), &[&["position"], attributes].concat())?;
+        // Unwrapping all following removals is safe,
+        // as the data provider would already have errored on unavailability.
+        let position_reader = all_reads.remove("position").unwrap();
+
+        let mut attribute_readers = HashMap::new();
+        for attribute in attributes {
+            let data_type = *attribute_data_types.get(*attribute).ok_or_else(|| {
+                format!(
+                    "Attribute data type for {} not found in meta data.",
+                    attribute
+                )
+            })?;
+            let reader = BufReader::new(all_reads.remove(*attribute).unwrap());
+            let attribute_reader = AttributeReader { data_type, reader };
+            attribute_readers.insert(attribute.to_string(), attribute_reader);
+        }
+
+        Ok(Self::new(
+            RawNodeReader::new(position_reader, attribute_readers, encoding)?,
+            num_points,
+            batch_size,
+        ))
     }
 }
 

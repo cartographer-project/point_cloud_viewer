@@ -37,7 +37,14 @@ mod tests {
         let pool = scoped_pool::Pool::new(10);
         let tmp_dir = TempDir::new("octree").unwrap();
 
-        build_octree(&pool, &tmp_dir, 1.0, bounding_box, vec![batch].into_iter());
+        build_octree(
+            &pool,
+            &tmp_dir,
+            1.0,
+            bounding_box,
+            vec![batch].into_iter(),
+            &["color"],
+        );
         Octree::from_data_provider(Box::new(OnDiskDataProvider {
             directory: tmp_dir.into_path(),
         }))
@@ -57,12 +64,19 @@ mod tests {
 
         batch.position[NUM_POINTS - 1] = Vector3::new(-200., -40., 30.);
 
-        let bounding_box = Aabb3::zero().grow(Point3::from_vec(batch.position[100_000]));
+        let bounding_box = Aabb3::zero().grow(Point3::from_vec(batch.position[NUM_POINTS - 1]));
 
         let pool = scoped_pool::Pool::new(10);
         let tmp_dir = TempDir::new("octree").unwrap();
 
-        build_octree(&pool, &tmp_dir, 1.0, bounding_box, vec![batch].into_iter());
+        build_octree(
+            &pool,
+            &tmp_dir,
+            1.0,
+            bounding_box,
+            vec![batch].into_iter(),
+            &["color"],
+        );
         Octree::from_data_provider(Box::new(OnDiskDataProvider {
             directory: tmp_dir.into_path(),
         }))
@@ -101,7 +115,8 @@ mod tests {
         // octree and iterator
         let octree = build_test_octree();
         let location = PointQuery {
-            location: PointLocation::AllPoints(),
+            attributes: vec!["color"],
+            location: PointLocation::AllPoints,
             global_from_local: None,
         };
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
@@ -158,7 +173,8 @@ mod tests {
         // octree and iterator
         let octree = build_test_octree();
         let location = PointQuery {
-            location: PointLocation::AllPoints(),
+            attributes: vec!["color"],
+            location: PointLocation::AllPoints,
             global_from_local: None,
         };
 
@@ -204,7 +220,8 @@ mod tests {
         // octree and iterator
         let octree = build_big_test_octree();
         let location = PointQuery {
-            location: PointLocation::AllPoints(),
+            attributes: vec!["color"],
+            location: PointLocation::AllPoints,
             global_from_local: None,
         };
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
