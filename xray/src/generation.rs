@@ -155,7 +155,7 @@ pub trait ColoringStrategy: Send {
     // the pixel (x, y) in the final tile image.
     fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8>;
 
-    fn attributes(&self) -> Vec<String>;
+    fn attributes(&self) -> Vec<&'static str>;
 }
 
 struct XRayColoringStrategy {
@@ -207,7 +207,7 @@ impl ColoringStrategy for XRayColoringStrategy {
         }
     }
 
-    fn attributes(&self) -> Vec<String> {
+    fn attributes(&self) -> Vec<&'static str> {
         vec![]
     }
 }
@@ -285,8 +285,8 @@ impl ColoringStrategy for IntensityColoringStrategy {
         .to_u8()
     }
 
-    fn attributes(&self) -> Vec<String> {
-        vec!["intensity".to_string()]
+    fn attributes(&self) -> Vec<&'static str> {
+        vec!["intensity"]
     }
 }
 
@@ -359,8 +359,8 @@ impl ColoringStrategy for PointColorColoringStrategy {
         .to_u8()
     }
 
-    fn attributes(&self) -> Vec<String> {
-        vec!["color".to_string()]
+    fn attributes(&self) -> Vec<&'static str> {
+        vec!["color"]
     }
 }
 
@@ -405,7 +405,7 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
         Jet {}.for_value(saturation)
     }
 
-    fn attributes(&self) -> Vec<String> {
+    fn attributes(&self) -> Vec<&'static str> {
         vec![]
     }
 }
@@ -479,9 +479,8 @@ pub fn xray_from_points(
     tile_background_color: Color<u8>,
 ) -> bool {
     let mut seen_any_points = false;
-    let attributes = coloring_strategy.attributes();
     let point_location = PointQuery {
-        attributes: attributes.iter().map(AsRef::as_ref).collect(),
+        attributes: coloring_strategy.attributes(),
         location: PointLocation::Aabb(*bbox),
         global_from_local: global_from_local.clone(),
     };
