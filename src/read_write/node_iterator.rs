@@ -65,25 +65,23 @@ impl NodeIterator {
             return Ok(NodeIterator::default());
         }
 
-        let attribute_data_types: HashMap<String, AttributeDataType> =
-            match data_provider.meta_proto() {
-                Ok(ref meta) if meta.has_s2() => meta
-                    .get_s2()
-                    .get_attributes()
-                    .iter()
-                    .map(|a| {
-                        let name = a.name.clone();
-                        let data_type = AttributeDataType::from_proto(a.data_type).unwrap();
-                        (name, data_type)
-                    })
-                    .collect(),
-                _ => vec![
-                    ("color".to_string(), AttributeDataType::U8Vec3),
-                    ("intensity".to_string(), AttributeDataType::F32),
-                ]
-                .into_iter()
-                .collect(),
-            };
+        let attribute_data_types = match data_provider.meta_proto() {
+            Ok(ref meta) if meta.has_s2() => meta
+                .get_s2()
+                .get_attributes()
+                .iter()
+                .map(|a| {
+                    AttributeDataType::from_proto(a.data_type)
+                        .map(|data_type| (a.name.clone(), data_type))
+                })
+                .collect::<Result<HashMap<String, AttributeDataType>>>()?,
+            _ => vec![
+                ("color".to_string(), AttributeDataType::U8Vec3),
+                ("intensity".to_string(), AttributeDataType::F32),
+            ]
+            .into_iter()
+            .collect(),
+        };
 
         let mut all_reads =
             data_provider.data(&id.to_string(), &[&["position"], attributes].concat())?;
