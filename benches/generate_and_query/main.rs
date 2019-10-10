@@ -20,7 +20,7 @@ use test::Bencher;
 
 mod random_points;
 
-const RESOLUTION: f64 = 0.00001;
+const RESOLUTION: f64 = 0.001;
 
 #[derive(Debug)]
 struct Arguments {
@@ -50,9 +50,14 @@ impl Default for Arguments {
             num_threads: 10,
             num_points: 1_000_000,
             batch_size: 5000,
-            seed: 80_293_751_234,
+            seed: 80_293_751_232,
         }
     }
+}
+
+struct IndexedPoint {
+    idx: usize,
+    pos: Vector3<f64>,
 }
 
 fn make_octree(args: &Arguments, dir: &Path) {
@@ -157,14 +162,15 @@ fn num_points_in_s2_meta() {
     assert_eq!(num_points, Arguments::default().num_points as u64);
 }
 
-fn cmp_points(p1: &Vector3<f64>, p2: &Vector3<f64>) -> std::cmp::Ordering {
-    let x_order = p1.x.partial_cmp(&p2.x).unwrap();
-    let y_order = p1.y.partial_cmp(&p2.y).unwrap();
-    let z_order = p1.z.partial_cmp(&p2.z).unwrap();
-    x_order.then(y_order).then(z_order)
+fn cmp_points(p1: &IndexedPoint, p2: &IndexedPoint) -> std::cmp::Ordering {
+    let idx_order = p1.idx.cmp(&p2.idx);
+    let x_order = p1.pos.x.partial_cmp(&p2.pos.x).unwrap();
+    let y_order = p1.pos.y.partial_cmp(&p2.pos.y).unwrap();
+    let z_order = p1.pos.z.partial_cmp(&p2.pos.z).unwrap();
+    idx_order.then(x_order).then(y_order).then(z_order)
 }
 
-fn query_and_sort<C>(point_cloud: &C, query: &PointQuery, batch_size: usize) -> Vec<Vector3<f64>>
+fn query_and_sort<C>(point_cloud: &C, query: &PointQuery, batch_size: usize) -> Vec<IndexedPoint>
 where
     C: PointCloud,
 {
@@ -173,7 +179,17 @@ where
         let points_iter = point_cloud
             .points_in_node(query, node_id, batch_size)
             .unwrap();
-        points.extend(points_iter.flat_map(|batch| batch.position));
+        points.extend(points_iter.flat_map(|batch| {
+            let color: &Vec<Vector3<u8>> = batch.get_attribute_vec("color").unwrap();
+            color
+                .iter()
+                .zip(batch.position.iter())
+                .map(|(c, p)| {
+                    let idx = ((c.x as usize) << 16) + ((c.y as usize) << 8) + c.z as usize;
+                    IndexedPoint { idx, pos: *p }
+                })
+                .collect::<Vec<IndexedPoint>>()
+        }));
     }
     points.sort_unstable_by(cmp_points);
     assert!(!points.is_empty());
@@ -181,7 +197,7 @@ where
 }
 
 // Checks that the points are equal up to a precision of the default resolution
-fn assert_points_equal(points_s2: &[Vector3<f64>], points_oct: &[Vector3<f64>]) {
+fn assert_points_equal(points_s2: &[IndexedPoint], points_oct: &[IndexedPoint]) {
     assert!(
         points_s2.len() == points_oct.len(),
         "Number of points differs: {} in points_s2, {} in points_oct",
@@ -191,20 +207,34 @@ fn assert_points_equal(points_s2: &[Vector3<f64>], points_oct: &[Vector3<f64>]) 
     let args = Arguments::default();
     let mut idx = 0;
     // If a point is allowed to be displaced by up to args.resolution in each dimension,
-    // the distance from the true position may be up to resolution * sqrt(3)
-    let threshold = 3.0_f64.sqrt() * args.resolution;
+    // the distance from the true position may be up to 2 * resolution * sqrt(3).
+    // We take 2 * resolution, since we can get errors when encoding and decoding.
+    let threshold = 3.0_f64.sqrt() * 2.0 * args.resolution;
     for (p_s2, p_oct) in points_s2.iter().zip(points_oct.iter()) {
-        let distance = (p_s2 - p_oct).magnitude();
+        let distance = (p_s2.pos - p_oct.pos).magnitude();
         assert!(
             distance <= threshold,
             "Inequality at index {}: s2 point: {:?}, octree point: {:?}, distance {}",
             idx,
-            p_s2,
-            p_oct,
+            p_s2.pos,
+            p_oct.pos,
             distance
         );
         idx += 1;
     }
+}
+
+#[test]
+fn check_all_query_equality() {
+    let (args, s2, oct, _points) = setup();
+    let query = PointQuery {
+        attributes: vec!["color"],
+        location: PointLocation::AllPoints,
+        global_from_local: None,
+    };
+    let points_s2 = query_and_sort(&s2, &query, args.batch_size);
+    let points_oct = query_and_sort(&oct, &query, args.batch_size);
+    assert_points_equal(&points_s2, &points_oct);
 }
 
 #[test]
@@ -252,10 +282,7 @@ fn check_beam_query_equality() {
         location: PointLocation::OrientedBeam(beam),
         global_from_local: None,
     };
-    println!("A");
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
-    println!("B");
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
-    println!("C");
     assert_points_equal(&points_s2, &points_oct);
 }
