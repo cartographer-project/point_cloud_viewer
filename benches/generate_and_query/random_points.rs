@@ -1,6 +1,6 @@
 use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 use collision::{Aabb, Aabb3};
-use point_viewer::color::RED;
+use point_viewer::color::Color;
 use point_viewer::math::local_frame_from_lat_lng;
 use point_viewer::{AttributeData, NumberOfPoints, Point, PointsBatch};
 use rand::rngs::StdRng;
@@ -17,7 +17,7 @@ pub struct RandomPointsOnEarth {
     count: usize,
 }
 
-pub const SEED: u64 = 80_293_751_234;
+pub const SEED: u64 = 80_293_751_232;
 
 impl RandomPointsOnEarth {
     pub fn new(width: f64, height: f64, size: usize, seed: u64) -> Self {
@@ -62,12 +62,19 @@ impl Iterator for RandomPointsOnEarth {
             return None;
         }
         let pos = self.next_pos();
-        self.count += 1;
-        Some(Point {
+        let point = Point {
             position: pos.to_vec(),
-            color: RED.to_u8(),
+            // Encode index in color, which is preserved in octrees.
+            color: Color::<u8> {
+                red: (self.count >> 16) as u8,
+                green: (self.count >> 8) as u8,
+                blue: self.count as u8,
+                alpha: 0,
+            },
             intensity: None,
-        })
+        };
+        self.count += 1;
+        Some(point)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
