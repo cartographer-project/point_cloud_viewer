@@ -21,7 +21,7 @@ pub const SEED: u64 = 80_293_751_234;
 
 impl RandomPointsOnEarth {
     pub fn new(width: f64, height: f64, size: usize, seed: u64) -> Self {
-        assert!(size < 16_777_216, "Only up to 2^24 points can be indexed.");
+        assert!(size <= 16_777_216, "Only up to 2^24 points can be indexed.");
         let mut rng = StdRng::seed_from_u64(seed);
         let lat = rng.gen_range(-90.0, 90.0);
         let lon = rng.gen_range(-180.0, 180.0);
