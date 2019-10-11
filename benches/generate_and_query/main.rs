@@ -4,6 +4,7 @@ extern crate test;
 
 use cgmath::{InnerSpace, Matrix4, PerspectiveFov, Rad, Transform, Vector3};
 use lazy_static::lazy_static;
+use num_integer::div_ceil;
 use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
 use point_viewer::iterator::{PointCloud, PointLocation, PointQuery};
 use point_viewer::octree::{build_octree, Octree};
@@ -11,6 +12,7 @@ use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2
 use point_viewer::s2_cells::S2Cells;
 use protobuf::Message;
 use random_points::{Batched, RandomPointsOnEarth, SEED};
+use std::cmp::Ordering;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
@@ -159,11 +161,7 @@ fn num_points_in_s2_meta() {
 }
 
 fn cmp_points(p1: &IndexedPoint, p2: &IndexedPoint) -> std::cmp::Ordering {
-    let idx_order = p1.idx.cmp(&p2.idx);
-    let x_order = p1.pos.x.partial_cmp(&p2.pos.x).unwrap();
-    let y_order = p1.pos.y.partial_cmp(&p2.pos.y).unwrap();
-    let z_order = p1.pos.z.partial_cmp(&p2.pos.z).unwrap();
-    idx_order.then(x_order).then(y_order).then(z_order)
+    p1.idx.cmp(&p2.idx)
 }
 
 fn query_and_sort<C>(point_cloud: &C, query: &PointQuery, batch_size: usize) -> Vec<IndexedPoint>
@@ -194,30 +192,47 @@ where
 
 // Checks that the points are equal up to a precision of the default resolution
 fn assert_points_equal(points_s2: &[IndexedPoint], points_oct: &[IndexedPoint]) {
-    assert!(
-        points_s2.len() == points_oct.len(),
-        "Number of points differs: {} in points_s2, {} in points_oct",
-        points_s2.len(),
-        points_oct.len()
-    );
     let args = Arguments::default();
-    let mut idx = 0;
+    let mut num_skipped = 0;
     // If a point is allowed to be displaced by up to args.resolution in each dimension,
     // the distance from the true position may be up to 2 * resolution * sqrt(3).
     // We take 2 * resolution, since we can get errors when encoding and decoding.
     let threshold = 3.0_f64.sqrt() * 2.0 * args.resolution;
-    for (p_s2, p_oct) in points_s2.iter().zip(points_oct.iter()) {
-        let distance = (p_s2.pos - p_oct.pos).magnitude();
-        assert!(
-            distance <= threshold,
-            "Inequality at index {}: s2 point: {:?}, octree point: {:?}, distance {}",
-            idx,
-            p_s2.pos,
-            p_oct.pos,
-            distance
-        );
-        idx += 1;
+    let mut s2_iter = points_s2.iter().enumerate();
+    let mut oct_iter = points_oct.iter().enumerate();
+    let mut s2_next = s2_iter.next();
+    let mut oct_next = oct_iter.next();
+
+    while let (Some((count_s2, p_s2)), Some((count_oct, p_oct))) = (s2_next, oct_next) {
+        match cmp_points(p_s2, p_oct) {
+            Ordering::Equal => {
+                let distance = (p_s2.pos - p_oct.pos).magnitude();
+                assert!(
+                    distance <= threshold,
+                    "Inequality at index: s2 point [{}]: {:?}, octree point [{}]: {:?}, distance {}",
+                    count_s2,
+                    p_s2.pos,
+                    count_oct,
+                    p_oct.pos,
+                    distance
+                );
+                s2_next = s2_iter.next();
+                oct_next = oct_iter.next();
+            }
+            Ordering::Less => {
+                num_skipped += 1;
+                s2_next = s2_iter.next();
+            }
+            Ordering::Greater => {
+                num_skipped += 1;
+                oct_next = oct_iter.next();
+            }
+        }
     }
+    assert!(
+        num_skipped <= div_ceil(std::cmp::min(points_s2.len(), points_oct.len()), 100),
+        "More than 1% point index mismatches."
+    );
 }
 
 #[test]
