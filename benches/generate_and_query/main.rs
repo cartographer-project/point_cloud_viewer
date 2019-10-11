@@ -209,7 +209,7 @@ fn assert_points_equal(points_s2: &[IndexedPoint], points_oct: &[IndexedPoint]) 
                 let distance = (p_s2.pos - p_oct.pos).magnitude();
                 assert!(
                     distance <= threshold,
-                    "Inequality at index: s2 point [{}]: {:?}, octree point [{}]: {:?}, distance {}",
+                    "Inequality between s2 point [{}]: {:?} and octree point [{}]: {:?}, distance {}",
                     count_s2,
                     p_s2.pos,
                     count_oct,
