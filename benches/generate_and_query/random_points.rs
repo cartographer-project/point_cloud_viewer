@@ -1,7 +1,7 @@
 use cgmath::{Decomposed, EuclideanSpace, Matrix4, Point3, Quaternion, Transform, Vector3};
 use collision::{Aabb, Aabb3};
-use point_viewer::math::{local_frame_from_lat_lng, Isometry3};
 use point_viewer::color::Color;
+use point_viewer::math::{local_frame_from_lat_lng, Isometry3};
 use point_viewer::{AttributeData, NumberOfPoints, Point, PointsBatch};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -17,7 +17,6 @@ pub struct RandomPointsOnEarth {
     size: usize,
     count: usize,
 }
-
 
 impl RandomPointsOnEarth {
     pub fn new(width: f64, height: f64, size: usize, seed: u64) -> Self {
