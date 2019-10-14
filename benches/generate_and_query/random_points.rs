@@ -25,7 +25,7 @@ impl RandomPointsOnEarth {
         let mut rng = StdRng::seed_from_u64(seed);
         let lat = rng.gen_range(-90.0, 90.0);
         let lon = rng.gen_range(-180.0, 180.0);
-        let ecef_from_local = local_frame_from_lat_lng(lat, lon);
+        let ecef_from_local = local_frame_from_lat_lng(lat, lon).inverse();
         let ecef_from_local_decomp: Decomposed<Vector3<f64>, Quaternion<f64>> =
             ecef_from_local.clone().into();
         RandomPointsOnEarth {

@@ -579,7 +579,7 @@ where
     }
 }
 
-// Returns transform needed to go from local frame to ECEF with the specified origin where
+// Returns transform needed to go from ECEF to local frame with the specified origin where
 // the axes are ENU (east, north, up <in the direction normal to the oblate spheroid
 // used as Earth's ellipsoid, which does not generally pass through the center of the Earth>)
 // https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
