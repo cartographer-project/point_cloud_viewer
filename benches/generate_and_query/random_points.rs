@@ -1,7 +1,7 @@
-use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
+use cgmath::{Decomposed, EuclideanSpace, Matrix4, Point3, Quaternion, Transform, Vector3};
 use collision::{Aabb, Aabb3};
 use point_viewer::color::Color;
-use point_viewer::math::local_frame_from_lat_lng;
+use point_viewer::math::{local_frame_from_lat_lng, Isometry3};
 use point_viewer::{AttributeData, NumberOfPoints, Point, PointsBatch};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -12,12 +12,11 @@ pub struct RandomPointsOnEarth {
     rng: StdRng,
     half_width: f64,
     half_height: f64,
-    ecef_from_local: Matrix4<f64>,
+    ecef_from_local: Isometry3<f64>,
+    ecef_from_local_mat: Matrix4<f64>,
     size: usize,
     count: usize,
 }
-
-pub const SEED: u64 = 80_293_751_234;
 
 impl RandomPointsOnEarth {
     pub fn new(width: f64, height: f64, size: usize, seed: u64) -> Self {
@@ -25,12 +24,15 @@ impl RandomPointsOnEarth {
         let mut rng = StdRng::seed_from_u64(seed);
         let lat = rng.gen_range(-90.0, 90.0);
         let lon = rng.gen_range(-180.0, 180.0);
-        let ecef_from_local = local_frame_from_lat_lng(lat, lon);
+        let ecef_from_local = local_frame_from_lat_lng(lat, lon).inverse();
+        let ecef_from_local_decomp: Decomposed<Vector3<f64>, Quaternion<f64>> =
+            ecef_from_local.clone().into();
         RandomPointsOnEarth {
             rng,
             half_width: width * 0.5,
             half_height: height * 0.5,
             ecef_from_local,
+            ecef_from_local_mat: ecef_from_local_decomp.into(),
             size,
             count: 0,
         }
@@ -41,16 +43,16 @@ impl RandomPointsOnEarth {
         let y = self.rng.gen_range(-self.half_width, self.half_width);
         let z = self.rng.gen_range(-self.half_height, self.half_height);
         let pt_local = Point3::new(x, y, z);
-        self.ecef_from_local.transform_point(pt_local)
+        self.ecef_from_local_mat.transform_point(pt_local)
     }
 
     pub fn bbox(&self) -> Aabb3<f64> {
         let local_min = Point3::new(-self.half_width, -self.half_width, -self.half_height);
         let local_max = Point3::new(self.half_width, self.half_width, self.half_height);
-        Aabb3::new(local_min, local_max).transform(&self.ecef_from_local)
+        Aabb3::new(local_min, local_max).transform(&self.ecef_from_local_mat)
     }
 
-    pub fn ecef_from_local(&self) -> &Matrix4<f64> {
+    pub fn ecef_from_local(&self) -> &Isometry3<f64> {
         &self.ecef_from_local
     }
 }

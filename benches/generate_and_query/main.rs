@@ -2,16 +2,17 @@
 
 extern crate test;
 
-use cgmath::{InnerSpace, Matrix4, PerspectiveFov, Rad, Transform, Vector3};
+use cgmath::{Decomposed, InnerSpace, Matrix4, PerspectiveFov, Quaternion, Rad, Vector2, Vector3};
 use lazy_static::lazy_static;
 use num_integer::div_ceil;
 use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
 use point_viewer::iterator::{PointCloud, PointLocation, PointQuery};
+use point_viewer::math::OrientedBeam;
 use point_viewer::octree::{build_octree, Octree};
 use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2Splitter};
 use point_viewer::s2_cells::S2Cells;
 use protobuf::Message;
-use random_points::{Batched, RandomPointsOnEarth, SEED};
+use random_points::{Batched, RandomPointsOnEarth};
 use std::cmp::Ordering;
 use std::fs::File;
 use std::io::BufWriter;
@@ -38,6 +39,8 @@ struct Arguments {
     num_points: usize,
     // The batch size used for building the S2 point cloud.
     batch_size: usize,
+    // The seed used for generating point clouds
+    seed: u64,
 }
 
 impl Default for Arguments {
@@ -49,6 +52,7 @@ impl Default for Arguments {
             num_threads: 10,
             num_points: 1_000_000,
             batch_size: 5000,
+            seed: 80_293_751_232,
         }
     }
 }
@@ -59,7 +63,7 @@ struct IndexedPoint {
 }
 
 fn make_octree(args: &Arguments, dir: &Path) {
-    let points_oct = RandomPointsOnEarth::new(args.width, args.height, args.num_points, SEED);
+    let points_oct = RandomPointsOnEarth::new(args.width, args.height, args.num_points, args.seed);
     let bbox = points_oct.bbox();
     let batches_oct = Batched::new(points_oct, args.batch_size);
     let pool = scoped_pool::Pool::new(args.num_threads);
@@ -68,7 +72,7 @@ fn make_octree(args: &Arguments, dir: &Path) {
 }
 
 fn make_s2_cells(args: &Arguments, dir: &Path) {
-    let points_s2 = RandomPointsOnEarth::new(args.width, args.height, args.num_points, SEED);
+    let points_s2 = RandomPointsOnEarth::new(args.width, args.height, args.num_points, args.seed);
     let mut s2_writer: S2Splitter<RawNodeWriter> =
         S2Splitter::new(dir, Encoding::Plain, OpenMode::Truncate);
     Batched::new(points_s2, args.batch_size)
@@ -106,7 +110,7 @@ fn setup() -> (Arguments, S2Cells, Octree, RandomPointsOnEarth) {
         directory: oct_path_buf,
     };
     let oct = Octree::from_data_provider(Box::new(oct_data_provider)).unwrap();
-    let points = RandomPointsOnEarth::new(10.0, 10.0, args.num_points, SEED);
+    let points = RandomPointsOnEarth::new(10.0, 10.0, args.num_points, args.seed);
     (args, s2, oct, points)
 }
 
@@ -265,13 +269,14 @@ fn check_box_query_equality() {
 #[test]
 fn check_frustum_query_equality() {
     let (args, s2, oct, points) = setup();
-    let transform = points.ecef_from_local();
+    let local_from_ecef: Decomposed<Vector3<f64>, Quaternion<f64>> =
+        points.ecef_from_local().inverse().into();
     let frustum_matrix = Matrix4::from(PerspectiveFov {
         fovy: Rad(1.2),
         aspect: 1.0,
         near: 0.1,
         far: 10.0,
-    }) * transform.inverse_transform().unwrap();
+    }) * Matrix4::from(local_from_ecef);
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::Frustum(frustum_matrix),
@@ -279,5 +284,20 @@ fn check_frustum_query_equality() {
     };
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
+    assert_points_equal(&points_s2, &points_oct);
+}
+
+#[test]
+fn check_beam_query_equality() {
+    let (args, s2, oct, points) = setup();
+    let transform = points.ecef_from_local();
+    let beam = OrientedBeam::new(transform.clone(), Vector2::new(15.0, 15.0));
+    let query = PointQuery {
+        attributes: vec!["color"],
+        location: PointLocation::OrientedBeam(beam),
+        global_from_local: None,
+    };
+    let points_oct = query_and_sort(&oct, &query, args.batch_size);
+    let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     assert_points_equal(&points_s2, &points_oct);
 }
