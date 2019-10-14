@@ -260,7 +260,7 @@ impl S2Cells {
             .collect();
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();
-        let convex_hull = cell_union.cap_bound();
+        let convex_hull = cell_union.rect_bound();
         self.cells
             .values()
             .filter(|cell| convex_hull.intersects_cell(cell))
