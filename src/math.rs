@@ -22,7 +22,6 @@ use num_traits::identities::One;
 use num_traits::Float;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use serde::{Deserialize, Serialize};
 use std::ops::Mul;
 
 /// Lower bound for distance from earth's center.
