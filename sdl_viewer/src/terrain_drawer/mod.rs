@@ -1,7 +1,6 @@
 use crate::graphic::uniform::GlUniform;
 use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use crate::opengl;
-use crate::terrain_drawer::layer::TerrainLayer;
 use crate::{c_str, Extension};
 use cgmath::{Matrix4, SquareMatrix, Vector2, Zero};
 
