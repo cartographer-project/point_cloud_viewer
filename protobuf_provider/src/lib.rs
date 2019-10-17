@@ -48,8 +48,8 @@ pub enum ProtocOutputType {
 
 pub fn compile_proto(
     import_paths: &[impl AsRef<Path>],
-    dst_path: impl AsRef<Path>,
     file_path: impl AsRef<Path>,
+    output_path: impl AsRef<Path>,
     output_types: &[ProtocOutputType],
 ) {
     let _protoc_path = ScopedProtocPath::default();
@@ -69,7 +69,7 @@ pub fn compile_proto(
                     ProtocOutputType::Py => "--python_out",
                 })
             })
-            .interleave(vec![dst_path.as_ref().as_os_str(); output_types.len()].into_iter()),
+            .interleave(vec![output_path.as_ref().as_os_str(); output_types.len()].into_iter()),
     );
     let output = Command::new("protoc")
         .args(args)
