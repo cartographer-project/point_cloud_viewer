@@ -18,9 +18,8 @@
   },
   "dependencies": {
     "@types/dat.gui": "0.7.2",
-    "@types/three": "0.93.22",
     "dat.gui": "0.7.5",
-    "three": "~0.101.1"
+    "three": "~0.107.0"
   },
   "prettier": {
     "arrow-parens": "always",

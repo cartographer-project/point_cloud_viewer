@@ -7,16 +7,6 @@
   resolved "https://registry.yarnpkg.com/@types/dat.gui/-/dat.gui-0.7.2.tgz#f6964d39504e97533774954e3dcf7a9f669196e8"
   integrity sha512-ULAH7opLNk6jRq1/3pqYCeyVRS2hvbenzGNkWLS/ITjf+kaAZR09KBKvTG7y22sW/XQbalBSNTlTHU+cSMJJqg==
 
-"@types/three@0.93.22":
-  version "0.93.22"
-  resolved "https://registry.yarnpkg.com/@types/three/-/three-0.93.22.tgz#3601929f36d4b3a5b7d3dd9851fec53feda8228c"
-  integrity sha512-z3gtO8D7icKFDd+T5M6mALazvxV2ScIeiWZNQE/sAxSCYCuZvTeBrIvCo7i4HKG1fPm2aRPMp0OYF4f0MHddsA==
-
-"@types/three@~0.93.22":
-  version "0.93.31"
-  resolved "https://registry.yarnpkg.com/@types/three/-/three-0.93.31.tgz#9698891a463b5c1ef0fc65f46114fe4f70f87ba2"
-  integrity sha512-lR9eLY3gnrUDAdW4ujITgVTPEv1Oy2yoL3LlfKAnjQuzyjGSR+PvQuXuWmaDCD1IyWhkqbnol1nJwaW0MGe35A==
-
 acorn@^5.2.1:
   version "5.7.3"
   resolved "https://registry.yarnpkg.com/acorn/-/acorn-5.7.3.tgz#67aa231bf8812974b85235a96771eb6bd07ea279"
@@ -495,10 +485,10 @@ supports-color@^5.3.0:
   dependencies:
     has-flag "^3.0.0"
 
-three@~0.101.1:
-  version "0.101.1"
-  resolved "https://registry.yarnpkg.com/three/-/three-0.101.1.tgz#e7681ef52f4e572cb84f307f16f540c457030ec6"
-  integrity sha512-8ufimUVmRLtH+BTpEIbDjdGEKQOVWLMLgGynaKin1KbYTE136ZNOepJ8EgByi0tN43dQ7B1YrKLCJgXGy4bLmw==
+three@~0.107.0:
+  version "0.107.0"
+  resolved "https://registry.yarnpkg.com/three/-/three-0.107.0.tgz#0c862c348d61bd3f22058e01f5e771c1294315a1"
+  integrity sha512-vqbKJRLBEviPVa7poEzXocobicwxzsctr5mnymA7n8fEzcVS49rYP0RrwqZ98JqujRoruK+/YzcchNpRP+kXsQ==
 
 throat@^4.1.0:
   version "4.1.0"
