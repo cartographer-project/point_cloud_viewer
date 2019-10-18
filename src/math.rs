@@ -453,10 +453,78 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Frustum<S: BaseFloat> {
+    matrix: Matrix4<S>,
+    frustum: collision::Frustum<S>,
+}
+
+impl<S: BaseFloat> Frustum<S> {
+    pub fn new(matrix: Matrix4<S>) -> Self {
+        Frustum {
+            matrix,
+            frustum: collision::Frustum::from_matrix4(matrix).unwrap(),
+        }
+    }
+}
+
+impl<S> PointCulling<S> for Frustum<S>
+where
+    S: 'static + BaseFloat + Sync + Send,
+{
+    fn contains(&self, point: &Point3<S>) -> bool {
+        // TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
+        let v = Vector4::new(point.x, point.y, point.z, S::one());
+        let clip_v = self.matrix * v;
+        clip_v.x.abs() < clip_v.w
+            && clip_v.y.abs() < clip_v.w
+            && S::zero() < clip_v.z
+            && clip_v.z < clip_v.w
+    }
+
+    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
+        match self.frustum.contains(aabb) {
+            Relation::Cross => true,
+            Relation::In => true,
+            Relation::Out => false,
+        }
+    }
+
+    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        let isometry = isometry.clone();
+        let matrix: Matrix4<S> = Matrix4::from(
+            Into::<Decomposed<Vector3<S>, Quaternion<S>>>::into(isometry),
+        ) * self.matrix;
+        Box::new(Frustum::new(matrix))
+    }
+}
+
+// Returns transform needed to go from ECEF to local frame with the specified origin where
+// the axes are ENU (east, north, up <in the direction normal to the oblate spheroid
+// used as Earth's ellipsoid, which does not generally pass through the center of the Earth>)
+// https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
+pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
+    const PI_HALF: Deg<f64> = Deg(90.0);
+    let lat_lng_alt = WGS84::new(lat, lon, 0.0);
+    let origin = ECEF::from(lat_lng_alt);
+    let origin_vector = Vector3::new(origin.x(), origin.y(), origin.z());
+    let rotation_matrix = Matrix3::from_angle_z(-PI_HALF)
+        * Matrix3::from_angle_y(Deg(lat_lng_alt.latitude_degrees()) - PI_HALF)
+        * Matrix3::from_angle_z(Deg(-lat_lng_alt.longitude_degrees()));
+    let rotation = Quaternion::from(rotation_matrix);
+
+    let frame = Decomposed {
+        scale: 1.0,
+        rot: rotation,
+        disp: rotation.rotate_vector(-origin_vector),
+    };
+    Isometry3::from(frame)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cgmath::{Rad, Rotation3, Zero};
+    use cgmath::{frustum, Rad, Rotation3, Zero};
     // These tests were created in Blender by creating two cubes, naming one
     // "Beam" and scaling it up in its local z direction. The corresponding
     // object in Rust was defined by querying Blender's Python API with
@@ -531,72 +599,16 @@ mod tests {
         assert_eq!(fourty_five_deg_obb.intersects_aabb3(&bbox), false);
         assert_eq!(arbitrary_obb.separating_axes.len(), 15);
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct Frustum<S: BaseFloat> {
-    matrix: Matrix4<S>,
-    frustum: collision::Frustum<S>,
-}
-
-impl<S: BaseFloat> Frustum<S> {
-    pub fn new(matrix: Matrix4<S>) -> Self {
-        Frustum {
-            matrix,
-            frustum: collision::Frustum::from_matrix4(matrix).unwrap(),
-        }
+    #[test]
+    fn test_frustum_intersects_aabb3() {
+        // x or y?
+        let rot = Matrix4::from_angle_x(Rad(std::f64::consts::PI));
+        let frustum_matrix = frustum(-0.5, 0.5, -0.5, 0.5, 1.0, 4.0) * rot;
+        dbg!(&rot);
+        dbg!(&frustum_matrix);
+        let frustum = collision::Frustum::from_matrix4(frustum_matrix).unwrap();
+        let bbox = Aabb3::new(Point3::new(-0.5, -0.5, 1.5), Point3::new(0.5, 0.5, 3.5));
+        assert_eq!(frustum.contains(&bbox), Relation::In);
     }
-}
-
-impl<S> PointCulling<S> for Frustum<S>
-where
-    S: 'static + BaseFloat + Sync + Send,
-{
-    fn contains(&self, point: &Point3<S>) -> bool {
-        // TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
-        let v = Vector4::new(point.x, point.y, point.z, S::one());
-        let clip_v = self.matrix * v;
-        clip_v.x.abs() < clip_v.w
-            && clip_v.y.abs() < clip_v.w
-            && S::zero() < clip_v.z
-            && clip_v.z < clip_v.w
-    }
-
-    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
-        match self.frustum.contains(aabb) {
-            Relation::Cross => true,
-            Relation::In => true,
-            Relation::Out => false,
-        }
-    }
-
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        let isometry = isometry.clone();
-        let matrix: Matrix4<S> = Matrix4::from(
-            Into::<Decomposed<Vector3<S>, Quaternion<S>>>::into(isometry),
-        ) * self.matrix;
-        Box::new(Frustum::new(matrix))
-    }
-}
-
-// Returns transform needed to go from ECEF to local frame with the specified origin where
-// the axes are ENU (east, north, up <in the direction normal to the oblate spheroid
-// used as Earth's ellipsoid, which does not generally pass through the center of the Earth>)
-// https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
-pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
-    const PI_HALF: Deg<f64> = Deg(90.0);
-    let lat_lng_alt = WGS84::new(lat, lon, 0.0);
-    let origin = ECEF::from(lat_lng_alt);
-    let origin_vector = Vector3::new(origin.x(), origin.y(), origin.z());
-    let rotation_matrix = Matrix3::from_angle_z(-PI_HALF)
-        * Matrix3::from_angle_y(Deg(lat_lng_alt.latitude_degrees()) - PI_HALF)
-        * Matrix3::from_angle_z(Deg(-lat_lng_alt.longitude_degrees()));
-    let rotation = Quaternion::from(rotation_matrix);
-
-    let frame = Decomposed {
-        scale: 1.0,
-        rot: rotation,
-        disp: rotation.rotate_vector(-origin_vector),
-    };
-    Isometry3::from(frame)
 }
