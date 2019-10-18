@@ -457,7 +457,7 @@ where
 /// and z pointing against the viewing direction. This is not how e.g. OpenCV
 /// defines a camera coordinate system. To get from OpenCV camera coordinates
 /// to frustum coordinates, you need to rotate 180 deg around the x axis before
-/// createing the 4x4 projection matrix, see also the unit test below.
+/// creating the 4x4 projection matrix, see also the frustum unit test below.
 #[derive(Debug, Clone)]
 pub struct Frustum<S: BaseFloat> {
     matrix: Matrix4<S>,
