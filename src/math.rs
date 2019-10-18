@@ -14,7 +14,7 @@
 
 use cgmath::{
     BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3,
-    Quaternion, Rotation, Vector2, Vector3, Vector4,
+    Quaternion, Rotation, Vector2, Vector3,
 };
 use collision::{Aabb, Aabb3, Contains, Relation};
 use nav_types::{ECEF, WGS84};
@@ -453,6 +453,11 @@ where
     }
 }
 
+/// Frustum is a perspective projection with x pointing right, y pointing up,
+/// and z pointing against the viewing direction. This is not how e.g. OpenCV
+/// defines a camera coordinate system. To get from OpenCV camera coordinates
+/// to frustum coordinates, you need to rotate 180 deg around the x axis before
+/// createing the 4x4 projection matrix, see also the unit test below.
 #[derive(Debug, Clone)]
 pub struct Frustum<S: BaseFloat> {
     matrix: Matrix4<S>,
@@ -473,13 +478,11 @@ where
     S: 'static + BaseFloat + Sync + Send,
 {
     fn contains(&self, point: &Point3<S>) -> bool {
-        // TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
-        let v = Vector4::new(point.x, point.y, point.z, S::one());
-        let clip_v = self.matrix * v;
-        clip_v.x.abs() < clip_v.w
-            && clip_v.y.abs() < clip_v.w
-            && S::zero() < clip_v.z
-            && clip_v.z < clip_v.w
+        match self.frustum.contains(point) {
+            Relation::Cross => true,
+            Relation::In => true,
+            Relation::Out => false,
+        }
     }
 
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
@@ -602,13 +605,16 @@ mod tests {
 
     #[test]
     fn test_frustum_intersects_aabb3() {
-        // x or y?
         let rot = Matrix4::from_angle_x(Rad(std::f64::consts::PI));
-        let frustum_matrix = frustum(-0.5, 0.5, -0.5, 0.5, 1.0, 4.0) * rot;
-        dbg!(&rot);
-        dbg!(&frustum_matrix);
-        let frustum = collision::Frustum::from_matrix4(frustum_matrix).unwrap();
-        let bbox = Aabb3::new(Point3::new(-0.5, -0.5, 1.5), Point3::new(0.5, 0.5, 3.5));
-        assert_eq!(frustum.contains(&bbox), Relation::In);
+        let frustum_matrix = frustum(-0.5, 0.0, -0.5, 0.0, 1.0, 4.0) * rot;
+        let c_frustum = collision::Frustum::from_matrix4(frustum_matrix).unwrap();
+        let frustum = Frustum::new(frustum_matrix);
+        let bbox_min = Point3::new(-0.5, 0.25, 1.5);
+        let bbox_max = Point3::new(-0.25, 0.5, 3.5);
+        let bbox = Aabb3::new(bbox_min, bbox_max);
+        assert_eq!(c_frustum.contains(&bbox), Relation::In);
+        assert!(frustum.intersects_aabb3(&bbox));
+        assert!(frustum.contains(&bbox_min));
+        assert!(frustum.contains(&bbox_max));
     }
 }
