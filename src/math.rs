@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use cgmath::{
-    BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3,
-    Quaternion, Rotation, Vector2, Vector3,
+    BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Perspective,
+    Point3, Quaternion, Rotation, Vector2, Vector3,
 };
 use collision::{Aabb, Aabb3, Contains, Relation};
 use nav_types::{ECEF, WGS84};
@@ -252,8 +252,8 @@ impl<S: BaseFloat> Isometry3<S> {
 
 #[derive(Debug, Clone)]
 pub struct Obb<S> {
-    pub isometry: Isometry3<S>,
-    pub isometry_inv: Isometry3<S>,
+    pub from_obb: Isometry3<S>,
+    pub to_obb: Isometry3<S>,
     pub half_extent: Vector3<S>,
     pub corners: [Point3<S>; 8],
     pub separating_axes: Vec<Vector3<S>>,
@@ -279,9 +279,9 @@ impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
 impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
     fn from(beam: &OrientedBeam<S>) -> Self {
         let earth_radius_mean = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap();
-        let z_off = earth_radius_mean - beam.isometry.translation.magnitude();
+        let z_off = earth_radius_mean - beam.from_beam.translation.magnitude();
         let vec_off = Vector3::new(S::zero(), S::zero(), z_off);
-        let isometry = Isometry3::new(beam.isometry.rotation, &beam.isometry * &vec_off);
+        let isometry = Isometry3::new(beam.from_beam.rotation, &beam.from_beam * &vec_off);
         let z_half_extent = S::from(EARTH_RADIUS_MAX_M).unwrap() - earth_radius_mean;
         let half_extent = Vector3::new(beam.half_extent.x, beam.half_extent.y, z_half_extent);
         Self::new(isometry, half_extent)
@@ -295,19 +295,19 @@ impl<S: BaseFloat> From<OrientedBeam<S>> for Obb<S> {
 }
 
 impl<S: BaseFloat> Obb<S> {
-    pub fn new(isometry: Isometry3<S>, half_extent: Vector3<S>) -> Self {
+    pub fn new(from_obb: Isometry3<S>, half_extent: Vector3<S>) -> Self {
         Obb {
-            isometry_inv: isometry.inverse(),
+            to_obb: from_obb.inverse(),
             half_extent,
-            corners: Obb::precompute_corners(&isometry, &half_extent),
-            separating_axes: Obb::precompute_separating_axes(&isometry.rotation),
-            isometry,
+            corners: Obb::precompute_corners(&from_obb, &half_extent),
+            separating_axes: Obb::precompute_separating_axes(&from_obb.rotation),
+            from_obb,
         }
     }
 
-    fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector3<S>) -> [Point3<S>; 8] {
+    fn precompute_corners(from_obb: &Isometry3<S>, half_extent: &Vector3<S>) -> [Point3<S>; 8] {
         let corner_from =
-            |x, y, z| isometry.rotation.rotate_point(Point3::new(x, y, z)) + isometry.translation;
+            |x, y, z| from_obb.rotation.rotate_point(Point3::new(x, y, z)) + from_obb.translation;
         [
             corner_from(-half_extent.x, -half_extent.y, -half_extent.z),
             corner_from(half_extent.x, -half_extent.y, -half_extent.z),
@@ -364,15 +364,14 @@ where
     }
 
     fn contains(&self, p: &Point3<S>) -> bool {
-        let Point3 { x, y, z } =
-            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
+        let Point3 { x, y, z } = self.to_obb.rotation.rotate_point(*p) + self.to_obb.translation;
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(isometry * &self.isometry, self.half_extent))
+        Box::new(Self::new(isometry * &self.from_obb, self.half_extent))
     }
 }
 
@@ -380,28 +379,31 @@ where
 pub struct OrientedBeam<S> {
     // The members here are an implementation detail and differ from the
     // minimal representation in the gRPC message to speed up operations.
-    // Isometry_inv is the transform from world coordinates into "beam coordinates".
-    isometry: Isometry3<S>,
-    isometry_inv: Isometry3<S>,
+    // to_beam is the transform from world coordinates into "beam coordinates".
+    from_beam: Isometry3<S>,
+    to_beam: Isometry3<S>,
     half_extent: Vector2<S>,
     corners: [Point3<S>; 4],
     separating_axes: Vec<Vector3<S>>,
 }
 
 impl<S: BaseFloat> OrientedBeam<S> {
-    pub fn new(isometry: Isometry3<S>, half_extent: Vector2<S>) -> Self {
+    pub fn new(from_beam: Isometry3<S>, half_extent: Vector2<S>) -> Self {
         OrientedBeam {
-            isometry_inv: isometry.inverse(),
+            to_beam: from_beam.inverse(),
             half_extent,
-            corners: OrientedBeam::precompute_corners(&isometry, &half_extent),
-            separating_axes: OrientedBeam::precompute_separating_axes(&isometry.rotation),
-            isometry,
+            corners: OrientedBeam::precompute_corners(&from_beam, &half_extent),
+            separating_axes: OrientedBeam::precompute_separating_axes(&from_beam.rotation),
+            from_beam,
         }
     }
 
-    fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector2<S>) -> [Point3<S>; 4] {
+    fn precompute_corners(from_beam: &Isometry3<S>, half_extent: &Vector2<S>) -> [Point3<S>; 4] {
         let corner_from = |x, y| {
-            isometry.rotation.rotate_point(Point3::new(x, y, S::zero())) + isometry.translation
+            from_beam
+                .rotation
+                .rotate_point(Point3::new(x, y, S::zero()))
+                + from_beam.translation
         };
         [
             corner_from(half_extent.x, half_extent.y),
@@ -443,13 +445,12 @@ where
 
     fn contains(&self, p: &Point3<S>) -> bool {
         // What is the point in beam coordinates?
-        let Point3 { x, y, .. } =
-            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
+        let Point3 { x, y, .. } = self.to_beam.rotation.rotate_point(*p) + self.to_beam.translation;
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(isometry * &self.isometry, self.half_extent))
+        Box::new(Self::new(isometry * &self.from_beam, self.half_extent))
     }
 }
 
@@ -460,15 +461,22 @@ where
 /// creating the 4x4 projection matrix, see also the frustum unit test below.
 #[derive(Debug, Clone)]
 pub struct Frustum<S: BaseFloat> {
-    matrix: Matrix4<S>,
+    pub from_frustum: Isometry3<S>,
+    perspective: Perspective<S>,
     frustum: collision::Frustum<S>,
 }
 
 impl<S: BaseFloat> Frustum<S> {
-    pub fn new(matrix: Matrix4<S>) -> Self {
+    pub fn new(from_frustum: Isometry3<S>, perspective: Perspective<S>) -> Self {
+        let local_from_global: Decomposed<Vector3<S>, Quaternion<S>> =
+            from_frustum.inverse().into();
+        let frustum_matrix =
+            Matrix4::<S>::from(perspective) * Matrix4::<S>::from(local_from_global);
+        let frustum = collision::Frustum::from_matrix4(frustum_matrix).unwrap();
         Frustum {
-            matrix,
-            frustum: collision::Frustum::from_matrix4(matrix).unwrap(),
+            from_frustum,
+            perspective,
+            frustum,
         }
     }
 }
@@ -494,11 +502,7 @@ where
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        let isometry = isometry.clone();
-        let matrix: Matrix4<S> = Matrix4::from(
-            Into::<Decomposed<Vector3<S>, Quaternion<S>>>::into(isometry),
-        ) * self.matrix;
-        Box::new(Frustum::new(matrix))
+        Box::new(Self::new(isometry * &self.from_frustum, self.perspective))
     }
 }
 
@@ -527,7 +531,7 @@ pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cgmath::{frustum, Rad, Rotation3, Zero};
+    use cgmath::{Rad, Rotation3, Zero};
     // These tests were created in Blender by creating two cubes, naming one
     // "Beam" and scaling it up in its local z direction. The corresponding
     // object in Rust was defined by querying Blender's Python API with
@@ -605,14 +609,22 @@ mod tests {
 
     #[test]
     fn test_frustum_intersects_aabb3() {
-        let rot = Matrix4::from_angle_x(Rad(std::f64::consts::PI));
-        let frustum_matrix = frustum(-0.5, 0.0, -0.5, 0.0, 1.0, 4.0) * rot;
-        let c_frustum = collision::Frustum::from_matrix4(frustum_matrix).unwrap();
-        let frustum = Frustum::new(frustum_matrix);
+        let rot = Isometry3::<f64> {
+            rotation: Quaternion::from_angle_x(Rad(std::f64::consts::PI)),
+            translation: Vector3::zero(),
+        };
+        let perspective = Perspective::<f64> {
+            left: -0.5,
+            right: 0.0,
+            bottom: -0.5,
+            top: 0.0,
+            near: 1.0,
+            far: 4.0,
+        };
+        let frustum = Frustum::new(rot, perspective);
         let bbox_min = Point3::new(-0.5, 0.25, 1.5);
         let bbox_max = Point3::new(-0.25, 0.5, 3.5);
         let bbox = Aabb3::new(bbox_min, bbox_max);
-        assert_eq!(c_frustum.contains(&bbox), Relation::In);
         assert!(frustum.intersects_aabb3(&bbox));
         assert!(frustum.contains(&bbox_min));
         assert!(frustum.contains(&bbox_max));

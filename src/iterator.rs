@@ -3,7 +3,7 @@ use crate::math::PointCulling;
 use crate::math::{AllPoints, Frustum, Isometry3, Obb, OrientedBeam};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::PointsBatch;
-use cgmath::{Matrix4, Point3};
+use cgmath::Point3;
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
 use std::collections::BTreeMap;
@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 pub enum PointLocation {
     AllPoints,
     Aabb(Aabb3<f64>),
-    Frustum(Matrix4<f64>),
+    Frustum(Frustum<f64>),
     Obb(Obb<f64>),
     OrientedBeam(OrientedBeam<f64>),
 }
@@ -31,7 +31,7 @@ impl<'a> PointQuery<'a> {
         let culling: Box<dyn PointCulling<f64>> = match &self.location {
             PointLocation::AllPoints => return Box::new(AllPoints {}),
             PointLocation::Aabb(aabb) => Box::new(*aabb),
-            PointLocation::Frustum(matrix) => Box::new(Frustum::new(*matrix)),
+            PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
             PointLocation::Obb(obb) => Box::new(obb.clone()),
             PointLocation::OrientedBeam(beam) => Box::new(beam.clone()),
         };

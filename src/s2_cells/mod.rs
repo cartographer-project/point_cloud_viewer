@@ -5,7 +5,7 @@ use crate::math::{Isometry3, Obb};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, CURRENT_VERSION};
-use cgmath::{Point3, Transform, Vector4};
+use cgmath::{EuclideanSpace, Point3, Vector3};
 use collision::Aabb3;
 use fnv::FnvHashMap;
 use s2::cell::Cell;
@@ -174,11 +174,11 @@ impl PointCloud for S2Cells {
                 self.cells_in_obb(&Obb::from(aabb), query.global_from_local.as_ref())
             }
             PointLocation::Obb(obb) => self.cells_in_obb(&obb, query.global_from_local.as_ref()),
-            PointLocation::Frustum(mat) => {
-                let world_from_clip = mat.inverse_transform().unwrap();
+            PointLocation::Frustum(frustum) => {
+                let world_from_clip = &frustum.from_frustum;
                 let points = CUBE_CORNERS
                     .iter()
-                    .map(|p| Point3::from_homogeneous(world_from_clip * p));
+                    .map(|p| Point3::from_vec(world_from_clip * p));
                 self.cells_in_convex_hull(points)
             }
             PointLocation::OrientedBeam(beam) => {
@@ -241,7 +241,7 @@ impl S2Cells {
         global_from_local: Option<&Isometry3<f64>>,
     ) -> Vec<S2CellId> {
         let obb = match global_from_local {
-            Some(isometry) => Cow::Owned(Obb::new(isometry * &obb.isometry, obb.half_extent)),
+            Some(isometry) => Cow::Owned(Obb::new(isometry * &obb.from_obb, obb.half_extent)),
             None => Cow::Borrowed(obb),
         };
         let points = obb.corners;
@@ -271,53 +271,45 @@ impl S2Cells {
 
 /// This is projected back with the inverse frustum matrix
 /// to find the corners of the frustum
-const CUBE_CORNERS: [Vector4<f64>; 8] = [
-    Vector4 {
+const CUBE_CORNERS: [Vector3<f64>; 8] = [
+    Vector3 {
         x: -1.0,
         y: -1.0,
         z: -1.0,
-        w: 1.0,
     },
-    Vector4 {
+    Vector3 {
         x: -1.0,
         y: -1.0,
         z: 1.0,
-        w: 1.0,
     },
-    Vector4 {
+    Vector3 {
         x: -1.0,
         y: 1.0,
         z: -1.0,
-        w: 1.0,
     },
-    Vector4 {
+    Vector3 {
         x: -1.0,
         y: 1.0,
         z: 1.0,
-        w: 1.0,
     },
-    Vector4 {
+    Vector3 {
         x: 1.0,
         y: -1.0,
         z: -1.0,
-        w: 1.0,
     },
-    Vector4 {
+    Vector3 {
         x: 1.0,
         y: -1.0,
         z: 1.0,
-        w: 1.0,
     },
-    Vector4 {
+    Vector3 {
         x: 1.0,
         y: 1.0,
         z: -1.0,
-        w: 1.0,
     },
-    Vector4 {
+    Vector3 {
         x: 1.0,
         y: 1.0,
         z: 1.0,
-        w: 1.0,
     },
 ];
