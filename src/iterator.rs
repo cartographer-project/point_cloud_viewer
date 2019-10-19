@@ -3,7 +3,7 @@ use crate::math::PointCulling;
 use crate::math::{AllPoints, Frustum, Isometry3, Obb, OrientedBeam};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::PointsBatch;
-use cgmath::Point3;
+use cgmath::{EuclideanSpace, Point3};
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
 use std::collections::BTreeMap;
@@ -116,7 +116,7 @@ where
                 batch.position = batch
                     .position
                     .iter()
-                    .map(|p| local_from_global * p)
+                    .map(|p| (local_from_global * &Point3::from_vec(*p)).to_vec())
                     .collect();
             }
             self.buf.append(&mut batch)?;

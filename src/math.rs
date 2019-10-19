@@ -204,17 +204,17 @@ impl<'a, S: BaseFloat> Mul for &'a Isometry3<S> {
     }
 }
 
-impl<S: BaseFloat> Mul<Vector3<S>> for Isometry3<S> {
-    type Output = Vector3<S>;
-    fn mul(self, _rhs: Vector3<S>) -> Vector3<S> {
-        self.rotation * _rhs + self.translation
+impl<S: BaseFloat> Mul<Point3<S>> for Isometry3<S> {
+    type Output = Point3<S>;
+    fn mul(self, _rhs: Point3<S>) -> Point3<S> {
+        Point3::from_vec(self.rotation * _rhs.to_vec()) + self.translation
     }
 }
 
-impl<'a, S: BaseFloat> Mul<&'a Vector3<S>> for &'a Isometry3<S> {
-    type Output = Vector3<S>;
-    fn mul(self, _rhs: &'a Vector3<S>) -> Vector3<S> {
-        self.rotation * _rhs + self.translation
+impl<'a, S: BaseFloat> Mul<&'a Point3<S>> for &'a Isometry3<S> {
+    type Output = Point3<S>;
+    fn mul(self, _rhs: &'a Point3<S>) -> Point3<S> {
+        Point3::from_vec(self.rotation * _rhs.to_vec()) + self.translation
     }
 }
 
@@ -280,8 +280,11 @@ impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
     fn from(beam: &OrientedBeam<S>) -> Self {
         let earth_radius_mean = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap();
         let z_off = earth_radius_mean - beam.from_beam.translation.magnitude();
-        let vec_off = Vector3::new(S::zero(), S::zero(), z_off);
-        let isometry = Isometry3::new(beam.from_beam.rotation, &beam.from_beam * &vec_off);
+        let pt_off = Point3::new(S::zero(), S::zero(), z_off);
+        let isometry = Isometry3::new(
+            beam.from_beam.rotation,
+            (&beam.from_beam * &pt_off).to_vec(),
+        );
         let z_half_extent = S::from(EARTH_RADIUS_MAX_M).unwrap() - earth_radius_mean;
         let half_extent = Vector3::new(beam.half_extent.x, beam.half_extent.y, z_half_extent);
         Self::new(isometry, half_extent)
