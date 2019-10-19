@@ -471,10 +471,8 @@ pub struct Frustum<S: BaseFloat> {
 
 impl<S: BaseFloat> Frustum<S> {
     pub fn new(from_frustum: Isometry3<S>, perspective: Perspective<S>) -> Self {
-        let local_from_global: Decomposed<Vector3<S>, Quaternion<S>> =
-            from_frustum.inverse().into();
-        let frustum_matrix =
-            Matrix4::<S>::from(perspective) * Matrix4::<S>::from(local_from_global);
+        let to_frustum: Decomposed<Vector3<S>, Quaternion<S>> = from_frustum.inverse().into();
+        let frustum_matrix = Matrix4::<S>::from(perspective) * Matrix4::<S>::from(to_frustum);
         let frustum = collision::Frustum::from_matrix4(frustum_matrix).unwrap();
         Frustum {
             from_frustum,
