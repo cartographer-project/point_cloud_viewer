@@ -476,10 +476,10 @@ where
     }
 }
 
-/// In frustum coordinates, x points right, y points up,
+/// A frustum is defined in eye coordinates, where x points right, y points up,
 /// and z points against the viewing direction. This is not how e.g. OpenCV
 /// defines a camera coordinate system. To get from OpenCV camera coordinates
-/// to frustum coordinates, you need to rotate 180 deg around the x axis before
+/// to eye coordinates, you need to rotate 180 deg around the x axis before
 /// creating the perspective projection, see also the frustum unit test below.
 #[derive(Debug, Clone)]
 pub struct Frustum<S: BaseFloat> {
