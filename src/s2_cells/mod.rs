@@ -175,10 +175,10 @@ impl PointCloud for S2Cells {
             }
             PointLocation::Obb(obb) => self.cells_in_obb(&obb, query.global_from_local.as_ref()),
             PointLocation::Frustum(frustum) => {
-                let world_from_clip = frustum.projection.inverse_transform().unwrap();
+                let query_from_clip = frustum.clip_from_query().inverse_transform().unwrap();
                 let points = CUBE_CORNERS
                     .iter()
-                    .map(|p| Point3::from_homogeneous(world_from_clip * p));
+                    .map(|p| Point3::from_homogeneous(query_from_clip * p));
                 self.cells_in_convex_hull(points)
             }
             PointLocation::OrientedBeam(beam) => {
@@ -241,10 +241,13 @@ impl S2Cells {
         global_from_local: Option<&Isometry3<f64>>,
     ) -> Vec<S2CellId> {
         let obb = match global_from_local {
-            Some(isometry) => Cow::Owned(Obb::new(isometry * &obb.from_obb, obb.half_extent)),
+            Some(isometry) => Cow::Owned(Obb::new(
+                isometry * obb.query_from_obb(),
+                *obb.half_extent(),
+            )),
             None => Cow::Borrowed(obb),
         };
-        let points = obb.corners;
+        let points = obb.corners();
         self.cells_in_convex_hull(points.iter().cloned())
     }
 

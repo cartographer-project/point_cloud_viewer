@@ -252,11 +252,11 @@ impl<S: BaseFloat> Isometry3<S> {
 
 #[derive(Debug, Clone)]
 pub struct Obb<S> {
-    pub from_obb: Isometry3<S>,
-    pub to_obb: Isometry3<S>,
-    pub half_extent: Vector3<S>,
-    pub corners: [Point3<S>; 8],
-    pub separating_axes: Vec<Vector3<S>>,
+    query_from_obb: Isometry3<S>,
+    obb_from_query: Isometry3<S>,
+    half_extent: Vector3<S>,
+    corners: [Point3<S>; 8],
+    separating_axes: Vec<Vector3<S>>,
 }
 
 impl<S: BaseFloat> From<&Aabb3<S>> for Obb<S> {
@@ -279,11 +279,11 @@ impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
 impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
     fn from(beam: &OrientedBeam<S>) -> Self {
         let earth_radius_mean = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap();
-        let z_off = earth_radius_mean - beam.from_beam.translation.magnitude();
+        let z_off = earth_radius_mean - beam.query_from_beam.translation.magnitude();
         let pt_off = Point3::new(S::zero(), S::zero(), z_off);
         let isometry = Isometry3::new(
-            beam.from_beam.rotation,
-            (&beam.from_beam * &pt_off).to_vec(),
+            beam.query_from_beam.rotation,
+            (&beam.query_from_beam * &pt_off).to_vec(),
         );
         let z_half_extent = S::from(EARTH_RADIUS_MAX_M).unwrap() - earth_radius_mean;
         let half_extent = Vector3::new(beam.half_extent.x, beam.half_extent.y, z_half_extent);
@@ -298,14 +298,26 @@ impl<S: BaseFloat> From<OrientedBeam<S>> for Obb<S> {
 }
 
 impl<S: BaseFloat> Obb<S> {
-    pub fn new(from_obb: Isometry3<S>, half_extent: Vector3<S>) -> Self {
+    pub fn new(query_from_obb: Isometry3<S>, half_extent: Vector3<S>) -> Self {
         Obb {
-            to_obb: from_obb.inverse(),
+            obb_from_query: query_from_obb.inverse(),
             half_extent,
-            corners: Obb::precompute_corners(&from_obb, &half_extent),
-            separating_axes: Obb::precompute_separating_axes(&from_obb.rotation),
-            from_obb,
+            corners: Obb::precompute_corners(&query_from_obb, &half_extent),
+            separating_axes: Obb::precompute_separating_axes(&query_from_obb.rotation),
+            query_from_obb,
         }
+    }
+
+    pub fn query_from_obb(&self) -> &Isometry3<S> {
+        &self.query_from_obb
+    }
+
+    pub fn half_extent(&self) -> &Vector3<S> {
+        &self.half_extent
+    }
+
+    pub fn corners(&self) -> &[Point3<S>; 8] {
+        &self.corners
     }
 
     fn precompute_corners(from_obb: &Isometry3<S>, half_extent: &Vector3<S>) -> [Point3<S>; 8] {
@@ -367,14 +379,15 @@ where
     }
 
     fn contains(&self, p: &Point3<S>) -> bool {
-        let Point3 { x, y, z } = self.to_obb.rotation.rotate_point(*p) + self.to_obb.translation;
+        let Point3 { x, y, z } =
+            self.obb_from_query.rotation.rotate_point(*p) + self.obb_from_query.translation;
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(isometry * &self.from_obb, self.half_extent))
+        Box::new(Self::new(isometry * &self.query_from_obb, self.half_extent))
     }
 }
 
@@ -382,22 +395,21 @@ where
 pub struct OrientedBeam<S> {
     // The members here are an implementation detail and differ from the
     // minimal representation in the gRPC message to speed up operations.
-    // to_beam is the transform from world coordinates into "beam coordinates".
-    from_beam: Isometry3<S>,
-    to_beam: Isometry3<S>,
+    query_from_beam: Isometry3<S>,
+    beam_from_query: Isometry3<S>,
     half_extent: Vector2<S>,
     corners: [Point3<S>; 4],
     separating_axes: Vec<Vector3<S>>,
 }
 
 impl<S: BaseFloat> OrientedBeam<S> {
-    pub fn new(from_beam: Isometry3<S>, half_extent: Vector2<S>) -> Self {
+    pub fn new(query_from_beam: Isometry3<S>, half_extent: Vector2<S>) -> Self {
         OrientedBeam {
-            to_beam: from_beam.inverse(),
+            beam_from_query: query_from_beam.inverse(),
             half_extent,
-            corners: OrientedBeam::precompute_corners(&from_beam, &half_extent),
-            separating_axes: OrientedBeam::precompute_separating_axes(&from_beam.rotation),
-            from_beam,
+            corners: OrientedBeam::precompute_corners(&query_from_beam, &half_extent),
+            separating_axes: OrientedBeam::precompute_separating_axes(&query_from_beam.rotation),
+            query_from_beam,
         }
     }
 
@@ -448,12 +460,16 @@ where
 
     fn contains(&self, p: &Point3<S>) -> bool {
         // What is the point in beam coordinates?
-        let Point3 { x, y, .. } = self.to_beam.rotation.rotate_point(*p) + self.to_beam.translation;
+        let Point3 { x, y, .. } =
+            self.beam_from_query.rotation.rotate_point(*p) + self.beam_from_query.translation;
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(isometry * &self.from_beam, self.half_extent))
+        Box::new(Self::new(
+            isometry * &self.query_from_beam,
+            self.half_extent,
+        ))
     }
 }
 
@@ -464,23 +480,29 @@ where
 /// creating the perspective projection, see also the frustum unit test below.
 #[derive(Debug, Clone)]
 pub struct Frustum<S: BaseFloat> {
-    from_frustum: Isometry3<S>,
-    perspective: Perspective<S>,
-    pub projection: Matrix4<S>,
+    query_from_frustum: Isometry3<S>,
+    clip_from_frustum: Perspective<S>,
+    clip_from_query: Matrix4<S>,
     frustum: collision::Frustum<S>,
 }
 
 impl<S: BaseFloat> Frustum<S> {
-    pub fn new(from_frustum: Isometry3<S>, perspective: Perspective<S>) -> Self {
-        let to_frustum: Decomposed<Vector3<S>, Quaternion<S>> = from_frustum.inverse().into();
-        let projection = Matrix4::<S>::from(perspective) * Matrix4::<S>::from(to_frustum);
-        let frustum = collision::Frustum::from_matrix4(projection).unwrap();
+    pub fn new(query_from_frustum: Isometry3<S>, clip_from_frustum: Perspective<S>) -> Self {
+        let frustum_from_query: Decomposed<Vector3<S>, Quaternion<S>> =
+            query_from_frustum.inverse().into();
+        let clip_from_query =
+            Matrix4::<S>::from(clip_from_frustum) * Matrix4::<S>::from(frustum_from_query);
+        let frustum = collision::Frustum::from_matrix4(clip_from_query).unwrap();
         Frustum {
-            from_frustum,
-            perspective,
-            projection,
+            query_from_frustum,
+            clip_from_frustum,
+            clip_from_query,
             frustum,
         }
+    }
+
+    pub fn clip_from_query(&self) -> &Matrix4<S> {
+        &self.clip_from_query
     }
 }
 
@@ -505,7 +527,10 @@ where
     }
 
     fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(isometry * &self.from_frustum, self.perspective))
+        Box::new(Self::new(
+            isometry * &self.query_from_frustum,
+            self.clip_from_frustum,
+        ))
     }
 }
 
