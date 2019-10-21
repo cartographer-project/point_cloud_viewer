@@ -14,7 +14,7 @@
 
 use cgmath::{
     BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Perspective,
-    Point3, Quaternion, Rotation, Vector2, Vector3,
+    Point3, Quaternion, Rotation, Transform, Vector2, Vector3,
 };
 use collision::{Aabb, Aabb3, Contains, Relation};
 use nav_types::{ECEF, WGS84};
@@ -308,21 +308,21 @@ impl<S: BaseFloat> Obb<S> {
         }
     }
 
-    pub fn query_from_obb(&self) -> &Isometry3<S> {
-        &self.query_from_obb
-    }
-
-    pub fn half_extent(&self) -> &Vector3<S> {
-        &self.half_extent
+    pub fn new_transformed(&self, global_from_query: &Isometry3<S>) -> Self {
+        Self::new(global_from_query * &self.query_from_obb, self.half_extent)
     }
 
     pub fn corners(&self) -> &[Point3<S>; 8] {
         &self.corners
     }
 
-    fn precompute_corners(from_obb: &Isometry3<S>, half_extent: &Vector3<S>) -> [Point3<S>; 8] {
-        let corner_from =
-            |x, y, z| from_obb.rotation.rotate_point(Point3::new(x, y, z)) + from_obb.translation;
+    fn precompute_corners(
+        query_from_obb: &Isometry3<S>,
+        half_extent: &Vector3<S>,
+    ) -> [Point3<S>; 8] {
+        let corner_from = |x, y, z| {
+            query_from_obb.rotation.rotate_point(Point3::new(x, y, z)) + query_from_obb.translation
+        };
         [
             corner_from(-half_extent.x, -half_extent.y, -half_extent.z),
             corner_from(half_extent.x, -half_extent.y, -half_extent.z),
@@ -335,13 +335,13 @@ impl<S: BaseFloat> Obb<S> {
         ]
     }
 
-    fn precompute_separating_axes(rotation: &Quaternion<S>) -> Vec<Vector3<S>> {
+    fn precompute_separating_axes(query_from_obb: &Quaternion<S>) -> Vec<Vector3<S>> {
         let unit_x = Vector3::unit_x();
         let unit_y = Vector3::unit_y();
         let unit_z = Vector3::unit_z();
-        let rot_x = rotation * unit_x;
-        let rot_y = rotation * unit_y;
-        let rot_z = rotation * unit_z;
+        let rot_x = query_from_obb * unit_x;
+        let rot_y = query_from_obb * unit_y;
+        let rot_z = query_from_obb * unit_z;
         let mut separating_axes = vec![unit_x, unit_y, unit_z];
         for axis in &[
             rot_x,
@@ -387,10 +387,7 @@ where
     }
 
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(
-            global_from_query * &self.query_from_obb,
-            self.half_extent,
-        ))
+        Box::new(self.new_transformed(global_from_query))
     }
 }
 
@@ -416,12 +413,15 @@ impl<S: BaseFloat> OrientedBeam<S> {
         }
     }
 
-    fn precompute_corners(from_beam: &Isometry3<S>, half_extent: &Vector2<S>) -> [Point3<S>; 4] {
+    fn precompute_corners(
+        query_from_beam: &Isometry3<S>,
+        half_extent: &Vector2<S>,
+    ) -> [Point3<S>; 4] {
         let corner_from = |x, y| {
-            from_beam
+            query_from_beam
                 .rotation
                 .rotate_point(Point3::new(x, y, S::zero()))
-                + from_beam.translation
+                + query_from_beam.translation
         };
         [
             corner_from(half_extent.x, half_extent.y),
@@ -435,14 +435,14 @@ impl<S: BaseFloat> OrientedBeam<S> {
     // Currently we have a beam which is infinite in both directions.
     // If we defined a beam on one side of the earth pointing towards the sky,
     // it will also collect points on the other side of the earth, which is undesired.
-    fn precompute_separating_axes(rotation: &Quaternion<S>) -> Vec<Vector3<S>> {
+    fn precompute_separating_axes(query_from_beam: &Quaternion<S>) -> Vec<Vector3<S>> {
         // The separating axis needs to be perpendicular to the beam's main
         // axis, i.e. the possible axes are the cross product of the three unit
         // vectors with the beam's main axis and the beam's face normals.
-        let main_axis = rotation * Vector3::unit_z();
+        let main_axis = query_from_beam * Vector3::unit_z();
         vec![
-            rotation * Vector3::unit_x(),
-            rotation * Vector3::unit_y(),
+            query_from_beam * Vector3::unit_x(),
+            query_from_beam * Vector3::unit_y(),
             main_axis.cross(Vector3::unit_x()).normalize(),
             main_axis.cross(Vector3::unit_y()).normalize(),
             main_axis.cross(Vector3::unit_z()).normalize(),
@@ -485,8 +485,8 @@ where
 pub struct Frustum<S: BaseFloat> {
     query_from_eye: Isometry3<S>,
     clip_from_eye: Perspective<S>,
-    clip_from_query: Matrix4<S>,
     frustum: collision::Frustum<S>,
+    corners: [Point3<S>; 8],
 }
 
 impl<S: BaseFloat> Frustum<S> {
@@ -494,17 +494,67 @@ impl<S: BaseFloat> Frustum<S> {
         let eye_from_query: Decomposed<Vector3<S>, Quaternion<S>> = query_from_eye.inverse().into();
         let clip_from_query =
             Matrix4::<S>::from(clip_from_eye) * Matrix4::<S>::from(eye_from_query);
+        let corners = Frustum::precompute_corners(&clip_from_query.inverse_transform().unwrap());
         let frustum = collision::Frustum::from_matrix4(clip_from_query).unwrap();
         Frustum {
             query_from_eye,
             clip_from_eye,
-            clip_from_query,
             frustum,
+            corners,
         }
     }
 
-    pub fn clip_from_query(&self) -> &Matrix4<S> {
-        &self.clip_from_query
+    pub fn corners(&self) -> &[Point3<S>; 8] {
+        &self.corners
+    }
+
+    fn precompute_corners(query_from_clip: &Matrix4<S>) -> [Point3<S>; 8] {
+        let mut clip_corners: [Point3<S>; 8] = [
+            Point3 {
+                x: -S::one(),
+                y: -S::one(),
+                z: -S::one(),
+            },
+            Point3 {
+                x: -S::one(),
+                y: -S::one(),
+                z: S::one(),
+            },
+            Point3 {
+                x: -S::one(),
+                y: S::one(),
+                z: -S::one(),
+            },
+            Point3 {
+                x: -S::one(),
+                y: S::one(),
+                z: S::one(),
+            },
+            Point3 {
+                x: S::one(),
+                y: -S::one(),
+                z: -S::one(),
+            },
+            Point3 {
+                x: S::one(),
+                y: -S::one(),
+                z: S::one(),
+            },
+            Point3 {
+                x: S::one(),
+                y: S::one(),
+                z: -S::one(),
+            },
+            Point3 {
+                x: S::one(),
+                y: S::one(),
+                z: S::one(),
+            },
+        ];
+        for clip_corner in &mut clip_corners {
+            *clip_corner = query_from_clip.transform_point(*clip_corner);
+        }
+        clip_corners
     }
 }
 
