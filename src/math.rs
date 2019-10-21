@@ -49,7 +49,7 @@ where
     fn contains(&self, point: &Point3<S>) -> bool;
     // TODO(catevita): return Relation
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
-    fn transformed(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
 }
 
 impl<S> PointCulling<S> for Aabb3<S>
@@ -65,8 +65,8 @@ where
         Contains::contains(self, p)
     }
 
-    fn transformed(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Obb::from(*self).transformed(isometry)
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Obb::from(*self).transformed(global_from_query)
     }
 }
 
@@ -84,7 +84,7 @@ where
     fn contains(&self, _p: &Point3<S>) -> bool {
         true
     }
-    fn transformed(&self, _isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+    fn transformed(&self, _global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(AllPoints {})
     }
 }
@@ -281,13 +281,13 @@ impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
         let earth_radius_mean = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap();
         let z_off = earth_radius_mean - beam.query_from_beam.translation.magnitude();
         let pt_off = Point3::new(S::zero(), S::zero(), z_off);
-        let isometry = Isometry3::new(
+        let query_from_obb = Isometry3::new(
             beam.query_from_beam.rotation,
             (&beam.query_from_beam * &pt_off).to_vec(),
         );
         let z_half_extent = S::from(EARTH_RADIUS_MAX_M).unwrap() - earth_radius_mean;
         let half_extent = Vector3::new(beam.half_extent.x, beam.half_extent.y, z_half_extent);
-        Self::new(isometry, half_extent)
+        Self::new(query_from_obb, half_extent)
     }
 }
 
@@ -386,8 +386,11 @@ where
             && z.abs() <= self.half_extent.z
     }
 
-    fn transformed(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(isometry * &self.query_from_obb, self.half_extent))
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Box::new(Self::new(
+            global_from_query * &self.query_from_obb,
+            self.half_extent,
+        ))
     }
 }
 
@@ -465,9 +468,9 @@ where
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
 
-    fn transformed(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(Self::new(
-            isometry * &self.query_from_beam,
+            global_from_query * &self.query_from_beam,
             self.half_extent,
         ))
     }
@@ -526,9 +529,9 @@ where
         }
     }
 
-    fn transformed(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(Self::new(
-            isometry * &self.query_from_frustum,
+            global_from_query * &self.query_from_frustum,
             self.clip_from_frustum,
         ))
     }
