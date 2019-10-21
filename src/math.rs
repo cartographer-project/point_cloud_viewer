@@ -49,7 +49,7 @@ where
     fn contains(&self, point: &Point3<S>) -> bool;
     // TODO(catevita): return Relation
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
+    fn transformed(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
 }
 
 impl<S> PointCulling<S> for Aabb3<S>
@@ -65,8 +65,8 @@ where
         Contains::contains(self, p)
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Obb::from(*self).transform(isometry)
+    fn transformed(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Obb::from(*self).transformed(isometry)
     }
 }
 
@@ -84,7 +84,7 @@ where
     fn contains(&self, _p: &Point3<S>) -> bool {
         true
     }
-    fn transform(&self, _isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+    fn transformed(&self, _isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(AllPoints {})
     }
 }
@@ -386,7 +386,7 @@ where
             && z.abs() <= self.half_extent.z
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+    fn transformed(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(Self::new(isometry * &self.query_from_obb, self.half_extent))
     }
 }
@@ -465,7 +465,7 @@ where
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+    fn transformed(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(Self::new(
             isometry * &self.query_from_beam,
             self.half_extent,
@@ -526,7 +526,7 @@ where
         }
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+    fn transformed(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(Self::new(
             isometry * &self.query_from_frustum,
             self.clip_from_frustum,
