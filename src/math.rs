@@ -410,6 +410,7 @@ impl<S: BaseFloat> OrientedBeam<S> {
         }
     }
 
+    /// Not really corners, but the corners of the xy-plane centered in the origin and orthogonal to the beam.
     fn precompute_corners(
         query_from_beam: &Isometry3<S>,
         half_extent: &Vector2<S>,
