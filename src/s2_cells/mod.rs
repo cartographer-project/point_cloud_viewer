@@ -241,8 +241,8 @@ impl S2Cells {
         global_from_query: Option<&Isometry3<f64>>,
     ) -> Vec<S2CellId> {
         let obb = match global_from_query {
-            Some(isometry) => Cow::Owned(Obb::new(
-                isometry * obb.query_from_obb(),
+            Some(g_from_q) => Cow::Owned(Obb::new(
+                g_from_q * obb.query_from_obb(),
                 *obb.half_extent(),
             )),
             None => Cow::Borrowed(obb),
