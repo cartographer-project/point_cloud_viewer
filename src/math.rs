@@ -308,7 +308,7 @@ impl<S: BaseFloat> Obb<S> {
         }
     }
 
-    pub fn new_transformed(&self, global_from_query: &Isometry3<S>) -> Self {
+    pub fn clone_transformed(&self, global_from_query: &Isometry3<S>) -> Self {
         Self::new(global_from_query * &self.query_from_obb, self.half_extent)
     }
 
@@ -384,7 +384,7 @@ where
     }
 
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(self.new_transformed(global_from_query))
+        Box::new(self.clone_transformed(global_from_query))
     }
 }
 

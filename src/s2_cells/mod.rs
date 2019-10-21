@@ -237,7 +237,7 @@ impl S2Cells {
         global_from_query: Option<&Isometry3<f64>>,
     ) -> Vec<S2CellId> {
         let obb = match global_from_query {
-            Some(g_from_q) => Cow::Owned(obb.new_transformed(g_from_q)),
+            Some(g_from_q) => Cow::Owned(obb.clone_transformed(g_from_q)),
             None => Cow::Borrowed(obb),
         };
         let points = obb.corners();
