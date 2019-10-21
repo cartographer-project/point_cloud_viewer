@@ -455,8 +455,7 @@ where
 
     fn contains(&self, p: &Point3<S>) -> bool {
         // What is the point in beam coordinates?
-        let Point3 { x, y, .. } =
-            self.beam_from_query.rotation.rotate_point(*p) + self.beam_from_query.translation;
+        let Point3 { x, y, .. } = &self.beam_from_query * p;
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
 
