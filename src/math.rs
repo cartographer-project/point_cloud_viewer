@@ -320,9 +320,7 @@ impl<S: BaseFloat> Obb<S> {
         query_from_obb: &Isometry3<S>,
         half_extent: &Vector3<S>,
     ) -> [Point3<S>; 8] {
-        let corner_from = |x, y, z| {
-            query_from_obb.rotation.rotate_point(Point3::new(x, y, z)) + query_from_obb.translation
-        };
+        let corner_from = |x, y, z| query_from_obb * &Point3::new(x, y, z);
         [
             corner_from(-half_extent.x, -half_extent.y, -half_extent.z),
             corner_from(half_extent.x, -half_extent.y, -half_extent.z),
@@ -379,8 +377,7 @@ where
     }
 
     fn contains(&self, p: &Point3<S>) -> bool {
-        let Point3 { x, y, z } =
-            self.obb_from_query.rotation.rotate_point(*p) + self.obb_from_query.translation;
+        let Point3 { x, y, z } = &self.obb_from_query * p;
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
@@ -417,12 +414,7 @@ impl<S: BaseFloat> OrientedBeam<S> {
         query_from_beam: &Isometry3<S>,
         half_extent: &Vector2<S>,
     ) -> [Point3<S>; 4] {
-        let corner_from = |x, y| {
-            query_from_beam
-                .rotation
-                .rotate_point(Point3::new(x, y, S::zero()))
-                + query_from_beam.translation
-        };
+        let corner_from = |x, y| query_from_beam * &Point3::new(x, y, S::zero());
         [
             corner_from(half_extent.x, half_extent.y),
             corner_from(half_extent.x, -half_extent.y),
@@ -509,52 +501,17 @@ impl<S: BaseFloat> Frustum<S> {
     }
 
     fn precompute_corners(query_from_clip: &Matrix4<S>) -> [Point3<S>; 8] {
-        let mut clip_corners: [Point3<S>; 8] = [
-            Point3 {
-                x: -S::one(),
-                y: -S::one(),
-                z: -S::one(),
-            },
-            Point3 {
-                x: -S::one(),
-                y: -S::one(),
-                z: S::one(),
-            },
-            Point3 {
-                x: -S::one(),
-                y: S::one(),
-                z: -S::one(),
-            },
-            Point3 {
-                x: -S::one(),
-                y: S::one(),
-                z: S::one(),
-            },
-            Point3 {
-                x: S::one(),
-                y: -S::one(),
-                z: -S::one(),
-            },
-            Point3 {
-                x: S::one(),
-                y: -S::one(),
-                z: S::one(),
-            },
-            Point3 {
-                x: S::one(),
-                y: S::one(),
-                z: -S::one(),
-            },
-            Point3 {
-                x: S::one(),
-                y: S::one(),
-                z: S::one(),
-            },
-        ];
-        for clip_corner in &mut clip_corners {
-            *clip_corner = query_from_clip.transform_point(*clip_corner);
-        }
-        clip_corners
+        let corner_from = |x, y, z| query_from_clip.transform_point(Point3::new(x, y, z));
+        [
+            corner_from(-S::one(), -S::one(), -S::one()),
+            corner_from(-S::one(), -S::one(), S::one()),
+            corner_from(-S::one(), S::one(), -S::one()),
+            corner_from(-S::one(), S::one(), S::one()),
+            corner_from(S::one(), -S::one(), -S::one()),
+            corner_from(S::one(), -S::one(), S::one()),
+            corner_from(S::one(), S::one(), -S::one()),
+            corner_from(S::one(), S::one(), S::one()),
+        ]
     }
 }
 
