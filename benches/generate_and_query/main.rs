@@ -2,12 +2,12 @@
 
 extern crate test;
 
-use cgmath::{Decomposed, InnerSpace, Matrix4, PerspectiveFov, Quaternion, Rad, Vector2, Vector3};
+use cgmath::{InnerSpace, PerspectiveFov, Rad, Vector2, Vector3};
 use lazy_static::lazy_static;
 use num_integer::div_ceil;
 use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
 use point_viewer::iterator::{PointCloud, PointLocation, PointQuery};
-use point_viewer::math::OrientedBeam;
+use point_viewer::math::{Frustum, OrientedBeam};
 use point_viewer::octree::{build_octree, Octree};
 use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2Splitter};
 use point_viewer::s2_cells::S2Cells;
@@ -245,7 +245,7 @@ fn check_all_query_equality() {
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::AllPoints,
-        global_from_local: None,
+        global_from_query: None,
     };
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
@@ -259,7 +259,7 @@ fn check_box_query_equality() {
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::Aabb(bbox),
-        global_from_local: None,
+        global_from_query: None,
     };
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
@@ -269,18 +269,19 @@ fn check_box_query_equality() {
 #[test]
 fn check_frustum_query_equality() {
     let (args, s2, oct, points) = setup();
-    let local_from_ecef: Decomposed<Vector3<f64>, Quaternion<f64>> =
-        points.ecef_from_local().inverse().into();
-    let frustum_matrix = Matrix4::from(PerspectiveFov {
+    let ecef_from_local = points.ecef_from_local().clone();
+    let perspective = PerspectiveFov {
         fovy: Rad(1.2),
         aspect: 1.0,
         near: 0.1,
         far: 10.0,
-    }) * Matrix4::from(local_from_ecef);
+    }
+    .to_perspective();
+    let frustum = Frustum::new(ecef_from_local, perspective);
     let query = PointQuery {
         attributes: vec!["color"],
-        location: PointLocation::Frustum(frustum_matrix),
-        global_from_local: None,
+        location: PointLocation::Frustum(frustum),
+        global_from_query: None,
     };
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
@@ -295,7 +296,7 @@ fn check_beam_query_equality() {
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::OrientedBeam(beam),
-        global_from_local: None,
+        global_from_query: None,
     };
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);

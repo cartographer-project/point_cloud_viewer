@@ -15,9 +15,7 @@
 use crate::proto;
 use crate::proto_grpc;
 use crate::Color;
-use cgmath::{
-    Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector2, Vector3,
-};
+use cgmath::{PerspectiveFov, Point3, Quaternion, Rad, Vector2, Vector3};
 use collision::Aabb3;
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};
@@ -29,7 +27,7 @@ use num_cpus;
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::*;
 use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
-use point_viewer::math::{Isometry3, OrientedBeam};
+use point_viewer::math::{Frustum, Isometry3, OrientedBeam};
 use point_viewer::octree::{NodeId, Octree};
 use point_viewer::{AttributeData, PointsBatch};
 use protobuf::Message;
@@ -119,12 +117,13 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetPointsInFrustumRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        let projection_matrix = Matrix4::from(PerspectiveFov {
+        let perspective = PerspectiveFov {
             fovy: Rad(req.fovy_rad),
             aspect: req.aspect,
             near: req.z_near,
             far: req.z_far,
-        });
+        }
+        .to_perspective();
         let rotation = {
             let q = req.rotation.unwrap();
             Quaternion::new(q.w, q.x, q.y, q.z)
@@ -135,13 +134,12 @@ impl proto_grpc::Octree for OctreeService {
             Vector3::new(t.x, t.y, t.z)
         };
 
-        let view_transform = Decomposed {
-            scale: 1.0,
-            rot: rotation,
-            disp: translation,
+        let view_transform = Isometry3::<f64> {
+            rotation,
+            translation,
         };
-        let frustum_matrix = projection_matrix.concat(&view_transform.into());
-        let location = PointLocation::Frustum(frustum_matrix);
+        let frustum = Frustum::new(view_transform, perspective);
+        let location = PointLocation::Frustum(frustum);
         self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
     }
 
@@ -325,7 +323,7 @@ impl OctreeService {
                 let point_query = PointQuery {
                     attributes: vec!["color", "intensity"],
                     location,
-                    global_from_local: None,
+                    global_from_query: None,
                 };
                 let mut parallel_iterator = ParallelIterator::new(
                     octree_slice,

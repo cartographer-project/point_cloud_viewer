@@ -117,7 +117,7 @@ mod tests {
         let location = PointQuery {
             attributes: vec!["color"],
             location: PointLocation::AllPoints,
-            global_from_local: None,
+            global_from_query: None,
         };
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
         let mut parallel_iterator = ParallelIterator::new(
@@ -175,7 +175,7 @@ mod tests {
         let location = PointQuery {
             attributes: vec!["color"],
             location: PointLocation::AllPoints,
-            global_from_local: None,
+            global_from_query: None,
         };
 
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
@@ -222,7 +222,7 @@ mod tests {
         let location = PointQuery {
             attributes: vec!["color"],
             location: PointLocation::AllPoints,
-            global_from_local: None,
+            global_from_query: None,
         };
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
         let mut parallel_iterator = ParallelIterator::new(

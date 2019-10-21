@@ -5,7 +5,7 @@ use crate::math::{Isometry3, Obb};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, CURRENT_VERSION};
-use cgmath::{Point3, Transform, Vector4};
+use cgmath::Point3;
 use collision::Aabb3;
 use fnv::FnvHashMap;
 use s2::cell::Cell;
@@ -171,18 +171,14 @@ impl PointCloud for S2Cells {
         match &query.location {
             PointLocation::AllPoints => self.cells.keys().cloned().map(S2CellId).collect(),
             PointLocation::Aabb(aabb) => {
-                self.cells_in_obb(&Obb::from(aabb), query.global_from_local.as_ref())
+                self.cells_in_obb(&Obb::from(aabb), query.global_from_query.as_ref())
             }
-            PointLocation::Obb(obb) => self.cells_in_obb(&obb, query.global_from_local.as_ref()),
-            PointLocation::Frustum(mat) => {
-                let world_from_clip = mat.inverse_transform().unwrap();
-                let points = CUBE_CORNERS
-                    .iter()
-                    .map(|p| Point3::from_homogeneous(world_from_clip * p));
-                self.cells_in_convex_hull(points)
+            PointLocation::Obb(obb) => self.cells_in_obb(&obb, query.global_from_query.as_ref()),
+            PointLocation::Frustum(frustum) => {
+                self.cells_in_convex_hull(frustum.corners().iter().cloned())
             }
             PointLocation::OrientedBeam(beam) => {
-                self.cells_in_obb(&Obb::from(beam), query.global_from_local.as_ref())
+                self.cells_in_obb(&Obb::from(beam), query.global_from_query.as_ref())
             }
         }
     }
@@ -238,13 +234,13 @@ impl S2Cells {
     fn cells_in_obb(
         &self,
         obb: &Obb<f64>,
-        global_from_local: Option<&Isometry3<f64>>,
+        global_from_query: Option<&Isometry3<f64>>,
     ) -> Vec<S2CellId> {
-        let obb = match global_from_local {
-            Some(isometry) => Cow::Owned(Obb::new(isometry * &obb.isometry, obb.half_extent)),
+        let obb = match global_from_query {
+            Some(g_from_q) => Cow::Owned(obb.clone_transformed(g_from_q)),
             None => Cow::Borrowed(obb),
         };
-        let points = obb.corners;
+        let points = obb.corners();
         self.cells_in_convex_hull(points.iter().cloned())
     }
 
@@ -268,56 +264,3 @@ impl S2Cells {
             .collect()
     }
 }
-
-/// This is projected back with the inverse frustum matrix
-/// to find the corners of the frustum
-const CUBE_CORNERS: [Vector4<f64>; 8] = [
-    Vector4 {
-        x: -1.0,
-        y: -1.0,
-        z: -1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: -1.0,
-        y: -1.0,
-        z: 1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: -1.0,
-        y: 1.0,
-        z: -1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: -1.0,
-        y: 1.0,
-        z: 1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: 1.0,
-        y: -1.0,
-        z: -1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: 1.0,
-        y: -1.0,
-        z: 1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: 1.0,
-        y: 1.0,
-        z: -1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: 1.0,
-        y: 1.0,
-        z: 1.0,
-        w: 1.0,
-    },
-];

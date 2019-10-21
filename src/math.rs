@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use cgmath::{
-    BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3,
-    Quaternion, Rotation, Vector2, Vector3, Vector4,
+    BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Perspective,
+    Point3, Quaternion, Rotation, Transform, Vector2, Vector3,
 };
 use collision::{Aabb, Aabb3, Contains, Relation};
 use nav_types::{ECEF, WGS84};
@@ -49,7 +49,7 @@ where
     fn contains(&self, point: &Point3<S>) -> bool;
     // TODO(catevita): return Relation
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
 }
 
 impl<S> PointCulling<S> for Aabb3<S>
@@ -65,8 +65,8 @@ where
         Contains::contains(self, p)
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Obb::from(*self).transform(isometry)
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Obb::from(*self).transformed(global_from_query)
     }
 }
 
@@ -84,7 +84,7 @@ where
     fn contains(&self, _p: &Point3<S>) -> bool {
         true
     }
-    fn transform(&self, _isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+    fn transformed(&self, _global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(AllPoints {})
     }
 }
@@ -204,17 +204,17 @@ impl<'a, S: BaseFloat> Mul for &'a Isometry3<S> {
     }
 }
 
-impl<S: BaseFloat> Mul<Vector3<S>> for Isometry3<S> {
-    type Output = Vector3<S>;
-    fn mul(self, _rhs: Vector3<S>) -> Vector3<S> {
-        self.rotation * _rhs + self.translation
+impl<S: BaseFloat> Mul<Point3<S>> for Isometry3<S> {
+    type Output = Point3<S>;
+    fn mul(self, _rhs: Point3<S>) -> Point3<S> {
+        Point3::from_vec(self.rotation * _rhs.to_vec()) + self.translation
     }
 }
 
-impl<'a, S: BaseFloat> Mul<&'a Vector3<S>> for &'a Isometry3<S> {
-    type Output = Vector3<S>;
-    fn mul(self, _rhs: &'a Vector3<S>) -> Vector3<S> {
-        self.rotation * _rhs + self.translation
+impl<'a, S: BaseFloat> Mul<&'a Point3<S>> for &'a Isometry3<S> {
+    type Output = Point3<S>;
+    fn mul(self, _rhs: &'a Point3<S>) -> Point3<S> {
+        Point3::from_vec(self.rotation * _rhs.to_vec()) + self.translation
     }
 }
 
@@ -252,11 +252,11 @@ impl<S: BaseFloat> Isometry3<S> {
 
 #[derive(Debug, Clone)]
 pub struct Obb<S> {
-    pub isometry: Isometry3<S>,
-    pub isometry_inv: Isometry3<S>,
-    pub half_extent: Vector3<S>,
-    pub corners: [Point3<S>; 8],
-    pub separating_axes: Vec<Vector3<S>>,
+    query_from_obb: Isometry3<S>,
+    obb_from_query: Isometry3<S>,
+    half_extent: Vector3<S>,
+    corners: [Point3<S>; 8],
+    separating_axes: Vec<Vector3<S>>,
 }
 
 impl<S: BaseFloat> From<&Aabb3<S>> for Obb<S> {
@@ -279,12 +279,15 @@ impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
 impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
     fn from(beam: &OrientedBeam<S>) -> Self {
         let earth_radius_mean = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap();
-        let z_off = earth_radius_mean - beam.isometry.translation.magnitude();
-        let vec_off = Vector3::new(S::zero(), S::zero(), z_off);
-        let isometry = Isometry3::new(beam.isometry.rotation, &beam.isometry * &vec_off);
+        let z_off = earth_radius_mean - beam.query_from_beam.translation.magnitude();
+        let pt_off = Point3::new(S::zero(), S::zero(), z_off);
+        let query_from_obb = Isometry3::new(
+            beam.query_from_beam.rotation,
+            (&beam.query_from_beam * &pt_off).to_vec(),
+        );
         let z_half_extent = S::from(EARTH_RADIUS_MAX_M).unwrap() - earth_radius_mean;
         let half_extent = Vector3::new(beam.half_extent.x, beam.half_extent.y, z_half_extent);
-        Self::new(isometry, half_extent)
+        Self::new(query_from_obb, half_extent)
     }
 }
 
@@ -295,19 +298,29 @@ impl<S: BaseFloat> From<OrientedBeam<S>> for Obb<S> {
 }
 
 impl<S: BaseFloat> Obb<S> {
-    pub fn new(isometry: Isometry3<S>, half_extent: Vector3<S>) -> Self {
+    pub fn new(query_from_obb: Isometry3<S>, half_extent: Vector3<S>) -> Self {
         Obb {
-            isometry_inv: isometry.inverse(),
+            obb_from_query: query_from_obb.inverse(),
             half_extent,
-            corners: Obb::precompute_corners(&isometry, &half_extent),
-            separating_axes: Obb::precompute_separating_axes(&isometry.rotation),
-            isometry,
+            corners: Obb::precompute_corners(&query_from_obb, &half_extent),
+            separating_axes: Obb::precompute_separating_axes(&query_from_obb.rotation),
+            query_from_obb,
         }
     }
 
-    fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector3<S>) -> [Point3<S>; 8] {
-        let corner_from =
-            |x, y, z| isometry.rotation.rotate_point(Point3::new(x, y, z)) + isometry.translation;
+    pub fn clone_transformed(&self, global_from_query: &Isometry3<S>) -> Self {
+        Self::new(global_from_query * &self.query_from_obb, self.half_extent)
+    }
+
+    pub fn corners(&self) -> &[Point3<S>; 8] {
+        &self.corners
+    }
+
+    fn precompute_corners(
+        query_from_obb: &Isometry3<S>,
+        half_extent: &Vector3<S>,
+    ) -> [Point3<S>; 8] {
+        let corner_from = |x, y, z| query_from_obb * &Point3::new(x, y, z);
         [
             corner_from(-half_extent.x, -half_extent.y, -half_extent.z),
             corner_from(half_extent.x, -half_extent.y, -half_extent.z),
@@ -320,13 +333,13 @@ impl<S: BaseFloat> Obb<S> {
         ]
     }
 
-    fn precompute_separating_axes(rotation: &Quaternion<S>) -> Vec<Vector3<S>> {
+    fn precompute_separating_axes(query_from_obb: &Quaternion<S>) -> Vec<Vector3<S>> {
         let unit_x = Vector3::unit_x();
         let unit_y = Vector3::unit_y();
         let unit_z = Vector3::unit_z();
-        let rot_x = rotation * unit_x;
-        let rot_y = rotation * unit_y;
-        let rot_z = rotation * unit_z;
+        let rot_x = query_from_obb * unit_x;
+        let rot_y = query_from_obb * unit_y;
+        let rot_z = query_from_obb * unit_z;
         let mut separating_axes = vec![unit_x, unit_y, unit_z];
         for axis in &[
             rot_x,
@@ -364,15 +377,14 @@ where
     }
 
     fn contains(&self, p: &Point3<S>) -> bool {
-        let Point3 { x, y, z } =
-            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
+        let Point3 { x, y, z } = &self.obb_from_query * p;
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(isometry * &self.isometry, self.half_extent))
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Box::new(self.clone_transformed(global_from_query))
     }
 }
 
@@ -380,29 +392,30 @@ where
 pub struct OrientedBeam<S> {
     // The members here are an implementation detail and differ from the
     // minimal representation in the gRPC message to speed up operations.
-    // Isometry_inv is the transform from world coordinates into "beam coordinates".
-    isometry: Isometry3<S>,
-    isometry_inv: Isometry3<S>,
+    query_from_beam: Isometry3<S>,
+    beam_from_query: Isometry3<S>,
     half_extent: Vector2<S>,
     corners: [Point3<S>; 4],
     separating_axes: Vec<Vector3<S>>,
 }
 
 impl<S: BaseFloat> OrientedBeam<S> {
-    pub fn new(isometry: Isometry3<S>, half_extent: Vector2<S>) -> Self {
+    pub fn new(query_from_beam: Isometry3<S>, half_extent: Vector2<S>) -> Self {
         OrientedBeam {
-            isometry_inv: isometry.inverse(),
+            beam_from_query: query_from_beam.inverse(),
             half_extent,
-            corners: OrientedBeam::precompute_corners(&isometry, &half_extent),
-            separating_axes: OrientedBeam::precompute_separating_axes(&isometry.rotation),
-            isometry,
+            corners: OrientedBeam::precompute_corners(&query_from_beam, &half_extent),
+            separating_axes: OrientedBeam::precompute_separating_axes(&query_from_beam.rotation),
+            query_from_beam,
         }
     }
 
-    fn precompute_corners(isometry: &Isometry3<S>, half_extent: &Vector2<S>) -> [Point3<S>; 4] {
-        let corner_from = |x, y| {
-            isometry.rotation.rotate_point(Point3::new(x, y, S::zero())) + isometry.translation
-        };
+    /// Not really corners, but the corners of the xy-plane centered in the origin and orthogonal to the beam.
+    fn precompute_corners(
+        query_from_beam: &Isometry3<S>,
+        half_extent: &Vector2<S>,
+    ) -> [Point3<S>; 4] {
+        let corner_from = |x, y| query_from_beam * &Point3::new(x, y, S::zero());
         [
             corner_from(half_extent.x, half_extent.y),
             corner_from(half_extent.x, -half_extent.y),
@@ -415,14 +428,14 @@ impl<S: BaseFloat> OrientedBeam<S> {
     // Currently we have a beam which is infinite in both directions.
     // If we defined a beam on one side of the earth pointing towards the sky,
     // it will also collect points on the other side of the earth, which is undesired.
-    fn precompute_separating_axes(rotation: &Quaternion<S>) -> Vec<Vector3<S>> {
+    fn precompute_separating_axes(query_from_beam: &Quaternion<S>) -> Vec<Vector3<S>> {
         // The separating axis needs to be perpendicular to the beam's main
         // axis, i.e. the possible axes are the cross product of the three unit
         // vectors with the beam's main axis and the beam's face normals.
-        let main_axis = rotation * Vector3::unit_z();
+        let main_axis = query_from_beam * Vector3::unit_z();
         vec![
-            rotation * Vector3::unit_x(),
-            rotation * Vector3::unit_y(),
+            query_from_beam * Vector3::unit_x(),
+            query_from_beam * Vector3::unit_y(),
             main_axis.cross(Vector3::unit_x()).normalize(),
             main_axis.cross(Vector3::unit_y()).normalize(),
             main_axis.cross(Vector3::unit_z()).normalize(),
@@ -443,14 +456,113 @@ where
 
     fn contains(&self, p: &Point3<S>) -> bool {
         // What is the point in beam coordinates?
-        let Point3 { x, y, .. } =
-            self.isometry_inv.rotation.rotate_point(*p) + self.isometry_inv.translation;
+        let Point3 { x, y, .. } = &self.beam_from_query * p;
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
 
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(isometry * &self.isometry, self.half_extent))
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Box::new(Self::new(
+            global_from_query * &self.query_from_beam,
+            self.half_extent,
+        ))
     }
+}
+
+/// A frustum is defined in eye coordinates, where x points right, y points up,
+/// and z points against the viewing direction. This is not how e.g. OpenCV
+/// defines a camera coordinate system. To get from OpenCV camera coordinates
+/// to eye coordinates, you need to rotate 180 deg around the x axis before
+/// creating the perspective projection, see also the frustum unit test below.
+#[derive(Debug, Clone)]
+pub struct Frustum<S: BaseFloat> {
+    query_from_eye: Isometry3<S>,
+    clip_from_eye: Perspective<S>,
+    frustum: collision::Frustum<S>,
+    corners: [Point3<S>; 8],
+}
+
+impl<S: BaseFloat> Frustum<S> {
+    pub fn new(query_from_eye: Isometry3<S>, clip_from_eye: Perspective<S>) -> Self {
+        let eye_from_query: Decomposed<Vector3<S>, Quaternion<S>> = query_from_eye.inverse().into();
+        let clip_from_query =
+            Matrix4::<S>::from(clip_from_eye) * Matrix4::<S>::from(eye_from_query);
+        let corners = Frustum::precompute_corners(&clip_from_query.inverse_transform().unwrap());
+        let frustum = collision::Frustum::from_matrix4(clip_from_query).unwrap();
+        Frustum {
+            query_from_eye,
+            clip_from_eye,
+            frustum,
+            corners,
+        }
+    }
+
+    pub fn corners(&self) -> &[Point3<S>; 8] {
+        &self.corners
+    }
+
+    fn precompute_corners(query_from_clip: &Matrix4<S>) -> [Point3<S>; 8] {
+        let corner_from = |x, y, z| query_from_clip.transform_point(Point3::new(x, y, z));
+        [
+            corner_from(-S::one(), -S::one(), -S::one()),
+            corner_from(-S::one(), -S::one(), S::one()),
+            corner_from(-S::one(), S::one(), -S::one()),
+            corner_from(-S::one(), S::one(), S::one()),
+            corner_from(S::one(), -S::one(), -S::one()),
+            corner_from(S::one(), -S::one(), S::one()),
+            corner_from(S::one(), S::one(), -S::one()),
+            corner_from(S::one(), S::one(), S::one()),
+        ]
+    }
+}
+
+impl<S> PointCulling<S> for Frustum<S>
+where
+    S: 'static + BaseFloat + Sync + Send,
+{
+    fn contains(&self, point: &Point3<S>) -> bool {
+        match self.frustum.contains(point) {
+            Relation::Cross => true,
+            Relation::In => true,
+            Relation::Out => false,
+        }
+    }
+
+    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
+        match self.frustum.contains(aabb) {
+            Relation::Cross => true,
+            Relation::In => true,
+            Relation::Out => false,
+        }
+    }
+
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Box::new(Self::new(
+            global_from_query * &self.query_from_eye,
+            self.clip_from_eye,
+        ))
+    }
+}
+
+// Returns transform needed to go from ECEF to local frame with the specified origin where
+// the axes are ENU (east, north, up <in the direction normal to the oblate spheroid
+// used as Earth's ellipsoid, which does not generally pass through the center of the Earth>)
+// https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
+pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
+    const PI_HALF: Deg<f64> = Deg(90.0);
+    let lat_lng_alt = WGS84::new(lat, lon, 0.0);
+    let origin = ECEF::from(lat_lng_alt);
+    let origin_vector = Vector3::new(origin.x(), origin.y(), origin.z());
+    let rotation_matrix = Matrix3::from_angle_z(-PI_HALF)
+        * Matrix3::from_angle_y(Deg(lat_lng_alt.latitude_degrees()) - PI_HALF)
+        * Matrix3::from_angle_z(Deg(-lat_lng_alt.longitude_degrees()));
+    let rotation = Quaternion::from(rotation_matrix);
+
+    let frame = Decomposed {
+        scale: 1.0,
+        rot: rotation,
+        disp: rotation.rotate_vector(-origin_vector),
+    };
+    Isometry3::from(frame)
 }
 
 #[cfg(test)]
@@ -531,72 +643,27 @@ mod tests {
         assert_eq!(fourty_five_deg_obb.intersects_aabb3(&bbox), false);
         assert_eq!(arbitrary_obb.separating_axes.len(), 15);
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct Frustum<S: BaseFloat> {
-    matrix: Matrix4<S>,
-    frustum: collision::Frustum<S>,
-}
-
-impl<S: BaseFloat> Frustum<S> {
-    pub fn new(matrix: Matrix4<S>) -> Self {
-        Frustum {
-            matrix,
-            frustum: collision::Frustum::from_matrix4(matrix).unwrap(),
-        }
+    #[test]
+    fn test_frustum_intersects_aabb3() {
+        let rot = Isometry3::<f64> {
+            rotation: Quaternion::from_angle_x(Rad(std::f64::consts::PI)),
+            translation: Vector3::zero(),
+        };
+        let perspective = Perspective::<f64> {
+            left: -0.5,
+            right: 0.0,
+            bottom: -0.5,
+            top: 0.0,
+            near: 1.0,
+            far: 4.0,
+        };
+        let frustum = Frustum::new(rot, perspective);
+        let bbox_min = Point3::new(-0.5, 0.25, 1.5);
+        let bbox_max = Point3::new(-0.25, 0.5, 3.5);
+        let bbox = Aabb3::new(bbox_min, bbox_max);
+        assert!(frustum.intersects_aabb3(&bbox));
+        assert!(frustum.contains(&bbox_min));
+        assert!(frustum.contains(&bbox_max));
     }
-}
-
-impl<S> PointCulling<S> for Frustum<S>
-where
-    S: 'static + BaseFloat + Sync + Send,
-{
-    fn contains(&self, point: &Point3<S>) -> bool {
-        // TODO(ksavinash9) update after https://github.com/rustgd/collision-rs/issues/101 is resolved.
-        let v = Vector4::new(point.x, point.y, point.z, S::one());
-        let clip_v = self.matrix * v;
-        clip_v.x.abs() < clip_v.w
-            && clip_v.y.abs() < clip_v.w
-            && S::zero() < clip_v.z
-            && clip_v.z < clip_v.w
-    }
-
-    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
-        match self.frustum.contains(aabb) {
-            Relation::Cross => true,
-            Relation::In => true,
-            Relation::Out => false,
-        }
-    }
-
-    fn transform(&self, isometry: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        let isometry = isometry.clone();
-        let matrix: Matrix4<S> = Matrix4::from(
-            Into::<Decomposed<Vector3<S>, Quaternion<S>>>::into(isometry),
-        ) * self.matrix;
-        Box::new(Frustum::new(matrix))
-    }
-}
-
-// Returns transform needed to go from ECEF to local frame with the specified origin where
-// the axes are ENU (east, north, up <in the direction normal to the oblate spheroid
-// used as Earth's ellipsoid, which does not generally pass through the center of the Earth>)
-// https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
-pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
-    const PI_HALF: Deg<f64> = Deg(90.0);
-    let lat_lng_alt = WGS84::new(lat, lon, 0.0);
-    let origin = ECEF::from(lat_lng_alt);
-    let origin_vector = Vector3::new(origin.x(), origin.y(), origin.z());
-    let rotation_matrix = Matrix3::from_angle_z(-PI_HALF)
-        * Matrix3::from_angle_y(Deg(lat_lng_alt.latitude_degrees()) - PI_HALF)
-        * Matrix3::from_angle_z(Deg(-lat_lng_alt.longitude_degrees()));
-    let rotation = Quaternion::from(rotation_matrix);
-
-    let frame = Decomposed {
-        scale: 1.0,
-        rot: rotation,
-        disp: rotation.rotate_vector(-origin_vector),
-    };
-    Isometry3::from(frame)
 }
