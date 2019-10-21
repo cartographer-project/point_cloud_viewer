@@ -483,22 +483,21 @@ where
 /// creating the perspective projection, see also the frustum unit test below.
 #[derive(Debug, Clone)]
 pub struct Frustum<S: BaseFloat> {
-    query_from_frustum: Isometry3<S>,
-    clip_from_frustum: Perspective<S>,
+    query_from_eye: Isometry3<S>,
+    clip_from_eye: Perspective<S>,
     clip_from_query: Matrix4<S>,
     frustum: collision::Frustum<S>,
 }
 
 impl<S: BaseFloat> Frustum<S> {
-    pub fn new(query_from_frustum: Isometry3<S>, clip_from_frustum: Perspective<S>) -> Self {
-        let frustum_from_query: Decomposed<Vector3<S>, Quaternion<S>> =
-            query_from_frustum.inverse().into();
+    pub fn new(query_from_eye: Isometry3<S>, clip_from_eye: Perspective<S>) -> Self {
+        let eye_from_query: Decomposed<Vector3<S>, Quaternion<S>> = query_from_eye.inverse().into();
         let clip_from_query =
-            Matrix4::<S>::from(clip_from_frustum) * Matrix4::<S>::from(frustum_from_query);
+            Matrix4::<S>::from(clip_from_eye) * Matrix4::<S>::from(eye_from_query);
         let frustum = collision::Frustum::from_matrix4(clip_from_query).unwrap();
         Frustum {
-            query_from_frustum,
-            clip_from_frustum,
+            query_from_eye,
+            clip_from_eye,
             clip_from_query,
             frustum,
         }
@@ -531,8 +530,8 @@ where
 
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(Self::new(
-            global_from_query * &self.query_from_frustum,
-            self.clip_from_frustum,
+            global_from_query * &self.query_from_eye,
+            self.clip_from_eye,
         ))
     }
 }
