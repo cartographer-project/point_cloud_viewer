@@ -471,7 +471,7 @@ pub struct Tile {
 
 pub fn xray_from_points(
     point_cloud_client: &PointCloudClient,
-    global_from_local: &Option<Isometry3<f64>>,
+    global_from_query: &Option<Isometry3<f64>>,
     bbox: &Aabb3<f64>,
     png_file: &Path,
     image_size: Vector2<u32>,
@@ -482,7 +482,7 @@ pub fn xray_from_points(
     let point_location = PointQuery {
         attributes: coloring_strategy.attributes(),
         location: PointLocation::Aabb(*bbox),
-        global_from_local: global_from_local.clone(),
+        global_from_query: global_from_query.clone(),
     };
     let _ = point_cloud_client.for_each_point_data(&point_location, |points_batch| {
         seen_any_points = true;
@@ -531,7 +531,7 @@ pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
 pub fn build_xray_quadtree(
     pool: &Pool,
     point_cloud_client: &PointCloudClient,
-    local_from_global: &Option<Isometry3<f64>>,
+    query_from_global: &Option<Isometry3<f64>>,
     output_directory: &Path,
     tile: &Tile,
     coloring_strategy_kind: &ColoringStrategyKind,
@@ -540,10 +540,10 @@ pub fn build_xray_quadtree(
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    let bounding_box = match local_from_global {
-        Some(local_from_global) => {
+    let bounding_box = match query_from_global {
+        Some(query_from_global) => {
             let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> =
-                local_from_global.clone().into();
+                query_from_global.clone().into();
             point_cloud_client.bounding_box().transform(&decomposed)
         }
         None => *point_cloud_client.bounding_box(),
@@ -558,7 +558,7 @@ pub fn build_xray_quadtree(
     let (all_nodes_tx, all_nodes_rx) = mpsc::channel();
     println!("Building level {}.", deepest_level);
 
-    let global_from_local = &local_from_global.as_ref().map(Isometry3::inverse);
+    let global_from_query = &query_from_global.as_ref().map(Isometry3::inverse);
     pool.scoped(|scope| {
         let mut open = vec![Node::root_with_bounding_rect(bounding_rect.clone())];
         while !open.is_empty() {
@@ -582,7 +582,7 @@ pub fn build_xray_quadtree(
                     );
                     if xray_from_points(
                         point_cloud_client,
-                        global_from_local,
+                        global_from_query,
                         &bbox,
                         &get_image_path(output_directory, node.id),
                         Vector2::new(tile.size_px, tile.size_px),

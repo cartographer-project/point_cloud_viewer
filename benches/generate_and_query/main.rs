@@ -245,7 +245,7 @@ fn check_all_query_equality() {
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::AllPoints,
-        global_from_local: None,
+        global_from_query: None,
     };
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
@@ -259,7 +259,7 @@ fn check_box_query_equality() {
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::Aabb(bbox),
-        global_from_local: None,
+        global_from_query: None,
     };
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
@@ -281,7 +281,7 @@ fn check_frustum_query_equality() {
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::Frustum(frustum),
-        global_from_local: None,
+        global_from_query: None,
     };
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
@@ -296,7 +296,7 @@ fn check_beam_query_equality() {
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::OrientedBeam(beam),
-        global_from_local: None,
+        global_from_query: None,
     };
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);

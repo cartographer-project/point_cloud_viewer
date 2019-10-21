@@ -102,7 +102,7 @@ fn server_benchmark(
     let all_points = PointQuery {
         attributes: vec!["color", "intensity"],
         location: PointLocation::AllPoints,
-        global_from_local: None,
+        global_from_query: None,
     };
     let octree_slice: &[Octree] = std::slice::from_ref(&octree);
     let mut parallel_iterator = ParallelIterator::new(

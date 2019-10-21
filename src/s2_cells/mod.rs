@@ -171,9 +171,9 @@ impl PointCloud for S2Cells {
         match &query.location {
             PointLocation::AllPoints => self.cells.keys().cloned().map(S2CellId).collect(),
             PointLocation::Aabb(aabb) => {
-                self.cells_in_obb(&Obb::from(aabb), query.global_from_local.as_ref())
+                self.cells_in_obb(&Obb::from(aabb), query.global_from_query.as_ref())
             }
-            PointLocation::Obb(obb) => self.cells_in_obb(&obb, query.global_from_local.as_ref()),
+            PointLocation::Obb(obb) => self.cells_in_obb(&obb, query.global_from_query.as_ref()),
             PointLocation::Frustum(frustum) => {
                 let query_from_clip = frustum.clip_from_query().inverse_transform().unwrap();
                 let points = CUBE_CORNERS
@@ -182,7 +182,7 @@ impl PointCloud for S2Cells {
                 self.cells_in_convex_hull(points)
             }
             PointLocation::OrientedBeam(beam) => {
-                self.cells_in_obb(&Obb::from(beam), query.global_from_local.as_ref())
+                self.cells_in_obb(&Obb::from(beam), query.global_from_query.as_ref())
             }
         }
     }
@@ -238,9 +238,9 @@ impl S2Cells {
     fn cells_in_obb(
         &self,
         obb: &Obb<f64>,
-        global_from_local: Option<&Isometry3<f64>>,
+        global_from_query: Option<&Isometry3<f64>>,
     ) -> Vec<S2CellId> {
-        let obb = match global_from_local {
+        let obb = match global_from_query {
             Some(isometry) => Cow::Owned(Obb::new(
                 isometry * obb.query_from_obb(),
                 *obb.half_extent(),
