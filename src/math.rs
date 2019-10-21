@@ -457,26 +457,28 @@ where
     }
 }
 
-/// Frustum is a perspective projection with x pointing right, y pointing up,
-/// and z pointing against the viewing direction. This is not how e.g. OpenCV
+/// In frustum coordinates, x points right, y points up,
+/// and z points against the viewing direction. This is not how e.g. OpenCV
 /// defines a camera coordinate system. To get from OpenCV camera coordinates
 /// to frustum coordinates, you need to rotate 180 deg around the x axis before
-/// creating the 4x4 projection matrix, see also the frustum unit test below.
+/// creating the perspective projection, see also the frustum unit test below.
 #[derive(Debug, Clone)]
 pub struct Frustum<S: BaseFloat> {
-    pub from_frustum: Isometry3<S>,
+    from_frustum: Isometry3<S>,
     perspective: Perspective<S>,
+    pub projection: Matrix4<S>,
     frustum: collision::Frustum<S>,
 }
 
 impl<S: BaseFloat> Frustum<S> {
     pub fn new(from_frustum: Isometry3<S>, perspective: Perspective<S>) -> Self {
         let to_frustum: Decomposed<Vector3<S>, Quaternion<S>> = from_frustum.inverse().into();
-        let frustum_matrix = Matrix4::<S>::from(perspective) * Matrix4::<S>::from(to_frustum);
-        let frustum = collision::Frustum::from_matrix4(frustum_matrix).unwrap();
+        let projection = Matrix4::<S>::from(perspective) * Matrix4::<S>::from(to_frustum);
+        let frustum = collision::Frustum::from_matrix4(projection).unwrap();
         Frustum {
             from_frustum,
             perspective,
+            projection,
             frustum,
         }
     }
