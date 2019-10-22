@@ -3,7 +3,7 @@ use crate::graphic::tiled_texture_loader::TiledTextureLoader;
 use crate::graphic::uniform::GlUniform;
 use crate::graphic::GlProgram;
 use crate::terrain_drawer::read_write::Metadata;
-use cgmath::{Decomposed, Matrix4, Point3, Vector2, Vector3};
+use cgmath::{Decomposed, Matrix4, Vector2, Vector3, Zero};
 use image::{ImageBuffer, LumaA, Rgba};
 use point_viewer::math::Isometry3;
 use std::convert::TryInto;
@@ -50,7 +50,7 @@ impl TerrainLayer {
 
         // Initial terrain pos
         let terrain_pos: Vector2<i64> =
-            grid_coordinates.terrain_pos_for_camera_pos(Point3::new(0.0, 0.0, 0.0));
+            grid_coordinates.terrain_pos_for_camera_pos(Vector3::zero());
         let u_terrain_pos = GlUniform::new(&program, "terrain_pos", terrain_pos.cast().unwrap());
 
         let height_initial = height_tiles.load(
@@ -100,22 +100,11 @@ impl TerrainLayer {
     // Only fetch the "L" shape that is needed, as separate horizontal and vertical strips.
     // Don't get confused, the horizontal strip is determined by the movement in y direction and
     // the vertical strip is determined by the movement in x direction.
-    pub fn update(&mut self, cur_world_pos: Point3<f64>) {
+    pub fn update(&mut self, cur_world_pos: Vector3<f64>) {
         let cur_pos = self
             .grid_coordinates
             .terrain_pos_for_camera_pos(cur_world_pos);
         let moved = cur_pos - self.terrain_pos;
-        self.terrain_pos = cur_pos;
-        // Convert to f64, because GLSL doesn't understand i64
-        assert!(
-            cur_pos.x < F64_MAX_SAFE_INT && cur_pos.x > F64_MIN_SAFE_INT,
-            "Terrain location not representable."
-        );
-        assert!(
-            cur_pos.y < F64_MAX_SAFE_INT && cur_pos.y > F64_MIN_SAFE_INT,
-            "Terrain location not representable."
-        );
-        self.u_terrain_pos.value = cur_pos.cast().unwrap();
 
         let hori_strip = if moved.y > 0 {
             self.load(
@@ -160,6 +149,18 @@ impl TerrainLayer {
             vert_strip.color,
             hori_strip.color,
         );
+
+        self.terrain_pos = cur_pos;
+        // Convert to f64, because GLSL doesn't understand i64
+        assert!(
+            cur_pos.x < F64_MAX_SAFE_INT && cur_pos.x > F64_MIN_SAFE_INT,
+            "Terrain location not representable."
+        );
+        assert!(
+            cur_pos.y < F64_MAX_SAFE_INT && cur_pos.y > F64_MIN_SAFE_INT,
+            "Terrain location not representable."
+        );
+        self.u_terrain_pos.value = cur_pos.cast().unwrap();
     }
 
     pub fn terrain_from_world(&self) -> Isometry3<f64> {
@@ -218,7 +219,7 @@ impl GridCoordinateFrame {
 
     /// Returns the terrain pos (i.e. the coordinate of the lower corner of the terrain) for
     /// a given camera position (in the world coordinate system).
-    fn terrain_pos_for_camera_pos(&self, world_pos: Point3<f64>) -> Vector2<i64> {
+    fn terrain_pos_for_camera_pos(&self, world_pos: Vector3<f64>) -> Vector2<i64> {
         let local_pos = &self.terrain_from_world * &world_pos;
         let x = ((local_pos.x - self.u_origin.value.x) / self.u_resolution_m.value).floor();
         let y = ((local_pos.y - self.u_origin.value.y) / self.u_resolution_m.value).floor();
