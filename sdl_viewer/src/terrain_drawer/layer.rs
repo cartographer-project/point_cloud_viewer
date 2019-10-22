@@ -105,17 +105,6 @@ impl TerrainLayer {
             .grid_coordinates
             .terrain_pos_for_camera_pos(cur_world_pos);
         let moved = cur_pos - self.terrain_pos;
-        self.terrain_pos = cur_pos;
-        // Convert to f64, because GLSL doesn't understand i64
-        assert!(
-            cur_pos.x < F64_MAX_SAFE_INT && cur_pos.x > F64_MIN_SAFE_INT,
-            "Terrain location not representable."
-        );
-        assert!(
-            cur_pos.y < F64_MAX_SAFE_INT && cur_pos.y > F64_MIN_SAFE_INT,
-            "Terrain location not representable."
-        );
-        self.u_terrain_pos.value = cur_pos.cast().unwrap();
 
         let hori_strip = if moved.y > 0 {
             self.load(
@@ -160,6 +149,18 @@ impl TerrainLayer {
             vert_strip.color,
             hori_strip.color,
         );
+
+        self.terrain_pos = cur_pos;
+        // Convert to f64, because GLSL doesn't understand i64
+        assert!(
+            cur_pos.x < F64_MAX_SAFE_INT && cur_pos.x > F64_MIN_SAFE_INT,
+            "Terrain location not representable."
+        );
+        assert!(
+            cur_pos.y < F64_MAX_SAFE_INT && cur_pos.y > F64_MIN_SAFE_INT,
+            "Terrain location not representable."
+        );
+        self.u_terrain_pos.value = cur_pos.cast().unwrap();
     }
 
     pub fn terrain_from_world(&self) -> Isometry3<f64> {
