@@ -15,8 +15,8 @@ use std::path::PathBuf;
 
 /// The actual number of underlying writers is MAX_NUM_NODE_WRITERS * num_attributes.
 const MAX_NUM_NODE_WRITERS: usize = 25;
-/// Corresponds to cells of up to about 10m x 10m.
-const S2_SPLIT_LEVEL: u64 = 15;
+/// Corresponds to cells of up to about 160m x 160m.
+const S2_SPLIT_LEVEL: u64 = 16;
 
 pub struct S2Splitter<W> {
     writers: LruCache<CellID, W>,
