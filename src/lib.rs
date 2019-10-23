@@ -74,7 +74,7 @@ fn attribute_data_types_from(
                 .map(|d| (a.to_string(), *d))
                 .ok_or_else(|| format!("Data type for attribute '{}' not found.", a).into())
         })
-        .collect::<Result<HashMap<String, AttributeDataType>>>()
+        .collect()
 }
 
 #[derive(Copy, Debug, Clone, PartialEq, Eq)]
