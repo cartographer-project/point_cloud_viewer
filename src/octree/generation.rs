@@ -21,9 +21,7 @@ use crate::read_write::{
     attempt_increasing_rlimit_to_max, Encoding, NodeIterator, NodeWriter, OpenMode, PlyIterator,
     PositionEncoding, RawNodeWriter,
 };
-use crate::{
-    attribute_data_types_from, AttributeDataType, NumberOfPoints, PointsBatch, NUM_POINTS_PER_BATCH,
-};
+use crate::{AttributeDataType, NumberOfPoints, PointCloudMeta, PointsBatch, NUM_POINTS_PER_BATCH};
 use cgmath::{EuclideanSpace, Point3, Vector3};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
@@ -315,7 +313,7 @@ pub fn build_octree(
         resolution,
         ..Default::default()
     };
-    let query_attributes = &attribute_data_types_from(attributes, &octree_meta.attributes).unwrap();
+    let query_attributes = &octree_meta.attribute_data_types_for(attributes).unwrap();
     let octree_data_provider = OnDiskDataProvider {
         directory: output_directory.as_ref().to_path_buf(),
     };

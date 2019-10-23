@@ -4,7 +4,7 @@ use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
 use crate::math::{Isometry3, Obb};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
-use crate::{attribute_data_types_from, AttributeDataType, CURRENT_VERSION};
+use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
 use cgmath::Point3;
 use collision::Aabb3;
 use fnv::FnvHashMap;
@@ -41,6 +41,12 @@ pub struct S2Meta {
     cells: FnvHashMap<CellID, S2CellMeta>,
     attributes: HashMap<String, AttributeDataType>,
     bounding_box: Aabb3<f64>,
+}
+
+impl PointCloudMeta for S2Meta {
+    fn attribute_data_types(&self) -> &HashMap<String, AttributeDataType> {
+        &self.attributes
+    }
 }
 
 impl S2Meta {
@@ -197,7 +203,7 @@ impl PointCloud for S2Cells {
         let num_points = self.meta.cells[&node_id.0].num_points as usize;
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
-            &attribute_data_types_from(&query.attributes, &self.meta.attributes)?,
+            &self.meta.attribute_data_types_for(&query.attributes)?,
             self.encoding_for_node(node_id),
             &node_id,
             num_points,

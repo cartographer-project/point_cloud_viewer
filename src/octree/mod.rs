@@ -17,7 +17,7 @@ use crate::iterator::{FilteredIterator, PointCloud, PointQuery};
 use crate::math::Cube;
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
-use crate::{attribute_data_types_from, AttributeDataType, CURRENT_VERSION};
+use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
 use cgmath::{EuclideanSpace, Matrix4, Point3};
 use collision::{Aabb, Aabb3, Bound, Relation};
 use fnv::FnvHashMap;
@@ -43,6 +43,12 @@ pub struct OctreeMeta {
     pub resolution: f64,
     pub bounding_box: Aabb3<f64>,
     attributes: HashMap<String, AttributeDataType>,
+}
+
+impl PointCloudMeta for OctreeMeta {
+    fn attribute_data_types(&self) -> &HashMap<String, AttributeDataType> {
+        &self.attributes
+    }
 }
 
 impl Default for OctreeMeta {
@@ -324,7 +330,7 @@ impl PointCloud for Octree {
         let culling = query.get_point_culling();
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
-            &attribute_data_types_from(&query.attributes, &self.meta.attributes)?,
+            &self.meta.attribute_data_types_for(&query.attributes)?,
             self.meta.encoding_for_node(node_id),
             &node_id,
             self.nodes[&node_id].num_points as usize,

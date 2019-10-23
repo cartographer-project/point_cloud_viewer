@@ -62,19 +62,22 @@ pub fn attribute_extension(attribute: &str) -> &str {
     }
 }
 
-fn attribute_data_types_from(
-    attributes: &[&str],
-    data_types: &HashMap<String, AttributeDataType>,
-) -> Result<HashMap<String, AttributeDataType>> {
-    attributes
-        .iter()
-        .map(|a| {
-            data_types
-                .get(*a)
-                .map(|d| (a.to_string(), *d))
-                .ok_or_else(|| format!("Data type for attribute '{}' not found.", a).into())
-        })
-        .collect()
+trait PointCloudMeta {
+    fn attribute_data_types(&self) -> &HashMap<String, AttributeDataType>;
+    fn attribute_data_types_for(
+        &self,
+        attributes: &[&str],
+    ) -> Result<HashMap<String, AttributeDataType>> {
+        attributes
+            .iter()
+            .map(|a| {
+                self.attribute_data_types()
+                    .get(*a)
+                    .map(|d| (a.to_string(), *d))
+                    .ok_or_else(|| format!("Data type for attribute '{}' not found.", a).into())
+            })
+            .collect()
+    }
 }
 
 #[derive(Copy, Debug, Clone, PartialEq, Eq)]
