@@ -23,7 +23,7 @@ pub mod s2_cells;
 
 use cgmath::Vector3;
 use errors::{ErrorKind, Result};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::{TryFrom, TryInto};
 
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
@@ -60,6 +60,21 @@ pub fn attribute_extension(attribute: &str) -> &str {
         "color" => "rgb",
         _ => attribute,
     }
+}
+
+fn attribute_data_types_from(
+    attributes: &[&str],
+    data_types: &HashMap<String, AttributeDataType>,
+) -> Result<HashMap<String, AttributeDataType>> {
+    attributes
+        .iter()
+        .map(|a| {
+            data_types
+                .get(*a)
+                .map(|d| (a.to_string(), *d))
+                .ok_or_else(|| format!("Data type for attribute '{}' not found.", a).into())
+        })
+        .collect::<Result<HashMap<String, AttributeDataType>>>()
 }
 
 #[derive(Copy, Debug, Clone, PartialEq, Eq)]

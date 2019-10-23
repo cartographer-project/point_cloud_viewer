@@ -17,13 +17,13 @@ use crate::iterator::{FilteredIterator, PointCloud, PointQuery};
 use crate::math::Cube;
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
-use crate::CURRENT_VERSION;
+use crate::{attribute_data_types_from, AttributeDataType, CURRENT_VERSION};
 use cgmath::{EuclideanSpace, Matrix4, Point3};
-use collision::{Aabb, Aabb3, Relation};
+use collision::{Aabb, Aabb3, Bound, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
 
 mod generation;
@@ -42,6 +42,22 @@ mod octree_test;
 pub struct OctreeMeta {
     pub resolution: f64,
     pub bounding_box: Aabb3<f64>,
+    attributes: HashMap<String, AttributeDataType>,
+}
+
+impl Default for OctreeMeta {
+    fn default() -> Self {
+        Self {
+            resolution: 0.0,
+            bounding_box: Aabb3::empty(),
+            attributes: vec![
+                ("color".to_string(), AttributeDataType::U8Vec3),
+                ("intensity".to_string(), AttributeDataType::F32),
+            ]
+            .into_iter()
+            .collect(),
+        }
+    }
 }
 
 impl OctreeMeta {
@@ -141,6 +157,7 @@ impl Octree {
                     OctreeMeta {
                         resolution: meta_proto.deprecated_resolution,
                         bounding_box,
+                        ..Default::default()
                     },
                     meta_proto.get_deprecated_nodes(),
                 )
@@ -160,6 +177,7 @@ impl Octree {
                     OctreeMeta {
                         resolution: octree_meta.resolution,
                         bounding_box,
+                        ..Default::default()
                     },
                     octree_meta.get_nodes(),
                 )
@@ -306,7 +324,7 @@ impl PointCloud for Octree {
         let culling = query.get_point_culling();
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
-            &query.attributes,
+            &attribute_data_types_from(&query.attributes, &self.meta.attributes)?,
             self.meta.encoding_for_node(node_id),
             &node_id,
             self.nodes[&node_id].num_points as usize,
