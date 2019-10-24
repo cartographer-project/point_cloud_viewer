@@ -26,11 +26,11 @@ mod camera;
 mod glhelper;
 #[allow(
     non_upper_case_globals,
-    clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::unreadable_literal,
     clippy::unused_unit
 )]
+#[cfg_attr(clippy_has_missing_safety_doc, allow(clippy::missing_safety_doc))]
 pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
