@@ -55,7 +55,7 @@ impl NodeIterator {
 
     pub fn from_data_provider<Id: ToString>(
         data_provider: &dyn DataProvider,
-        attributes: &HashMap<String, AttributeDataType>,
+        attribute_data_types: &HashMap<String, AttributeDataType>,
         encoding: Encoding,
         id: &Id,
         num_points: usize,
@@ -65,15 +65,13 @@ impl NodeIterator {
             return Ok(NodeIterator::default());
         }
 
-        let node_attributes: Vec<&str> = attributes.keys().map(String::as_str).collect();
-        let mut all_reads = data_provider.data(
-            &id.to_string(),
-            &[&["position"], &node_attributes[..]].concat(),
-        )?;
+        let attributes: Vec<&str> = attribute_data_types.keys().map(String::as_str).collect();
+        let mut all_reads =
+            data_provider.data(&id.to_string(), &[&["position"], &attributes[..]].concat())?;
         // Unwrapping all following removals is safe,
         // as the data provider would already have errored on unavailability.
         let position_reader = all_reads.remove("position").unwrap();
-        let attribute_readers = attributes
+        let attribute_readers = attribute_data_types
             .iter()
             .map(|(attribute, data_type)| {
                 let data_type = *data_type;

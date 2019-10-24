@@ -87,7 +87,7 @@ impl AppState {
         {
             // write access to state
             let mut wmap = self.octree_map.write().unwrap();
-            wmap.insert(octree_key.clone(), Arc::clone(&octree));
+            wmap.insert(octree_key, Arc::clone(&octree));
         }
         Ok(octree)
     }

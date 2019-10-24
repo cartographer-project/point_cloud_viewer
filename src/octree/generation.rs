@@ -159,7 +159,7 @@ fn split_node<'a, P>(
     scope: &Scope<'a>,
     octree_data_provider: &'a OnDiskDataProvider,
     octree_meta: &'a octree::OctreeMeta,
-    query_attributes: &'a HashMap<String, AttributeDataType>,
+    attribute_data_types: &'a HashMap<String, AttributeDataType>,
     node_id: &octree::NodeId,
     stream: P,
     leaf_nodes_sender: &mpsc::Sender<octree::NodeId>,
@@ -172,7 +172,7 @@ fn split_node<'a, P>(
         scope.recurse(move |scope| {
             let stream = NodeIterator::from_data_provider(
                 octree_data_provider,
-                query_attributes,
+                attribute_data_types,
                 octree_meta.encoding_for_node(child_id),
                 &child_id,
                 octree_data_provider
@@ -185,7 +185,7 @@ fn split_node<'a, P>(
                 scope,
                 octree_data_provider,
                 octree_meta,
-                query_attributes,
+                attribute_data_types,
                 &child_id,
                 stream,
                 &leaf_nodes_sender_clone,
@@ -201,7 +201,7 @@ fn split_node<'a, P>(
 fn subsample_children_into(
     octree_data_provider: &OnDiskDataProvider,
     octree_meta: &octree::OctreeMeta,
-    query_attributes: &HashMap<String, AttributeDataType>,
+    attribute_data_types: &HashMap<String, AttributeDataType>,
     node_id: &octree::NodeId,
     nodes_sender: &mpsc::Sender<(octree::NodeId, i64)>,
 ) -> Result<()> {
@@ -216,7 +216,7 @@ fn subsample_children_into(
         };
         let mut node_iterator = NodeIterator::from_data_provider(
             octree_data_provider,
-            query_attributes,
+            attribute_data_types,
             octree_meta.encoding_for_node(child_id),
             &child_id,
             num_points as usize,
@@ -313,7 +313,7 @@ pub fn build_octree(
         resolution,
         ..Default::default()
     };
-    let query_attributes = &octree_meta.attribute_data_types_for(attributes).unwrap();
+    let attribute_data_types = &octree_meta.attribute_data_types_for(attributes).unwrap();
     let octree_data_provider = OnDiskDataProvider {
         directory: output_directory.as_ref().to_path_buf(),
     };
@@ -331,7 +331,7 @@ pub fn build_octree(
             scope,
             octree_data_provider,
             octree_meta,
-            query_attributes,
+            attribute_data_types,
             &root_node.id,
             input,
             &leaf_nodes_sender,
@@ -386,7 +386,7 @@ pub fn build_octree(
                     subsample_children_into(
                         octree_data_provider,
                         octree_meta,
-                        query_attributes,
+                        attribute_data_types,
                         id,
                         &finished_nodes_sender_clone,
                     )

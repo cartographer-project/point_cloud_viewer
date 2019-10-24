@@ -140,7 +140,7 @@ impl DataProvider for GrpcOctreeDataProvider {
                     return Err("Unsupported node extension.".into());
                 }
             };
-            readers.insert(node_attribute.to_string(), reader);
+            readers.insert((*node_attribute).to_string(), reader);
         }
         Ok(readers)
     }

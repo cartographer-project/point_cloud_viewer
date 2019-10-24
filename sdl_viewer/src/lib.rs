@@ -26,6 +26,7 @@ mod camera;
 mod glhelper;
 #[allow(
     non_upper_case_globals,
+    clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::unreadable_literal,
     clippy::unused_unit
