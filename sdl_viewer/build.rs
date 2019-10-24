@@ -11,6 +11,7 @@ fn main() {
         .write_bindings(StructGenerator, &mut file)
         .unwrap();
 
+    // TODO(feuerste): Remove this, once 1.40 is stable.
     if version_check::is_min_version("1.40").unwrap_or(false) {
         println!("cargo:rustc-cfg=clippy_has_missing_safety_doc");
     }
