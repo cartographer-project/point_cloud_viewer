@@ -11,8 +11,7 @@ fn main() {
         .write_bindings(StructGenerator, &mut file)
         .unwrap();
 
-    // See https://github.com/rust-lang/rust-clippy/pull/4535
-    if version_check::is_min_date("2019-09-19").unwrap_or(false) {
+    if version_check::is_min_version("1.40").unwrap_or(false) {
         println!("cargo:rustc-cfg=clippy_has_missing_safety_doc");
     }
 }
