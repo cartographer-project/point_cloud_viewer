@@ -62,7 +62,7 @@ impl DataProvider for OnDiskDataProvider {
                 }
                 e => e,
             }?;
-            readers.insert(node_attribute.to_string(), Box::new(file));
+            readers.insert((*node_attribute).to_string(), Box::new(file));
         }
         Ok(readers)
     }

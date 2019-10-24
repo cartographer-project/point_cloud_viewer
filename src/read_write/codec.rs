@@ -129,12 +129,14 @@ where
 {
     let max: f64 = num::cast(T::max_value()).unwrap();
     let v: f64 = num::cast(value).unwrap();
-    v / max * edge_length + min
+    (v / max).mul_add(edge_length, min)
 }
 
 pub fn decode<T>(value: T, min: f64, edge_length: f64) -> f64
 where
     T: num_traits::NumCast,
 {
-    num::cast::<T, f64>(value).unwrap() * edge_length + min
+    num::cast::<T, f64>(value)
+        .unwrap()
+        .mul_add(edge_length, min)
 }

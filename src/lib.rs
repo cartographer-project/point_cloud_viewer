@@ -73,7 +73,7 @@ trait PointCloudMeta {
             .map(|a| {
                 self.attribute_data_types()
                     .get(*a)
-                    .map(|d| (a.to_string(), *d))
+                    .map(|d| ((*a).to_string(), *d))
                     .ok_or_else(|| format!("Data type for attribute '{}' not found.", a).into())
             })
             .collect()

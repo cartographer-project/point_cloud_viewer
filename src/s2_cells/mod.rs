@@ -39,31 +39,31 @@ impl S2CellMeta {
 
 pub struct S2Meta {
     cells: FnvHashMap<CellID, S2CellMeta>,
-    attributes: HashMap<String, AttributeDataType>,
+    attribute_data_types: HashMap<String, AttributeDataType>,
     bounding_box: Aabb3<f64>,
 }
 
 impl PointCloudMeta for S2Meta {
     fn attribute_data_types(&self) -> &HashMap<String, AttributeDataType> {
-        &self.attributes
+        &self.attribute_data_types
     }
 }
 
 impl S2Meta {
     pub fn new(
         cells: FnvHashMap<CellID, S2CellMeta>,
-        attributes: HashMap<String, AttributeDataType>,
+        attribute_data_types: HashMap<String, AttributeDataType>,
         bounding_box: Aabb3<f64>,
     ) -> Self {
         S2Meta {
             cells,
-            attributes,
+            attribute_data_types,
             bounding_box,
         }
     }
 
     pub fn iter_attr_with_xyz(&self) -> impl Iterator<Item = (&str, AttributeDataType)> {
-        self.attributes
+        self.attribute_data_types
             .iter()
             .map(|(name, d_type)| (name.as_str(), *d_type))
             .chain(iter::once(("xyz", AttributeDataType::F64Vec3)))
@@ -91,7 +91,7 @@ impl S2Meta {
             cell_protos,
         ));
         let attributes_meta = self
-            .attributes
+            .attribute_data_types
             .iter()
             .map(|(name, attribute)| {
                 let mut attr_meta = proto::Attribute::new();
@@ -138,16 +138,15 @@ impl S2Meta {
             );
         });
 
-        // attributes
-        let mut attributes = HashMap::default();
+        let mut attribute_data_types = HashMap::default();
         for attr in s2_meta_proto.attributes.iter() {
             let attr_type: AttributeDataType = AttributeDataType::from_proto(attr.get_data_type())?;
-            attributes.insert(attr.name.to_owned(), attr_type);
+            attribute_data_types.insert(attr.name.to_owned(), attr_type);
         }
 
         Ok(S2Meta {
             cells,
-            attributes,
+            attribute_data_types,
             bounding_box,
         })
     }

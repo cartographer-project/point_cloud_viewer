@@ -6,6 +6,9 @@ use std::ffi::CString;
 use std::rc::Rc;
 
 pub trait Uniform {
+    /// # Safety
+    ///
+    /// Specify the value of a uniform variable.
     unsafe fn submit(&self, gl: &opengl::Gl, location: GLint);
 }
 

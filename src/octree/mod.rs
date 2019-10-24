@@ -42,12 +42,12 @@ mod octree_test;
 pub struct OctreeMeta {
     pub resolution: f64,
     pub bounding_box: Aabb3<f64>,
-    attributes: HashMap<String, AttributeDataType>,
+    attribute_data_types: HashMap<String, AttributeDataType>,
 }
 
 impl PointCloudMeta for OctreeMeta {
     fn attribute_data_types(&self) -> &HashMap<String, AttributeDataType> {
-        &self.attributes
+        &self.attribute_data_types
     }
 }
 
@@ -56,7 +56,7 @@ impl Default for OctreeMeta {
         Self {
             resolution: 0.0,
             bounding_box: Aabb3::empty(),
-            attributes: vec![
+            attribute_data_types: vec![
                 ("color".to_string(), AttributeDataType::U8Vec3),
                 ("intensity".to_string(), AttributeDataType::F32),
             ]
