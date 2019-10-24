@@ -138,7 +138,6 @@ impl S2Meta {
             );
         });
 
-        // attribute data types
         let mut attribute_data_types = HashMap::default();
         for attr in s2_meta_proto.attributes.iter() {
             let attr_type: AttributeDataType = AttributeDataType::from_proto(attr.get_data_type())?;
