@@ -30,6 +30,7 @@ mod glhelper;
     clippy::unreadable_literal,
     clippy::unused_unit
 )]
+// TODO(feuerste): Move this up when Rust 1.40 is stable.
 #[cfg_attr(clippy_has_missing_safety_doc, allow(clippy::missing_safety_doc))]
 pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
