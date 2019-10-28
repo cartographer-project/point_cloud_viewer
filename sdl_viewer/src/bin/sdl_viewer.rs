@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use point_viewer::octree::OctreeFactory;
-use point_viewer_grpc::octree_from_grpc_address;
+use point_viewer::data_provider::DataProviderFactory;
+use point_viewer_grpc::data_provider_from_grpc_address;
 use sdl_viewer::run;
 use sdl_viewer::terrain_drawer::TerrainExtension;
 
 fn main() {
-    let octree_factory = OctreeFactory::new().register("grpc://", octree_from_grpc_address);
+    let data_provider_factory =
+        DataProviderFactory::new().register("grpc://", data_provider_from_grpc_address);
     // TODO(catevita): hide octree factory details, simplify the run method interface
-    run::<TerrainExtension>(octree_factory);
+    run::<TerrainExtension>(data_provider_factory);
 }

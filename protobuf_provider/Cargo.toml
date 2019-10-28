@@ -19,3 +19,6 @@ edition = "2018"
 
 [build-dependencies]
 cmake = "0.1.40"
+
+[dependencies]
+itertools = "0.8.0"

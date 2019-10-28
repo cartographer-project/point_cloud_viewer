@@ -15,7 +15,7 @@
 use octree_web_viewer::backend_error::PointsViewerError;
 use octree_web_viewer::state::AppState;
 use octree_web_viewer::utils::start_octree_server;
-use point_viewer::octree::OctreeFactory;
+use point_viewer::data_provider::DataProviderFactory;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use structopt::StructOpt;
@@ -43,14 +43,14 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
     // initial implementation: suffix from args not yet supported
     let suffix = PathBuf::new();
     let prefix = args.octree_path.parent().unwrap_or_else(|| Path::new(""));
-    let octree_factory = OctreeFactory::new();
+    let data_provider_factory = DataProviderFactory::new();
     let octree_id = args.octree_path.strip_prefix(&prefix)?;
     Ok(AppState::new(
         args.cache_max,
         prefix,
         suffix,
         octree_id.to_str().unwrap(),
-        octree_factory,
+        data_provider_factory,
     ))
 }
 

@@ -20,8 +20,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
+use point_viewer::data_provider::{DataProviderFactory, OnDiskDataProvider};
 use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
-use point_viewer::octree::{octree_from_directory, Octree, OctreeFactory};
+use point_viewer::octree::Octree;
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
 use point_viewer_grpc_proto_rust::proto;
@@ -87,7 +88,10 @@ fn server_benchmark(
     num_threads: usize,
     buffer_size: usize,
 ) {
-    let octree: Box<Octree> = octree_from_directory(octree_directory).unwrap_or_else(|_| {
+    let octree = Octree::from_data_provider(Box::new(OnDiskDataProvider {
+        directory: octree_directory.into(),
+    }))
+    .unwrap_or_else(|_| {
         panic!(
             "Could not create octree from '{}'",
             octree_directory.display()
@@ -96,8 +100,9 @@ fn server_benchmark(
     let mut counter: usize = 0;
     let mut points_streamed_m = 0;
     let all_points = PointQuery {
-        location: PointLocation::AllPoints(),
-        global_from_local: None,
+        attributes: vec!["color", "intensity"],
+        location: PointLocation::AllPoints,
+        global_from_query: None,
     };
     let octree_slice: &[Octree] = std::slice::from_ref(&octree);
     let mut parallel_iterator = ParallelIterator::new(
@@ -124,8 +129,8 @@ fn server_benchmark(
 
 // this test works with number of threads = num cpus -1 and batch size such that the proto is less than 4 MB
 fn full_benchmark(octree_directory: &Path, num_points: usize, port: u16) {
-    let octree_factory = OctreeFactory::new();
-    let mut server = start_grpc_server("0.0.0.0", port, octree_directory, octree_factory);
+    let data_provider_factory = DataProviderFactory::new();
+    let mut server = start_grpc_server("0.0.0.0", port, octree_directory, data_provider_factory);
     server.start();
 
     let env = Arc::new(Environment::new(1));

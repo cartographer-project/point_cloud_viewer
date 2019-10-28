@@ -16,7 +16,7 @@ use clap::value_t;
 use futures::Future;
 use std::path::PathBuf;
 
-use point_viewer::octree::OctreeFactory;
+use point_viewer::data_provider::DataProviderFactory;
 use point_viewer_grpc::service::start_grpc_server;
 
 fn ctrlc_channel() -> Result<crossbeam_channel::Receiver<()>, ctrlc::Error> {
@@ -44,8 +44,8 @@ fn main() {
 
     let port = value_t!(matches, "port", u16).unwrap_or(50051);
     let octree_directory = PathBuf::from(matches.value_of("octree_directory").unwrap());
-    let octree_factory = OctreeFactory::new();
-    let mut server = start_grpc_server("0.0.0.0", port, &octree_directory, octree_factory);
+    let data_provider_factory = DataProviderFactory::new();
+    let mut server = start_grpc_server("0.0.0.0", port, &octree_directory, data_provider_factory);
     server.start();
 
     for &(ref host, port) in server.bind_addrs() {

@@ -269,7 +269,7 @@ pub struct NodeViewContainer {
 }
 
 impl NodeViewContainer {
-    pub fn new(octree: Arc<Box<octree::Octree>>, max_nodes_in_memory: usize) -> Self {
+    pub fn new(octree: Arc<octree::Octree>, max_nodes_in_memory: usize) -> Self {
         // We perform I/O in a separate thread in order to not block the main thread while loading.
         // Data sharing is done through channels.
         let (node_id_sender, node_id_receiver) = mpsc::channel();

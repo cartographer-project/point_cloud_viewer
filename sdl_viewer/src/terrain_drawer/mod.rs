@@ -2,7 +2,7 @@ use crate::graphic::uniform::GlUniform;
 use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use crate::opengl;
 use crate::{c_str, Extension};
-use cgmath::{Matrix4, SquareMatrix, Vector2, Zero};
+use cgmath::{EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector2, Zero};
 
 use opengl::types::{GLsizeiptr, GLuint};
 use point_viewer::math::Isometry3;
@@ -143,7 +143,8 @@ impl TerrainRenderer {
     // ======================================= End setup =======================================
 
     pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f64>, camera_to_world: &Matrix4<f64>) {
-        self.terrain_layer.update(camera_to_world.w.truncate());
+        let camera_pos = Point3::from_vec(camera_to_world.w.truncate());
+        self.terrain_layer.update(camera_pos);
 
         self.u_transform.value = *world_to_gl;
     }

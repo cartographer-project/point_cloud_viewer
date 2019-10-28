@@ -11,35 +11,29 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use crate::data_provider::DataProvider;
 use crate::errors::*;
+use crate::iterator::{FilteredIterator, PointCloud, PointQuery};
 use crate::math::Cube;
 use crate::proto;
-use crate::read_write::{Encoding, PointIterator, PositionEncoding};
-use crate::CURRENT_VERSION;
+use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
+use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
 use cgmath::{EuclideanSpace, Matrix4, Point3};
-use collision::{Aabb, Aabb3, Relation};
+use collision::{Aabb, Aabb3, Bound, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
-use std::path::PathBuf;
-
-use crate::iterator::{FilteredIterator, PointCloud, PointQuery};
 
 mod generation;
 pub use self::generation::{build_octree, build_octree_from_file};
-
-mod factory;
-pub use self::factory::OctreeFactory;
 
 mod node;
 pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta};
 
 mod octree_iterator;
 pub use self::octree_iterator::NodeIdsIterator;
-
-pub use crate::data_provider::{DataProvider, OnDiskDataProvider};
 
 #[cfg(test)]
 mod octree_test;
@@ -48,6 +42,28 @@ mod octree_test;
 pub struct OctreeMeta {
     pub resolution: f64,
     pub bounding_box: Aabb3<f64>,
+    attribute_data_types: HashMap<String, AttributeDataType>,
+}
+
+impl PointCloudMeta for OctreeMeta {
+    fn attribute_data_types(&self) -> &HashMap<String, AttributeDataType> {
+        &self.attribute_data_types
+    }
+}
+
+impl Default for OctreeMeta {
+    fn default() -> Self {
+        Self {
+            resolution: 0.0,
+            bounding_box: Aabb3::empty(),
+            attribute_data_types: vec![
+                ("color".to_string(), AttributeDataType::U8Vec3),
+                ("intensity".to_string(), AttributeDataType::F32),
+            ]
+            .into_iter()
+            .collect(),
+        }
+    }
 }
 
 impl OctreeMeta {
@@ -64,30 +80,6 @@ impl OctreeMeta {
 
 pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::OctreeNode>) -> proto::Meta {
     let mut octree_proto = proto::OctreeMeta::new();
-    octree_proto
-        .mut_bounding_box()
-        .mut_min()
-        .set_x(octree_meta.bounding_box.min().x);
-    octree_proto
-        .mut_bounding_box()
-        .mut_min()
-        .set_y(octree_meta.bounding_box.min().y);
-    octree_proto
-        .mut_bounding_box()
-        .mut_min()
-        .set_z(octree_meta.bounding_box.min().z);
-    octree_proto
-        .mut_bounding_box()
-        .mut_max()
-        .set_x(octree_meta.bounding_box.max().x);
-    octree_proto
-        .mut_bounding_box()
-        .mut_max()
-        .set_y(octree_meta.bounding_box.max().y);
-    octree_proto
-        .mut_bounding_box()
-        .mut_max()
-        .set_z(octree_meta.bounding_box.max().z);
     octree_proto.set_resolution(octree_meta.resolution);
 
     let octree_nodes = ::protobuf::RepeatedField::<proto::OctreeNode>::from_vec(nodes);
@@ -95,6 +87,7 @@ pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::OctreeNode>) ->
 
     let mut meta = proto::Meta::new();
     meta.set_version(CURRENT_VERSION);
+    meta.set_bounding_box(proto::AxisAlignedCuboid::from(&octree_meta.bounding_box));
     meta.set_octree(octree_proto);
     meta
 }
@@ -151,61 +144,46 @@ pub struct NodeData {
     pub color: Vec<u8>,
 }
 
-fn bounding_box_to_aabb(bounding_box: &proto::AxisAlignedCuboid) -> Aabb3<f64> {
-    let min = bounding_box.min.clone().unwrap_or_else(|| {
-        let deprecated_min = bounding_box.deprecated_min.clone().unwrap(); // Version 9
-        let mut v = proto::Vector3d::new();
-        v.set_x(f64::from(deprecated_min.x));
-        v.set_y(f64::from(deprecated_min.y));
-        v.set_z(f64::from(deprecated_min.z));
-        v
-    });
-    let max = bounding_box.max.clone().unwrap_or_else(|| {
-        let deprecated_max = bounding_box.deprecated_max.clone().unwrap(); // Version 9
-        let mut v = proto::Vector3d::new();
-        v.set_x(f64::from(deprecated_max.x));
-        v.set_y(f64::from(deprecated_max.y));
-        v.set_z(f64::from(deprecated_max.z));
-        v
-    });
-    Aabb3::new(
-        Point3::new(min.x, min.y, min.z),
-        Point3::new(max.x, max.y, max.z),
-    )
-}
-
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
     pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
+        if meta_proto.version < CURRENT_VERSION {
+            println!(
+                "Data is an older octree version: {}, current would be {}. \
+                 If feasible, try upgrading this octree using `upgrade_octree`.",
+                meta_proto.version, CURRENT_VERSION
+            );
+        }
         let (bounding_box, meta, nodes_proto) = match meta_proto.version {
             9 | 10 | 11 => {
-                println!(
-                    "Data is an older octree version: {}, current would be {}. \
-                     If feasible, try upgrading this octree using `upgrade_octree`.",
-                    meta_proto.version, CURRENT_VERSION
-                );
-                let bounding_box = bounding_box_to_aabb(meta_proto.get_deprecated_bounding_box());
+                let bounding_box = Aabb3::from(meta_proto.get_bounding_box());
                 (
                     bounding_box,
                     OctreeMeta {
                         resolution: meta_proto.deprecated_resolution,
                         bounding_box,
+                        ..Default::default()
                     },
                     meta_proto.get_deprecated_nodes(),
                 )
             }
-            CURRENT_VERSION => {
+            12 | CURRENT_VERSION => {
                 if !meta_proto.has_octree() {
                     return Err(ErrorKind::InvalidInput("No octree meta found".to_string()).into());
                 }
                 let octree_meta = meta_proto.get_octree();
-                let bounding_box = bounding_box_to_aabb(octree_meta.get_bounding_box());
+                let bounding_box = Aabb3::from(if meta_proto.version == 12 {
+                    octree_meta.get_deprecated_bounding_box()
+                } else {
+                    meta_proto.get_bounding_box()
+                });
                 (
                     bounding_box,
                     OctreeMeta {
                         resolution: octree_meta.resolution,
                         bounding_box,
+                        ..Default::default()
                     },
                     octree_meta.get_nodes(),
                 )
@@ -325,11 +303,6 @@ impl Octree {
             meta: self.nodes[node_id].clone(),
         })
     }
-
-    /// return the bounding box saved in meta
-    pub fn bounding_box(&self) -> &Aabb3<f64> {
-        &self.meta.bounding_box
-    }
 }
 
 impl PointCloud for Octree {
@@ -352,18 +325,26 @@ impl PointCloud for Octree {
         &'a self,
         query: &PointQuery,
         node_id: NodeId,
+        batch_size: usize,
     ) -> Result<FilteredIterator> {
         let culling = query.get_point_culling();
-        let point_iterator = PointIterator::from_data_provider(
+        let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
+            &self.meta.attribute_data_types_for(&query.attributes)?,
             self.meta.encoding_for_node(node_id),
             &node_id,
             self.nodes[&node_id].num_points as usize,
+            batch_size,
         )?;
         Ok(FilteredIterator {
             culling,
-            point_iterator,
+            node_iterator,
         })
+    }
+
+    /// return the bounding box saved in meta
+    fn bounding_box(&self) -> &Aabb3<f64> {
+        &self.meta.bounding_box
     }
 }
 
@@ -411,13 +392,4 @@ fn maybe_push_node(
             empty: meta.num_points == 0,
         });
     }
-}
-
-//  TODO(catevita): refactor function for octree factory
-pub fn octree_from_directory(directory: impl Into<PathBuf>) -> Result<Box<Octree>> {
-    let data_provider = OnDiskDataProvider {
-        directory: directory.into(),
-    };
-    let octree = Octree::from_data_provider(Box::new(data_provider))?;
-    Ok(Box::new(octree))
 }

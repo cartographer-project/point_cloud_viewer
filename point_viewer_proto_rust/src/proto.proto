@@ -120,9 +120,11 @@ message S2Cell {
 }
 
 message OctreeMeta {
-  AxisAlignedCuboid bounding_box = 1;
   double resolution = 2;
   repeated OctreeNode nodes = 3;
+  // This was used in VERSION == 12. Once we no longer need to keep it
+  // working, we should remove this entry.
+  AxisAlignedCuboid deprecated_bounding_box = 1;
 }
 
 message S2Meta {
@@ -133,6 +135,8 @@ message S2Meta {
 
 message Meta {
   int32 version = 1;
+  // This was used in VERSION <= 11 and again in VERSION >= 13.
+  AxisAlignedCuboid bounding_box = 4;
   // Either nodes or cells is allowed, both is invalid
   oneof data {
     OctreeMeta octree = 6;
@@ -141,6 +145,5 @@ message Meta {
   // These were used in VERSION <= 11. Once we no longer need to keep these
   // working, we should remove these entries.
   double deprecated_resolution = 3;
-  AxisAlignedCuboid deprecated_bounding_box = 4;
   repeated OctreeNode deprecated_nodes = 5;
 }

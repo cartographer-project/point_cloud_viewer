@@ -3,9 +3,10 @@ use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
 use crate::math::{Isometry3, Obb};
 use crate::proto;
-use crate::read_write::{Encoding, PointIterator};
-use crate::{AttributeDataType, CURRENT_VERSION};
-use cgmath::{Point3, Transform, Vector4};
+use crate::read_write::{Encoding, NodeIterator};
+use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
+use cgmath::Point3;
+use collision::Aabb3;
 use fnv::FnvHashMap;
 use s2::cell::Cell;
 use s2::cellid::CellID;
@@ -38,19 +39,31 @@ impl S2CellMeta {
 
 pub struct S2Meta {
     cells: FnvHashMap<CellID, S2CellMeta>,
-    attributes: HashMap<String, AttributeDataType>,
+    attribute_data_types: HashMap<String, AttributeDataType>,
+    bounding_box: Aabb3<f64>,
+}
+
+impl PointCloudMeta for S2Meta {
+    fn attribute_data_types(&self) -> &HashMap<String, AttributeDataType> {
+        &self.attribute_data_types
+    }
 }
 
 impl S2Meta {
     pub fn new(
         cells: FnvHashMap<CellID, S2CellMeta>,
-        attributes: HashMap<String, AttributeDataType>,
+        attribute_data_types: HashMap<String, AttributeDataType>,
+        bounding_box: Aabb3<f64>,
     ) -> Self {
-        S2Meta { cells, attributes }
+        S2Meta {
+            cells,
+            attribute_data_types,
+            bounding_box,
+        }
     }
 
     pub fn iter_attr_with_xyz(&self) -> impl Iterator<Item = (&str, AttributeDataType)> {
-        self.attributes
+        self.attribute_data_types
             .iter()
             .map(|(name, d_type)| (name.as_str(), *d_type))
             .chain(iter::once(("xyz", AttributeDataType::F64Vec3)))
@@ -58,6 +71,10 @@ impl S2Meta {
 
     pub fn get_cells(&self) -> &FnvHashMap<CellID, S2CellMeta> {
         &self.cells
+    }
+
+    pub fn bounding_box(&self) -> &Aabb3<f64> {
+        &self.bounding_box
     }
 
     pub fn to_proto(&self) -> proto::Meta {
@@ -68,12 +85,13 @@ impl S2Meta {
             .collect();
         let mut meta = proto::Meta::new();
         meta.set_version(CURRENT_VERSION);
+        meta.set_bounding_box(proto::AxisAlignedCuboid::from(&self.bounding_box));
         let mut s2_meta = proto::S2Meta::new();
         s2_meta.set_cells(::protobuf::RepeatedField::<proto::S2Cell>::from_vec(
             cell_protos,
         ));
         let attributes_meta = self
-            .attributes
+            .attribute_data_types
             .iter()
             .map(|(name, attribute)| {
                 let mut attr_meta = proto::Attribute::new();
@@ -91,7 +109,7 @@ impl S2Meta {
 
     pub fn from_proto(meta_proto: proto::Meta) -> Result<Self> {
         // check if the meta is meant to be for S2 point cloud
-        if meta_proto.version != CURRENT_VERSION {
+        if meta_proto.version < 12 {
             // from version 12
             return Err(ErrorKind::InvalidInput(format!(
                 "No S2 point cloud supported with version {}",
@@ -99,13 +117,14 @@ impl S2Meta {
             ))
             .into());
         }
-        if !(meta_proto.version == CURRENT_VERSION && meta_proto.has_s2()) {
+        if !(meta_proto.version >= 12 && meta_proto.has_s2()) {
             return Err(ErrorKind::InvalidInput(
                 "This meta does not describe S2 point clouds".to_string(),
             )
             .into());
         }
 
+        let bounding_box = Aabb3::from(meta_proto.get_bounding_box());
         let s2_meta_proto = meta_proto.get_s2();
         // cells, num_points
         let mut cells = FnvHashMap::default();
@@ -119,14 +138,17 @@ impl S2Meta {
             );
         });
 
-        // attributes
-        let mut attributes = HashMap::default();
+        let mut attribute_data_types = HashMap::default();
         for attr in s2_meta_proto.attributes.iter() {
             let attr_type: AttributeDataType = AttributeDataType::from_proto(attr.get_data_type())?;
-            attributes.insert(attr.name.to_owned(), attr_type);
+            attribute_data_types.insert(attr.name.to_owned(), attr_type);
         }
 
-        Ok(S2Meta { cells, attributes })
+        Ok(S2Meta {
+            cells,
+            attribute_data_types,
+            bounding_box,
+        })
     }
 
     pub fn from_data_provider(data_provider: &dyn DataProvider) -> Result<Self> {
@@ -152,20 +174,16 @@ impl PointCloud for S2Cells {
 
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         match &query.location {
-            PointLocation::AllPoints() => self.cells.keys().cloned().map(S2CellId).collect(),
+            PointLocation::AllPoints => self.cells.keys().cloned().map(S2CellId).collect(),
             PointLocation::Aabb(aabb) => {
-                self.cells_in_obb(&Obb::from(aabb), query.global_from_local.as_ref())
+                self.cells_in_obb(&Obb::from(aabb), query.global_from_query.as_ref())
             }
-            PointLocation::Obb(obb) => self.cells_in_obb(&obb, query.global_from_local.as_ref()),
-            PointLocation::Frustum(mat) => {
-                let world_from_clip = mat.inverse_transform().unwrap();
-                let points = CUBE_CORNERS
-                    .iter()
-                    .map(|p| Point3::from_homogeneous(world_from_clip * p));
-                self.cells_in_convex_hull(points)
+            PointLocation::Obb(obb) => self.cells_in_obb(&obb, query.global_from_query.as_ref()),
+            PointLocation::Frustum(frustum) => {
+                self.cells_in_convex_hull(frustum.corners().iter().cloned())
             }
             PointLocation::OrientedBeam(beam) => {
-                self.cells_in_obb(&Obb::from(beam), query.global_from_local.as_ref())
+                self.cells_in_obb(&Obb::from(beam), query.global_from_query.as_ref())
             }
         }
     }
@@ -178,34 +196,56 @@ impl PointCloud for S2Cells {
         &'a self,
         query: &PointQuery,
         node_id: Self::Id,
+        batch_size: usize,
     ) -> Result<Self::PointsIter> {
         let culling = query.get_point_culling();
         let num_points = self.meta.cells[&node_id.0].num_points as usize;
-        let point_iterator = PointIterator::from_data_provider(
+        let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
+            &self.meta.attribute_data_types_for(&query.attributes)?,
             self.encoding_for_node(node_id),
             &node_id,
             num_points,
+            batch_size,
         )?;
         Ok(FilteredIterator {
             culling,
-            point_iterator,
+            node_iterator,
         })
+    }
+
+    fn bounding_box(&self) -> &Aabb3<f64> {
+        &self.meta.bounding_box
     }
 }
 
 impl S2Cells {
+    pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
+        let meta_proto = data_provider.meta_proto()?;
+        let meta = S2Meta::from_proto(meta_proto)?;
+        let cells: FnvHashMap<_, _> = meta
+            .get_cells()
+            .keys()
+            .map(|id| (*id, Cell::from(id)))
+            .collect();
+        Ok(S2Cells {
+            data_provider,
+            cells,
+            meta,
+        })
+    }
+
     /// Wrapper arround cells_in_convex_hull for Obbs
     fn cells_in_obb(
         &self,
         obb: &Obb<f64>,
-        global_from_local: Option<&Isometry3<f64>>,
+        global_from_query: Option<&Isometry3<f64>>,
     ) -> Vec<S2CellId> {
-        let obb = match global_from_local {
-            Some(isometry) => Cow::Owned(Obb::new(isometry * &obb.isometry, obb.half_extent)),
+        let obb = match global_from_query {
+            Some(g_from_q) => Cow::Owned(obb.clone_transformed(g_from_q)),
             None => Cow::Borrowed(obb),
         };
-        let points = obb.corners;
+        let points = obb.corners();
         self.cells_in_convex_hull(points.iter().cloned())
     }
 
@@ -229,56 +269,3 @@ impl S2Cells {
             .collect()
     }
 }
-
-/// This is projected back with the inverse frustum matrix
-/// to find the corners of the frustum
-const CUBE_CORNERS: [Vector4<f64>; 8] = [
-    Vector4 {
-        x: -1.0,
-        y: -1.0,
-        z: -1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: -1.0,
-        y: -1.0,
-        z: 1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: -1.0,
-        y: 1.0,
-        z: -1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: -1.0,
-        y: 1.0,
-        z: 1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: 1.0,
-        y: -1.0,
-        z: -1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: 1.0,
-        y: -1.0,
-        z: 1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: 1.0,
-        y: 1.0,
-        z: -1.0,
-        w: 1.0,
-    },
-    Vector4 {
-        x: 1.0,
-        y: 1.0,
-        z: 1.0,
-        w: 1.0,
-    },
-];

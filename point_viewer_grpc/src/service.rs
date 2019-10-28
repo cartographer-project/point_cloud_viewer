@@ -15,9 +15,7 @@
 use crate::proto;
 use crate::proto_grpc;
 use crate::Color;
-use cgmath::{
-    Decomposed, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Transform, Vector2, Vector3,
-};
+use cgmath::{PerspectiveFov, Point3, Quaternion, Rad, Vector2, Vector3};
 use collision::Aabb3;
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};
@@ -26,10 +24,11 @@ use grpcio::{
     UnarySink, WriteFlags,
 };
 use num_cpus;
+use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::*;
 use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
-use point_viewer::math::{Isometry3, OrientedBeam};
-use point_viewer::octree::{NodeId, Octree, OctreeFactory};
+use point_viewer::math::{Frustum, Isometry3, OrientedBeam};
+use point_viewer::octree::{NodeId, Octree};
 use point_viewer::{AttributeData, PointsBatch};
 use protobuf::Message;
 use std::collections::HashMap;
@@ -38,7 +37,7 @@ use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 struct OctreeServiceData {
-    octree: Box<Octree>,
+    octree: Octree,
     meta: point_viewer::proto::Meta,
 }
 
@@ -46,7 +45,7 @@ struct OctreeServiceData {
 struct OctreeService {
     location: PathBuf,
     data_cache: Arc<RwLock<HashMap<String, Arc<OctreeServiceData>>>>,
-    factory: OctreeFactory,
+    factory: DataProviderFactory,
 }
 
 fn send_fail_stream<T>(ctx: &RpcContext, sink: ServerStreamingSink<T>, err_str: String) {
@@ -118,12 +117,13 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetPointsInFrustumRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        let projection_matrix = Matrix4::from(PerspectiveFov {
+        let perspective = PerspectiveFov {
             fovy: Rad(req.fovy_rad),
             aspect: req.aspect,
             near: req.z_near,
             far: req.z_far,
-        });
+        }
+        .to_perspective();
         let rotation = {
             let q = req.rotation.unwrap();
             Quaternion::new(q.w, q.x, q.y, q.z)
@@ -134,17 +134,13 @@ impl proto_grpc::Octree for OctreeService {
             Vector3::new(t.x, t.y, t.z)
         };
 
-        let view_transform = Decomposed {
-            scale: 1.0,
-            rot: rotation,
-            disp: translation,
+        let view_transform = Isometry3::<f64> {
+            rotation,
+            translation,
         };
-        let frustum_matrix = projection_matrix.concat(&view_transform.into());
-        let point_location = PointQuery {
-            location: PointLocation::Frustum(frustum_matrix),
-            global_from_local: None,
-        };
-        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
+        let frustum = Frustum::new(view_transform, perspective);
+        let location = PointLocation::Frustum(frustum);
+        self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
     }
 
     fn get_points_in_box(
@@ -162,11 +158,8 @@ impl proto_grpc::Octree for OctreeService {
                 Point3::new(max.x, max.y, max.z),
             )
         };
-        let point_location = PointQuery {
-            location: PointLocation::Aabb(bounding_box),
-            global_from_local: None,
-        };
-        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
+        let location = PointLocation::Aabb(bounding_box);
+        self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
     }
 
     fn get_all_points(
@@ -175,11 +168,8 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetAllPointsRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        let point_location = PointQuery {
-            location: PointLocation::AllPoints(),
-            global_from_local: None,
-        };
-        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
+        let location = PointLocation::AllPoints;
+        self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
     }
 
     fn get_points_in_oriented_beam(
@@ -204,18 +194,15 @@ impl proto_grpc::Octree for OctreeService {
         };
 
         let beam = OrientedBeam::new(Isometry3::new(rotation, translation), half_extent);
-        let point_location = PointQuery {
-            location: PointLocation::OrientedBeam(beam),
-            global_from_local: None,
-        };
-        self.stream_points_back_to_sink(point_location, &req.octree_id, &ctx, resp)
+        let location = PointLocation::OrientedBeam(beam);
+        self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
     }
 }
 
 impl OctreeService {
     fn stream_points_back_to_sink(
         &self,
-        query: PointQuery,
+        location: PointLocation,
         octree_id: &str,
         ctx: &RpcContext,
         resp: ServerStreamingSink<proto::PointsReply>,
@@ -333,9 +320,14 @@ impl OctreeService {
                 };
 
                 let octree_slice: &[Octree] = std::slice::from_ref(&service_data.octree);
+                let point_query = PointQuery {
+                    attributes: vec!["color", "intensity"],
+                    location,
+                    global_from_query: None,
+                };
                 let mut parallel_iterator = ParallelIterator::new(
                     octree_slice,
-                    &query,
+                    &point_query,
                     num_points_per_batch,
                     num_cpus::get() - 1,
                     buffer_size,
@@ -358,9 +350,10 @@ impl OctreeService {
         if let Some(service_data) = self.data_cache.read().unwrap().get(octree_id) {
             return Ok(Arc::clone(service_data));
         };
-        let octree = self
-            .factory
-            .generate_octree(self.location.join(&octree_id).to_string_lossy())?;
+        let octree = Octree::from_data_provider(
+            self.factory
+                .generate_data_provider(self.location.join(&octree_id).to_string_lossy())?,
+        )?;
         let meta = octree.to_meta_proto();
         let service_data = Arc::new(OctreeServiceData { octree, meta });
         self.data_cache
@@ -375,7 +368,7 @@ pub fn start_grpc_server(
     host: &str,
     port: u16,
     location: impl Into<PathBuf>,
-    factory: OctreeFactory,
+    factory: DataProviderFactory,
 ) -> Server {
     let env = Arc::new(Environment::new(1));
     let data_cache = Arc::new(RwLock::new(HashMap::new()));

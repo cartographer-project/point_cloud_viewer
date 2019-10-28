@@ -17,8 +17,7 @@
     "typescript": "~3.3.3"
   },
   "dependencies": {
-    "@types/three": "~0.93.22",
-    "three": "~0.101.1"
+    "three": "~0.107.0"
   },
   "prettier": {
     "arrowParens": "always",

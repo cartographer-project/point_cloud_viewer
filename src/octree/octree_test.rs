@@ -1,30 +1,35 @@
 #[cfg(test)]
 mod tests {
-    use crate::color::Color;
+    use crate::data_provider::OnDiskDataProvider;
     use crate::errors::Result;
     use crate::iterator::{ParallelIterator, PointLocation, PointQuery};
-    use crate::octree::{self, build_octree, Octree};
-    use crate::{Point, PointsBatch};
+    use crate::octree::{build_octree, Octree};
+    use crate::{AttributeData, NumberOfPoints, PointsBatch};
     use cgmath::{EuclideanSpace, Point3, Vector3};
     use collision::{Aabb, Aabb3};
     use tempdir::TempDir;
 
     const NUM_POINTS: usize = 100_001;
 
-    fn build_big_test_octree() -> Box<octree::Octree> {
-        let default_point = Point {
-            position: Vector3::new(-2_699_182.0, -4_294_938.0, 3_853_373.0), //ECEF parking lot porter dr
-            color: Color {
-                red: 255,
-                green: 0,
-                blue: 0,
-                alpha: 255,
-            },
-            intensity: None,
+    impl NumberOfPoints for std::vec::IntoIter<PointsBatch> {
+        fn num_points(&self) -> usize {
+            self.clone().map(|b| b.position.len()).sum()
+        }
+    }
+
+    fn build_big_test_octree() -> Octree {
+        let mut batch = PointsBatch {
+            //ECEF parking lot porter dr
+            position: vec![Vector3::new(-2_699_182.0, -4_294_938.0, 3_853_373.0); 2 * NUM_POINTS],
+            attributes: vec![(
+                "color".to_string(),
+                AttributeData::U8Vec3(vec![Vector3::new(255, 0, 0); 2 * NUM_POINTS]),
+            )]
+            .into_iter()
+            .collect(),
         };
 
-        let mut points = vec![default_point; 2 * NUM_POINTS];
-        points[3].position = Vector3::new(-2_702_846.0, -4_291_151.0, 3_855_012.0); // ECEF STANFORD
+        batch.position[3] = Vector3::new(-2_702_846.0, -4_291_151.0, 3_855_012.0); // ECEF STANFORD
 
         let p = Point3::new(6_400_000.0, 6_400_000.0, 6_400_000.0);
         let bounding_box = Aabb3::new(-1.0 * p, p);
@@ -32,32 +37,50 @@ mod tests {
         let pool = scoped_pool::Pool::new(10);
         let tmp_dir = TempDir::new("octree").unwrap();
 
-        build_octree(&pool, &tmp_dir, 1.0, bounding_box, points.into_iter());
-        crate::octree::octree_from_directory(tmp_dir.into_path()).unwrap()
+        build_octree(
+            &pool,
+            &tmp_dir,
+            1.0,
+            bounding_box,
+            vec![batch].into_iter(),
+            &["color"],
+        );
+        Octree::from_data_provider(Box::new(OnDiskDataProvider {
+            directory: tmp_dir.into_path(),
+        }))
+        .unwrap()
     }
 
-    fn build_test_octree() -> Box<octree::Octree> {
-        let default_point = Point {
-            position: Vector3::new(0.0, 0.0, 0.0),
-            color: Color {
-                red: 255,
-                green: 0,
-                blue: 0,
-                alpha: 255,
-            },
-            intensity: None,
+    fn build_test_octree() -> Octree {
+        let mut batch = PointsBatch {
+            position: vec![Vector3::new(0.0, 0.0, 0.0); NUM_POINTS],
+            attributes: vec![(
+                "color".to_string(),
+                AttributeData::U8Vec3(vec![Vector3::new(255, 0, 0); NUM_POINTS]),
+            )]
+            .into_iter()
+            .collect(),
         };
 
-        let mut points = vec![default_point; NUM_POINTS];
-        points[NUM_POINTS - 1].position = Vector3::new(-200., -40., 30.);
+        batch.position[NUM_POINTS - 1] = Vector3::new(-200., -40., 30.);
 
-        let bounding_box = Aabb3::zero().grow(Point3::from_vec(points[100_000].position));
+        let bounding_box = Aabb3::zero().grow(Point3::from_vec(batch.position[NUM_POINTS - 1]));
 
         let pool = scoped_pool::Pool::new(10);
         let tmp_dir = TempDir::new("octree").unwrap();
 
-        build_octree(&pool, &tmp_dir, 1.0, bounding_box, points.into_iter());
-        crate::octree::octree_from_directory(tmp_dir.into_path()).unwrap()
+        build_octree(
+            &pool,
+            &tmp_dir,
+            1.0,
+            bounding_box,
+            vec![batch].into_iter(),
+            &["color"],
+        );
+        Octree::from_data_provider(Box::new(OnDiskDataProvider {
+            directory: tmp_dir.into_path(),
+        }))
+        .unwrap()
     }
 
     #[test]
@@ -92,8 +115,9 @@ mod tests {
         // octree and iterator
         let octree = build_test_octree();
         let location = PointQuery {
-            location: PointLocation::AllPoints(),
-            global_from_local: None,
+            attributes: vec!["color"],
+            location: PointLocation::AllPoints,
+            global_from_query: None,
         };
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
         let mut parallel_iterator = ParallelIterator::new(
@@ -149,8 +173,9 @@ mod tests {
         // octree and iterator
         let octree = build_test_octree();
         let location = PointQuery {
-            location: PointLocation::AllPoints(),
-            global_from_local: None,
+            attributes: vec!["color"],
+            location: PointLocation::AllPoints,
+            global_from_query: None,
         };
 
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
@@ -195,8 +220,9 @@ mod tests {
         // octree and iterator
         let octree = build_big_test_octree();
         let location = PointQuery {
-            location: PointLocation::AllPoints(),
-            global_from_local: None,
+            attributes: vec!["color"],
+            location: PointLocation::AllPoints,
+            global_from_query: None,
         };
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
         let mut parallel_iterator = ParallelIterator::new(

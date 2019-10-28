@@ -1,4 +1,5 @@
 use crate::backend_error::PointsViewerError;
+use point_viewer::data_provider;
 use point_viewer::octree;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -31,8 +32,7 @@ pub struct AppState {
     key_params: OctreeKeyParams,
     /// backward compatibility to input arguments
     init_octree_id: String,
-    /// octree factory to create octrees
-    octree_factory: octree::OctreeFactory,
+    data_provider_factory: data_provider::DataProviderFactory,
 }
 
 impl AppState {
@@ -41,7 +41,7 @@ impl AppState {
         prefix: impl Into<PathBuf>,
         suffix: impl Into<PathBuf>,
         octree_id: impl Into<String>,
-        octree_factory: octree::OctreeFactory,
+        data_provider_factory: data_provider::DataProviderFactory,
     ) -> Self {
         AppState {
             octree_map: Arc::new(RwLock::new(HashMap::with_capacity(map_size))),
@@ -50,7 +50,7 @@ impl AppState {
                 suffix: suffix.into(),
             },
             init_octree_id: octree_id.into(),
-            octree_factory,
+            data_provider_factory,
         }
     }
 
@@ -80,14 +80,14 @@ impl AppState {
     ) -> Result<Arc<octree::Octree>, PointsViewerError> {
         let octree_key = octree_id.into();
         let addr = &self.key_params.get_octree_address(&octree_key);
-        let octree: Arc<octree::Octree> = Arc::from(
-            self.octree_factory
-                .generate_octree(addr.to_string_lossy())?,
-        );
+        let octree: Arc<octree::Octree> = Arc::from(octree::Octree::from_data_provider(
+            self.data_provider_factory
+                .generate_data_provider(addr.to_string_lossy())?,
+        )?);
         {
             // write access to state
             let mut wmap = self.octree_map.write().unwrap();
-            wmap.insert(octree_key.clone(), Arc::clone(&octree));
+            wmap.insert(octree_key, Arc::clone(&octree));
         }
         Ok(octree)
     }

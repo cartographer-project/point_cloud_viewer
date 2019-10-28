@@ -2,7 +2,8 @@ use crate::math::{EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
 use crate::read_write::{Encoding, NodeWriter, OpenMode};
 use crate::s2_cells::{S2CellMeta, S2Meta};
 use crate::{AttributeData, AttributeDataType, PointsBatch};
-use cgmath::InnerSpace;
+use cgmath::{EuclideanSpace, InnerSpace, Point3};
+use collision::{Aabb, Aabb3};
 use fnv::FnvHashMap;
 use lru::LruCache;
 use s2::cellid::CellID;
@@ -14,13 +15,14 @@ use std::path::PathBuf;
 
 /// The actual number of underlying writers is MAX_NUM_NODE_WRITERS * num_attributes.
 const MAX_NUM_NODE_WRITERS: usize = 25;
-/// Corresponds to cells of up to about 10m x 10m.
-const S2_SPLIT_LEVEL: u64 = 20;
+/// Corresponds to cells of up to about 160m x 160m.
+const S2_SPLIT_LEVEL: u64 = 16;
 
 pub struct S2Splitter<W> {
     writers: LruCache<CellID, W>,
     already_opened_writers: HashSet<CellID>,
     cell_stats: FnvHashMap<CellID, S2CellMeta>,
+    bounding_box: Option<Aabb3<f64>>,
     attributes_seen: BTreeMap<String, AttributeDataType>,
     encoding: Encoding,
     open_mode: OpenMode,
@@ -36,11 +38,13 @@ where
         let already_opened_writers = HashSet::new();
         let stem = path.into();
         let cell_stats = FnvHashMap::default();
+        let bounding_box = None;
         let attributes_seen = BTreeMap::new();
         S2Splitter {
             writers,
             already_opened_writers,
             cell_stats,
+            bounding_box,
             attributes_seen,
             encoding,
             open_mode,
@@ -60,6 +64,9 @@ where
                 );
                 return Err(Error::new(ErrorKind::InvalidInput, msg));
             }
+            let p3 = Point3::from_vec(*pos);
+            let b = self.bounding_box.get_or_insert(Aabb3::new(p3, p3));
+            *b = b.grow(p3);
             let s2_point = Point::from_coords(pos.x, pos.y, pos.z);
             let s2_cell_id = CellID::from(s2_point).parent(S2_SPLIT_LEVEL);
             self.cell_stats
@@ -156,6 +163,10 @@ where
     }
 
     pub fn get_meta(self) -> S2Meta {
-        S2Meta::new(self.cell_stats, self.attributes_seen.into_iter().collect())
+        S2Meta::new(
+            self.cell_stats,
+            self.attributes_seen.into_iter().collect(),
+            self.bounding_box.unwrap_or_else(Aabb3::zero),
+        )
     }
 }

@@ -23,7 +23,7 @@ pub mod s2_cells;
 
 use cgmath::Vector3;
 use errors::{ErrorKind, Result};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::{TryFrom, TryInto};
 
 // Version 9 -> 10: Change in NodeId proto from level (u8) and index (u64) to high (u64) and low
@@ -32,18 +32,20 @@ use std::convert::{TryFrom, TryInto};
 // We are able to convert the proto on read, so the tools can still read version 9/10.
 // Version 11 -> 12: Change in Meta names and structures, to allow both s2 and octree meta.
 // We are able to convert the proto on read, so the tools can still read version 9/10/11.
-pub const CURRENT_VERSION: i32 = 12;
+// Version 12 -> 13: Change back bounding box from OctreeMeta to Meta.
+// We are able to convert the proto on read, so the tools can still read version 9/10/11/12.
+pub const CURRENT_VERSION: i32 = 13;
 
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
 pub trait NumberOfPoints {
-    fn num_points(&self) -> Option<usize>;
+    fn num_points(&self) -> usize;
 }
 
 #[derive(Debug, Clone)]
 pub struct Point {
-    pub position: cgmath::Vector3<f64>,
+    pub position: Vector3<f64>,
     // TODO(sirver): Make color optional, we might not always have it.
     pub color: color::Color<u8>,
 
@@ -57,6 +59,24 @@ pub fn attribute_extension(attribute: &str) -> &str {
         "position" => "xyz",
         "color" => "rgb",
         _ => attribute,
+    }
+}
+
+trait PointCloudMeta {
+    fn attribute_data_types(&self) -> &HashMap<String, AttributeDataType>;
+    fn attribute_data_types_for(
+        &self,
+        attributes: &[&str],
+    ) -> Result<HashMap<String, AttributeDataType>> {
+        attributes
+            .iter()
+            .map(|a| {
+                self.attribute_data_types()
+                    .get(*a)
+                    .map(|d| ((*a).to_string(), *d))
+                    .ok_or_else(|| format!("Data type for attribute '{}' not found.", a).into())
+            })
+            .collect()
     }
 }
 

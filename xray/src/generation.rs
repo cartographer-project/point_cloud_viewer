@@ -154,6 +154,8 @@ pub trait ColoringStrategy: Send {
     // After all points are processed, this is used to query the color that should be assigned to
     // the pixel (x, y) in the final tile image.
     fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8>;
+
+    fn attributes(&self) -> Vec<&'static str>;
 }
 
 struct XRayColoringStrategy {
@@ -203,6 +205,10 @@ impl ColoringStrategy for XRayColoringStrategy {
             blue: value,
             alpha: 255,
         }
+    }
+
+    fn attributes(&self) -> Vec<&'static str> {
+        vec![]
     }
 }
 
@@ -278,6 +284,10 @@ impl ColoringStrategy for IntensityColoringStrategy {
         }
         .to_u8()
     }
+
+    fn attributes(&self) -> Vec<&'static str> {
+        vec!["intensity"]
+    }
 }
 
 struct PerColumnData {
@@ -348,6 +358,10 @@ impl ColoringStrategy for PointColorColoringStrategy {
         }
         .to_u8()
     }
+
+    fn attributes(&self) -> Vec<&'static str> {
+        vec!["color"]
+    }
 }
 
 struct HeightStddevColoringStrategy {
@@ -361,6 +375,38 @@ impl HeightStddevColoringStrategy {
             max_stddev,
             per_column_data: FnvHashMap::default(),
         }
+    }
+}
+
+impl ColoringStrategy for HeightStddevColoringStrategy {
+    fn process_discretized_point_data(
+        &mut self,
+        points_batch: &PointsBatch,
+        discretized_locations: Vec<Point3<u32>>,
+    ) {
+        for (i, d_loc) in discretized_locations
+            .iter()
+            .enumerate()
+            .take(discretized_locations.len())
+        {
+            self.per_column_data
+                .entry((d_loc.x, d_loc.y))
+                .or_insert_with(OnlineStats::new)
+                .add(points_batch.position[i].z);
+        }
+    }
+
+    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
+        if !self.per_column_data.contains_key(&(x, y)) {
+            return background_color;
+        }
+        let c = &self.per_column_data[&(x, y)];
+        let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
+        Jet {}.for_value(saturation)
+    }
+
+    fn attributes(&self) -> Vec<&'static str> {
+        vec![]
     }
 }
 
@@ -418,34 +464,6 @@ pub fn build_parent(
     large_image
 }
 
-impl ColoringStrategy for HeightStddevColoringStrategy {
-    fn process_discretized_point_data(
-        &mut self,
-        points_batch: &PointsBatch,
-        discretized_locations: Vec<Point3<u32>>,
-    ) {
-        for (i, d_loc) in discretized_locations
-            .iter()
-            .enumerate()
-            .take(discretized_locations.len())
-        {
-            self.per_column_data
-                .entry((d_loc.x, d_loc.y))
-                .or_insert_with(OnlineStats::new)
-                .add(points_batch.position[i].z);
-        }
-    }
-
-    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
-        if !self.per_column_data.contains_key(&(x, y)) {
-            return background_color;
-        }
-        let c = &self.per_column_data[&(x, y)];
-        let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
-        Jet {}.for_value(saturation)
-    }
-}
-
 pub struct Tile {
     pub size_px: u32,
     pub resolution: f64,
@@ -453,7 +471,7 @@ pub struct Tile {
 
 pub fn xray_from_points(
     point_cloud_client: &PointCloudClient,
-    global_from_local: &Option<Isometry3<f64>>,
+    global_from_query: &Option<Isometry3<f64>>,
     bbox: &Aabb3<f64>,
     png_file: &Path,
     image_size: Vector2<u32>,
@@ -462,8 +480,9 @@ pub fn xray_from_points(
 ) -> bool {
     let mut seen_any_points = false;
     let point_location = PointQuery {
+        attributes: coloring_strategy.attributes(),
         location: PointLocation::Aabb(*bbox),
-        global_from_local: global_from_local.clone(),
+        global_from_query: global_from_query.clone(),
     };
     let _ = point_cloud_client.for_each_point_data(&point_location, |points_batch| {
         seen_any_points = true;
@@ -512,7 +531,7 @@ pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
 pub fn build_xray_quadtree(
     pool: &Pool,
     point_cloud_client: &PointCloudClient,
-    local_from_global: &Option<Isometry3<f64>>,
+    query_from_global: &Option<Isometry3<f64>>,
     output_directory: &Path,
     tile: &Tile,
     coloring_strategy_kind: &ColoringStrategyKind,
@@ -521,10 +540,10 @@ pub fn build_xray_quadtree(
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    let bounding_box = match local_from_global {
-        Some(local_from_global) => {
+    let bounding_box = match query_from_global {
+        Some(query_from_global) => {
             let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> =
-                local_from_global.clone().into();
+                query_from_global.clone().into();
             point_cloud_client.bounding_box().transform(&decomposed)
         }
         None => *point_cloud_client.bounding_box(),
@@ -539,7 +558,7 @@ pub fn build_xray_quadtree(
     let (all_nodes_tx, all_nodes_rx) = mpsc::channel();
     println!("Building level {}.", deepest_level);
 
-    let global_from_local = &local_from_global.as_ref().map(Isometry3::inverse);
+    let global_from_query = &query_from_global.as_ref().map(Isometry3::inverse);
     pool.scoped(|scope| {
         let mut open = vec![Node::root_with_bounding_rect(bounding_rect.clone())];
         while !open.is_empty() {
@@ -563,7 +582,7 @@ pub fn build_xray_quadtree(
                     );
                     if xray_from_points(
                         point_cloud_client,
-                        global_from_local,
+                        global_from_query,
                         &bbox,
                         &get_image_path(output_directory, node.id),
                         Vector2::new(tile.size_px, tile.size_px),

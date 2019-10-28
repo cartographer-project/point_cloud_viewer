@@ -30,6 +30,8 @@ mod glhelper;
     clippy::unreadable_literal,
     clippy::unused_unit
 )]
+// TODO(feuerste): Move this up when Rust 1.40 is stable.
+#[cfg_attr(clippy_has_missing_safety_doc, allow(clippy::missing_safety_doc))]
 pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
@@ -43,8 +45,9 @@ use crate::camera::Camera;
 use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 use cgmath::{Matrix4, SquareMatrix};
 use point_viewer::color::YELLOW;
+use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::Isometry3;
-use point_viewer::octree::{self, Octree, OctreeFactory};
+use point_viewer::octree::{self, Octree};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Mod, Scancode};
 use sdl2::video::{GLProfile, SwapInterval};
@@ -85,7 +88,7 @@ impl PointCloudRenderer {
     pub fn new(
         max_nodes_in_memory: usize,
         gl: Rc<opengl::Gl>,
-        octree: Arc<Box<octree::Octree>>,
+        octree: Arc<octree::Octree>,
     ) -> Self {
         let now = time::PreciseTime::now();
 
@@ -350,7 +353,7 @@ impl Joystick for SpaceMouseJoystick {
     }
 }
 
-pub fn run<T: Extension>(octree_factory: OctreeFactory) {
+pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     let mut app = clap::App::new("sdl_viewer").args(&[
         clap::Arg::with_name("octree")
             .help("Input path of the octree.")
@@ -382,11 +385,12 @@ pub fn run<T: Extension>(octree_factory: OctreeFactory) {
     // Assuming about 200 KB per octree node on average
     let max_nodes_in_memory = limit_cache_size_mb * 5;
 
-    // If no octree was generated create an FromDisc loader
-    let octree: Arc<Box<Octree>> = Arc::from(
-        octree_factory
-            .generate_octree(octree_argument)
-            .expect("Valid path expected"),
+    // If no octree was generated create a FromDisk loader
+    let octree: Arc<Octree> = Arc::from(
+        data_provider_factory
+            .generate_data_provider(octree_argument)
+            .and_then(|provider| Octree::from_data_provider(provider))
+            .unwrap_or_else(|_| panic!("Couldn't create octree from path '{}'.", octree_argument)),
     );
 
     let mut pose_path = None;
