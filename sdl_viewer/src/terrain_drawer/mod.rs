@@ -1,12 +1,10 @@
+use crate::c_str;
 use crate::graphic::uniform::GlUniform;
 use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
 use crate::opengl;
-use crate::{c_str, Extension};
 use cgmath::{EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector2, Zero};
 
 use opengl::types::{GLsizeiptr, GLuint};
-use point_viewer::math::Isometry3;
-use point_viewer::octree::Octree;
 
 use std::ffi::c_void;
 use std::mem;
@@ -33,11 +31,15 @@ pub struct TerrainRenderer {
     buffer_position: GlBuffer,
     buffer_indices: GlBuffer,
     num_indices: usize,
-    terrain_layer: TerrainLayer,
+    terrain_layers: Vec<TerrainLayer>,
 }
 
 impl TerrainRenderer {
-    pub fn new<P: AsRef<std::path::Path>>(gl: Rc<opengl::Gl>, heightmap_path: P) -> Self {
+    pub fn new<I>(gl: Rc<opengl::Gl>, terrain_paths: I) -> Self
+    where
+        I: Iterator,
+        I::Item: AsRef<std::path::Path>,
+    {
         let program = GlProgram::new_with_geometry_shader(
             Rc::clone(&gl),
             TERRAIN_VERTEX_SHADER,
@@ -45,7 +47,9 @@ impl TerrainRenderer {
             TERRAIN_GEOMETRY_SHADER,
         );
 
-        let terrain_layer = TerrainLayer::new(&program, heightmap_path, GRID_SIZE + 1).unwrap();
+        let terrain_layers = terrain_paths
+            .map(|p| TerrainLayer::new(&program, p, GRID_SIZE + 1).unwrap())
+            .collect();
 
         let vertex_array = GlVertexArray::new(Rc::clone(&gl));
 
@@ -68,7 +72,7 @@ impl TerrainRenderer {
             #[allow(dead_code)]
             buffer_indices,
             num_indices,
-            terrain_layer,
+            terrain_layers,
         }
     }
 
@@ -144,12 +148,17 @@ impl TerrainRenderer {
 
     pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f64>, camera_to_world: &Matrix4<f64>) {
         let camera_pos = Point3::from_vec(camera_to_world.w.truncate());
-        self.terrain_layer.update(camera_pos);
+        self.terrain_layers
+            .iter_mut()
+            .for_each(|layer| layer.update(camera_pos));
 
         self.u_transform.value = *world_to_gl;
     }
 
     pub fn draw(&mut self) {
+        if self.terrain_layers.is_empty() {
+            return;
+        }
         unsafe {
             self.vertex_array.bind();
             self.program.gl.UseProgram(self.program.id);
@@ -159,7 +168,7 @@ impl TerrainRenderer {
             // self.program.gl.Disable(opengl::CULL_FACE);
 
             self.u_transform.submit();
-            self.terrain_layer.submit();
+            self.terrain_layers.iter().for_each(|layer| layer.submit());
 
             self.program.gl.Enable(opengl::BLEND);
             self.program
@@ -173,43 +182,5 @@ impl TerrainRenderer {
             );
             self.program.gl.Disable(opengl::BLEND);
         }
-    }
-}
-
-pub struct TerrainExtension {
-    terrain_renderer: TerrainRenderer,
-}
-
-impl Extension for TerrainExtension {
-    fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
-        app.arg(
-            clap::Arg::with_name("terrain")
-                .long("terrain")
-                .takes_value(true)
-                .help("Terrain directory."),
-        )
-    }
-
-    fn new(matches: &clap::ArgMatches, opengl: Rc<opengl::Gl>) -> Self {
-        TerrainExtension {
-            terrain_renderer: TerrainRenderer::new(opengl, matches.value_of("terrain").unwrap()),
-        }
-    }
-
-    fn local_from_global(
-        &self,
-        _matches: &clap::ArgMatches,
-        _octree: &Octree,
-    ) -> Option<Isometry3<f64>> {
-        Some(self.terrain_renderer.terrain_layer.terrain_from_world())
-    }
-
-    fn camera_changed(&mut self, transform: &Matrix4<f64>, camera_to_world: &Matrix4<f64>) {
-        self.terrain_renderer
-            .camera_changed(&transform, &camera_to_world);
-    }
-
-    fn draw(&mut self) {
-        self.terrain_renderer.draw();
     }
 }
