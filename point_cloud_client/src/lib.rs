@@ -5,6 +5,7 @@ use point_viewer::iterator::{ParallelIterator, PointCloud, PointQuery};
 use point_viewer::octree::Octree;
 use point_viewer::s2_cells::S2Cells;
 use point_viewer::{PointsBatch, NUM_POINTS_PER_BATCH};
+use std::iter::Iterator;
 
 enum PointClouds {
     Octrees(Vec<Octree>),
@@ -99,6 +100,15 @@ impl PointCloudClient {
                 parallel_iterator.try_for_each_batch(&mut func)?;
             }
         }
+        Ok(())
+    }
+
+
+    pub fn nodes_from_query(&self, point_query: &PointQuery) -> Result<()> {
+        let vec = match &self.point_clouds{
+            PointClouds::Octrees(octrees) => octrees.iter().for_each(|point_cloud| point_cloud.nodes_in_location(point_query)).collect::<Vec<Octree::Id>>(),
+            PointClouds::S2Cells(s2_cells) => s2_cells.iter().for_each(|point_cloud| point_cloud.nodes_in_location(point_query)).collect::<Vec<S2Cells::Id>>(),
+        };
         Ok(())
     }
 }
