@@ -103,11 +103,16 @@ impl PointCloudClient {
         Ok(())
     }
 
-
     pub fn nodes_from_query(&self, point_query: &PointQuery) -> Result<()> {
-        let vec = match &self.point_clouds{
-            PointClouds::Octrees(octrees) => octrees.iter().for_each(|point_cloud| point_cloud.nodes_in_location(point_query)).collect::<Vec<Octree::Id>>(),
-            PointClouds::S2Cells(s2_cells) => s2_cells.iter().for_each(|point_cloud| point_cloud.nodes_in_location(point_query)).collect::<Vec<S2Cells::Id>>(),
+        let vec = match &self.point_clouds {
+            PointClouds::Octrees(octrees) => octrees
+                .iter()
+                .for_each(|point_cloud| point_cloud.nodes_in_location(point_query))
+                .collect::<Vec<Octree::Id>>(),
+            PointClouds::S2Cells(s2_cells) => s2_cells
+                .iter()
+                .for_each(|point_cloud| point_cloud.nodes_in_location(point_query))
+                .collect::<Vec<S2Cells::Id>>(),
         };
         Ok(())
     }
