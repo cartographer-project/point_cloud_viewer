@@ -52,7 +52,6 @@ where
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Self
     where
         Self: Sized;
-    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
 }
 
 impl<S> PointCulling<S> for Aabb3<S>
@@ -69,9 +68,6 @@ where
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
         let decomposed: Decomposed<Vector3<S>, Quaternion<S>> = global_from_query.clone().into();
         self.transform(&decomposed)
-    }
-    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(self.transformed(global_from_query))
     }
 }
 
@@ -91,9 +87,6 @@ where
     }
     fn transformed(&self, _global_from_query: &Isometry3<S>) -> Self {
         Self {}
-    }
-    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(self.transformed(global_from_query))
     }
 }
 #[derive(Debug, Clone)]
@@ -395,9 +388,6 @@ where
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
         Self::new(global_from_query * &self.query_from_obb, self.half_extent)
     }
-    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(self.transformed(global_from_query))
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -473,9 +463,6 @@ where
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
         Self::new(global_from_query * &self.query_from_beam, self.half_extent)
     }
-    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(self.transformed(global_from_query))
-    }
 }
 
 /// A frustum is defined in eye coordinates, where x points right, y points up,
@@ -545,12 +532,6 @@ where
     }
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
         Self::new(global_from_query * &self.query_from_eye, self.clip_from_eye)
-    }
-    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(
-            global_from_query * &self.query_from_eye,
-            self.clip_from_eye,
-        ))
     }
 }
 
