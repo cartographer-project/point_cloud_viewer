@@ -49,7 +49,10 @@ where
     fn contains(&self, point: &Point3<S>) -> bool;
     // TODO(catevita): return Relation
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
-    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Self
+    where
+        Self: Sized;
+    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
 }
 
 impl<S> PointCulling<S> for Aabb3<S>
@@ -60,13 +63,15 @@ where
         let separating_axes = &[Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
         intersects_aabb3(&self.to_corners(), separating_axes, aabb)
     }
-
     fn contains(&self, p: &Point3<S>) -> bool {
         Contains::contains(self, p)
     }
-
-    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Obb::from(*self).transformed(global_from_query)
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
+        let decomposed: Decomposed<Vector3<S>, Quaternion<S>> = global_from_query.clone().into();
+        self.transform(&decomposed)
+    }
+    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Box::new(self.transformed(global_from_query))
     }
 }
 
@@ -84,8 +89,11 @@ where
     fn contains(&self, _p: &Point3<S>) -> bool {
         true
     }
-    fn transformed(&self, _global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(AllPoints {})
+    fn transformed(&self, _global_from_query: &Isometry3<S>) -> Self {
+        Self {}
+    }
+    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Box::new(self.transformed(global_from_query))
     }
 }
 #[derive(Debug, Clone)]
@@ -308,10 +316,6 @@ impl<S: BaseFloat> Obb<S> {
         }
     }
 
-    pub fn clone_transformed(&self, global_from_query: &Isometry3<S>) -> Self {
-        Self::new(global_from_query * &self.query_from_obb, self.half_extent)
-    }
-
     pub fn corners(&self) -> &[Point3<S>; 8] {
         &self.corners
     }
@@ -375,16 +379,17 @@ where
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
         intersects_aabb3(&self.corners, &self.separating_axes, aabb)
     }
-
     fn contains(&self, p: &Point3<S>) -> bool {
         let Point3 { x, y, z } = &self.obb_from_query * p;
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
     }
-
-    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(self.clone_transformed(global_from_query))
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
+        Self::new(global_from_query * &self.query_from_obb, self.half_extent)
+    }
+    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Box::new(self.transformed(global_from_query))
     }
 }
 
@@ -453,18 +458,16 @@ where
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
         intersects_aabb3(&self.corners, &self.separating_axes, aabb)
     }
-
     fn contains(&self, p: &Point3<S>) -> bool {
         // What is the point in beam coordinates?
         let Point3 { x, y, .. } = &self.beam_from_query * p;
         x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
     }
-
-    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(
-            global_from_query * &self.query_from_beam,
-            self.half_extent,
-        ))
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
+        Self::new(global_from_query * &self.query_from_beam, self.half_extent)
+    }
+    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Box::new(self.transformed(global_from_query))
     }
 }
 
@@ -526,7 +529,6 @@ where
             Relation::Out => false,
         }
     }
-
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
         match self.frustum.contains(aabb) {
             Relation::Cross => true,
@@ -534,8 +536,10 @@ where
             Relation::Out => false,
         }
     }
-
-    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+    fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
+        Self::new(global_from_query * &self.query_from_eye, self.clip_from_eye)
+    }
+    fn transformed_boxed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(Self::new(
             global_from_query * &self.query_from_eye,
             self.clip_from_eye,

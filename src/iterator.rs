@@ -37,7 +37,7 @@ impl<'a> PointQuery<'a> {
             PointLocation::OrientedBeam(beam) => Box::new(beam.clone()),
         };
         match &self.global_from_query {
-            Some(global_from_query) => culling.transformed(&global_from_query),
+            Some(global_from_query) => culling.transformed_boxed(&global_from_query),
             None => culling,
         }
     }
