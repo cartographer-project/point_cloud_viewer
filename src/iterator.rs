@@ -18,16 +18,6 @@ pub enum PointLocation {
     OrientedBeam(OrientedBeam<f64>),
 }
 
-fn transformed<T>(culling: T, global_from_query: &Option<Isometry3<f64>>) -> T
-where
-    T: PointCulling<f64>,
-{
-    match global_from_query {
-        Some(g_from_q) => culling.transformed(g_from_q),
-        None => culling,
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct PointQuery<'a> {
     pub attributes: Vec<&'a str>,
@@ -38,17 +28,23 @@ pub struct PointQuery<'a> {
 }
 
 impl<'a> PointQuery<'a> {
+    fn transformed<T>(&self, culling: T) -> T
+    where
+        T: PointCulling<f64>,
+    {
+        match &self.global_from_query {
+            Some(g_from_q) => culling.transformed(g_from_q),
+            None => culling,
+        }
+    }
+
     pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
         let culling: Box<dyn PointCulling<f64>> = match &self.location {
             PointLocation::AllPoints => Box::new(AllPoints {}),
-            PointLocation::Aabb(aabb) => Box::new(transformed(*aabb, &self.global_from_query)),
-            PointLocation::Frustum(frustum) => {
-                Box::new(transformed(frustum.clone(), &self.global_from_query))
-            }
-            PointLocation::Obb(obb) => Box::new(transformed(obb.clone(), &self.global_from_query)),
-            PointLocation::OrientedBeam(beam) => {
-                Box::new(transformed(beam.clone(), &self.global_from_query))
-            }
+            PointLocation::Aabb(aabb) => Box::new(self.transformed(*aabb)),
+            PointLocation::Frustum(frustum) => Box::new(self.transformed(frustum.clone())),
+            PointLocation::Obb(obb) => Box::new(self.transformed(obb.clone())),
+            PointLocation::OrientedBeam(beam) => Box::new(self.transformed(beam.clone())),
         };
         culling
     }

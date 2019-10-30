@@ -157,7 +157,7 @@ impl S2Meta {
     }
 }
 
-fn transform<'a, T>(culling: &'a T, query: &PointQuery) -> Cow<'a, T>
+fn transformed<'a, T>(culling: &'a T, query: &PointQuery) -> Cow<'a, T>
 where
     T: PointCulling<f64> + Clone,
 {
@@ -186,14 +186,14 @@ impl PointCloud for S2Cells {
         match &query.location {
             PointLocation::AllPoints => self.cells.keys().cloned().map(S2CellId).collect(),
             PointLocation::Aabb(aabb) => {
-                self.cells_in_obb(&Obb::from(transform(aabb, query).as_ref()))
+                self.cells_in_obb(&Obb::from(transformed(aabb, query).as_ref()))
             }
-            PointLocation::Obb(obb) => self.cells_in_obb(transform(obb, query).as_ref()),
+            PointLocation::Obb(obb) => self.cells_in_obb(transformed(obb, query).as_ref()),
             PointLocation::Frustum(frustum) => {
                 self.cells_in_convex_hull(frustum.corners().iter().cloned())
             }
             PointLocation::OrientedBeam(beam) => {
-                self.cells_in_obb(&Obb::from(transform(beam, query).as_ref()))
+                self.cells_in_obb(&Obb::from(transformed(beam, query).as_ref()))
             }
         }
     }
