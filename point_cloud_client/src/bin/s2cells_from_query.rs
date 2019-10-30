@@ -22,7 +22,7 @@ struct CommandlineArguments {
     /// max altitude [m] belonging to the bounding box to be queried.
     #[structopt(
         long,
-        default = 8848.0, // [m] everest
+        default = 4421.0, // [m] Mt Whitney California 
         parse(try_from_str = "point3f64_from_str")
     )]
     max_alt_m: float,
@@ -30,7 +30,7 @@ struct CommandlineArguments {
     /// min altitude [m] belonging to the bounding box to be queried.
     #[structopt(
         long,
-        default = -400.0, // [m] Dead sea
+        default = -86.0, // [m] Death Valley Basin
         parse(try_from_str = "point3f64_from_str")
     )]
     min_alt_m: float,
