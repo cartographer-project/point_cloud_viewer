@@ -2,7 +2,7 @@
 
 extern crate test;
 
-use cgmath::{InnerSpace, PerspectiveFov, Quaternion, Rad, Vector2, Vector3, Zero};
+use cgmath::{InnerSpace, PerspectiveFov, Rad, Vector2, Vector3};
 use lazy_static::lazy_static;
 use num_integer::div_ceil;
 use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
