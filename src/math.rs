@@ -42,7 +42,7 @@ where
     clamped
 }
 
-pub trait PointCulling<S>: objekt::Clone + Debug + Sync + Send
+pub trait PointCulling<S>: Debug + Sync + Send
 where
     S: BaseFloat + Sync + Send,
 {
