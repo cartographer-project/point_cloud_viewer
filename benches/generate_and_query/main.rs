@@ -291,10 +291,7 @@ fn check_frustum_query_equality() {
 #[test]
 fn check_beam_query_equality() {
     let (args, s2, oct, points) = setup();
-    let beam = OrientedBeam::new(
-        Isometry3::new(Quaternion::zero(), Vector3::zero()),
-        Vector2::new(15.0, 15.0),
-    );
+    let beam = OrientedBeam::new(Isometry3::zero(), Vector2::new(15.0, 15.0));
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::OrientedBeam(beam),

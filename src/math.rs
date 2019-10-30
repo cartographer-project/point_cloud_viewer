@@ -14,7 +14,7 @@
 
 use cgmath::{
     BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Perspective,
-    Point3, Quaternion, Rotation, Transform, Vector2, Vector3,
+    Point3, Quaternion, Rotation, Transform, Vector2, Vector3, Zero,
 };
 use collision::{Aabb, Aabb3, Contains, Relation};
 use nav_types::{ECEF, WGS84};
@@ -247,6 +247,13 @@ impl<S: BaseFloat> Isometry3<S> {
         Isometry3 {
             rotation,
             translation,
+        }
+    }
+
+    pub fn zero() -> Self {
+        Isometry3 {
+            rotation: Quaternion::zero(),
+            translation: Vector3::zero(),
         }
     }
 
