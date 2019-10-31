@@ -1,6 +1,5 @@
 use crate::c_str;
-use crate::graphic::uniform::GlUniform;
-use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
+use crate::graphic::{GlBuffer, GlProgram, GlProgramBuilder, GlUniform, GlVertexArray};
 use crate::opengl;
 use cgmath::{EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector2, Zero};
 
@@ -40,12 +39,11 @@ impl TerrainRenderer {
         I: Iterator,
         I::Item: AsRef<std::path::Path>,
     {
-        let program = GlProgram::new_with_geometry_shader(
-            Rc::clone(&gl),
-            TERRAIN_VERTEX_SHADER,
-            TERRAIN_FRAGMENT_SHADER,
-            TERRAIN_GEOMETRY_SHADER,
-        );
+        let program =
+            GlProgramBuilder::new_with_vertex_shader(Rc::clone(&gl), TERRAIN_VERTEX_SHADER)
+                .geometry_shader(TERRAIN_GEOMETRY_SHADER)
+                .fragment_shader(TERRAIN_FRAGMENT_SHADER)
+                .build();
 
         let terrain_layers = terrain_paths
             .map(|p| TerrainLayer::new(&program, p, GRID_SIZE + 1).unwrap())

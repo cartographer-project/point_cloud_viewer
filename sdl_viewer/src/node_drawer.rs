@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
+use crate::graphic::{GlBuffer, GlProgram, GlProgramBuilder, GlVertexArray};
 use crate::opengl;
 use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use cgmath::{Array, Matrix, Matrix4};
@@ -62,7 +62,9 @@ pub struct NodeDrawer {
 impl NodeDrawer {
     pub fn new(gl: &Rc<opengl::Gl>) -> Self {
         let create_program = |vertex_shader: &str| {
-            let program = GlProgram::new(Rc::clone(gl), vertex_shader, FRAGMENT_SHADER);
+            let program = GlProgramBuilder::new_with_vertex_shader(Rc::clone(gl), vertex_shader)
+                .fragment_shader(FRAGMENT_SHADER)
+                .build();
             let u_world_to_gl;
             let u_edge_length;
             let u_size;

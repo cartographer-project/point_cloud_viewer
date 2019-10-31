@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::graphic::{GlBuffer, GlProgram, GlVertexArray};
+use crate::graphic::{GlBuffer, GlProgram, GlProgramBuilder, GlVertexArray};
 use crate::opengl;
 use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use cgmath::{EuclideanSpace, Matrix, Matrix4};
@@ -41,11 +41,10 @@ pub struct BoxDrawer {
 
 impl BoxDrawer {
     pub fn new(gl: &Rc<opengl::Gl>) -> Self {
-        let outline_program = GlProgram::new(
-            Rc::clone(gl),
-            VERTEX_SHADER_OUTLINED_BOX,
-            FRAGMENT_SHADER_OUTLINED_BOX,
-        );
+        let outline_program =
+            GlProgramBuilder::new_with_vertex_shader(Rc::clone(gl), VERTEX_SHADER_OUTLINED_BOX)
+                .fragment_shader(FRAGMENT_SHADER_OUTLINED_BOX)
+                .build();
         let u_transform;
         let u_color;
 
