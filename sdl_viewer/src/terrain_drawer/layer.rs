@@ -1,7 +1,5 @@
-use crate::graphic::moving_window_texture::GlMovingWindowTexture;
 use crate::graphic::tiled_texture_loader::TiledTextureLoader;
-use crate::graphic::uniform::GlUniform;
-use crate::graphic::GlProgram;
+use crate::graphic::{GlMovingWindowTexture, GlProgram, GlUniform};
 use crate::terrain_drawer::read_write::Metadata;
 use cgmath::{Decomposed, Matrix4, Point3, Vector2, Vector3};
 use image::{ImageBuffer, LumaA, Rgba};

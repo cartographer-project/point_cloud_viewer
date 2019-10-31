@@ -14,66 +14,19 @@
 
 //! Higher level abstractions around core OpenGL concepts.
 
-use crate::glhelper::{compile_shader, link_program};
 use crate::opengl::types::GLuint;
 use crate::opengl::{self, Gl};
 use std::rc::Rc;
-use std::str;
 
-pub mod moving_window_texture;
+mod moving_window_texture;
+mod program;
+mod uniform;
+// This is namespaced as it doesn't deal with Gl directly
 pub mod tiled_texture_loader;
-pub mod uniform;
 
-pub struct GlProgram {
-    pub gl: Rc<Gl>,
-    pub id: GLuint,
-}
-
-impl GlProgram {
-    pub fn new(gl: Rc<opengl::Gl>, vertex_shader: &str, fragment_shader: &str) -> Self {
-        let vertex_shader_id = compile_shader(&*gl, vertex_shader, opengl::VERTEX_SHADER);
-        let fragment_shader_id = compile_shader(&*gl, fragment_shader, opengl::FRAGMENT_SHADER);
-        let id = link_program(&*gl, vertex_shader_id, fragment_shader_id, None);
-
-        // TODO(hrapp): Pull out some saner abstractions around program compilation.
-        unsafe {
-            gl.DeleteShader(vertex_shader_id);
-            gl.DeleteShader(fragment_shader_id);
-        }
-        GlProgram { gl, id }
-    }
-
-    pub fn new_with_geometry_shader(
-        gl: Rc<opengl::Gl>,
-        vertex_shader: &str,
-        fragment_shader: &str,
-        geometry_shader: &str,
-    ) -> Self {
-        let vertex_shader_id = compile_shader(&*gl, vertex_shader, opengl::VERTEX_SHADER);
-        let fragment_shader_id = compile_shader(&*gl, fragment_shader, opengl::FRAGMENT_SHADER);
-        let geometry_shader_id = compile_shader(&*gl, geometry_shader, opengl::GEOMETRY_SHADER);
-        let id = link_program(
-            &*gl,
-            vertex_shader_id,
-            fragment_shader_id,
-            Some(geometry_shader_id),
-        );
-        unsafe {
-            gl.DeleteShader(vertex_shader_id);
-            gl.DeleteShader(fragment_shader_id);
-            gl.DeleteShader(geometry_shader_id);
-        }
-        GlProgram { gl, id }
-    }
-}
-
-impl Drop for GlProgram {
-    fn drop(&mut self) {
-        unsafe {
-            self.gl.DeleteProgram(self.id);
-        }
-    }
-}
+pub use moving_window_texture::GlMovingWindowTexture;
+pub use program::{GlProgram, GlProgramBuilder};
+pub use uniform::GlUniform;
 
 pub struct GlBuffer {
     gl: Rc<Gl>,
