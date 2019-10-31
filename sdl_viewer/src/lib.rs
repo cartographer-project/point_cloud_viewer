@@ -23,7 +23,6 @@ macro_rules! c_str {
 }
 
 mod camera;
-mod glhelper;
 #[allow(
     non_upper_case_globals,
     clippy::too_many_arguments,
