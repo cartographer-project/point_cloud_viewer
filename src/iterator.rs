@@ -1,6 +1,6 @@
 use crate::errors::*;
 use crate::math::PointCulling;
-use crate::math::{AllPoints, Frustum, Isometry3, Obb, OrientedBeam};
+use crate::math::{AllPoints, Frustum, Isometry3, Obb};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::PointsBatch;
 use cgmath::{EuclideanSpace, Point3};
@@ -15,7 +15,6 @@ pub enum PointLocation {
     Aabb(Aabb3<f64>),
     Frustum(Frustum<f64>),
     Obb(Obb<f64>),
-    OrientedBeam(OrientedBeam<f64>),
 }
 
 #[derive(Clone, Debug)]
@@ -34,10 +33,9 @@ impl<'a> PointQuery<'a> {
             PointLocation::Aabb(aabb) => Box::new(*aabb),
             PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
             PointLocation::Obb(obb) => Box::new(obb.clone()),
-            PointLocation::OrientedBeam(beam) => Box::new(beam.clone()),
         };
         match &self.global_from_query {
-            Some(global_from_query) => culling.transformed(&global_from_query),
+            Some(global_from_query) => culling.transformed(global_from_query),
             None => culling,
         }
     }

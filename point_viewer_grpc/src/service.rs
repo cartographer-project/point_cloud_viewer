@@ -15,7 +15,7 @@
 use crate::proto;
 use crate::proto_grpc;
 use crate::Color;
-use cgmath::{PerspectiveFov, Point3, Quaternion, Rad, Vector2, Vector3};
+use cgmath::{PerspectiveFov, Point3, Quaternion, Rad, Vector3};
 use collision::Aabb3;
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};
@@ -27,7 +27,7 @@ use num_cpus;
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::*;
 use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
-use point_viewer::math::{Frustum, Isometry3, OrientedBeam};
+use point_viewer::math::{Frustum, Isometry3};
 use point_viewer::octree::{NodeId, Octree};
 use point_viewer::{AttributeData, PointsBatch};
 use protobuf::Message;
@@ -169,32 +169,6 @@ impl proto_grpc::Octree for OctreeService {
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
         let location = PointLocation::AllPoints;
-        self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
-    }
-
-    fn get_points_in_oriented_beam(
-        &mut self,
-        ctx: RpcContext,
-        req: proto::GetPointsInOrientedBeamRequest,
-        resp: ServerStreamingSink<proto::PointsReply>,
-    ) {
-        let rotation = {
-            let q = req.rotation.unwrap();
-            Quaternion::new(q.w, q.x, q.y, q.z)
-        };
-
-        let translation = {
-            let t = req.translation.unwrap();
-            Vector3::new(t.x, t.y, t.z)
-        };
-
-        let half_extent = {
-            let e = req.half_extent.unwrap();
-            Vector2::new(e.x, e.y)
-        };
-
-        let beam = OrientedBeam::new(Isometry3::new(rotation, translation), half_extent);
-        let location = PointLocation::OrientedBeam(beam);
         self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
     }
 }

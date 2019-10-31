@@ -2,12 +2,12 @@
 
 extern crate test;
 
-use cgmath::{InnerSpace, PerspectiveFov, Rad, Vector2, Vector3};
+use cgmath::{InnerSpace, PerspectiveFov, Rad, Vector3};
 use lazy_static::lazy_static;
 use num_integer::div_ceil;
 use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
 use point_viewer::iterator::{PointCloud, PointLocation, PointQuery};
-use point_viewer::math::{Frustum, OrientedBeam};
+use point_viewer::math::{Frustum, Isometry3, Obb};
 use point_viewer::octree::{build_octree, Octree};
 use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2Splitter};
 use point_viewer::s2_cells::S2Cells;
@@ -289,14 +289,13 @@ fn check_frustum_query_equality() {
 }
 
 #[test]
-fn check_beam_query_equality() {
+fn check_obb_query_equality() {
     let (args, s2, oct, points) = setup();
-    let transform = points.ecef_from_local();
-    let beam = OrientedBeam::new(transform.clone(), Vector2::new(15.0, 15.0));
+    let obb = Obb::new(Isometry3::zero(), Vector3::new(15.0, 15.0, 15.0));
     let query = PointQuery {
         attributes: vec!["color"],
-        location: PointLocation::OrientedBeam(beam),
-        global_from_query: None,
+        location: PointLocation::Obb(obb),
+        global_from_query: Some(points.ecef_from_local().clone()),
     };
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
