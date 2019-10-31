@@ -1,7 +1,7 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::{Obb, PointCulling};
+use crate::math::PointCulling;
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -13,7 +13,6 @@ use s2::cellid::CellID;
 use s2::cellunion::CellUnion;
 use s2::point::Point as S2Point;
 use s2::region::Region;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::iter;
 
@@ -157,16 +156,6 @@ impl S2Meta {
     }
 }
 
-fn transformed<'a, T>(culling: &'a T, query: &PointQuery) -> Cow<'a, T>
-where
-    T: PointCulling<f64> + Clone,
-{
-    match &query.global_from_query {
-        Some(g_from_q) => Cow::Owned(culling.transformed(g_from_q)),
-        None => Cow::Borrowed(culling),
-    }
-}
-
 /// Just a wrapper that implements Display
 /// TODO(nnmm): Remove as soon as version 0.10 of s2 is released
 #[derive(Copy, Clone)]
@@ -185,16 +174,9 @@ impl PointCloud for S2Cells {
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         match &query.location {
             PointLocation::AllPoints => self.cells.keys().cloned().map(S2CellId).collect(),
-            PointLocation::Aabb(aabb) => {
-                self.cells_in_obb(&Obb::from(transformed(aabb, query).as_ref()))
-            }
-            PointLocation::Obb(obb) => self.cells_in_obb(transformed(obb, query).as_ref()),
-            PointLocation::Frustum(frustum) => {
-                self.cells_in_convex_hull(frustum.corners().iter().cloned())
-            }
-            PointLocation::OrientedBeam(beam) => {
-                self.cells_in_obb(&Obb::from(transformed(beam, query).as_ref()))
-            }
+            PointLocation::Aabb(aabb) => self.cells_in_culling(aabb, query),
+            PointLocation::Obb(obb) => self.cells_in_culling(obb, query),
+            PointLocation::Frustum(frustum) => self.cells_in_culling(frustum, query),
         }
     }
 
@@ -246,8 +228,15 @@ impl S2Cells {
     }
 
     /// Wrapper arround cells_in_convex_hull for Obbs
-    fn cells_in_obb(&self, obb: &Obb<f64>) -> Vec<S2CellId> {
-        let points = obb.corners();
+    fn cells_in_culling<T>(&self, culling: &T, query: &PointQuery) -> Vec<S2CellId>
+    where
+        T: PointCulling<f64> + Clone,
+    {
+        let culling = match &query.global_from_query {
+            Some(g_from_q) => culling.transformed(g_from_q),
+            None => Box::new(culling.clone()),
+        };
+        let points = culling.corners();
         self.cells_in_convex_hull(points.iter().cloned())
     }
 

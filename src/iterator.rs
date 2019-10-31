@@ -1,6 +1,6 @@
 use crate::errors::*;
 use crate::math::PointCulling;
-use crate::math::{AllPoints, Frustum, Isometry3, Obb, OrientedBeam};
+use crate::math::{AllPoints, Frustum, Isometry3, Obb};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::PointsBatch;
 use cgmath::{EuclideanSpace, Point3};
@@ -15,7 +15,6 @@ pub enum PointLocation {
     Aabb(Aabb3<f64>),
     Frustum(Frustum<f64>),
     Obb(Obb<f64>),
-    OrientedBeam(OrientedBeam<f64>),
 }
 
 #[derive(Clone, Debug)]
@@ -28,25 +27,23 @@ pub struct PointQuery<'a> {
 }
 
 impl<'a> PointQuery<'a> {
-    fn transformed<T>(&self, culling: T) -> T
+    fn transformed<T>(&self, culling: T) -> Box<dyn PointCulling<f64>>
     where
-        T: PointCulling<f64>,
+        T: 'static + PointCulling<f64>,
     {
         match &self.global_from_query {
             Some(g_from_q) => culling.transformed(g_from_q),
-            None => culling,
+            None => Box::new(culling),
         }
     }
 
     pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
-        let culling: Box<dyn PointCulling<f64>> = match &self.location {
-            PointLocation::AllPoints => Box::new(AllPoints {}),
-            PointLocation::Aabb(aabb) => Box::new(self.transformed(*aabb)),
-            PointLocation::Frustum(frustum) => Box::new(self.transformed(frustum.clone())),
-            PointLocation::Obb(obb) => Box::new(self.transformed(obb.clone())),
-            PointLocation::OrientedBeam(beam) => Box::new(self.transformed(beam.clone())),
-        };
-        culling
+        match &self.location {
+            PointLocation::AllPoints => self.transformed(AllPoints {}),
+            PointLocation::Aabb(aabb) => self.transformed(*aabb),
+            PointLocation::Frustum(frustum) => self.transformed(frustum.clone()),
+            PointLocation::Obb(obb) => self.transformed(obb.clone()),
+        }
     }
 }
 
