@@ -44,9 +44,9 @@ impl<'a> GlProgramBuilder<'a> {
         }
         let id = link_program(&self.gl, &shader_ids);
         unsafe {
-            shader_ids
-                .iter()
-                .for_each(|shader_id| self.gl.DeleteShader(*shader_id));
+            for shader_id in shader_ids.iter() {
+                self.gl.DeleteShader(*shader_id);
+            }
         }
         GlProgram { gl: self.gl, id }
     }
@@ -97,13 +97,13 @@ fn compile_shader(gl: &opengl::Gl, code: &str, kind: GLenum) -> GLuint {
 fn link_program(gl: &opengl::Gl, shader_ids: &[GLuint]) -> GLuint {
     unsafe {
         let program = gl.CreateProgram();
-        shader_ids
-            .iter()
-            .for_each(|shader_id| gl.AttachShader(program, *shader_id));
+        for shader_id in shader_ids.iter() {
+            gl.AttachShader(program, *shader_id);
+        }
         gl.LinkProgram(program);
-        shader_ids
-            .iter()
-            .for_each(|shader_id| gl.DetachShader(program, *shader_id));
+        for shader_id in shader_ids.iter() {
+            gl.DetachShader(program, *shader_id);
+        }
 
         let mut status = i32::from(opengl::FALSE);
         gl.GetProgramiv(program, opengl::LINK_STATUS, &mut status);
