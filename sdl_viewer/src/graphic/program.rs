@@ -30,23 +30,23 @@ impl<'a> GlProgramBuilder<'a> {
         self
     }
     pub fn build(self) -> GlProgram {
-        let vertex_shader_id = compile_shader(&self.gl, self.vertex_shader, opengl::VERTEX_SHADER);
-        let geometry_shader_id = self
-            .geometry_shader
-            .map(|gs| compile_shader(&self.gl, gs, opengl::GEOMETRY_SHADER));
-        let fragment_shader_id = self
-            .fragment_shader
-            .map(|fs| compile_shader(&self.gl, fs, opengl::FRAGMENT_SHADER));
-        let id = link_program(
+        let mut shader_ids = Vec::new();
+        shader_ids.push(compile_shader(
             &self.gl,
-            vertex_shader_id,
-            geometry_shader_id,
-            fragment_shader_id,
-        );
+            self.vertex_shader,
+            opengl::VERTEX_SHADER,
+        ));
+        if let Some(gs) = self.geometry_shader {
+            shader_ids.push(compile_shader(&self.gl, gs, opengl::GEOMETRY_SHADER));
+        }
+        if let Some(fs) = self.fragment_shader {
+            shader_ids.push(compile_shader(&self.gl, fs, opengl::FRAGMENT_SHADER));
+        }
+        let id = link_program(&self.gl, &shader_ids);
         unsafe {
-            self.gl.DeleteShader(vertex_shader_id);
-            geometry_shader_id.map(|sid| self.gl.DeleteShader(sid));
-            fragment_shader_id.map(|sid| self.gl.DeleteShader(sid));
+            shader_ids
+                .iter()
+                .for_each(|shader_id| self.gl.DeleteShader(*shader_id));
         }
         GlProgram { gl: self.gl, id }
     }
@@ -94,29 +94,16 @@ fn compile_shader(gl: &opengl::Gl, code: &str, kind: GLenum) -> GLuint {
     shader
 }
 
-fn link_program(
-    gl: &opengl::Gl,
-    vertex_shader_id: GLuint,
-    geometry_shader_id: Option<GLuint>,
-    fragment_shader_id: Option<GLuint>,
-) -> GLuint {
+fn link_program(gl: &opengl::Gl, shader_ids: &[GLuint]) -> GLuint {
     unsafe {
         let program = gl.CreateProgram();
-        gl.AttachShader(program, vertex_shader_id);
-        if let Some(id) = geometry_shader_id {
-            gl.AttachShader(program, id)
-        };
-        if let Some(id) = fragment_shader_id {
-            gl.AttachShader(program, id);
-        }
+        shader_ids
+            .iter()
+            .for_each(|shader_id| gl.AttachShader(program, *shader_id));
         gl.LinkProgram(program);
-        gl.DetachShader(program, vertex_shader_id);
-        if let Some(id) = geometry_shader_id {
-            gl.DetachShader(program, id)
-        };
-        if let Some(id) = fragment_shader_id {
-            gl.DetachShader(program, id)
-        };
+        shader_ids
+            .iter()
+            .for_each(|shader_id| gl.DetachShader(program, *shader_id));
 
         let mut status = i32::from(opengl::FALSE);
         gl.GetProgramiv(program, opengl::LINK_STATUS, &mut status);
