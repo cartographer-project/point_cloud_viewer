@@ -1,7 +1,7 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::{Isometry3, Obb};
+use crate::math::PointCulling;
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -13,7 +13,6 @@ use s2::cellid::CellID;
 use s2::cellunion::CellUnion;
 use s2::point::Point as S2Point;
 use s2::region::Region;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::iter;
 
@@ -175,16 +174,9 @@ impl PointCloud for S2Cells {
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         match &query.location {
             PointLocation::AllPoints => self.cells.keys().cloned().map(S2CellId).collect(),
-            PointLocation::Aabb(aabb) => {
-                self.cells_in_obb(&Obb::from(aabb), query.global_from_query.as_ref())
-            }
-            PointLocation::Obb(obb) => self.cells_in_obb(&obb, query.global_from_query.as_ref()),
-            PointLocation::Frustum(frustum) => {
-                self.cells_in_convex_hull(frustum.corners().iter().cloned())
-            }
-            PointLocation::OrientedBeam(beam) => {
-                self.cells_in_obb(&Obb::from(beam), query.global_from_query.as_ref())
-            }
+            PointLocation::Aabb(aabb) => self.cells_in_culling(aabb, query),
+            PointLocation::Obb(obb) => self.cells_in_culling(obb, query),
+            PointLocation::Frustum(frustum) => self.cells_in_culling(frustum, query),
         }
     }
 
@@ -236,16 +228,15 @@ impl S2Cells {
     }
 
     /// Wrapper arround cells_in_convex_hull for Obbs
-    fn cells_in_obb(
-        &self,
-        obb: &Obb<f64>,
-        global_from_query: Option<&Isometry3<f64>>,
-    ) -> Vec<S2CellId> {
-        let obb = match global_from_query {
-            Some(g_from_q) => Cow::Owned(obb.clone_transformed(g_from_q)),
-            None => Cow::Borrowed(obb),
+    fn cells_in_culling<T>(&self, culling: &T, query: &PointQuery) -> Vec<S2CellId>
+    where
+        T: PointCulling<f64> + Clone,
+    {
+        let culling = match &query.global_from_query {
+            Some(g_from_q) => culling.transformed(g_from_q),
+            None => Box::new(culling.clone()),
         };
-        let points = obb.corners();
+        let points = culling.corners();
         self.cells_in_convex_hull(points.iter().cloned())
     }
 

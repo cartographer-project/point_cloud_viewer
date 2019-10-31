@@ -14,7 +14,7 @@
 
 use cgmath::{
     BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Perspective,
-    Point3, Quaternion, Rotation, Transform, Vector2, Vector3,
+    Point3, Quaternion, Rotation, Transform, Vector3, Zero,
 };
 use collision::{Aabb, Aabb3, Contains, Relation};
 use nav_types::{ECEF, WGS84};
@@ -42,7 +42,7 @@ where
     clamped
 }
 
-pub trait PointCulling<S>: objekt::Clone + Debug + Sync + Send
+pub trait PointCulling<S>: Debug + Sync + Send
 where
     S: BaseFloat + Sync + Send,
 {
@@ -50,6 +50,7 @@ where
     // TODO(catevita): return Relation
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
+    fn corners(&self) -> [Point3<S>; 8];
 }
 
 impl<S> PointCulling<S> for Aabb3<S>
@@ -60,13 +61,14 @@ where
         let separating_axes = &[Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
         intersects_aabb3(&self.to_corners(), separating_axes, aabb)
     }
-
     fn contains(&self, p: &Point3<S>) -> bool {
         Contains::contains(self, p)
     }
-
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Obb::from(*self).transformed(global_from_query)
+        Obb::from(self).transformed(global_from_query)
+    }
+    fn corners(&self) -> [Point3<S>; 8] {
+        self.to_corners()
     }
 }
 
@@ -84,8 +86,20 @@ where
     fn contains(&self, _p: &Point3<S>) -> bool {
         true
     }
-    fn transformed(&self, _global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(AllPoints {})
+    fn transformed(&self, _: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
+        Box::new(Self {})
+    }
+    fn corners(&self) -> [Point3<S>; 8] {
+        [
+            Point3::new(S::neg_infinity(), S::neg_infinity(), S::neg_infinity()),
+            Point3::new(S::neg_infinity(), S::neg_infinity(), S::infinity()),
+            Point3::new(S::neg_infinity(), S::infinity(), S::neg_infinity()),
+            Point3::new(S::neg_infinity(), S::infinity(), S::infinity()),
+            Point3::new(S::infinity(), S::neg_infinity(), S::neg_infinity()),
+            Point3::new(S::infinity(), S::neg_infinity(), S::infinity()),
+            Point3::new(S::infinity(), S::infinity(), S::neg_infinity()),
+            Point3::new(S::infinity(), S::infinity(), S::infinity()),
+        ]
     }
 }
 #[derive(Debug, Clone)]
@@ -155,7 +169,7 @@ fn intersects_aabb3<S: BaseFloat>(
     // SAT algorithm
     // https://gamedev.stackexchange.com/questions/44500/how-many-and-which-axes-to-use-for-3d-obb-collision-with-sat
     for sep_axis in separating_axes.iter() {
-        // Project the cube and the box/beam onto that axis
+        // Project the cube and the box onto that axis
         let mut cube_min_proj: S = Float::max_value();
         let mut cube_max_proj: S = Float::min_value();
         for corner in aabb.to_corners().iter() {
@@ -163,15 +177,15 @@ fn intersects_aabb3<S: BaseFloat>(
             cube_min_proj = cube_min_proj.min(corner_proj);
             cube_max_proj = cube_max_proj.max(corner_proj);
         }
-        // Project corners of the box/beam onto that axis
-        let mut beam_min_proj: S = Float::max_value();
-        let mut beam_max_proj: S = Float::min_value();
+        // Project corners of the box onto that axis
+        let mut box_min_proj: S = Float::max_value();
+        let mut box_max_proj: S = Float::min_value();
         for corner in corners.iter() {
             let corner_proj = corner.dot(*sep_axis);
-            beam_min_proj = beam_min_proj.min(corner_proj);
-            beam_max_proj = beam_max_proj.max(corner_proj);
+            box_min_proj = box_min_proj.min(corner_proj);
+            box_max_proj = box_max_proj.max(corner_proj);
         }
-        if beam_min_proj > cube_max_proj || beam_max_proj < cube_min_proj {
+        if box_min_proj > cube_max_proj || box_max_proj < cube_min_proj {
             return false;
         }
     }
@@ -242,6 +256,13 @@ impl<S: BaseFloat> Isometry3<S> {
         }
     }
 
+    pub fn zero() -> Self {
+        Isometry3 {
+            rotation: Quaternion::zero(),
+            translation: Vector3::zero(),
+        }
+    }
+
     pub fn inverse(&self) -> Self {
         Self::new(
             self.rotation.conjugate(),
@@ -274,29 +295,6 @@ impl<S: BaseFloat> From<Aabb3<S>> for Obb<S> {
     }
 }
 
-/// Creates an object oriented box by intersecting the oriented beam with the minimum and maximum
-/// earth radius. The OBB has the same orientation and extents as the beam.
-impl<S: BaseFloat> From<&OrientedBeam<S>> for Obb<S> {
-    fn from(beam: &OrientedBeam<S>) -> Self {
-        let earth_radius_mean = S::from(0.5 * (EARTH_RADIUS_MIN_M + EARTH_RADIUS_MAX_M)).unwrap();
-        let z_off = earth_radius_mean - beam.query_from_beam.translation.magnitude();
-        let pt_off = Point3::new(S::zero(), S::zero(), z_off);
-        let query_from_obb = Isometry3::new(
-            beam.query_from_beam.rotation,
-            (&beam.query_from_beam * &pt_off).to_vec(),
-        );
-        let z_half_extent = S::from(EARTH_RADIUS_MAX_M).unwrap() - earth_radius_mean;
-        let half_extent = Vector3::new(beam.half_extent.x, beam.half_extent.y, z_half_extent);
-        Self::new(query_from_obb, half_extent)
-    }
-}
-
-impl<S: BaseFloat> From<OrientedBeam<S>> for Obb<S> {
-    fn from(beam: OrientedBeam<S>) -> Self {
-        Self::from(&beam)
-    }
-}
-
 impl<S: BaseFloat> Obb<S> {
     pub fn new(query_from_obb: Isometry3<S>, half_extent: Vector3<S>) -> Self {
         Obb {
@@ -306,14 +304,6 @@ impl<S: BaseFloat> Obb<S> {
             separating_axes: Obb::precompute_separating_axes(&query_from_obb.rotation),
             query_from_obb,
         }
-    }
-
-    pub fn clone_transformed(&self, global_from_query: &Isometry3<S>) -> Self {
-        Self::new(global_from_query * &self.query_from_obb, self.half_extent)
-    }
-
-    pub fn corners(&self) -> &[Point3<S>; 8] {
-        &self.corners
     }
 
     fn precompute_corners(
@@ -375,96 +365,20 @@ where
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
         intersects_aabb3(&self.corners, &self.separating_axes, aabb)
     }
-
     fn contains(&self, p: &Point3<S>) -> bool {
         let Point3 { x, y, z } = &self.obb_from_query * p;
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
     }
-
-    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(self.clone_transformed(global_from_query))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct OrientedBeam<S> {
-    // The members here are an implementation detail and differ from the
-    // minimal representation in the gRPC message to speed up operations.
-    query_from_beam: Isometry3<S>,
-    beam_from_query: Isometry3<S>,
-    half_extent: Vector2<S>,
-    corners: [Point3<S>; 4],
-    separating_axes: Vec<Vector3<S>>,
-}
-
-impl<S: BaseFloat> OrientedBeam<S> {
-    pub fn new(query_from_beam: Isometry3<S>, half_extent: Vector2<S>) -> Self {
-        OrientedBeam {
-            beam_from_query: query_from_beam.inverse(),
-            half_extent,
-            corners: OrientedBeam::precompute_corners(&query_from_beam, &half_extent),
-            separating_axes: OrientedBeam::precompute_separating_axes(&query_from_beam.rotation),
-            query_from_beam,
-        }
-    }
-
-    /// Not really corners, but the corners of the xy-plane centered in the origin and orthogonal to the beam.
-    fn precompute_corners(
-        query_from_beam: &Isometry3<S>,
-        half_extent: &Vector2<S>,
-    ) -> [Point3<S>; 4] {
-        let corner_from = |x, y| query_from_beam * &Point3::new(x, y, S::zero());
-        [
-            corner_from(half_extent.x, half_extent.y),
-            corner_from(half_extent.x, -half_extent.y),
-            corner_from(-half_extent.x, half_extent.y),
-            corner_from(-half_extent.x, -half_extent.y),
-        ]
-    }
-
-    // TODO(nnmm): Change the axes to describe a beam, which is finite in one direction.
-    // Currently we have a beam which is infinite in both directions.
-    // If we defined a beam on one side of the earth pointing towards the sky,
-    // it will also collect points on the other side of the earth, which is undesired.
-    fn precompute_separating_axes(query_from_beam: &Quaternion<S>) -> Vec<Vector3<S>> {
-        // The separating axis needs to be perpendicular to the beam's main
-        // axis, i.e. the possible axes are the cross product of the three unit
-        // vectors with the beam's main axis and the beam's face normals.
-        let main_axis = query_from_beam * Vector3::unit_z();
-        vec![
-            query_from_beam * Vector3::unit_x(),
-            query_from_beam * Vector3::unit_y(),
-            main_axis.cross(Vector3::unit_x()).normalize(),
-            main_axis.cross(Vector3::unit_y()).normalize(),
-            main_axis.cross(Vector3::unit_z()).normalize(),
-        ]
-        .into_iter()
-        .filter(is_finite)
-        .collect()
-    }
-}
-
-impl<S> PointCulling<S> for OrientedBeam<S>
-where
-    S: 'static + BaseFloat + Sync + Send,
-{
-    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
-        intersects_aabb3(&self.corners, &self.separating_axes, aabb)
-    }
-
-    fn contains(&self, p: &Point3<S>) -> bool {
-        // What is the point in beam coordinates?
-        let Point3 { x, y, .. } = &self.beam_from_query * p;
-        x.abs() <= self.half_extent.x && y.abs() <= self.half_extent.y
-    }
-
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(Self::new(
-            global_from_query * &self.query_from_beam,
+            global_from_query * &self.query_from_obb,
             self.half_extent,
         ))
+    }
+    fn corners(&self) -> [Point3<S>; 8] {
+        self.corners
     }
 }
 
@@ -477,8 +391,8 @@ where
 pub struct Frustum<S: BaseFloat> {
     query_from_eye: Isometry3<S>,
     clip_from_eye: Perspective<S>,
+    query_from_clip: Matrix4<S>,
     frustum: collision::Frustum<S>,
-    corners: [Point3<S>; 8],
 }
 
 impl<S: BaseFloat> Frustum<S> {
@@ -486,32 +400,14 @@ impl<S: BaseFloat> Frustum<S> {
         let eye_from_query: Decomposed<Vector3<S>, Quaternion<S>> = query_from_eye.inverse().into();
         let clip_from_query =
             Matrix4::<S>::from(clip_from_eye) * Matrix4::<S>::from(eye_from_query);
-        let corners = Frustum::precompute_corners(&clip_from_query.inverse_transform().unwrap());
+        let query_from_clip = clip_from_query.inverse_transform().unwrap();
         let frustum = collision::Frustum::from_matrix4(clip_from_query).unwrap();
         Frustum {
             query_from_eye,
             clip_from_eye,
+            query_from_clip,
             frustum,
-            corners,
         }
-    }
-
-    pub fn corners(&self) -> &[Point3<S>; 8] {
-        &self.corners
-    }
-
-    fn precompute_corners(query_from_clip: &Matrix4<S>) -> [Point3<S>; 8] {
-        let corner_from = |x, y, z| query_from_clip.transform_point(Point3::new(x, y, z));
-        [
-            corner_from(-S::one(), -S::one(), -S::one()),
-            corner_from(-S::one(), -S::one(), S::one()),
-            corner_from(-S::one(), S::one(), -S::one()),
-            corner_from(-S::one(), S::one(), S::one()),
-            corner_from(S::one(), -S::one(), -S::one()),
-            corner_from(S::one(), -S::one(), S::one()),
-            corner_from(S::one(), S::one(), -S::one()),
-            corner_from(S::one(), S::one(), S::one()),
-        ]
     }
 }
 
@@ -526,7 +422,6 @@ where
             Relation::Out => false,
         }
     }
-
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
         match self.frustum.contains(aabb) {
             Relation::Cross => true,
@@ -534,12 +429,24 @@ where
             Relation::Out => false,
         }
     }
-
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(Self::new(
             global_from_query * &self.query_from_eye,
             self.clip_from_eye,
         ))
+    }
+    fn corners(&self) -> [Point3<S>; 8] {
+        let corner_from = |x, y, z| self.query_from_clip.transform_point(Point3::new(x, y, z));
+        [
+            corner_from(-S::one(), -S::one(), -S::one()),
+            corner_from(-S::one(), -S::one(), S::one()),
+            corner_from(-S::one(), S::one(), -S::one()),
+            corner_from(-S::one(), S::one(), S::one()),
+            corner_from(S::one(), -S::one(), -S::one()),
+            corner_from(S::one(), -S::one(), S::one()),
+            corner_from(S::one(), S::one(), -S::one()),
+            corner_from(S::one(), S::one(), S::one()),
+        ]
     }
 }
 
@@ -569,57 +476,6 @@ pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
 mod tests {
     use super::*;
     use cgmath::{Rad, Rotation3, Zero};
-    // These tests were created in Blender by creating two cubes, naming one
-    // "Beam" and scaling it up in its local z direction. The corresponding
-    // object in Rust was defined by querying Blender's Python API with
-    // bpy.data.objects['Beam'].rotation_euler.to_quaternion() and
-    // bpy.data.objects['Beam'].location.
-
-    fn some_beam() -> OrientedBeam<f64> {
-        let quater = Quaternion::new(
-            0.929_242_372_512_817_4,
-            -0.267_741_590_738_296_5,
-            -0.208_630_219_101_905_82,
-            -0.145_932_972_431_182_86,
-        );
-        let translation = Vector3::new(1.0, 2.0, 0.0);
-        let half_extent = Vector2::new(1.0, 1.0);
-        OrientedBeam::new(Isometry3::new(quater, translation), half_extent)
-    }
-
-    #[test]
-    fn test_beam_contains() {
-        let point1 = Point3::new(-29.96, 57.85, 76.96); // (0, 0, 100) in local coordinates
-        let point2 = Point3::new(-29.50, 58.83, 76.43); // (0, 1.2, 100) in local coordinates
-
-        assert_eq!(some_beam().contains(&point1), true);
-        assert_eq!(some_beam().contains(&point2), false);
-    }
-
-    #[test]
-    fn test_beam_intersects_aabb3() {
-        let bbox1 = Aabb3::new(Point3::new(0.0, 0.0, 0.0), Point3::new(2.0, 2.0, 2.0));
-        let bbox2 = Aabb3::new(Point3::new(0.0, 0.0, 3.0), Point3::new(2.0, 2.0, 5.0));
-        // bbox3 is completely inside the beam, none of its faces intersect it
-        let bbox3 = Aabb3::new(Point3::new(0.25, 1.8, 0.0), Point3::new(1.25, 2.8, 1.0));
-        // bbox4 intersects_aabb3 the beam, but has no vertices inside it
-        let bbox4 = Aabb3::new(Point3::new(-3.0, -2.0, -3.5), Point3::new(5.0, 6.0, 4.5));
-        let bbox5 = Aabb3::new(Point3::new(2.1, -0.55, 0.0), Point3::new(4.1, 1.45, 2.0));
-        let bbox6 = Aabb3::new(Point3::new(0.9, -1.67, 0.0), Point3::new(2.9, 0.33, 2.0));
-        let bbox7 = Aabb3::new(Point3::new(0.9, -1.57, 0.0), Point3::new(2.9, 0.43, 2.0));
-        assert_eq!(some_beam().intersects_aabb3(&bbox1), true);
-        assert_eq!(some_beam().intersects_aabb3(&bbox2), false);
-        assert_eq!(some_beam().intersects_aabb3(&bbox3), true);
-        assert_eq!(some_beam().intersects_aabb3(&bbox4), true);
-        assert_eq!(some_beam().intersects_aabb3(&bbox5), false);
-        assert_eq!(some_beam().intersects_aabb3(&bbox6), false);
-        assert_eq!(some_beam().intersects_aabb3(&bbox7), true);
-        let vertical_beam = OrientedBeam::new(
-            Isometry3::new(Quaternion::zero(), Vector3::zero()),
-            Vector2::new(1.0, 1.0),
-        );
-        assert_eq!(vertical_beam.intersects_aabb3(&bbox1), true);
-    }
 
     #[test]
     fn test_obb_intersects_aabb3() {
