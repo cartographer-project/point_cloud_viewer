@@ -27,22 +27,16 @@ pub struct PointQuery<'a> {
 }
 
 impl<'a> PointQuery<'a> {
-    fn transformed<T>(&self, culling: T) -> Box<dyn PointCulling<f64>>
-    where
-        T: 'static + PointCulling<f64>,
-    {
-        match &self.global_from_query {
-            Some(g_from_q) => culling.transformed(g_from_q),
-            None => Box::new(culling),
-        }
-    }
-
     pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
-        match &self.location {
-            PointLocation::AllPoints => self.transformed(AllPoints {}),
-            PointLocation::Aabb(aabb) => self.transformed(*aabb),
-            PointLocation::Frustum(frustum) => self.transformed(frustum.clone()),
-            PointLocation::Obb(obb) => self.transformed(obb.clone()),
+        let culling: Box<dyn PointCulling<f64>> = match &self.location {
+            PointLocation::AllPoints => return Box::new(AllPoints {}),
+            PointLocation::Aabb(aabb) => Box::new(*aabb),
+            PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
+            PointLocation::Obb(obb) => Box::new(obb.clone()),
+        };
+        match &self.global_from_query {
+            Some(global_from_query) => culling.transformed(global_from_query),
+            None => culling,
         }
     }
 }
