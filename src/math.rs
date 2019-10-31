@@ -169,7 +169,7 @@ fn intersects_aabb3<S: BaseFloat>(
     // SAT algorithm
     // https://gamedev.stackexchange.com/questions/44500/how-many-and-which-axes-to-use-for-3d-obb-collision-with-sat
     for sep_axis in separating_axes.iter() {
-        // Project the cube and the box/beam onto that axis
+        // Project the cube and the box onto that axis
         let mut cube_min_proj: S = Float::max_value();
         let mut cube_max_proj: S = Float::min_value();
         for corner in aabb.to_corners().iter() {
@@ -177,15 +177,15 @@ fn intersects_aabb3<S: BaseFloat>(
             cube_min_proj = cube_min_proj.min(corner_proj);
             cube_max_proj = cube_max_proj.max(corner_proj);
         }
-        // Project corners of the box/beam onto that axis
-        let mut beam_min_proj: S = Float::max_value();
-        let mut beam_max_proj: S = Float::min_value();
+        // Project corners of the box onto that axis
+        let mut box_min_proj: S = Float::max_value();
+        let mut box_max_proj: S = Float::min_value();
         for corner in corners.iter() {
             let corner_proj = corner.dot(*sep_axis);
-            beam_min_proj = beam_min_proj.min(corner_proj);
-            beam_max_proj = beam_max_proj.max(corner_proj);
+            box_min_proj = box_min_proj.min(corner_proj);
+            box_max_proj = box_max_proj.max(corner_proj);
         }
-        if beam_min_proj > cube_max_proj || beam_max_proj < cube_min_proj {
+        if box_min_proj > cube_max_proj || box_max_proj < cube_min_proj {
             return false;
         }
     }
