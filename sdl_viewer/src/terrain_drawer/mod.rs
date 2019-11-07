@@ -2,6 +2,7 @@ use crate::c_str;
 use crate::graphic::{GlBuffer, GlProgram, GlProgramBuilder, GlUniform, GlVertexArray};
 use crate::opengl;
 use cgmath::{EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector2, Zero};
+use point_viewer::math::Isometry3;
 
 use opengl::types::{GLsizeiptr, GLuint};
 
@@ -45,21 +46,21 @@ impl TerrainRenderer {
                 .fragment_shader(TERRAIN_FRAGMENT_SHADER)
                 .build();
 
-        let terrain_layers = terrain_paths
-            .map(|p| TerrainLayer::new(&program, p, GRID_SIZE + 1).unwrap())
-            .collect();
-
-        let vertex_array = GlVertexArray::new(Rc::clone(&gl));
-
-        // These need to be set only once
+        // This need to be set only once
         GlUniform::new(&program, "grid_size", f64::from(GRID_SIZE)).submit();
 
         let u_transform = GlUniform::new(&program, "world_to_gl", Matrix4::identity());
 
+        let camera_pos_xy_m = Vector2::zero();
+
+        let vertex_array = GlVertexArray::new(Rc::clone(&gl));
+
         let (buffer_position, buffer_indices, num_indices) =
             Self::create_mesh(&program, &vertex_array, Rc::clone(&gl));
 
-        let camera_pos_xy_m = Vector2::zero();
+        let terrain_layers = terrain_paths
+            .map(|p| TerrainLayer::new(&program, p, GRID_SIZE + 1).unwrap())
+            .collect();
 
         Self {
             program,
@@ -166,19 +167,25 @@ impl TerrainRenderer {
             // self.program.gl.Disable(opengl::CULL_FACE);
 
             self.u_transform.submit();
-            self.terrain_layers.iter().for_each(|layer| layer.submit());
-
             self.program.gl.Enable(opengl::BLEND);
+            for layer in self.terrain_layers.iter() {
+                layer.submit();
+                self.program.gl.DrawElements(
+                    opengl::TRIANGLES,
+                    self.num_indices as i32,
+                    opengl::UNSIGNED_INT,
+                    std::ptr::null(),
+                );
+            }
+
             self.program
                 .gl
                 .BlendFunc(opengl::SRC_ALPHA, opengl::ONE_MINUS_SRC_ALPHA);
-            self.program.gl.DrawElements(
-                opengl::TRIANGLES,
-                self.num_indices as i32,
-                opengl::UNSIGNED_INT,
-                std::ptr::null(),
-            );
             self.program.gl.Disable(opengl::BLEND);
         }
+    }
+
+    pub fn local_from_global(&self) -> Option<Isometry3<f64>> {
+        self.terrain_layers.first().map(|layer| layer.terrain_from_world())
     }
 }

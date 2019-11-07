@@ -470,11 +470,11 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     }));
 
     let mut extension = T::new(&matches, Rc::clone(&gl));
-    let local_from_global = T::local_from_global(&matches, &octree);
-
+    let ext_local_from_global = T::local_from_global(&matches, &octree);
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
     let terrain_paths = matches.values_of("terrain").unwrap_or_default();
     let mut terrain_renderer = TerrainRenderer::new(Rc::clone(&gl), terrain_paths);
+    let local_from_global = ext_local_from_global.or(terrain_renderer.local_from_global());
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT, local_from_global);
 
     let mut events = ctx.event_pump().unwrap();
