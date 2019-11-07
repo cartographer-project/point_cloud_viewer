@@ -333,7 +333,7 @@ where
             // The purpose of texture units is to allow us to use more than 1 texture in our shaders.
             self.gl.ActiveTexture(opengl::TEXTURE0 + self.texture_unit);
             // After activating a texture unit, a subsequent BindTexture call will bind that
-            // texture to the currently active texture unit. 
+            // texture to the currently active texture unit.
             self.gl.BindTexture(opengl::TEXTURE_2D, self.id);
         }
         self.u_texture_offset.submit();
