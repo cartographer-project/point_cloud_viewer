@@ -11,12 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointQuery};
 use crate::math::Cube;
 use crate::proto;
-use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
+use crate::read_write::{Cache, CachedNodeIterator, Encoding, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
 use cgmath::{EuclideanSpace, Matrix4, Point3};
 use collision::{Aabb, Aabb3, Bound, Relation};
@@ -25,6 +26,7 @@ use num::clamp;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::io::{BufReader, Read};
+use std::sync::{Arc, Mutex};
 
 mod generation;
 pub use self::generation::{build_octree, build_octree_from_file};
@@ -135,6 +137,7 @@ pub struct Octree {
     data_provider: Box<dyn DataProvider>,
     meta: OctreeMeta,
     nodes: FnvHashMap<NodeId, NodeMeta>,
+    cache: Arc<Mutex<Cache<NodeId>>>,
 }
 
 #[derive(Debug)]
@@ -209,6 +212,7 @@ impl Octree {
             meta,
             nodes,
             data_provider,
+            cache: Arc::new(Mutex::new(Cache::default())),
         })
     }
 
@@ -307,7 +311,7 @@ impl Octree {
 
 impl PointCloud for Octree {
     type Id = NodeId;
-    type PointsIter = FilteredIterator;
+    type PointsIter = FilteredIterator<Self::Id>;
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         let culling = query.get_point_culling();
         let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
@@ -326,19 +330,20 @@ impl PointCloud for Octree {
         query: &PointQuery,
         node_id: NodeId,
         batch_size: usize,
-    ) -> Result<FilteredIterator> {
+    ) -> Result<FilteredIterator<Self::Id>> {
         let culling = query.get_point_culling();
-        let node_iterator = NodeIterator::from_data_provider(
+        let cached_node_iterator = CachedNodeIterator::from_data_provider(
             &*self.data_provider,
             &self.meta.attribute_data_types_for(&query.attributes)?,
             self.meta.encoding_for_node(node_id),
-            &node_id,
+            node_id,
             self.nodes[&node_id].num_points as usize,
             batch_size,
+            Arc::clone(&self.cache),
         )?;
         Ok(FilteredIterator {
             culling,
-            node_iterator,
+            cached_node_iterator,
         })
     }
 

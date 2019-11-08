@@ -3,7 +3,7 @@ use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
 use crate::math::PointCulling;
 use crate::proto;
-use crate::read_write::{Encoding, NodeIterator};
+use crate::read_write::{Cache, CachedNodeIterator, Encoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
 use cgmath::Point3;
 use collision::Aabb3;
@@ -15,11 +15,13 @@ use s2::point::Point as S2Point;
 use s2::region::Region;
 use std::collections::HashMap;
 use std::iter;
+use std::sync::{Arc, Mutex};
 
 pub struct S2Cells {
     data_provider: Box<dyn DataProvider>,
     cells: FnvHashMap<CellID, Cell>,
     meta: S2Meta,
+    cache: Arc<Mutex<Cache<S2CellId>>>,
 }
 
 #[derive(Copy, Clone)]
@@ -158,7 +160,7 @@ impl S2Meta {
 
 /// Just a wrapper that implements Display
 /// TODO(nnmm): Remove as soon as version 0.10 of s2 is released
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct S2CellId(pub CellID);
 
 impl std::fmt::Display for S2CellId {
@@ -169,7 +171,7 @@ impl std::fmt::Display for S2CellId {
 
 impl PointCloud for S2Cells {
     type Id = S2CellId;
-    type PointsIter = FilteredIterator;
+    type PointsIter = FilteredIterator<Self::Id>;
 
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         match &query.location {
@@ -191,18 +193,18 @@ impl PointCloud for S2Cells {
         batch_size: usize,
     ) -> Result<Self::PointsIter> {
         let culling = query.get_point_culling();
-        let num_points = self.meta.cells[&node_id.0].num_points as usize;
-        let node_iterator = NodeIterator::from_data_provider(
+        let cached_node_iterator = CachedNodeIterator::from_data_provider(
             &*self.data_provider,
             &self.meta.attribute_data_types_for(&query.attributes)?,
             self.encoding_for_node(node_id),
-            &node_id,
-            num_points,
+            node_id,
+            self.meta.cells[&node_id.0].num_points as usize,
             batch_size,
+            Arc::clone(&self.cache),
         )?;
         Ok(FilteredIterator {
             culling,
-            node_iterator,
+            cached_node_iterator,
         })
     }
 
@@ -224,6 +226,7 @@ impl S2Cells {
             data_provider,
             cells,
             meta,
+            cache: Arc::new(Mutex::new(Cache::default())),
         })
     }
 

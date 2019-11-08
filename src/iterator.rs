@@ -1,12 +1,13 @@
 use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, Frustum, Isometry3, Obb};
-use crate::read_write::{Encoding, NodeIterator};
+use crate::read_write::{CachedNodeIterator, Encoding};
 use crate::PointsBatch;
 use cgmath::{EuclideanSpace, Point3};
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
 use std::collections::BTreeMap;
+use std::hash::Hash;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
@@ -43,17 +44,20 @@ impl<'a> PointQuery<'a> {
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
 /// Essentially a specialized version of the Filter iterator adapter
-pub struct FilteredIterator {
+pub struct FilteredIterator<Id> {
     pub culling: Box<dyn PointCulling<f64>>,
-    pub node_iterator: NodeIterator,
+    pub cached_node_iterator: CachedNodeIterator<Id>,
 }
 
-impl Iterator for FilteredIterator {
+impl<Id> Iterator for FilteredIterator<Id>
+where
+    CachedNodeIterator<Id>: Iterator<Item = PointsBatch>,
+{
     type Item = PointsBatch;
 
     fn next(&mut self) -> Option<PointsBatch> {
         let culling = &self.culling;
-        self.node_iterator.next().map(|mut batch| {
+        self.cached_node_iterator.next().map(|mut batch| {
             let keep: Vec<bool> = batch
                 .position
                 .iter()
@@ -129,7 +133,7 @@ where
 
 // TODO(nnmm): Move this somewhere else
 pub trait PointCloud: Sync {
-    type Id: ToString + Send + Copy;
+    type Id: ToString + Send + Copy + Eq + Hash;
     type PointsIter: Iterator<Item = PointsBatch>;
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id>;
     fn encoding_for_node(&self, id: Self::Id) -> Encoding;
@@ -143,7 +147,10 @@ pub trait PointCloud: Sync {
 }
 
 /// Iterator on point batches
-pub struct ParallelIterator<'a, C> {
+pub struct ParallelIterator<'a, C>
+where
+    C: PointCloud,
+{
     point_clouds: &'a [C],
     point_query: &'a PointQuery<'a>,
     batch_size: usize,
@@ -181,11 +188,11 @@ where
         let mut number_of_jobs = 0;
         self.point_clouds
             .iter()
-            .flat_map(|octree| {
-                std::iter::repeat(octree).zip(octree.nodes_in_location(self.point_query))
+            .flat_map(|point_cloud| {
+                std::iter::repeat(point_cloud).zip(point_cloud.nodes_in_location(self.point_query))
             })
-            .for_each(|(node_id, octree)| {
-                jobs.push((node_id, octree));
+            .for_each(|(node_id, point_cloud)| {
+                jobs.push((node_id, point_cloud));
                 number_of_jobs += 1;
             });
 
@@ -220,13 +227,13 @@ where
                     let mut point_stream =
                         PointStream::new(batch_size, &query_from_global, &send_func);
 
-                    while let Some((octree, node_id)) = worker.pop().or_else(|| {
+                    while let Some((point_cloud, node_id)) = worker.pop().or_else(|| {
                         std::iter::repeat_with(|| jobs.steal_batch_and_pop(&worker))
                             .find(|task| !task.is_retry())
                             .and_then(Steal::success)
                     }) {
                         // TODO(nnmm): This crashes on error. We should bubble up an error.
-                        let node_iterator = octree
+                        let node_iterator = point_cloud
                             .points_in_node(&point_query, node_id, batch_size)
                             .expect("Could not read node points");
                         // executing on the available next task if the function still requires it

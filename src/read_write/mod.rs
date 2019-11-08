@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod cache;
+pub use self::cache::{Cache, CachedNodeIterator};
+
 mod codec;
 pub use self::codec::{
     decode, encode, fixpoint_decode, fixpoint_encode, vec3_encode, vec3_fixpoint_encode, Encoding,

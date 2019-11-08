@@ -155,6 +155,20 @@ pub enum AttributeData {
     F64Vec3(Vec<Vector3<f64>>),
 }
 
+impl From<AttributeDataType> for AttributeData {
+    fn from(data_type: AttributeDataType) -> Self {
+        match data_type {
+            AttributeDataType::U8 => Self::U8(Vec::new()),
+            AttributeDataType::I64 => Self::I64(Vec::new()),
+            AttributeDataType::U64 => Self::U64(Vec::new()),
+            AttributeDataType::F32 => Self::F32(Vec::new()),
+            AttributeDataType::F64 => Self::F64(Vec::new()),
+            AttributeDataType::U8Vec3 => Self::U8Vec3(Vec::new()),
+            AttributeDataType::F64Vec3 => Self::F64Vec3(Vec::new()),
+        }
+    }
+}
+
 impl AttributeData {
     pub fn len(&self) -> usize {
         match self {
@@ -226,6 +240,35 @@ impl AttributeData {
             AttributeData::F64Vec3(data) => AttributeData::F64Vec3(data.split_off(at)),
         }
     }
+
+    pub fn extend_from_slice(
+        &mut self,
+        src: &Self,
+        from: usize,
+        to: usize,
+    ) -> std::result::Result<(), String> {
+        match (self, src) {
+            (AttributeData::U8(s), AttributeData::U8(o)) => s.extend_from_slice(&o[from..to]),
+            (AttributeData::U64(s), AttributeData::U64(o)) => s.extend_from_slice(&o[from..to]),
+            (AttributeData::I64(s), AttributeData::I64(o)) => s.extend_from_slice(&o[from..to]),
+            (AttributeData::F32(s), AttributeData::F32(o)) => s.extend_from_slice(&o[from..to]),
+            (AttributeData::F64(s), AttributeData::F64(o)) => s.extend_from_slice(&o[from..to]),
+            (AttributeData::U8Vec3(s), AttributeData::U8Vec3(o)) => {
+                s.extend_from_slice(&o[from..to])
+            }
+            (AttributeData::F64Vec3(s), AttributeData::F64Vec3(o)) => {
+                s.extend_from_slice(&o[from..to])
+            }
+            (s, o) => {
+                return Err(format!(
+                    "Own data type '{:?}' is incompatible with src type '{:?}'.",
+                    s.data_type(),
+                    o.data_type(),
+                ))
+            }
+        };
+        Ok(())
+    }
 }
 
 macro_rules! try_from_impl {
@@ -284,6 +327,15 @@ pub struct PointsBatch {
     pub attributes: BTreeMap<String, AttributeData>,
 }
 
+impl Default for PointsBatch {
+    fn default() -> PointsBatch {
+        PointsBatch {
+            position: Vec::new(),
+            attributes: BTreeMap::new(),
+        }
+    }
+}
+
 impl PointsBatch {
     pub fn append(&mut self, other: &mut PointsBatch) -> std::result::Result<(), String> {
         if self.position.is_empty() {
@@ -313,6 +365,26 @@ impl PointsBatch {
             position,
             attributes,
         }
+    }
+
+    pub fn extend_from_slice(
+        &mut self,
+        src: &Self,
+        from: usize,
+        to: usize,
+    ) -> std::result::Result<(), String> {
+        if self.position.is_empty() {
+            for (a_name, a_data) in &src.attributes {
+                self.attributes
+                    .insert(a_name.to_string(), AttributeData::from(a_data.data_type()));
+            }
+        }
+        assert_eq!(self.attributes.len(), src.attributes.len());
+        self.position.extend_from_slice(&src.position[from..to]);
+        for (s, o) in self.attributes.values_mut().zip(src.attributes.values()) {
+            s.extend_from_slice(o, from, to)?;
+        }
+        Ok(())
     }
 
     pub fn retain(&mut self, keep: &[bool]) {
