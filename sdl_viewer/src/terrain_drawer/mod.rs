@@ -46,9 +46,6 @@ impl TerrainRenderer {
                 .fragment_shader(TERRAIN_FRAGMENT_SHADER)
                 .build();
 
-        // This need to be set only once
-        GlUniform::new(&program, "grid_size", f64::from(GRID_SIZE)).submit();
-
         let u_transform = GlUniform::new(&program, "world_to_gl", Matrix4::identity());
 
         let camera_pos_xy_m = Vector2::zero();
