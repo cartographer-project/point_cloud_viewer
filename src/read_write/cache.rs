@@ -31,8 +31,7 @@ impl Iterator for CachedData {
 }
 
 pub struct Cache<Id> {
-    // TODO: Add batch size and attributes to key
-    keys_to_data: LruCache<Id, Arc<Vec<PointsBatch>>>,
+    keys_to_data: LruCache<(Id, usize), Arc<Vec<PointsBatch>>>,
 }
 
 impl<Id> Default for Cache<Id>
@@ -56,14 +55,24 @@ where
         attributes: &[&str],
         batch_size: usize,
     ) -> Option<CachedData> {
-        self.keys_to_data.get(&id).map(|d| CachedData {
-            data: Arc::clone(&d),
-            batch_count: 0,
+        self.keys_to_data.get(&(id, batch_size)).and_then(|d| {
+            let has_all_attributes = attributes
+                .iter()
+                .all(|attrib| d[0].attributes.contains_key(*attrib));
+            if has_all_attributes {
+                Some(CachedData {
+                    data: Arc::clone(&d),
+                    batch_count: 0,
+                })
+            } else {
+                None
+            }
         })
     }
 
     pub fn store_batches(&mut self, id: Id, batches: Vec<PointsBatch>) {
-        self.keys_to_data.put(id, Arc::new(batches));
+        let batch_size = batches[0].position.len();
+        self.keys_to_data.put((id, batch_size), Arc::new(batches));
     }
 }
 
