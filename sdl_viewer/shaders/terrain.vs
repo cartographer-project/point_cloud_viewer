@@ -3,7 +3,6 @@
 layout(location = 0) in ivec3 aPos;
 
 // These are constant throughout the program.
-uniform double grid_size;
 uniform dvec3 terrain_origin_m;
 uniform double terrain_res_m;
 
