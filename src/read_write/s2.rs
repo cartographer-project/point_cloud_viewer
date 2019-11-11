@@ -15,10 +15,11 @@ use std::path::PathBuf;
 
 /// The actual number of underlying writers is MAX_NUM_NODE_WRITERS * num_attributes.
 const MAX_NUM_NODE_WRITERS: usize = 25;
-/// Corresponds to cells of up to about 160m x 160m.
-const S2_SPLIT_LEVEL: u64 = 16;
+/// Corresponds to cells of up to about 10m x 10m.
+const DEFAULT_S2_SPLIT_LEVEL: u64 = 20;
 
 pub struct S2Splitter<W> {
+    split_level: u64,
     writers: LruCache<CellID, W>,
     already_opened_writers: HashSet<CellID>,
     cell_stats: FnvHashMap<CellID, S2CellMeta>,
@@ -27,6 +28,22 @@ pub struct S2Splitter<W> {
     encoding: Encoding,
     open_mode: OpenMode,
     stem: PathBuf,
+}
+
+impl<W> S2Splitter<W>
+where
+    W: NodeWriter<PointsBatch>,
+{
+    pub fn with_split_level(
+        split_level: u64,
+        path: impl Into<PathBuf>,
+        encoding: Encoding,
+        open_mode: OpenMode,
+    ) -> Self {
+        let mut res = Self::new(path, encoding, open_mode);
+        res.split_level = split_level;
+        res
+    }
 }
 
 impl<W> NodeWriter<PointsBatch> for S2Splitter<W>
@@ -41,6 +58,7 @@ where
         let bounding_box = None;
         let attributes_seen = BTreeMap::new();
         S2Splitter {
+            split_level: DEFAULT_S2_SPLIT_LEVEL,
             writers,
             already_opened_writers,
             cell_stats,
@@ -68,7 +86,7 @@ where
             let b = self.bounding_box.get_or_insert(Aabb3::new(p3, p3));
             *b = b.grow(p3);
             let s2_point = Point::from_coords(pos.x, pos.y, pos.z);
-            let s2_cell_id = CellID::from(s2_point).parent(S2_SPLIT_LEVEL);
+            let s2_cell_id = CellID::from(s2_point).parent(self.split_level);
             self.cell_stats
                 .entry(s2_cell_id)
                 .or_insert(S2CellMeta { num_points: 0 })
