@@ -30,19 +30,24 @@ pub struct S2Splitter<W> {
     stem: PathBuf,
 }
 
-impl<W> S2Splitter<W>
-where
-    W: NodeWriter<PointsBatch>,
-{
+impl<W> S2Splitter<W> {
     pub fn with_split_level(
         split_level: u64,
         path: impl Into<PathBuf>,
         encoding: Encoding,
         open_mode: OpenMode,
     ) -> Self {
-        let mut res = Self::new(path, encoding, open_mode);
-        res.split_level = split_level;
-        res
+        S2Splitter {
+            split_level,
+            writers: LruCache::new(MAX_NUM_NODE_WRITERS),
+            already_opened_writers: HashSet::new(),
+            cell_stats: FnvHashMap::default(),
+            bounding_box: None,
+            attributes_seen: BTreeMap::new(),
+            encoding,
+            open_mode,
+            stem: path.into(),
+        }
     }
 }
 
@@ -51,23 +56,7 @@ where
     W: NodeWriter<PointsBatch>,
 {
     fn new(path: impl Into<PathBuf>, encoding: Encoding, open_mode: OpenMode) -> Self {
-        let writers = LruCache::new(MAX_NUM_NODE_WRITERS);
-        let already_opened_writers = HashSet::new();
-        let stem = path.into();
-        let cell_stats = FnvHashMap::default();
-        let bounding_box = None;
-        let attributes_seen = BTreeMap::new();
-        S2Splitter {
-            split_level: DEFAULT_S2_SPLIT_LEVEL,
-            writers,
-            already_opened_writers,
-            cell_stats,
-            bounding_box,
-            attributes_seen,
-            encoding,
-            open_mode,
-            stem,
-        }
+        Self::with_split_level(DEFAULT_S2_SPLIT_LEVEL, path, encoding, open_mode)
     }
 
     fn write(&mut self, points_batch: &PointsBatch) -> Result<()> {
