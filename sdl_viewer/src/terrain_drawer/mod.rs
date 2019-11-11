@@ -65,7 +65,6 @@ impl TerrainRenderer {
             camera_pos_xy_m,
             vertex_array,
             buffer_position,
-            #[allow(dead_code)]
             buffer_indices,
             num_indices,
             terrain_layers,
