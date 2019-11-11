@@ -42,6 +42,7 @@ pub mod terrain_drawer;
 use crate::box_drawer::BoxDrawer;
 use crate::camera::Camera;
 use crate::node_drawer::{NodeDrawer, NodeViewContainer};
+use crate::terrain_drawer::TerrainRenderer;
 use cgmath::{Matrix4, SquareMatrix};
 use point_viewer::color::YELLOW;
 use point_viewer::data_provider::DataProviderFactory;
@@ -354,6 +355,11 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
             .help("Input path of the octree.")
             .index(1)
             .required(true),
+        clap::Arg::with_name("terrain")
+            .long("terrain")
+            .takes_value(true)
+            .multiple(true)
+            .help("Terrain directories (multiple possible)."),
         clap::Arg::with_name("cache_size_mb")
             .help(
                 "Maximum cache size in MB for octree nodes in GPU memory. \
@@ -464,9 +470,11 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     }));
 
     let mut extension = T::new(&matches, Rc::clone(&gl));
-    let local_from_global = T::local_from_global(&matches, &octree);
-
+    let ext_local_from_global = T::local_from_global(&matches, &octree);
     let mut renderer = PointCloudRenderer::new(max_nodes_in_memory, Rc::clone(&gl), octree);
+    let terrain_paths = matches.values_of("terrain").unwrap_or_default();
+    let mut terrain_renderer = TerrainRenderer::new(Rc::clone(&gl), terrain_paths);
+    let local_from_global = ext_local_from_global.or_else(|| terrain_renderer.local_from_global());
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT, local_from_global);
 
     let mut events = ctx.event_pump().unwrap();
@@ -588,11 +596,14 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         last_frame_time = current_time;
         if camera.update(elapsed) {
             renderer.camera_changed(&camera.get_world_to_gl());
+            terrain_renderer
+                .camera_changed(&camera.get_world_to_gl(), &camera.get_camera_to_world());
             extension.camera_changed(&camera.get_world_to_gl());
         }
 
         match renderer.draw() {
             DrawResult::HasDrawn => {
+                terrain_renderer.draw();
                 extension.draw();
                 window.gl_swap_window()
             }
