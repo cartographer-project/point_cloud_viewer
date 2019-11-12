@@ -318,6 +318,5 @@ fn check_rect_query_equality() {
     };
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
-    dbg!(points_oct.len());
     assert_points_equal(&points_s2, &points_oct);
 }
