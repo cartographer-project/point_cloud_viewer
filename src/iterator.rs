@@ -6,6 +6,7 @@ use crate::PointsBatch;
 use cgmath::Point3;
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
+use s2::rect::Rect as S2Rect;
 use std::collections::BTreeMap;
 
 #[allow(clippy::large_enum_variant)]
@@ -15,6 +16,7 @@ pub enum PointLocation {
     Aabb(Aabb3<f64>),
     Frustum(Frustum<f64>),
     Obb(Obb<f64>),
+    SphericalRect(S2Rect),
 }
 
 #[derive(Clone, Debug)]
@@ -30,6 +32,7 @@ impl<'a> PointQuery<'a> {
             PointLocation::Aabb(aabb) => Box::new(*aabb),
             PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
             PointLocation::Obb(obb) => Box::new(obb.clone()),
+            PointLocation::SphericalRect(rect) => Box::new(rect.clone()),
         }
     }
 }

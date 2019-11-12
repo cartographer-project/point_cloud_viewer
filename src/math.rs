@@ -20,6 +20,8 @@ use collision::{Aabb, Aabb3, Contains, Relation};
 use nav_types::{ECEF, WGS84};
 use num_traits::identities::One;
 use num_traits::Float;
+use s2::point::Point as S2Point;
+use s2::rect::Rect as S2Rect;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::Mul;
@@ -446,6 +448,22 @@ where
             corner_from(S::one(), S::one(), -S::one()),
             corner_from(S::one(), S::one(), S::one()),
         ]
+    }
+}
+
+impl<S> PointCulling<S> for S2Rect
+where
+    S: BaseFloat + Sync + Send,
+    f64: From<S>,
+{
+    fn contains(&self, p: &Point3<S>) -> bool {
+        let s2_point = S2Point::from_coords(f64::from(p.x), f64::from(p.y), f64::from(p.z));
+        self.contains_point(&s2_point)
+    }
+    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
+        aabb.to_corners()
+            .iter()
+            .any(|c| PointCulling::contains(self, c))
     }
 }
 
