@@ -487,11 +487,11 @@ pub fn xray_from_points(
         }
         None => PointLocation::Aabb(*bbox),
     };
-    let point_location = PointQuery {
+    let point_query = PointQuery {
         attributes: coloring_strategy.attributes(),
         location,
     };
-    let _ = point_cloud_client.for_each_point_data(&point_location, |mut points_batch| {
+    let _ = point_cloud_client.for_each_point_data(&point_query, |mut points_batch| {
         seen_any_points = true;
         if let Some(query_from_global) = query_from_global {
             points_batch.position = points_batch
