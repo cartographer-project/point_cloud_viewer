@@ -51,10 +51,7 @@ where
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
 }
 
-pub trait Cuboid<S>
-where
-    S: BaseFloat,
-{
+pub trait Cuboid<S> {
     fn corners(&self) -> [Point3<S>; 8];
 }
 
