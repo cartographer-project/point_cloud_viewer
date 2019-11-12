@@ -50,6 +50,9 @@ where
     // TODO(catevita): return Relation
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
+}
+
+pub trait Cuboid<S> {
     fn corners(&self) -> [Point3<S>; 8];
 }
 
@@ -67,6 +70,12 @@ where
     fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Obb::from(self).transformed(global_from_query)
     }
+}
+
+impl<S> Cuboid<S> for Aabb3<S>
+where
+    S: BaseFloat,
+{
     fn corners(&self) -> [Point3<S>; 8] {
         self.to_corners()
     }
@@ -88,18 +97,6 @@ where
     }
     fn transformed(&self, _: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
         Box::new(Self {})
-    }
-    fn corners(&self) -> [Point3<S>; 8] {
-        [
-            Point3::new(S::neg_infinity(), S::neg_infinity(), S::neg_infinity()),
-            Point3::new(S::neg_infinity(), S::neg_infinity(), S::infinity()),
-            Point3::new(S::neg_infinity(), S::infinity(), S::neg_infinity()),
-            Point3::new(S::neg_infinity(), S::infinity(), S::infinity()),
-            Point3::new(S::infinity(), S::neg_infinity(), S::neg_infinity()),
-            Point3::new(S::infinity(), S::neg_infinity(), S::infinity()),
-            Point3::new(S::infinity(), S::infinity(), S::neg_infinity()),
-            Point3::new(S::infinity(), S::infinity(), S::infinity()),
-        ]
     }
 }
 #[derive(Debug, Clone)]
@@ -256,9 +253,10 @@ impl<S: BaseFloat> Isometry3<S> {
         }
     }
 
-    pub fn zero() -> Self {
+    /// Returns the identity transformation.
+    pub fn one() -> Self {
         Isometry3 {
-            rotation: Quaternion::zero(),
+            rotation: Quaternion::one(),
             translation: Vector3::zero(),
         }
     }
@@ -377,6 +375,12 @@ where
             self.half_extent,
         ))
     }
+}
+
+impl<S> Cuboid<S> for Obb<S>
+where
+    S: BaseFloat,
+{
     fn corners(&self) -> [Point3<S>; 8] {
         self.corners
     }
@@ -435,6 +439,12 @@ where
             self.clip_from_eye,
         ))
     }
+}
+
+impl<S> Cuboid<S> for Frustum<S>
+where
+    S: BaseFloat,
+{
     fn corners(&self) -> [Point3<S>; 8] {
         let corner_from = |x, y, z| self.query_from_clip.transform_point(Point3::new(x, y, z));
         [
