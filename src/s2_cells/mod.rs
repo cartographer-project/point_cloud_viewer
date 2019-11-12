@@ -174,11 +174,9 @@ impl PointCloud for S2Cells {
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         match &query.location {
             PointLocation::AllPoints => self.cells.keys().cloned().map(S2CellId).collect(),
-            PointLocation::Aabb(aabb) => self.cells_in_cuboid(aabb, &query.global_from_query),
-            PointLocation::Obb(obb) => self.cells_in_cuboid(obb, &query.global_from_query),
-            PointLocation::Frustum(frustum) => {
-                self.cells_in_cuboid(frustum, &query.global_from_query)
-            }
+            PointLocation::Aabb(aabb) => self.cells_in_cuboid(aabb),
+            PointLocation::Obb(obb) => self.cells_in_cuboid(obb),
+            PointLocation::Frustum(frustum) => self.cells_in_cuboid(frustum),
         }
     }
 
@@ -230,18 +228,11 @@ impl S2Cells {
     }
 
     /// Wrapper arround cells_in_convex_hull for Obbs
-    fn cells_in_cuboid<T>(
-        &self,
-        cuboid: &T,
-        global_from_query: &Option<Isometry3<f64>>,
-    ) -> Vec<S2CellId>
+    fn cells_in_cuboid<T>(&self, cuboid: &T) -> Vec<S2CellId>
     where
         T: Cuboid<f64>,
     {
-        self.cells_in_convex_hull(cuboid.corners().iter().map(|c| match global_from_query {
-            Some(g_from_q) => g_from_q * c,
-            None => *c,
-        }))
+        self.cells_in_convex_hull(cuboid.corners().iter().cloned())
     }
 
     /// Returns all cells that intersect the convex hull of the given points

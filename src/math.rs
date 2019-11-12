@@ -49,10 +49,6 @@ where
     fn contains(&self, point: &Point3<S>) -> bool;
     // TODO(catevita): return Relation
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
-    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>>;
-}
-
-pub trait Cuboid<S> {
     fn corners(&self) -> [Point3<S>; 8];
 }
 
@@ -60,22 +56,13 @@ impl<S> PointCulling<S> for Aabb3<S>
 where
     S: 'static + BaseFloat + Sync + Send,
 {
+    fn contains(&self, p: &Point3<S>) -> bool {
+        Contains::contains(self, p)
+    }
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
         let separating_axes = &[Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
         intersects_aabb3(&self.to_corners(), separating_axes, aabb)
     }
-    fn contains(&self, p: &Point3<S>) -> bool {
-        Contains::contains(self, p)
-    }
-    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Obb::from(self).transformed(global_from_query)
-    }
-}
-
-impl<S> Cuboid<S> for Aabb3<S>
-where
-    S: BaseFloat,
-{
     fn corners(&self) -> [Point3<S>; 8] {
         self.to_corners()
     }
@@ -89,14 +76,11 @@ impl<S> PointCulling<S> for AllPoints
 where
     S: BaseFloat + Sync + Send,
 {
-    fn intersects_aabb3(&self, _aabb: &Aabb3<S>) -> bool {
-        true
-    }
     fn contains(&self, _p: &Point3<S>) -> bool {
         true
     }
-    fn transformed(&self, _: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self {})
+    fn intersects_aabb3(&self, _aabb: &Aabb3<S>) -> bool {
+        true
     }
 }
 #[derive(Debug, Clone)]
@@ -304,6 +288,10 @@ impl<S: BaseFloat> Obb<S> {
         }
     }
 
+    pub fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
+        Self::new(global_from_query * &self.query_from_obb, self.half_extent)
+    }
+
     fn precompute_corners(
         query_from_obb: &Isometry3<S>,
         half_extent: &Vector3<S>,
@@ -360,20 +348,14 @@ impl<S> PointCulling<S> for Obb<S>
 where
     S: 'static + BaseFloat + Sync + Send,
 {
-    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
-        intersects_aabb3(&self.corners, &self.separating_axes, aabb)
-    }
     fn contains(&self, p: &Point3<S>) -> bool {
         let Point3 { x, y, z } = &self.obb_from_query * p;
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
     }
-    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(
-            global_from_query * &self.query_from_obb,
-            self.half_extent,
-        ))
+    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
+        intersects_aabb3(&self.corners, &self.separating_axes, aabb)
     }
 }
 
@@ -413,6 +395,10 @@ impl<S: BaseFloat> Frustum<S> {
             frustum,
         }
     }
+
+    pub fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
+        Self::new(global_from_query * &self.query_from_eye, self.clip_from_eye)
+    }
 }
 
 impl<S> PointCulling<S> for Frustum<S>
@@ -433,18 +419,6 @@ where
             Relation::Out => false,
         }
     }
-    fn transformed(&self, global_from_query: &Isometry3<S>) -> Box<dyn PointCulling<S>> {
-        Box::new(Self::new(
-            global_from_query * &self.query_from_eye,
-            self.clip_from_eye,
-        ))
-    }
-}
-
-impl<S> Cuboid<S> for Frustum<S>
-where
-    S: BaseFloat,
-{
     fn corners(&self) -> [Point3<S>; 8] {
         let corner_from = |x, y, z| self.query_from_clip.transform_point(Point3::new(x, y, z));
         [

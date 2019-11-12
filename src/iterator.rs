@@ -1,9 +1,9 @@
 use crate::errors::*;
 use crate::math::PointCulling;
-use crate::math::{AllPoints, Frustum, Isometry3, Obb};
+use crate::math::{AllPoints, Frustum, Obb};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::PointsBatch;
-use cgmath::{EuclideanSpace, Point3};
+use cgmath::Point3;
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
 use std::collections::BTreeMap;
@@ -21,22 +21,15 @@ pub enum PointLocation {
 pub struct PointQuery<'a> {
     pub attributes: Vec<&'a str>,
     pub location: PointLocation,
-    // If set, culling and the returned points are interpreted to be in local coordinates.
-    // Otherwise, the query is assumed to already be in global coordinates.
-    pub global_from_query: Option<Isometry3<f64>>,
 }
 
 impl<'a> PointQuery<'a> {
     pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
-        let culling: Box<dyn PointCulling<f64>> = match &self.location {
-            PointLocation::AllPoints => return Box::new(AllPoints {}),
+        match &self.location {
+            PointLocation::AllPoints => Box::new(AllPoints {}),
             PointLocation::Aabb(aabb) => Box::new(*aabb),
             PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
             PointLocation::Obb(obb) => Box::new(obb.clone()),
-        };
-        match &self.global_from_query {
-            Some(global_from_query) => culling.transformed(global_from_query),
-            None => culling,
         }
     }
 }
@@ -74,7 +67,6 @@ where
 {
     buf: PointsBatch,
     batch_size: usize,
-    query_from_global: &'a Option<Isometry3<f64>>,
     func: &'a F,
 }
 
@@ -82,14 +74,13 @@ impl<'a, F> PointStream<'a, F>
 where
     F: Fn(PointsBatch) -> Result<()>,
 {
-    fn new(batch_size: usize, query_from_global: &'a Option<Isometry3<f64>>, func: &'a F) -> Self {
+    fn new(batch_size: usize, func: &'a F) -> Self {
         PointStream {
             buf: PointsBatch {
                 position: Vec::new(),
                 attributes: BTreeMap::new(),
             },
             batch_size,
-            query_from_global,
             func,
         }
     }
@@ -111,13 +102,6 @@ where
         I: Iterator<Item = PointsBatch>,
     {
         for mut batch in node_iterator {
-            if let Some(query_from_global) = &self.query_from_global {
-                batch.position = batch
-                    .position
-                    .iter()
-                    .map(|p| (query_from_global * &Point3::from_vec(*p)).to_vec())
-                    .collect();
-            }
             self.buf.append(&mut batch)?;
             while self.buf.position.len() >= self.batch_size {
                 self.callback()?;
@@ -189,18 +173,11 @@ where
                 number_of_jobs += 1;
             });
 
-        let query_from_global = self
-            .point_query
-            .global_from_query
-            .as_ref()
-            .map(Isometry3::inverse);
-
         // operate on nodes with limited number of threads
         crossbeam::scope(|s| {
             let (tx, rx) = crossbeam::channel::bounded::<PointsBatch>(self.buffer_size);
             for curr_thread in 0..self.num_threads {
                 let tx = tx.clone();
-                let query_from_global = &query_from_global;
                 let point_query = &self.point_query;
                 let batch_size = self.batch_size;
                 let worker = Worker::new_fifo();
@@ -217,8 +194,7 @@ where
                     };
 
                     // one pointstream per thread vs one per node allows to send more full point batches
-                    let mut point_stream =
-                        PointStream::new(batch_size, &query_from_global, &send_func);
+                    let mut point_stream = PointStream::new(batch_size, &send_func);
 
                     while let Some((octree, node_id)) = worker.pop().or_else(|| {
                         std::iter::repeat_with(|| jobs.steal_batch_and_pop(&worker))
