@@ -49,6 +49,12 @@ where
     fn contains(&self, point: &Point3<S>) -> bool;
     // TODO(catevita): return Relation
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
+}
+
+pub trait Cuboid<S>
+where
+    S: BaseFloat,
+{
     fn corners(&self) -> [Point3<S>; 8];
 }
 
@@ -63,6 +69,12 @@ where
         let separating_axes = &[Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
         intersects_aabb3(&self.to_corners(), separating_axes, aabb)
     }
+}
+
+impl<S> Cuboid<S> for Aabb3<S>
+where
+    S: BaseFloat,
+{
     fn corners(&self) -> [Point3<S>; 8] {
         self.to_corners()
     }
@@ -419,6 +431,12 @@ where
             Relation::Out => false,
         }
     }
+}
+
+impl<S> Cuboid<S> for Frustum<S>
+where
+    S: BaseFloat,
+{
     fn corners(&self) -> [Point3<S>; 8] {
         let corner_from = |x, y, z| self.query_from_clip.transform_point(Point3::new(x, y, z));
         [
