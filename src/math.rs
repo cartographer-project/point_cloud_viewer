@@ -271,9 +271,9 @@ impl<S: BaseFloat> Isometry3<S> {
 
 #[derive(Debug, Clone)]
 pub struct Obb<S> {
-    pub query_from_obb: Isometry3<S>,
+    query_from_obb: Isometry3<S>,
     obb_from_query: Isometry3<S>,
-    pub half_extent: Vector3<S>,
+    half_extent: Vector3<S>,
     corners: [Point3<S>; 8],
     separating_axes: Vec<Vector3<S>>,
 }
