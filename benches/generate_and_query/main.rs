@@ -300,3 +300,24 @@ fn check_obb_query_equality() {
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     assert_points_equal(&points_s2, &points_oct);
 }
+
+#[test]
+fn check_rect_query_equality() {
+    let (args, s2, oct, points) = setup();
+    let coords = points.ecef_from_local().translation;
+    let rect = s2::rect::Rect::from_center_size(
+        s2::latlng::LatLng::from(s2::point::Point::from_coords(coords.x, coords.y, coords.z)),
+        s2::latlng::LatLng::new(
+            s2::s1::angle::Angle::from(s2::s1::angle::Rad(0.0001)),
+            s2::s1::angle::Angle::from(s2::s1::angle::Rad(0.0001)),
+        ),
+    );
+    let query = PointQuery {
+        attributes: vec!["color"],
+        location: PointLocation::SphericalRect(rect),
+    };
+    let points_oct = query_and_sort(&oct, &query, args.batch_size);
+    let points_s2 = query_and_sort(&s2, &query, args.batch_size);
+    dbg!(points_oct.len());
+    assert_points_equal(&points_s2, &points_oct);
+}
