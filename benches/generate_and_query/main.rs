@@ -291,7 +291,7 @@ fn check_frustum_query_equality() {
 #[test]
 fn check_obb_query_equality() {
     let (args, s2, oct, points) = setup();
-    let obb = Obb::new(Isometry3::zero(), Vector3::new(15.0, 15.0, 15.0));
+    let obb = Obb::new(Isometry3::one(), Vector3::new(15.0, 15.0, 15.0));
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::Obb(obb),

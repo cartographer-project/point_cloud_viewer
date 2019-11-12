@@ -1,7 +1,7 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::PointCulling;
+use crate::math::{Cuboid, Isometry3};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -174,9 +174,11 @@ impl PointCloud for S2Cells {
     fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
         match &query.location {
             PointLocation::AllPoints => self.cells.keys().cloned().map(S2CellId).collect(),
-            PointLocation::Aabb(aabb) => self.cells_in_culling(aabb, query),
-            PointLocation::Obb(obb) => self.cells_in_culling(obb, query),
-            PointLocation::Frustum(frustum) => self.cells_in_culling(frustum, query),
+            PointLocation::Aabb(aabb) => self.cells_in_cuboid(aabb, &query.global_from_query),
+            PointLocation::Obb(obb) => self.cells_in_cuboid(obb, &query.global_from_query),
+            PointLocation::Frustum(frustum) => {
+                self.cells_in_cuboid(frustum, &query.global_from_query)
+            }
         }
     }
 
@@ -228,16 +230,18 @@ impl S2Cells {
     }
 
     /// Wrapper arround cells_in_convex_hull for Obbs
-    fn cells_in_culling<T>(&self, culling: &T, query: &PointQuery) -> Vec<S2CellId>
+    fn cells_in_cuboid<T>(
+        &self,
+        cuboid: &T,
+        global_from_query: &Option<Isometry3<f64>>,
+    ) -> Vec<S2CellId>
     where
-        T: PointCulling<f64> + Clone,
+        T: Cuboid<f64>,
     {
-        let culling = match &query.global_from_query {
-            Some(g_from_q) => culling.transformed(g_from_q),
-            None => Box::new(culling.clone()),
-        };
-        let points = culling.corners();
-        self.cells_in_convex_hull(points.iter().cloned())
+        self.cells_in_convex_hull(cuboid.corners().iter().map(|c| match global_from_query {
+            Some(g_from_q) => g_from_q * c,
+            None => *c,
+        }))
     }
 
     /// Returns all cells that intersect the convex hull of the given points
