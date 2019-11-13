@@ -494,11 +494,9 @@ pub fn xray_from_points(
     let _ = point_cloud_client.for_each_point_data(&point_query, |mut points_batch| {
         seen_any_points = true;
         if let Some(query_from_global) = query_from_global {
-            points_batch.position = points_batch
-                .position
-                .iter()
-                .map(|p| (query_from_global * &Point3::from_vec(*p)).to_vec())
-                .collect();
+            for p in &mut points_batch.position {
+                *p = (query_from_global * &Point3::from_vec(*p)).to_vec();
+            }
         }
         coloring_strategy.process_point_data(&points_batch, bbox, image_size);
         Ok(())
