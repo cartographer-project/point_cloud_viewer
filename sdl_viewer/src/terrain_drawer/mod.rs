@@ -1,7 +1,7 @@
 use crate::c_str;
 use crate::graphic::{GlBuffer, GlProgram, GlProgramBuilder, GlUniform, GlVertexArray};
 use crate::opengl;
-use cgmath::{EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector2, Zero};
+use cgmath::{EuclideanSpace, Matrix4, Point3, SquareMatrix};
 use point_viewer::math::Isometry3;
 
 use opengl::types::{GLsizeiptr, GLuint};
@@ -22,13 +22,13 @@ const TERRAIN_GEOMETRY_SHADER: &str = include_str!("../../shaders/terrain.gs");
 
 const GRID_SIZE: u32 = 1023;
 
-#[allow(dead_code)]
 pub struct TerrainRenderer {
     program: GlProgram,
     u_transform: GlUniform<Matrix4<f64>>,
-    camera_pos_xy_m: Vector2<f64>,
     vertex_array: GlVertexArray,
+    #[allow(dead_code)]
     buffer_position: GlBuffer,
+    #[allow(dead_code)]
     buffer_indices: GlBuffer,
     num_indices: usize,
     terrain_layers: Vec<TerrainLayer>,
@@ -50,8 +50,6 @@ impl TerrainRenderer {
         // from (0, 0, 0), the first call to camera_changed() will be very resource intensive
         let u_transform = GlUniform::new(&program, "world_to_gl", Matrix4::identity());
 
-        let camera_pos_xy_m = Vector2::zero();
-
         let vertex_array = GlVertexArray::new(Rc::clone(&gl));
 
         let (buffer_position, buffer_indices, num_indices) =
@@ -64,7 +62,6 @@ impl TerrainRenderer {
         Self {
             program,
             u_transform,
-            camera_pos_xy_m,
             vertex_array,
             buffer_position,
             buffer_indices,
@@ -78,8 +75,8 @@ impl TerrainRenderer {
         vertex_array: &GlVertexArray,
         gl: Rc<opengl::Gl>,
     ) -> (GlBuffer, GlBuffer, usize) {
-        let num_vertices = (GRID_SIZE + 1) as usize * (GRID_SIZE + 1) as usize * 3;
-        let mut vertices: Vec<i32> = Vec::with_capacity(num_vertices);
+        let num_vertices = (GRID_SIZE + 1) * (GRID_SIZE + 1) * 3;
+        let mut vertices: Vec<i32> = Vec::with_capacity(num_vertices as usize);
         for iy in 0..=GRID_SIZE as i32 {
             for ix in 0..=GRID_SIZE as i32 {
                 vertices.push(ix);
@@ -89,20 +86,23 @@ impl TerrainRenderer {
         }
 
         let flat_ix = |x: GLuint, y: GLuint| y * (GRID_SIZE + 1) as GLuint + x;
-        let mut indices: Vec<GLuint> =
-            Vec::with_capacity(GRID_SIZE as usize * GRID_SIZE as usize * 3 * 2);
+        let num_indices = GRID_SIZE * GRID_SIZE * 3 * 2;
+        let mut indices: Vec<GLuint> = Vec::with_capacity(num_indices as usize);
         for iy in 0..GRID_SIZE as GLuint {
             for ix in 0..GRID_SIZE as GLuint {
-                // Two triangles = 1 quad
+                // Two triangles = one quad
                 indices.push(flat_ix(ix, iy));
                 indices.push(flat_ix(ix + 1, iy));
                 indices.push(flat_ix(ix, iy + 1));
+
                 indices.push(flat_ix(ix + 1, iy));
                 indices.push(flat_ix(ix, iy + 1));
                 indices.push(flat_ix(ix + 1, iy + 1));
             }
         }
 
+        // See https://learnopengl.com/Getting-started/Hello-Triangle, section
+        // "Vertex Array Object" for background on buffers and vertex array objects
         vertex_array.bind();
 
         let buffer_position = GlBuffer::new_array_buffer(Rc::clone(&gl));
@@ -117,11 +117,11 @@ impl TerrainRenderer {
                 opengl::STATIC_DRAW,
             );
 
-            let pos_attr = gl.GetAttribLocation(program.id, c_str!("aPos"));
-            gl.EnableVertexAttribArray(pos_attr as GLuint);
+            let pos_attr = gl.GetAttribLocation(program.id, c_str!("aPos")) as GLuint;
+            gl.EnableVertexAttribArray(pos_attr);
             // aPos is an ivec3. If we wanted, we could make it an ivec2 or a single index.
             gl.VertexAttribIPointer(
-                pos_attr as GLuint,
+                pos_attr,
                 3,
                 opengl::INT,
                 3 * mem::size_of::<i32>() as i32,
