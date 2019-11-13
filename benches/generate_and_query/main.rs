@@ -7,7 +7,7 @@ use lazy_static::lazy_static;
 use num_integer::div_ceil;
 use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
 use point_viewer::iterator::{PointCloud, PointLocation, PointQuery};
-use point_viewer::math::{Frustum, Obb};
+use point_viewer::math::{Frustum, Obb, S2Point};
 use point_viewer::octree::{build_octree, Octree};
 use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2Splitter};
 use point_viewer::s2_cells::S2Cells;
@@ -306,7 +306,7 @@ fn check_obb_query_equality() {
 fn check_cell_union_query_equality() {
     let (args, s2, oct, points) = setup();
     let coords = points.ecef_from_local().translation;
-    let s2_point = s2::point::Point::from_coords(coords.x, coords.y, coords.z);
+    let s2_point = S2Point::from(&coords);
     let s2_cell_id = s2::cellid::CellID::from(s2_point).parent(S2_LEVEL);
     let s2_cell_union = s2::cellunion::CellUnion(vec![s2_cell_id, s2_cell_id.next()]);
     let query = PointQuery {

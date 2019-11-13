@@ -1,7 +1,7 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::Cuboid;
+use crate::math::{Cuboid, S2Point};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -11,7 +11,6 @@ use fnv::FnvHashMap;
 use s2::cell::Cell;
 use s2::cellid::CellID;
 use s2::cellunion::CellUnion;
-use s2::point::Point as S2Point;
 use s2::region::Region;
 use std::collections::HashMap;
 use std::iter;
@@ -246,7 +245,7 @@ impl S2Cells {
         // We could choose either a covering rect or a covering cap as a convex hull
         let point_cells = points
             .into_iter()
-            .map(|p| CellID::from(S2Point::from_coords(p.x, p.y, p.z)))
+            .map(|p| CellID::from(S2Point::from(&p)))
             .collect();
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();

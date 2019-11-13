@@ -23,7 +23,6 @@ use num_traits::Float;
 use s2::cell::Cell;
 use s2::cellid::CellID;
 use s2::cellunion::CellUnion;
-use s2::point::Point as S2Point;
 use s2::region::Region;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -45,6 +44,30 @@ where
         clamped[i] = num::clamp(value[i], low[i], high[i]);
     }
     clamped
+}
+
+pub trait S2Point {
+    fn from(&self) -> s2::point::Point;
+}
+
+impl<S> S2Point for Point3<S>
+where
+    S: BaseFloat,
+    f64: From<S>,
+{
+    fn from(&self) -> s2::point::Point {
+        s2::point::Point::from_coords(f64::from(self.x), f64::from(self.y), f64::from(self.z))
+    }
+}
+
+impl<S> S2Point for Vector3<S>
+where
+    S: BaseFloat,
+    f64: From<S>,
+{
+    fn from(&self) -> s2::point::Point {
+        s2::point::Point::from_coords(f64::from(self.x), f64::from(self.y), f64::from(self.z))
+    }
 }
 
 pub trait PointCulling<S>: Debug + Sync + Send
@@ -460,20 +483,13 @@ where
     f64: From<S>,
 {
     fn contains(&self, p: &Point3<S>) -> bool {
-        let s2_point = S2Point::from_coords(f64::from(p.x), f64::from(p.y), f64::from(p.z));
-        self.contains_cellid(&CellID::from(s2_point))
+        self.contains_cellid(&CellID::from(S2Point::from(p)))
     }
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
         let point_cells = aabb
             .to_corners()
             .iter()
-            .map(|p| {
-                CellID::from(S2Point::from_coords(
-                    f64::from(p.x),
-                    f64::from(p.y),
-                    f64::from(p.z),
-                ))
-            })
+            .map(|p| CellID::from(S2Point::from(p)))
             .collect();
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();

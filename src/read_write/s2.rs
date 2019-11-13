@@ -1,4 +1,4 @@
-use crate::math::{EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
+use crate::math::{S2Point, EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
 use crate::read_write::{Encoding, NodeWriter, OpenMode};
 use crate::s2_cells::{S2CellMeta, S2Meta};
 use crate::{AttributeData, AttributeDataType, PointsBatch};
@@ -7,7 +7,6 @@ use collision::{Aabb, Aabb3};
 use fnv::FnvHashMap;
 use lru::LruCache;
 use s2::cellid::CellID;
-use s2::point::Point;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Error, ErrorKind, Result};
 use std::iter::Iterator;
@@ -74,7 +73,7 @@ where
             let p3 = Point3::from_vec(*pos);
             let b = self.bounding_box.get_or_insert(Aabb3::new(p3, p3));
             *b = b.grow(p3);
-            let s2_point = Point::from_coords(pos.x, pos.y, pos.z);
+            let s2_point = S2Point::from(pos);
             let s2_cell_id = CellID::from(s2_point).parent(self.split_level);
             self.cell_stats
                 .entry(s2_cell_id)
