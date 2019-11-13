@@ -2,7 +2,7 @@
 
 use crate::proto;
 use crate::CURRENT_VERSION;
-use cgmath::{Decomposed, Point2, Point3, Quaternion, Vector2, Vector3};
+use cgmath::{Decomposed, EuclideanSpace, Point2, Point3, Quaternion, Vector2, Vector3};
 use clap::arg_enum;
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
@@ -10,7 +10,8 @@ use image::{self, GenericImage};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::iterator::{PointLocation, PointQuery};
-use point_viewer::{color::Color, math::Isometry3, AttributeData, PointsBatch};
+use point_viewer::math::{Isometry3, Obb};
+use point_viewer::{color::Color, AttributeData, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -471,7 +472,7 @@ pub struct Tile {
 
 pub fn xray_from_points(
     point_cloud_client: &PointCloudClient,
-    global_from_query: &Option<Isometry3<f64>>,
+    query_from_global: &Option<Isometry3<f64>>,
     bbox: &Aabb3<f64>,
     png_file: &Path,
     image_size: Vector2<u32>,
@@ -479,13 +480,24 @@ pub fn xray_from_points(
     tile_background_color: Color<u8>,
 ) -> bool {
     let mut seen_any_points = false;
-    let point_location = PointQuery {
-        attributes: coloring_strategy.attributes(),
-        location: PointLocation::Aabb(*bbox),
-        global_from_query: global_from_query.clone(),
+    let location = match query_from_global {
+        Some(query_from_global) => {
+            let global_from_query = query_from_global.inverse();
+            PointLocation::Obb(Obb::from(bbox).transformed(&global_from_query))
+        }
+        None => PointLocation::Aabb(*bbox),
     };
-    let _ = point_cloud_client.for_each_point_data(&point_location, |points_batch| {
+    let point_query = PointQuery {
+        attributes: coloring_strategy.attributes(),
+        location,
+    };
+    let _ = point_cloud_client.for_each_point_data(&point_query, |mut points_batch| {
         seen_any_points = true;
+        if let Some(query_from_global) = query_from_global {
+            for p in &mut points_batch.position {
+                *p = (query_from_global * &Point3::from_vec(*p)).to_vec();
+            }
+        }
         coloring_strategy.process_point_data(&points_batch, bbox, image_size);
         Ok(())
     });
@@ -558,7 +570,6 @@ pub fn build_xray_quadtree(
     let (all_nodes_tx, all_nodes_rx) = mpsc::channel();
     println!("Building level {}.", deepest_level);
 
-    let global_from_query = &query_from_global.as_ref().map(Isometry3::inverse);
     pool.scoped(|scope| {
         let mut open = vec![Node::root_with_bounding_rect(bounding_rect.clone())];
         while !open.is_empty() {
@@ -582,7 +593,7 @@ pub fn build_xray_quadtree(
                     );
                     if xray_from_points(
                         point_cloud_client,
-                        global_from_query,
+                        query_from_global,
                         &bbox,
                         &get_image_path(output_directory, node.id),
                         Vector2::new(tile.size_px, tile.size_px),

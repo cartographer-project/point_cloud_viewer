@@ -72,7 +72,6 @@ fn main() {
     let point_location = PointQuery {
         attributes: vec!["color", "intensity"],
         location: PointLocation::Aabb(Aabb3::new(args.min, args.max)),
-        global_from_query: None,
     };
     let mut point_count: usize = 0;
     let mut print_count: usize = 1;

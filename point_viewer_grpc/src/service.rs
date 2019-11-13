@@ -297,7 +297,6 @@ impl OctreeService {
                 let point_query = PointQuery {
                     attributes: vec!["color", "intensity"],
                     location,
-                    global_from_query: None,
                 };
                 let mut parallel_iterator = ParallelIterator::new(
                     octree_slice,
