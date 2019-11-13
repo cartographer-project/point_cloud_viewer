@@ -12,7 +12,6 @@ use s2::cell::Cell;
 use s2::cellid::CellID;
 use s2::cellunion::CellUnion;
 use s2::point::Point as S2Point;
-use s2::rect::Rect as S2Rect;
 use s2::region::Region;
 use std::collections::HashMap;
 use std::iter;
@@ -178,7 +177,9 @@ impl PointCloud for S2Cells {
             PointLocation::Aabb(aabb) => self.cells_in_cuboid(aabb),
             PointLocation::Obb(obb) => self.cells_in_cuboid(obb),
             PointLocation::Frustum(frustum) => self.cells_in_cuboid(frustum),
-            PointLocation::SphericalRect(rect) => self.cells_intersecting_rect(rect),
+            PointLocation::S2Cells(cell_union) => {
+                self.cells_intersecting(|cell: &Cell| cell_union.intersects_cell(cell))
+            }
         }
     }
 
@@ -249,13 +250,14 @@ impl S2Cells {
             .collect();
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();
-        self.cells_intersecting_rect(&cell_union.rect_bound())
+        let rect = cell_union.rect_bound();
+        self.cells_intersecting(|cell: &Cell| rect.intersects_cell(cell))
     }
 
-    fn cells_intersecting_rect(&self, rect: &S2Rect) -> Vec<S2CellId> {
+    fn cells_intersecting(&self, f: impl Fn(&Cell) -> bool) -> Vec<S2CellId> {
         self.cells
             .values()
-            .filter(|cell| rect.intersects_cell(cell))
+            .filter(|cell| f(cell))
             .map(|cell| S2CellId(cell.id))
             .collect()
     }

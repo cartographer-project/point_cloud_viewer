@@ -23,6 +23,7 @@ use test::Bencher;
 mod random_points;
 
 const RESOLUTION: f64 = 0.001;
+const S2_LEVEL: u64 = 20;
 
 #[derive(Debug)]
 struct Arguments {
@@ -74,7 +75,7 @@ fn make_octree(args: &Arguments, dir: &Path) {
 fn make_s2_cells(args: &Arguments, dir: &Path) {
     let points_s2 = RandomPointsOnEarth::new(args.width, args.height, args.num_points, args.seed);
     let mut s2_writer: S2Splitter<RawNodeWriter> =
-        S2Splitter::new(dir, Encoding::Plain, OpenMode::Truncate);
+        S2Splitter::with_split_level(S2_LEVEL, dir, Encoding::Plain, OpenMode::Truncate);
     Batched::new(points_s2, args.batch_size)
         .try_for_each(|batch| s2_writer.write(&batch))
         .expect("Writing failed");
@@ -302,19 +303,15 @@ fn check_obb_query_equality() {
 }
 
 #[test]
-fn check_rect_query_equality() {
+fn check_cell_union_query_equality() {
     let (args, s2, oct, points) = setup();
     let coords = points.ecef_from_local().translation;
-    let rect = s2::rect::Rect::from_center_size(
-        s2::latlng::LatLng::from(s2::point::Point::from_coords(coords.x, coords.y, coords.z)),
-        s2::latlng::LatLng::new(
-            s2::s1::angle::Angle::from(s2::s1::angle::Rad(0.0001)),
-            s2::s1::angle::Angle::from(s2::s1::angle::Rad(0.0001)),
-        ),
-    );
+    let s2_point = s2::point::Point::from_coords(coords.x, coords.y, coords.z);
+    let s2_cell_id = s2::cellid::CellID::from(s2_point).parent(S2_LEVEL);
+    let s2_cell_union = s2::cellunion::CellUnion(vec![s2_cell_id, s2_cell_id.next()]);
     let query = PointQuery {
         attributes: vec!["color"],
-        location: PointLocation::SphericalRect(rect),
+        location: PointLocation::S2Cells(s2_cell_union),
     };
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
