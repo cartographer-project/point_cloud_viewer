@@ -1,7 +1,7 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::Cuboid;
+use crate::math::{Cuboid, S2Point};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -11,7 +11,6 @@ use fnv::FnvHashMap;
 use s2::cell::Cell;
 use s2::cellid::CellID;
 use s2::cellunion::CellUnion;
-use s2::point::Point as S2Point;
 use s2::region::Region;
 use std::collections::HashMap;
 use std::iter;
@@ -177,6 +176,7 @@ impl PointCloud for S2Cells {
             PointLocation::Aabb(aabb) => self.cells_in_cuboid(aabb),
             PointLocation::Obb(obb) => self.cells_in_cuboid(obb),
             PointLocation::Frustum(frustum) => self.cells_in_cuboid(frustum),
+            PointLocation::S2Cells(cell_union) => self.cells_intersecting_region(cell_union),
         }
     }
 
@@ -243,14 +243,18 @@ impl S2Cells {
         // We could choose either a covering rect or a covering cap as a convex hull
         let point_cells = points
             .into_iter()
-            .map(|p| CellID::from(S2Point::from_coords(p.x, p.y, p.z)))
+            .map(|p| CellID::from(S2Point::from(&p)))
             .collect();
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();
-        let convex_hull = cell_union.rect_bound();
+        let rect = cell_union.rect_bound();
+        self.cells_intersecting_region(&rect)
+    }
+
+    fn cells_intersecting_region(&self, region: &impl Region) -> Vec<S2CellId> {
         self.cells
             .values()
-            .filter(|cell| convex_hull.intersects_cell(cell))
+            .filter(|cell| region.intersects_cell(cell))
             .map(|cell| S2CellId(cell.id))
             .collect()
     }
