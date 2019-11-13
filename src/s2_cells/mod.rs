@@ -176,9 +176,7 @@ impl PointCloud for S2Cells {
             PointLocation::Aabb(aabb) => self.cells_in_cuboid(aabb),
             PointLocation::Obb(obb) => self.cells_in_cuboid(obb),
             PointLocation::Frustum(frustum) => self.cells_in_cuboid(frustum),
-            PointLocation::S2Cells(cell_union) => {
-                self.cells_intersecting(|cell: &Cell| cell_union.intersects_cell(cell))
-            }
+            PointLocation::S2Cells(cell_union) => self.cells_intersecting_region(cell_union),
         }
     }
 
@@ -250,13 +248,13 @@ impl S2Cells {
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();
         let rect = cell_union.rect_bound();
-        self.cells_intersecting(|cell: &Cell| rect.intersects_cell(cell))
+        self.cells_intersecting_region(&rect)
     }
 
-    fn cells_intersecting(&self, f: impl Fn(&Cell) -> bool) -> Vec<S2CellId> {
+    fn cells_intersecting_region(&self, region: &impl Region) -> Vec<S2CellId> {
         self.cells
             .values()
-            .filter(|cell| f(cell))
+            .filter(|cell| region.intersects_cell(cell))
             .map(|cell| S2CellId(cell.id))
             .collect()
     }
