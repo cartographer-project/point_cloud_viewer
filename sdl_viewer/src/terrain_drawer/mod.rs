@@ -174,7 +174,9 @@ impl TerrainRenderer {
             // And after:
             // self.program.gl.Disable(opengl::BLEND);
             for layer in self.terrain_layers.iter() {
+                // Set the terrain to be used with the next draw call
                 layer.submit();
+                // Draw the mesh using the current terrain data
                 self.program.gl.DrawElements(
                     opengl::TRIANGLES,
                     self.num_indices as i32,
