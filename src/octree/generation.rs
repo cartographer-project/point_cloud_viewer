@@ -240,8 +240,8 @@ fn subsample_children_into(
 
         let mut child_writer =
             RawNodeWriter::from_data_provider(octree_data_provider, octree_meta, &child_id);
-        parent_writer.write(&parent_batch)?;
         child_writer.write(&child_batch)?;
+        parent_writer.write(&parent_batch)?;
 
         // Update child.
         nodes_sender
