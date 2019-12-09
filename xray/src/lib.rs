@@ -144,6 +144,7 @@ impl Meta {
 
 pub mod backend;
 pub mod build_quadtree;
+pub mod colormap;
 pub mod generation;
 
 pub use xray_proto_rust::proto;
