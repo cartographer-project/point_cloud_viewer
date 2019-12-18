@@ -13,10 +13,7 @@ use std::path::Path;
 
 pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
-    fn query_from_global(
-        matches: &clap::ArgMatches,
-        point_cloud_client: &PointCloudClient,
-    ) -> Option<Isometry3<f64>>;
+    fn query_from_global(matches: &clap::ArgMatches) -> Option<Isometry3<f64>>;
 }
 
 fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
@@ -148,7 +145,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     let point_cloud_client = PointCloudClient::new(&octree_locations, data_provider_factory)
         .expect("Could not create point cloud client.");
 
-    let query_from_global = T::query_from_global(&args, &point_cloud_client);
+    let query_from_global = T::query_from_global(&args);
     build_xray_quadtree(
         &pool,
         &point_cloud_client,
