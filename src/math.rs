@@ -266,6 +266,21 @@ impl<S: BaseFloat> From<Decomposed<Vector3<S>, Quaternion<S>>> for Isometry3<S> 
     }
 }
 
+impl<S: BaseFloat> From<nalgebra::Isometry3<S>> for Isometry3<S>
+where
+    S: nalgebra::RealField,
+{
+    fn from(isometry: nalgebra::Isometry3<S>) -> Self {
+        let r = isometry.rotation.coords;
+        let t = isometry.translation;
+        Self::new(
+            // nalgebra quaternion vec has `[ x, y, z, w ]` storage order
+            Quaternion::new(r[3], r[0], r[1], r[2]),
+            Vector3::new(t.x, t.y, t.z),
+        )
+    }
+}
+
 impl<S: BaseFloat> Isometry3<S> {
     pub fn new(rotation: Quaternion<S>, translation: Vector3<S>) -> Self {
         Isometry3 {
