@@ -47,7 +47,7 @@ fn main() {
     let _protoc_path = ScopedProtocPath::default();
     protoc_grpcio::compile_grpc_protos(
         &["point_viewer_grpc_proto_rust/src/proto.proto"],
-        &[git_repo_root.clone()],
+        &[git_repo_root],
         &out_dir,
         None,
     )
