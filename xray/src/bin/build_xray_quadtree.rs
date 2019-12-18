@@ -1,4 +1,3 @@
-use point_cloud_client::PointCloudClient;
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::Isometry3;
 use point_viewer_grpc::data_provider_from_grpc_address;
