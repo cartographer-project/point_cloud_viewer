@@ -63,9 +63,9 @@ pub struct Grayscale;
 impl Colormap for Grayscale {
     fn for_value_unchecked(&self, val: f32) -> Color<u8> {
         Color {
-            red: val,
-            green: val,
-            blue: val,
+            red: 1.0 - val,
+            green: 1.0 - val,
+            blue: 1.0 - val,
             alpha: 1.0,
         }
         .to_u8()
