@@ -216,11 +216,11 @@ impl WriteLE for Vec<Vector3<f64>> {
 impl WriteLE for AttributeData {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         macro_rules! rhs {
-            ($variant:ident, $data:ident, $writer:ident) => {
+            ($dtype:ident, $data:ident, $writer:ident) => {
                 WriteLE::write_le($data, $writer)
             };
         }
-        for_each_variant!(self, attribute_data_pat, rhs, writer)
+        match_attr_data!(self, rhs, writer)
     }
 }
 
@@ -231,11 +231,11 @@ pub trait WriteLEPos {
 impl WriteLEPos for AttributeData {
     fn write_le_pos(&self, pos: usize, writer: &mut DataWriter) -> Result<()> {
         macro_rules! rhs {
-            ($variant:ident, $data:ident, $writer:ident, $pos:ident) => {
+            ($dtype:ident, $data:ident, $writer:ident, $pos:ident) => {
                 $data[$pos].write_le($writer)
             };
         }
-        for_each_variant!(self, attribute_data_pat, rhs, writer, pos)
+        match_attr_data!(self, rhs, writer, pos)
     }
 }
 

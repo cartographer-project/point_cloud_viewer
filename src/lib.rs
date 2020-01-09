@@ -129,11 +129,11 @@ impl PointsBatch {
         self.position.retain(|_| keep.next().unwrap());
         for a in self.attributes.values_mut() {
             macro_rules! rhs {
-                ($variant:ident, $data:ident, $keep:expr) => {
+                ($dtype:ident, $data:ident, $keep:expr) => {
                     $data.retain(|_| $keep.next().unwrap())
                 };
             }
-            for_each_variant!(a, attribute_data_pat, rhs, keep)
+            match_attr_data!(a, rhs, keep)
         }
     }
 
