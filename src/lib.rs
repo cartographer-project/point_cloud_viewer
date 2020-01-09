@@ -44,8 +44,8 @@ pub trait NumberOfPoints {
     fn num_points(&self) -> usize;
 }
 
-// TODO(nnmm)
-pub use attributes::{AttributeData, AttributeDataType};
+
+use attributes::{AttributeData, AttributeDataType};
 
 #[derive(Debug, Clone)]
 pub struct Point {
