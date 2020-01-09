@@ -114,13 +114,46 @@ macro_rules! derive_write_le_vec {
     };
 }
 
+impl WriteLE for i8 {
+    fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
+        writer.write_i8(*self)
+    }
+}
+
+impl WriteLE for u8 {
+    fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
+        writer.write_u8(*self)
+    }
+}
+
+impl WriteLE for Vec<i8> {
+    fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
+        let u8slice = unsafe { &*(self.as_slice() as *const _ as *const [u8]) };
+        writer.write_all(u8slice)
+    }
+}
+
+impl WriteLE for Vec<u8> {
+    fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
+        writer.write_all(self.as_slice())
+    }
+}
+
 derive_write_le!(f32, write_f32);
 derive_write_le!(f64, write_f64);
+derive_write_le!(i16, write_i16);
+derive_write_le!(i32, write_i32);
 derive_write_le!(i64, write_i64);
+derive_write_le!(u16, write_u16);
+derive_write_le!(u32, write_u32);
 derive_write_le!(u64, write_u64);
 derive_write_le_vec!(f32, write_f32_into);
 derive_write_le_vec!(f64, write_f64_into);
+derive_write_le_vec!(i16, write_i16_into);
+derive_write_le_vec!(i32, write_i32_into);
 derive_write_le_vec!(i64, write_i64_into);
+derive_write_le_vec!(u16, write_u16_into);
+derive_write_le_vec!(u32, write_u32_into);
 derive_write_le_vec!(u64, write_u64_into);
 
 impl WriteLE for Vector3<u8> {
@@ -182,15 +215,12 @@ impl WriteLE for Vec<Vector3<f64>> {
 
 impl WriteLE for AttributeData {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
-        match self {
-            AttributeData::U8(data) => writer.write_all(data),
-            AttributeData::I64(data) => data.write_le(writer),
-            AttributeData::U64(data) => data.write_le(writer),
-            AttributeData::F32(data) => data.write_le(writer),
-            AttributeData::F64(data) => data.write_le(writer),
-            AttributeData::U8Vec3(data) => data.write_le(writer),
-            AttributeData::F64Vec3(data) => data.write_le(writer),
+        macro_rules! rhs {
+            ($variant:ident, $data:ident, $writer:ident) => {
+                WriteLE::write_le($data, $writer)
+            };
         }
+        for_each_variant!(self, attribute_data_pat, rhs, writer)
     }
 }
 
@@ -200,15 +230,12 @@ pub trait WriteLEPos {
 
 impl WriteLEPos for AttributeData {
     fn write_le_pos(&self, pos: usize, writer: &mut DataWriter) -> Result<()> {
-        match self {
-            AttributeData::U8(data) => writer.write_u8(data[pos]),
-            AttributeData::I64(data) => data[pos].write_le(writer),
-            AttributeData::U64(data) => data[pos].write_le(writer),
-            AttributeData::F32(data) => data[pos].write_le(writer),
-            AttributeData::F64(data) => data[pos].write_le(writer),
-            AttributeData::U8Vec3(data) => data[pos].write_le(writer),
-            AttributeData::F64Vec3(data) => data[pos].write_le(writer),
+        macro_rules! rhs {
+            ($variant:ident, $data:ident, $writer:ident, $pos:ident) => {
+                $data[$pos].write_le($writer)
+            };
         }
+        for_each_variant!(self, attribute_data_pat, rhs, writer, pos)
     }
 }
 
