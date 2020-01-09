@@ -44,7 +44,6 @@ pub trait NumberOfPoints {
     fn num_points(&self) -> usize;
 }
 
-
 use attributes::{AttributeData, AttributeDataType};
 
 #[derive(Debug, Clone)]
