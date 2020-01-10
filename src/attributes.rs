@@ -94,20 +94,19 @@ pub enum AttributeData {
 #[macro_export]
 macro_rules! match_attr_data {
     ($x:expr, $match_rhs:tt $(, $arg:tt )* ) => {
-        #[allow(unused_variables)]
         match $x {
-            AttributeData::U8(d) => $match_rhs!(U8, d $(, $arg )* ),
-            AttributeData::U16(d) => $match_rhs!(U16, d $(, $arg )* ),
-            AttributeData::U32(d) => $match_rhs!(U32, d $(, $arg )* ),
-            AttributeData::U64(d) => $match_rhs!(U64, d $(, $arg )* ),
-            AttributeData::I8(d) => $match_rhs!(I8, d $(, $arg )* ),
-            AttributeData::I16(d) => $match_rhs!(I16, d $(, $arg )* ),
-            AttributeData::I32(d) => $match_rhs!(I32, d $(, $arg )* ),
-            AttributeData::I64(d) => $match_rhs!(I64, d $(, $arg )* ),
-            AttributeData::F32(d) => $match_rhs!(F32, d $(, $arg )* ),
-            AttributeData::F64(d) => $match_rhs!(F64, d $(, $arg )* ),
-            AttributeData::U8Vec3(d) => $match_rhs!(U8Vec3, d $(, $arg )* ),
-            AttributeData::F64Vec3(d) => $match_rhs!(F64Vec3, d $(, $arg )* ),
+            AttributeData::U8(_d) => $match_rhs!(U8, _d $(, $arg )* ),
+            AttributeData::U16(_d) => $match_rhs!(U16, _d $(, $arg )* ),
+            AttributeData::U32(_d) => $match_rhs!(U32, _d $(, $arg )* ),
+            AttributeData::U64(_d) => $match_rhs!(U64, _d $(, $arg )* ),
+            AttributeData::I8(_d) => $match_rhs!(I8, _d $(, $arg )* ),
+            AttributeData::I16(_d) => $match_rhs!(I16, _d $(, $arg )* ),
+            AttributeData::I32(_d) => $match_rhs!(I32, _d $(, $arg )* ),
+            AttributeData::I64(_d) => $match_rhs!(I64, _d $(, $arg )* ),
+            AttributeData::F32(_d) => $match_rhs!(F32, _d $(, $arg )* ),
+            AttributeData::F64(_d) => $match_rhs!(F64, _d $(, $arg )* ),
+            AttributeData::U8Vec3(_d) => $match_rhs!(U8Vec3, _d $(, $arg )* ),
+            AttributeData::F64Vec3(_d) => $match_rhs!(F64Vec3, _d $(, $arg )* ),
         }
     };
 }
