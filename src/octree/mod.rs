@@ -13,7 +13,7 @@
 // limitations under the License.
 use crate::data_provider::DataProvider;
 use crate::errors::*;
-use crate::iterator::{FilteredIterator, PointCloud, PointQuery};
+use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
 use crate::math::Cube;
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
@@ -308,8 +308,8 @@ impl Octree {
 impl PointCloud for Octree {
     type Id = NodeId;
     type PointsIter = FilteredIterator;
-    fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
-        let culling = query.get_point_culling();
+    fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
+        let culling = location.get_point_culling();
         let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
             let current = &octree.nodes[&node_id];
             culling.intersects_aabb3(&current.bounding_cube.to_aabb3())
@@ -327,7 +327,7 @@ impl PointCloud for Octree {
         node_id: NodeId,
         batch_size: usize,
     ) -> Result<FilteredIterator> {
-        let culling = query.get_point_culling();
+        let culling = query.location.get_point_culling();
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
             &self.meta.attribute_data_types_for(&query.attributes)?,

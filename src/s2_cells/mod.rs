@@ -170,8 +170,8 @@ impl PointCloud for S2Cells {
     type Id = S2CellId;
     type PointsIter = FilteredIterator;
 
-    fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id> {
-        match &query.location {
+    fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
+        match location {
             PointLocation::AllPoints => self.cells.keys().cloned().map(S2CellId).collect(),
             PointLocation::Aabb(aabb) => self.cells_in_cuboid(aabb),
             PointLocation::Obb(obb) => self.cells_in_cuboid(obb),
@@ -190,7 +190,7 @@ impl PointCloud for S2Cells {
         node_id: Self::Id,
         batch_size: usize,
     ) -> Result<Self::PointsIter> {
-        let culling = query.get_point_culling();
+        let culling = query.location.get_point_culling();
         let num_points = self.meta.cells[&node_id.0].num_points as usize;
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,

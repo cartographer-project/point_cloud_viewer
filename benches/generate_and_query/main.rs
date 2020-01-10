@@ -174,7 +174,7 @@ where
     C: PointCloud,
 {
     let mut points = Vec::new();
-    for node_id in point_cloud.nodes_in_location(query).into_iter() {
+    for node_id in point_cloud.nodes_in_location(&query.location).into_iter() {
         let points_iter = point_cloud
             .points_in_node(query, node_id, batch_size)
             .unwrap();

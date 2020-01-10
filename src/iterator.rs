@@ -7,7 +7,7 @@ use cgmath::Point3;
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
 use s2::cellunion::CellUnion;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
@@ -19,15 +19,9 @@ pub enum PointLocation {
     S2Cells(CellUnion),
 }
 
-#[derive(Clone, Debug)]
-pub struct PointQuery<'a> {
-    pub attributes: Vec<&'a str>,
-    pub location: PointLocation,
-}
-
-impl<'a> PointQuery<'a> {
+impl PointLocation {
     pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
-        match &self.location {
+        match &self {
             PointLocation::AllPoints => Box::new(AllPoints {}),
             PointLocation::Aabb(aabb) => Box::new(*aabb),
             PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
@@ -35,6 +29,12 @@ impl<'a> PointQuery<'a> {
             PointLocation::S2Cells(cell_union) => Box::new(cell_union.clone()),
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct PointQuery<'a> {
+    pub attributes: Vec<&'a str>,
+    pub location: PointLocation,
 }
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
@@ -118,7 +118,7 @@ where
 pub trait PointCloud: Sync {
     type Id: ToString + Send + Copy;
     type PointsIter: Iterator<Item = PointsBatch>;
-    fn nodes_in_location(&self, query: &PointQuery) -> Vec<Self::Id>;
+    fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id>;
     fn encoding_for_node(&self, id: Self::Id) -> Encoding;
     fn points_in_node(
         &self,
@@ -169,7 +169,7 @@ where
         self.point_clouds
             .iter()
             .flat_map(|octree| {
-                std::iter::repeat(octree).zip(octree.nodes_in_location(self.point_query))
+                std::iter::repeat(octree).zip(octree.nodes_in_location(&self.point_query.location))
             })
             .for_each(|(node_id, octree)| {
                 jobs.push((node_id, octree));
