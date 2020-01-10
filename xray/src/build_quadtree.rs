@@ -1,6 +1,6 @@
 use crate::generation::{
     build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, Tile,
-    TileBackgroundColorArgument,
+    TileBackgroundColorArgument, XrayParameters,
 };
 use clap::value_t;
 use point_cloud_client::PointCloudClient;
@@ -9,6 +9,7 @@ use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::Isometry3;
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
 use scoped_pool::Pool;
+use std::collections::HashMap;
 use std::path::Path;
 
 pub trait Extension {
@@ -79,6 +80,11 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .takes_value(true)
                 .possible_values(&TileBackgroundColorArgument::variants())
                 .default_value("white"),
+            clap::Arg::with_name("filter")
+                .help("Filter intervals for attributes, e.g. --filter intensity=2.0,51.0")
+                .long("filter")
+                .takes_value(true)
+                .multiple(true),
         ]);
     app = T::pre_init(app);
     app.get_matches()
@@ -145,18 +151,21 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     let point_cloud_client = PointCloudClient::new(&octree_locations, data_provider_factory)
         .expect("Could not create point cloud client.");
 
-    let query_from_global = T::query_from_global(&args);
+    let parameters = XrayParameters {
+        point_cloud_client,
+        query_from_global: T::query_from_global(&args),
+        filter: HashMap::default(),
+        tile_background_color,
+    };
     build_xray_quadtree(
         &pool,
-        &point_cloud_client,
-        &query_from_global,
         output_directory,
         &Tile {
             size_px: tile_size,
             resolution,
         },
         &coloring_strategy_kind,
-        tile_background_color,
+        &parameters,
     )
     .unwrap();
 }

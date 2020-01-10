@@ -307,7 +307,7 @@ impl Octree {
 
 impl PointCloud for Octree {
     type Id = NodeId;
-    type PointsIter = FilteredIterator;
+
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
         let culling = location.get_point_culling();
         let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
@@ -323,11 +323,12 @@ impl PointCloud for Octree {
 
     fn points_in_node<'a>(
         &'a self,
-        query: &PointQuery,
+        query: &'a PointQuery,
         node_id: NodeId,
         batch_size: usize,
-    ) -> Result<FilteredIterator> {
+    ) -> Result<FilteredIterator<'a>> {
         let culling = query.location.get_point_culling();
+        let filter = &query.filter;
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
             &self.meta.attribute_data_types_for(&query.attributes)?,
@@ -338,6 +339,7 @@ impl PointCloud for Octree {
         )?;
         Ok(FilteredIterator {
             culling,
+            filter,
             node_iterator,
         })
     }

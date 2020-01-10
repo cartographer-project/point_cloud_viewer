@@ -26,7 +26,9 @@ use s2::cellunion::CellUnion;
 use s2::region::Region;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use std::num::ParseFloatError;
 use std::ops::Mul;
+use std::str::FromStr;
 
 /// Lower bound for distance from earth's center.
 /// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
@@ -44,6 +46,35 @@ where
         clamped[i] = num::clamp(value[i], low[i], high[i]);
     }
     clamped
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ClosedInterval {
+    lower_bound: f64,
+    upper_bound: f64,
+}
+
+impl ClosedInterval {
+    pub fn contains(self, value: f64) -> bool {
+        self.lower_bound <= value && value <= self.upper_bound
+    }
+}
+
+impl FromStr for ClosedInterval {
+    type Err = ParseFloatError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let bounds: Vec<&str> = s.split(',').collect();
+        assert_eq!(
+            bounds.len(),
+            2,
+            "An interval needs to be defined by exactly 2 bounds."
+        );
+        Ok(ClosedInterval {
+            lower_bound: bounds[0].parse()?,
+            upper_bound: bounds[1].parse()?,
+        })
+    }
 }
 
 pub trait S2Point {

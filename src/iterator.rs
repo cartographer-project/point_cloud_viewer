@@ -1,11 +1,12 @@
 use crate::errors::*;
 use crate::math::PointCulling;
-use crate::math::{AllPoints, Frustum, Obb};
+use crate::math::{AllPoints, ClosedInterval, Frustum, Obb};
 use crate::read_write::{Encoding, NodeIterator};
-use crate::PointsBatch;
+use crate::{AttributeData, PointsBatch};
 use cgmath::Point3;
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
+use num_traits::ToPrimitive;
 use s2::cellunion::CellUnion;
 use std::collections::{BTreeMap, HashMap};
 
@@ -17,6 +18,12 @@ pub enum PointLocation {
     Frustum(Frustum<f64>),
     Obb(Obb<f64>),
     S2Cells(CellUnion),
+}
+
+impl Default for PointLocation {
+    fn default() -> Self {
+        PointLocation::AllPoints
+    }
 }
 
 impl PointLocation {
@@ -31,32 +38,58 @@ impl PointLocation {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct PointQuery<'a> {
     pub attributes: Vec<&'a str>,
     pub location: PointLocation,
+    pub filter: HashMap<&'a str, ClosedInterval>,
 }
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
 /// Essentially a specialized version of the Filter iterator adapter
-pub struct FilteredIterator {
+pub struct FilteredIterator<'a> {
     pub culling: Box<dyn PointCulling<f64>>,
+    pub filter: &'a HashMap<&'a str, ClosedInterval>,
     pub node_iterator: NodeIterator,
 }
 
-impl Iterator for FilteredIterator {
+fn update_keep<T>(keep: &mut [bool], data: &[T], interval: &ClosedInterval)
+where
+    T: ToPrimitive,
+{
+    for (k, v) in keep.iter_mut().zip(data) {
+        if let Some(v) = v.to_f64() {
+            *k &= interval.contains(v);
+        }
+    }
+}
+
+impl<'a> Iterator for FilteredIterator<'a> {
     type Item = PointsBatch;
 
     fn next(&mut self) -> Option<PointsBatch> {
         let culling = &self.culling;
         self.node_iterator.next().map(|mut batch| {
-            let keep: Vec<bool> = batch
+            let mut keep: Vec<bool> = batch
                 .position
                 .iter()
                 .map(|pos| {
                     culling.contains(&<Point3<f64> as cgmath::EuclideanSpace>::from_vec(*pos))
                 })
                 .collect();
+            for (attrib, interval) in self.filter {
+                if let Some(data) = batch.attributes.get(*attrib) {
+                    match data {
+                        AttributeData::U8(d) => update_keep(&mut keep, d, interval),
+                        AttributeData::U64(d) => update_keep(&mut keep, d, interval),
+                        AttributeData::I64(d) => update_keep(&mut keep, d, interval),
+                        AttributeData::F32(d) => update_keep(&mut keep, d, interval),
+                        AttributeData::F64(d) => update_keep(&mut keep, d, interval),
+                        AttributeData::U8Vec3(_) => unimplemented!(),
+                        AttributeData::F64Vec3(_) => unimplemented!(),
+                    }
+                }
+            }
             batch.retain(&keep);
             batch
         })
@@ -117,15 +150,14 @@ where
 // TODO(nnmm): Move this somewhere else
 pub trait PointCloud: Sync {
     type Id: ToString + Send + Copy;
-    type PointsIter: Iterator<Item = PointsBatch>;
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id>;
     fn encoding_for_node(&self, id: Self::Id) -> Encoding;
-    fn points_in_node(
-        &self,
-        query: &PointQuery,
+    fn points_in_node<'a>(
+        &'a self,
+        query: &'a PointQuery,
         node_id: Self::Id,
         batch_size: usize,
-    ) -> Result<Self::PointsIter>;
+    ) -> Result<FilteredIterator<'a>>;
     fn bounding_box(&self) -> &Aabb3<f64>;
 }
 

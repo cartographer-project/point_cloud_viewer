@@ -245,7 +245,7 @@ fn check_all_query_equality() {
     let (args, s2, oct, _points) = setup();
     let query = PointQuery {
         attributes: vec!["color"],
-        location: PointLocation::AllPoints,
+        ..Default::default()
     };
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
@@ -259,6 +259,7 @@ fn check_box_query_equality() {
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::Aabb(bbox),
+        ..Default::default()
     };
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
@@ -280,6 +281,7 @@ fn check_frustum_query_equality() {
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::Frustum(frustum),
+        ..Default::default()
     };
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
@@ -296,6 +298,7 @@ fn check_obb_query_equality() {
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::Obb(obb),
+        ..Default::default()
     };
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
@@ -312,6 +315,7 @@ fn check_cell_union_query_equality() {
     let query = PointQuery {
         attributes: vec!["color"],
         location: PointLocation::S2Cells(s2_cell_union),
+        ..Default::default()
     };
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
