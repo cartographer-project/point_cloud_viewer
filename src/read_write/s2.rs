@@ -100,7 +100,7 @@ where
                         (F64Vec3(in_vec), F64Vec3(out_vec)) => out_vec.push(in_vec[i]),
                         _ => panic!("Input data type unequal output data type."),
                     })
-                    .or_insert(in_data.get(i));
+                    .or_insert_with(|| in_data.get(i));
             }
         }
 
