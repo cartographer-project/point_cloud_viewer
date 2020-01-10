@@ -128,7 +128,7 @@ impl WriteLE for u8 {
 
 impl WriteLE for Vec<i8> {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
-        let u8slice = unsafe { &*(self.as_slice() as *const _ as *const [u8]) };
+        let u8slice = unsafe { &*(self.as_slice() as *const [i8] as *const [u8]) };
         writer.write_all(u8slice)
     }
 }
