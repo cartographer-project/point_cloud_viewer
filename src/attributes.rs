@@ -91,6 +91,7 @@ pub enum AttributeData {
 }
 
 // Convenience macro if you want to operate on the Vec inside an AttributeData
+#[macro_export]
 macro_rules! match_attr_data {
     ($x:expr, $match_rhs:tt $(, $arg:tt )* ) => {
         #[allow(unused_variables)]
