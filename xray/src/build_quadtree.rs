@@ -166,7 +166,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
 
     let filter = args
         .values_of("filter")
-        .unwrap()
+        .unwrap_or_default()
         .map(|f| parse_key_val(f).unwrap())
         .collect::<HashMap<String, ClosedInterval<f64>>>();
     let parameters = XrayParameters {
