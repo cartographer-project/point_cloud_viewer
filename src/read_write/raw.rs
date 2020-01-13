@@ -216,6 +216,7 @@ impl RawNodeReader {
             },
         };
 
+        // TODO(nnmm): Implement ReadLE trait and rewrite this section with a macro
         self.attribute_readers.iter_mut().try_for_each(
             |(key, AttributeReader { data_type, reader })| -> io::Result<()> {
                 match data_type {
