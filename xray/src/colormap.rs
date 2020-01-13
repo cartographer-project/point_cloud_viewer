@@ -58,14 +58,15 @@ impl Colormap for Jet {
     }
 }
 
-pub struct Grayscale;
+// Interpolate from that color to black
+pub struct Monochrome(pub Color<f32>);
 
-impl Colormap for Grayscale {
+impl Colormap for Monochrome {
     fn for_value_unchecked(&self, val: f32) -> Color<u8> {
         Color {
-            red: 1.0 - val,
-            green: 1.0 - val,
-            blue: 1.0 - val,
+            red: (1.0 - val) * self.0.red,
+            green: (1.0 - val) * self.0.green,
+            blue: (1.0 - val) * self.0.blue,
             alpha: 1.0,
         }
         .to_u8()
