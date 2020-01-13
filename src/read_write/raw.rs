@@ -216,6 +216,7 @@ impl RawNodeReader {
             },
         };
 
+        // TODO(nnmm): Implement ReadLE trait and rewrite this section with a macro
         self.attribute_readers.iter_mut().try_for_each(
             |(key, AttributeReader { data_type, reader })| -> io::Result<()> {
                 match data_type {
@@ -226,12 +227,19 @@ impl RawNodeReader {
                             .attributes
                             .insert(key.to_owned(), AttributeData::U8(attr));
                     }
-                    AttributeDataType::I64 => {
+                    AttributeDataType::U16 => {
                         let mut attr = vec![0; num_points];
-                        reader.read_i64_into::<LittleEndian>(&mut attr)?;
+                        reader.read_u16_into::<LittleEndian>(&mut attr)?;
                         batch
                             .attributes
-                            .insert(key.to_owned(), AttributeData::I64(attr));
+                            .insert(key.to_owned(), AttributeData::U16(attr));
+                    }
+                    AttributeDataType::U32 => {
+                        let mut attr = vec![0; num_points];
+                        reader.read_u32_into::<LittleEndian>(&mut attr)?;
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::U32(attr));
                     }
                     AttributeDataType::U64 => {
                         let mut attr = vec![0; num_points];
@@ -239,6 +247,36 @@ impl RawNodeReader {
                         batch
                             .attributes
                             .insert(key.to_owned(), AttributeData::U64(attr));
+                    }
+                    AttributeDataType::I8 => {
+                        let mut attr = vec![0; num_points];
+                        let attr_u8 =
+                            unsafe { &mut *(attr.as_mut_slice() as *mut [i8] as *mut [u8]) };
+                        reader.read_exact(attr_u8)?;
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::I8(attr));
+                    }
+                    AttributeDataType::I16 => {
+                        let mut attr = vec![0; num_points];
+                        reader.read_i16_into::<LittleEndian>(&mut attr)?;
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::I16(attr));
+                    }
+                    AttributeDataType::I32 => {
+                        let mut attr = vec![0; num_points];
+                        reader.read_i32_into::<LittleEndian>(&mut attr)?;
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::I32(attr));
+                    }
+                    AttributeDataType::I64 => {
+                        let mut attr = vec![0; num_points];
+                        reader.read_i64_into::<LittleEndian>(&mut attr)?;
+                        batch
+                            .attributes
+                            .insert(key.to_owned(), AttributeData::I64(attr));
                     }
                     AttributeDataType::F32 => {
                         let mut attr = vec![0.0; num_points];
