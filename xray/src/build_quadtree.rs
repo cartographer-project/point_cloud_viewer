@@ -6,7 +6,7 @@ use clap::value_t;
 use point_cloud_client::PointCloudClient;
 use point_viewer::color::{TRANSPARENT, WHITE};
 use point_viewer::data_provider::DataProviderFactory;
-use point_viewer::math::Isometry3;
+use point_viewer::math::{ClosedInterval, Isometry3};
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
 use scoped_pool::Pool;
 use std::collections::HashMap;
@@ -15,6 +15,19 @@ use std::path::Path;
 pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
     fn query_from_global(matches: &clap::ArgMatches) -> Option<Isometry3<f64>>;
+}
+
+fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn std::error::Error>>
+where
+    T: std::str::FromStr,
+    T::Err: std::error::Error + 'static,
+    U: std::str::FromStr,
+    U::Err: std::error::Error + 'static,
+{
+    let pos = s
+        .find('=')
+        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{}`", s))?;
+    Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
 }
 
 fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
@@ -151,10 +164,15 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     let point_cloud_client = PointCloudClient::new(&octree_locations, data_provider_factory)
         .expect("Could not create point cloud client.");
 
+    let filter = args
+        .values_of("filter")
+        .unwrap()
+        .map(|f| parse_key_val(f).unwrap())
+        .collect::<HashMap<String, ClosedInterval<f64>>>();
     let parameters = XrayParameters {
         point_cloud_client,
         query_from_global: T::query_from_global(&args),
-        filter: HashMap::default(),
+        filter,
         tile_background_color,
     };
     build_xray_quadtree(

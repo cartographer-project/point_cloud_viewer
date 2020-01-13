@@ -26,7 +26,6 @@ use s2::cellunion::CellUnion;
 use s2::region::Region;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use std::num::ParseFloatError;
 use std::ops::Mul;
 use std::str::FromStr;
 
@@ -49,19 +48,25 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ClosedInterval {
-    lower_bound: f64,
-    upper_bound: f64,
+pub struct ClosedInterval<T> {
+    lower_bound: T,
+    upper_bound: T,
 }
 
-impl ClosedInterval {
-    pub fn contains(self, value: f64) -> bool {
+impl<T> ClosedInterval<T>
+where
+    T: PartialOrd,
+{
+    pub fn contains(self, value: T) -> bool {
         self.lower_bound <= value && value <= self.upper_bound
     }
 }
 
-impl FromStr for ClosedInterval {
-    type Err = ParseFloatError;
+impl<T> FromStr for ClosedInterval<T>
+where
+    T: std::str::FromStr,
+{
+    type Err = T::Err;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let bounds: Vec<&str> = s.split(',').collect();

@@ -42,18 +42,18 @@ impl PointLocation {
 pub struct PointQuery<'a> {
     pub attributes: Vec<&'a str>,
     pub location: PointLocation,
-    pub filter: HashMap<&'a str, ClosedInterval>,
+    pub filter: HashMap<&'a str, ClosedInterval<f64>>,
 }
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
 /// Essentially a specialized version of the Filter iterator adapter
 pub struct FilteredIterator<'a> {
     pub culling: Box<dyn PointCulling<f64>>,
-    pub filter: &'a HashMap<&'a str, ClosedInterval>,
+    pub filter: &'a HashMap<&'a str, ClosedInterval<f64>>,
     pub node_iterator: NodeIterator,
 }
 
-fn update_keep<T>(keep: &mut [bool], data: &[T], interval: &ClosedInterval)
+fn update_keep<T>(keep: &mut [bool], data: &[T], interval: &ClosedInterval<f64>)
 where
     T: ToPrimitive,
 {
