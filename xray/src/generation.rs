@@ -12,7 +12,7 @@ use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
 use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::math::{ClosedInterval, Isometry3, Obb};
-use point_viewer::{color::Color, AttributeData, PointsBatch};
+use point_viewer::{color::Color, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;

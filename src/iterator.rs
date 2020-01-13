@@ -81,7 +81,12 @@ impl<'a> Iterator for FilteredIterator<'a> {
                 if let Some(data) = batch.attributes.get(*attrib) {
                     match data {
                         AttributeData::U8(d) => update_keep(&mut keep, d, interval),
+                        AttributeData::U16(d) => update_keep(&mut keep, d, interval),
+                        AttributeData::U32(d) => update_keep(&mut keep, d, interval),
                         AttributeData::U64(d) => update_keep(&mut keep, d, interval),
+                        AttributeData::I8(d) => update_keep(&mut keep, d, interval),
+                        AttributeData::I16(d) => update_keep(&mut keep, d, interval),
+                        AttributeData::I32(d) => update_keep(&mut keep, d, interval),
                         AttributeData::I64(d) => update_keep(&mut keep, d, interval),
                         AttributeData::F32(d) => update_keep(&mut keep, d, interval),
                         AttributeData::F64(d) => update_keep(&mut keep, d, interval),
