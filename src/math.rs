@@ -49,8 +49,8 @@ where
 
 #[derive(Debug, Clone, Copy)]
 pub struct ClosedInterval<T> {
-    lower_bound: T,
-    upper_bound: T,
+    pub lower_bound: T,
+    pub upper_bound: T,
 }
 
 impl<T> ClosedInterval<T>
