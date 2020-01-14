@@ -474,7 +474,7 @@ pub struct Tile {
 pub struct XrayParameters {
     pub point_cloud_client: PointCloudClient,
     pub query_from_global: Option<Isometry3<f64>>,
-    pub filter: HashMap<String, ClosedInterval<f64>>,
+    pub filter_intervals: HashMap<String, ClosedInterval<f64>>,
     pub tile_background_color: Color<u8>,
 }
 
@@ -494,12 +494,12 @@ pub fn xray_from_points(
         None => PointLocation::Aabb(*bbox),
     };
     let mut attributes: HashSet<_> = coloring_strategy.attributes().into_iter().collect();
-    attributes.extend(parameters.filter.keys().map(|k| &k[..]));
+    attributes.extend(parameters.filter_intervals.keys().map(|k| &k[..]));
     let point_query = PointQuery {
         attributes: attributes.into_iter().collect(),
         location,
-        filter: parameters
-            .filter
+        filter_intervals: parameters
+            .filter_intervals
             .iter()
             .map(|(k, v)| (&k[..], *v))
             .collect(),

@@ -93,9 +93,9 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .takes_value(true)
                 .possible_values(&TileBackgroundColorArgument::variants())
                 .default_value("white"),
-            clap::Arg::with_name("filter")
+            clap::Arg::with_name("filter_interval")
                 .help("Filter intervals for attributes, e.g. --filter intensity=2.0,51.0")
-                .long("filter")
+                .long("filter_interval")
                 .takes_value(true)
                 .multiple(true),
         ]);
@@ -164,15 +164,15 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     let point_cloud_client = PointCloudClient::new(&octree_locations, data_provider_factory)
         .expect("Could not create point cloud client.");
 
-    let filter = args
-        .values_of("filter")
+    let filter_intervals = args
+        .values_of("filter_interval")
         .unwrap_or_default()
         .map(|f| parse_key_val(f).unwrap())
         .collect::<HashMap<String, ClosedInterval<f64>>>();
     let parameters = XrayParameters {
         point_cloud_client,
         query_from_global: T::query_from_global(&args),
-        filter,
+        filter_intervals,
         tile_background_color,
     };
     build_xray_quadtree(

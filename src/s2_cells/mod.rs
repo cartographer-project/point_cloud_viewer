@@ -190,7 +190,7 @@ impl PointCloud for S2Cells {
         batch_size: usize,
     ) -> Result<FilteredIterator<'a>> {
         let culling = query.location.get_point_culling();
-        let filter = &query.filter;
+        let filter_intervals = &query.filter_intervals;
         let num_points = self.meta.cells[&node_id.0].num_points as usize;
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
@@ -202,7 +202,7 @@ impl PointCloud for S2Cells {
         )?;
         Ok(FilteredIterator {
             culling,
-            filter,
+            filter_intervals,
             node_iterator,
         })
     }

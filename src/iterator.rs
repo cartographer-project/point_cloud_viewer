@@ -42,14 +42,14 @@ impl PointLocation {
 pub struct PointQuery<'a> {
     pub attributes: Vec<&'a str>,
     pub location: PointLocation,
-    pub filter: HashMap<&'a str, ClosedInterval<f64>>,
+    pub filter_intervals: HashMap<&'a str, ClosedInterval<f64>>,
 }
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
 /// Essentially a specialized version of the Filter iterator adapter
 pub struct FilteredIterator<'a> {
     pub culling: Box<dyn PointCulling<f64>>,
-    pub filter: &'a HashMap<&'a str, ClosedInterval<f64>>,
+    pub filter_intervals: &'a HashMap<&'a str, ClosedInterval<f64>>,
     pub node_iterator: NodeIterator,
 }
 
@@ -77,7 +77,7 @@ impl<'a> Iterator for FilteredIterator<'a> {
                     culling.contains(&<Point3<f64> as cgmath::EuclideanSpace>::from_vec(*pos))
                 })
                 .collect();
-            for (attrib, interval) in self.filter {
+            for (attrib, interval) in self.filter_intervals {
                 if let Some(data) = batch.attributes.get(*attrib) {
                     match data {
                         AttributeData::U8(d) => update_keep(&mut keep, d, interval),

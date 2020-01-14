@@ -328,7 +328,7 @@ impl PointCloud for Octree {
         batch_size: usize,
     ) -> Result<FilteredIterator<'a>> {
         let culling = query.location.get_point_culling();
-        let filter = &query.filter;
+        let filter_intervals = &query.filter_intervals;
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
             &self.meta.attribute_data_types_for(&query.attributes)?,
@@ -339,7 +339,7 @@ impl PointCloud for Octree {
         )?;
         Ok(FilteredIterator {
             culling,
-            filter,
+            filter_intervals,
             node_iterator,
         })
     }
