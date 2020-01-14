@@ -8,6 +8,7 @@ use point_viewer::color::{TRANSPARENT, WHITE};
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::{ClosedInterval, Isometry3};
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
+use point_viewer::utils::parse_key_val;
 use scoped_pool::Pool;
 use std::collections::HashMap;
 use std::path::Path;
@@ -15,19 +16,6 @@ use std::path::Path;
 pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
     fn query_from_global(matches: &clap::ArgMatches) -> Option<Isometry3<f64>>;
-}
-
-fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn std::error::Error>>
-where
-    T: std::str::FromStr,
-    T::Err: std::error::Error + 'static,
-    U: std::str::FromStr,
-    U::Err: std::error::Error + 'static,
-{
-    let pos = s
-        .find('=')
-        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{}`", s))?;
-    Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
 }
 
 fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {

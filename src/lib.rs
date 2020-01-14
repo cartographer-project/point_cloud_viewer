@@ -21,6 +21,7 @@ pub mod math;
 pub mod octree;
 pub mod read_write;
 pub mod s2_cells;
+pub mod utils;
 
 use cgmath::Vector3;
 use errors::Result;
