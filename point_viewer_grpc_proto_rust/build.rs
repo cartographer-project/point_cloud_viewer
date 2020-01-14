@@ -11,7 +11,7 @@ fn find_git_repo_root() -> PathBuf {
     while !path.join(".git").exists() {
         path = path.parent().unwrap();
     }
-    return path.to_owned();
+    path.to_owned()
 }
 
 // Opens a file, calls 'func' with its contents and writes the new content back.
