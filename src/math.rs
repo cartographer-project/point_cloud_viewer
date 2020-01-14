@@ -49,14 +49,25 @@ where
 
 #[derive(Debug, Clone, Copy)]
 pub struct ClosedInterval<T> {
-    pub lower_bound: T,
-    pub upper_bound: T,
+    lower_bound: T,
+    upper_bound: T,
 }
 
 impl<T> ClosedInterval<T>
 where
     T: PartialOrd,
 {
+    pub fn new(lower_bound: T, upper_bound: T) -> Self {
+        assert!(
+            lower_bound <= upper_bound,
+            "Lower bound needs to be smaller or equal to upper bound."
+        );
+        Self {
+            lower_bound,
+            upper_bound,
+        }
+    }
+
     pub fn contains(self, value: T) -> bool {
         self.lower_bound <= value && value <= self.upper_bound
     }
