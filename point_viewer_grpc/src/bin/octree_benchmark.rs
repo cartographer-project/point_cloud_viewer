@@ -21,7 +21,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use point_viewer::data_provider::{DataProviderFactory, OnDiskDataProvider};
-use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
+use point_viewer::iterator::{ParallelIterator, PointQuery};
 use point_viewer::octree::Octree;
 use point_viewer_grpc::proto_grpc::OctreeClient;
 use point_viewer_grpc::service::start_grpc_server;
@@ -101,7 +101,7 @@ fn server_benchmark(
     let mut points_streamed_m = 0;
     let all_points = PointQuery {
         attributes: vec!["color", "intensity"],
-        location: PointLocation::AllPoints,
+        ..Default::default()
     };
     let octree_slice: &[Octree] = std::slice::from_ref(&octree);
     let mut parallel_iterator = ParallelIterator::new(

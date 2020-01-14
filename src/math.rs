@@ -25,8 +25,9 @@ use s2::cellid::CellID;
 use s2::cellunion::CellUnion;
 use s2::region::Region;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::fmt;
 use std::ops::Mul;
+use std::str::FromStr;
 
 /// Lower bound for distance from earth's center.
 /// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
@@ -44,6 +45,80 @@ where
         clamped[i] = num::clamp(value[i], low[i], high[i]);
     }
     clamped
+}
+
+#[derive(Debug)]
+pub struct ParseClosedIntervalError(String);
+
+impl std::error::Error for ParseClosedIntervalError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
+impl fmt::Display for ParseClosedIntervalError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<std::num::ParseIntError> for ParseClosedIntervalError {
+    fn from(error: std::num::ParseIntError) -> Self {
+        Self(error.to_string())
+    }
+}
+
+impl From<std::num::ParseFloatError> for ParseClosedIntervalError {
+    fn from(error: std::num::ParseFloatError) -> Self {
+        Self(error.to_string())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ClosedInterval<T> {
+    lower_bound: T,
+    upper_bound: T,
+}
+
+impl<T> ClosedInterval<T>
+where
+    T: PartialOrd,
+{
+    pub fn new(lower_bound: T, upper_bound: T) -> Self {
+        assert!(
+            lower_bound <= upper_bound,
+            "Lower bound needs to be smaller or equal to upper bound."
+        );
+        Self {
+            lower_bound,
+            upper_bound,
+        }
+    }
+
+    pub fn contains(self, value: T) -> bool {
+        self.lower_bound <= value && value <= self.upper_bound
+    }
+}
+
+impl<T> FromStr for ClosedInterval<T>
+where
+    T: std::str::FromStr,
+    ParseClosedIntervalError: From<T::Err>,
+{
+    type Err = ParseClosedIntervalError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let bounds: Vec<&str> = s.split(',').collect();
+        if bounds.len() != 2 {
+            return Err(ParseClosedIntervalError(
+                "An interval needs to be defined by exactly 2 bounds.".into(),
+            ));
+        }
+        Ok(ClosedInterval {
+            lower_bound: bounds[0].parse()?,
+            upper_bound: bounds[1].parse()?,
+        })
+    }
 }
 
 pub trait S2Point {
@@ -70,7 +145,7 @@ where
     }
 }
 
-pub trait PointCulling<S>: Debug + Sync + Send
+pub trait PointCulling<S>: fmt::Debug + Sync + Send
 where
     S: BaseFloat + Sync + Send,
 {

@@ -2,7 +2,7 @@
 mod tests {
     use crate::data_provider::OnDiskDataProvider;
     use crate::errors::Result;
-    use crate::iterator::{ParallelIterator, PointLocation, PointQuery};
+    use crate::iterator::{ParallelIterator, PointQuery};
     use crate::octree::{build_octree, Octree};
     use crate::{AttributeData, NumberOfPoints, PointsBatch};
     use cgmath::{EuclideanSpace, Point3, Vector3};
@@ -116,7 +116,7 @@ mod tests {
         let octree = build_test_octree();
         let location = PointQuery {
             attributes: vec!["color"],
-            location: PointLocation::AllPoints,
+            ..Default::default()
         };
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
         let mut parallel_iterator = ParallelIterator::new(
@@ -173,7 +173,7 @@ mod tests {
         let octree = build_test_octree();
         let location = PointQuery {
             attributes: vec!["color"],
-            location: PointLocation::AllPoints,
+            ..Default::default()
         };
 
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
@@ -219,7 +219,7 @@ mod tests {
         let octree = build_big_test_octree();
         let location = PointQuery {
             attributes: vec!["color"],
-            location: PointLocation::AllPoints,
+            ..Default::default()
         };
         let octree_slice: &[Octree] = std::slice::from_ref(&octree);
         let mut parallel_iterator = ParallelIterator::new(
