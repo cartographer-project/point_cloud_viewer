@@ -1,7 +1,7 @@
 use collision::{Aabb, Aabb3, Union};
 use point_viewer::data_provider::{DataProvider, DataProviderFactory};
 use point_viewer::errors::*;
-use point_viewer::iterator::{ParallelIterator, PointCloud, PointQuery};
+use point_viewer::iterator::{ParallelIterator, PointCloud, PointLocation, PointQuery};
 use point_viewer::octree::Octree;
 use point_viewer::s2_cells::S2Cells;
 use point_viewer::{PointsBatch, NUM_POINTS_PER_BATCH};
@@ -17,6 +17,14 @@ pub struct PointCloudClient {
     pub num_points_per_batch: usize,
     pub num_threads: usize,
     pub buffer_size: usize,
+}
+
+use std::fs::File;
+use std::sync::{Arc, Mutex};
+
+lazy_static::lazy_static! {
+    static ref LOGFILE: Arc<Mutex<File>> =
+        Arc::new(Mutex::new(File::create("/media/lyft/query_log").unwrap()));
 }
 
 impl PointCloudClient {
@@ -77,6 +85,13 @@ impl PointCloudClient {
     where
         F: FnMut(PointsBatch) -> Result<()>,
     {
+        match &point_query.location {
+            PointLocation::Obb(o) => {
+                let mut f = LOGFILE.lock().unwrap();
+                serde_json::to_writer(&*f, &o).unwrap();
+            }
+            _ => ()
+        }
         match &self.point_clouds {
             PointClouds::Octrees(octrees) => {
                 let mut parallel_iterator = ParallelIterator::new(

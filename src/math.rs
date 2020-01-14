@@ -305,7 +305,7 @@ impl<S: BaseFloat> Isometry3<S> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Obb<S> {
     query_from_obb: Isometry3<S>,
     obb_from_query: Isometry3<S>,
@@ -425,7 +425,7 @@ where
 /// defines a camera coordinate system. To get from OpenCV camera coordinates
 /// to eye coordinates, you need to rotate 180 deg around the x axis before
 /// creating the perspective projection, see also the frustum unit test below.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Frustum<S: BaseFloat> {
     query_from_eye: Isometry3<S>,
     clip_from_eye: Perspective<S>,
