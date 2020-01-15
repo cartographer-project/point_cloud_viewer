@@ -1,6 +1,6 @@
 // Code related to X-Ray generation.
 
-use crate::colormap::{Colormap, Jet, Monochrome};
+use crate::colormap::{Colormap, Jet, Monochrome, PURPLISH};
 use crate::proto;
 use crate::CURRENT_VERSION;
 use cgmath::{Decomposed, EuclideanSpace, Point2, Point3, Quaternion, Vector2, Vector3};
@@ -54,7 +54,7 @@ arg_enum! {
     #[allow(non_camel_case_types)]
     pub enum ColormapArgument {
         jet,
-        purpley,
+        purplish,
     }
 }
 
@@ -83,15 +83,10 @@ impl ColoringStrategyKind {
             }
             ColoringStrategyKind::ColoredWithHeightStddev(
                 max_stddev,
-                ColormapArgument::purpley,
+                ColormapArgument::purplish,
             ) => Box::new(HeightStddevColoringStrategy::new(
                 max_stddev,
-                Monochrome(Color {
-                    red: 0.8,
-                    green: 0.8,
-                    blue: 1.0,
-                    alpha: 1.0,
-                }),
+                Monochrome(PURPLISH),
             )),
         }
     }

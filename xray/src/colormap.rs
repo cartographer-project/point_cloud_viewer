@@ -58,6 +58,13 @@ impl Colormap for Jet {
     }
 }
 
+pub const PURPLISH: Color<f32> = Color {
+    red: 0.8,
+    green: 0.8,
+    blue: 1.0,
+    alpha: 1.0,
+};
+
 // Interpolate from that color to black
 pub struct Monochrome(pub Color<f32>);
 
