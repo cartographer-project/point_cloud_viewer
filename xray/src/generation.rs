@@ -1,5 +1,6 @@
 // Code related to X-Ray generation.
 
+use crate::colormap::{Colormap, Jet, Monochrome, PURPLISH};
 use crate::proto;
 use crate::CURRENT_VERSION;
 use cgmath::{Decomposed, EuclideanSpace, Point2, Point3, Quaternion, Vector2, Vector3};
@@ -29,54 +30,6 @@ use std::sync::mpsc;
 // becomes.
 const NUM_Z_BUCKETS: f64 = 1024.;
 
-// Implementation of matlab's jet colormap from here:
-// https://stackoverflow.com/questions/7706339/grayscale-to-red-green-blue-matlab-jet-color-scale
-struct Jet;
-
-impl Jet {
-    fn red(&self, gray: f32) -> f32 {
-        self.base(gray - 0.5)
-    }
-
-    fn green(&self, gray: f32) -> f32 {
-        self.base(gray)
-    }
-
-    fn blue(&self, gray: f32) -> f32 {
-        self.base(gray + 0.5)
-    }
-
-    fn base(&self, val: f32) -> f32 {
-        if val <= -0.75 {
-            0.
-        } else if val <= -0.25 {
-            self.interpolate(val, 0.0, -0.75, 1.0, -0.25)
-        } else if val <= 0.25 {
-            1.0
-        } else if val <= 0.75 {
-            self.interpolate(val, 1.0, 0.25, 0.0, 0.75)
-        } else {
-            0.0
-        }
-    }
-
-    fn interpolate(&self, val: f32, y0: f32, x0: f32, y1: f32, x1: f32) -> f32 {
-        (val - x0) * (y1 - y0) / (x1 - x0) + y0
-    }
-
-    pub fn for_value(&self, val: f32) -> Color<u8> {
-        assert!(0. <= val);
-        assert!(val <= 1.);
-        Color {
-            red: self.red(val),
-            green: self.green(val),
-            blue: self.blue(val),
-            alpha: 1.,
-        }
-        .to_u8()
-    }
-}
-
 arg_enum! {
     #[derive(Debug)]
     #[allow(non_camel_case_types)]
@@ -97,6 +50,15 @@ arg_enum! {
     }
 }
 
+arg_enum! {
+    #[derive(Debug)]
+    #[allow(non_camel_case_types)]
+    pub enum ColormapArgument {
+        jet,
+        purplish,
+    }
+}
+
 #[derive(Debug)]
 pub enum ColoringStrategyKind {
     XRay,
@@ -106,8 +68,9 @@ pub enum ColoringStrategyKind {
     ColoredWithIntensity(f32, f32),
 
     // Colored in heat-map colors by stddev. Takes the max stddev to clamp on.
-    ColoredWithHeightStddev(f32),
+    ColoredWithHeightStddev(f32, ColormapArgument),
 }
+
 impl ColoringStrategyKind {
     pub fn new_strategy(&self) -> Box<dyn ColoringStrategy> {
         match *self {
@@ -116,9 +79,16 @@ impl ColoringStrategyKind {
             ColoringStrategyKind::ColoredWithIntensity(min_intensity, max_intensity) => {
                 Box::new(IntensityColoringStrategy::new(min_intensity, max_intensity))
             }
-            ColoringStrategyKind::ColoredWithHeightStddev(max_stddev) => {
-                Box::new(HeightStddevColoringStrategy::new(max_stddev))
+            ColoringStrategyKind::ColoredWithHeightStddev(max_stddev, ColormapArgument::jet) => {
+                Box::new(HeightStddevColoringStrategy::<Jet>::new(max_stddev, Jet {}))
             }
+            ColoringStrategyKind::ColoredWithHeightStddev(
+                max_stddev,
+                ColormapArgument::purplish,
+            ) => Box::new(HeightStddevColoringStrategy::new(
+                max_stddev,
+                Monochrome(PURPLISH),
+            )),
         }
     }
 }
@@ -366,21 +336,23 @@ impl ColoringStrategy for PointColorColoringStrategy {
     }
 }
 
-struct HeightStddevColoringStrategy {
+struct HeightStddevColoringStrategy<C: Colormap> {
     per_column_data: FnvHashMap<(u32, u32), OnlineStats>,
     max_stddev: f32,
+    colormap: C,
 }
 
-impl HeightStddevColoringStrategy {
-    fn new(max_stddev: f32) -> Self {
+impl<C: Colormap> HeightStddevColoringStrategy<C> {
+    fn new(max_stddev: f32, colormap: C) -> Self {
         HeightStddevColoringStrategy {
             max_stddev,
             per_column_data: FnvHashMap::default(),
+            colormap,
         }
     }
 }
 
-impl ColoringStrategy for HeightStddevColoringStrategy {
+impl<C: Colormap> ColoringStrategy for HeightStddevColoringStrategy<C> {
     fn process_discretized_point_data(
         &mut self,
         points_batch: &PointsBatch,
@@ -404,7 +376,7 @@ impl ColoringStrategy for HeightStddevColoringStrategy {
         }
         let c = &self.per_column_data[&(x, y)];
         let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
-        Jet {}.for_value(saturation)
+        self.colormap.for_value(saturation)
     }
 
     fn attributes(&self) -> Vec<&'static str> {

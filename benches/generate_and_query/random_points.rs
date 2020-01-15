@@ -1,8 +1,9 @@
 use cgmath::{Decomposed, EuclideanSpace, Matrix4, Point3, Quaternion, Transform, Vector3};
 use collision::{Aabb, Aabb3};
+use point_viewer::attributes::AttributeData;
 use point_viewer::color::Color;
 use point_viewer::math::{local_frame_from_lat_lng, Isometry3};
-use point_viewer::{AttributeData, NumberOfPoints, Point, PointsBatch};
+use point_viewer::{NumberOfPoints, Point, PointsBatch};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::collections::BTreeMap;

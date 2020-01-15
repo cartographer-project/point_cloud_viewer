@@ -1,5 +1,5 @@
 use crate::generation::{
-    build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, Tile,
+    build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, ColormapArgument, Tile,
     TileBackgroundColorArgument, XrayParameters,
 };
 use clap::value_t;
@@ -46,6 +46,12 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .takes_value(true)
                 .possible_values(&ColoringStrategyArgument::variants())
                 .default_value("xray"),
+            clap::Arg::with_name("colormap")
+                .help("How values are mapped to colors")
+                .long("colormap")
+                .takes_value(true)
+                .possible_values(&ColormapArgument::variants())
+                .default_value("jet"),
             clap::Arg::with_name("min_intensity")
                 .help(
                     "Minimum intensity of all points for color scaling. \
@@ -127,6 +133,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
             ),
             colored_with_height_stddev => ColoringStrategyKind::ColoredWithHeightStddev(
                 value_t!(args, "max_stddev", f32).unwrap_or(1.),
+                value_t!(args, "colormap", ColormapArgument).expect("colormap is invalid"),
             ),
         }
     };
