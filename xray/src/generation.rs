@@ -10,14 +10,15 @@ use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
+use point_viewer::attributes::AttributeData;
 use point_viewer::iterator::{PointLocation, PointQuery};
-use point_viewer::math::{Isometry3, Obb};
-use point_viewer::{color::Color, AttributeData, PointsBatch};
+use point_viewer::math::{ClosedInterval, Isometry3, Obb};
+use point_viewer::{color::Color, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
 use stats::OnlineStats;
-use std::collections::hash_map::Entry;
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::BufWriter;
@@ -442,37 +443,51 @@ pub struct Tile {
     pub resolution: f64,
 }
 
+pub struct XrayParameters {
+    pub point_cloud_client: PointCloudClient,
+    pub query_from_global: Option<Isometry3<f64>>,
+    pub filter_intervals: HashMap<String, ClosedInterval<f64>>,
+    pub tile_background_color: Color<u8>,
+}
+
 pub fn xray_from_points(
-    point_cloud_client: &PointCloudClient,
-    query_from_global: &Option<Isometry3<f64>>,
     bbox: &Aabb3<f64>,
     png_file: &Path,
     image_size: Vector2<u32>,
     mut coloring_strategy: Box<dyn ColoringStrategy>,
-    tile_background_color: Color<u8>,
+    parameters: &XrayParameters,
 ) -> bool {
     let mut seen_any_points = false;
-    let location = match query_from_global {
+    let location = match &parameters.query_from_global {
         Some(query_from_global) => {
             let global_from_query = query_from_global.inverse();
             PointLocation::Obb(Obb::from(bbox).transformed(&global_from_query))
         }
         None => PointLocation::Aabb(*bbox),
     };
+    let mut attributes: HashSet<_> = coloring_strategy.attributes().into_iter().collect();
+    attributes.extend(parameters.filter_intervals.keys().map(|k| &k[..]));
     let point_query = PointQuery {
-        attributes: coloring_strategy.attributes(),
+        attributes: attributes.into_iter().collect(),
         location,
+        filter_intervals: parameters
+            .filter_intervals
+            .iter()
+            .map(|(k, v)| (&k[..], *v))
+            .collect(),
     };
-    let _ = point_cloud_client.for_each_point_data(&point_query, |mut points_batch| {
-        seen_any_points = true;
-        if let Some(query_from_global) = query_from_global {
-            for p in &mut points_batch.position {
-                *p = (query_from_global * &Point3::from_vec(*p)).to_vec();
+    let _ = parameters
+        .point_cloud_client
+        .for_each_point_data(&point_query, |mut points_batch| {
+            seen_any_points = true;
+            if let Some(query_from_global) = &parameters.query_from_global {
+                for p in &mut points_batch.position {
+                    *p = (query_from_global * &Point3::from_vec(*p)).to_vec();
+                }
             }
-        }
-        coloring_strategy.process_point_data(&points_batch, bbox, image_size);
-        Ok(())
-    });
+            coloring_strategy.process_point_data(&points_batch, bbox, image_size);
+            Ok(())
+        });
 
     if !seen_any_points {
         return false;
@@ -481,7 +496,7 @@ pub fn xray_from_points(
     let mut image = image::RgbaImage::new(image_size.x, image_size.y);
     for x in 0..image.width() {
         for y in 0..image.height() {
-            let color = coloring_strategy.get_pixel_color(x, y, tile_background_color);
+            let color = coloring_strategy.get_pixel_color(x, y, parameters.tile_background_color);
             image.put_pixel(
                 x,
                 y,
@@ -514,23 +529,24 @@ pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
 
 pub fn build_xray_quadtree(
     pool: &Pool,
-    point_cloud_client: &PointCloudClient,
-    query_from_global: &Option<Isometry3<f64>>,
     output_directory: &Path,
     tile: &Tile,
     coloring_strategy_kind: &ColoringStrategyKind,
-    tile_background_color: Color<u8>,
+    parameters: &XrayParameters,
 ) -> Result<(), Box<dyn Error>> {
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory);
 
-    let bounding_box = match query_from_global {
+    let bounding_box = match &parameters.query_from_global {
         Some(query_from_global) => {
             let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> =
                 query_from_global.clone().into();
-            point_cloud_client.bounding_box().transform(&decomposed)
+            parameters
+                .point_cloud_client
+                .bounding_box()
+                .transform(&decomposed)
         }
-        None => *point_cloud_client.bounding_box(),
+        None => *parameters.point_cloud_client.bounding_box(),
     };
     let (bounding_rect, deepest_level) = find_quadtree_bounding_rect_and_levels(
         &bounding_box,
@@ -564,13 +580,11 @@ pub fn build_xray_quadtree(
                         ),
                     );
                     if xray_from_points(
-                        point_cloud_client,
-                        query_from_global,
                         &bbox,
                         &get_image_path(output_directory, node.id),
                         Vector2::new(tile.size_px, tile.size_px),
                         strategy,
-                        tile_background_color,
+                        parameters,
                     ) {
                         all_nodes_tx_clone.send(node.id).unwrap();
                         if let Some(id) = node.id.parent_id() {
@@ -613,7 +627,7 @@ pub fn build_xray_quadtree(
                         }
                         children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
                     }
-                    let large_image = build_parent(&children, tile_background_color);
+                    let large_image = build_parent(&children, parameters.tile_background_color);
                     let image = image::DynamicImage::ImageRgba8(large_image).resize(
                         tile.size_px,
                         tile.size_px,

@@ -1,22 +1,21 @@
 use crate::generation::{
     build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, ColormapArgument, Tile,
-    TileBackgroundColorArgument,
+    TileBackgroundColorArgument, XrayParameters,
 };
 use clap::value_t;
 use point_cloud_client::PointCloudClient;
 use point_viewer::color::{TRANSPARENT, WHITE};
 use point_viewer::data_provider::DataProviderFactory;
-use point_viewer::math::Isometry3;
+use point_viewer::math::{ClosedInterval, Isometry3};
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
+use point_viewer::utils::parse_key_val;
 use scoped_pool::Pool;
+use std::collections::HashMap;
 use std::path::Path;
 
 pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
-    fn query_from_global(
-        matches: &clap::ArgMatches,
-        point_cloud_client: &PointCloudClient,
-    ) -> Option<Isometry3<f64>>;
+    fn query_from_global(matches: &clap::ArgMatches) -> Option<Isometry3<f64>>;
 }
 
 fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
@@ -88,6 +87,11 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .takes_value(true)
                 .possible_values(&TileBackgroundColorArgument::variants())
                 .default_value("white"),
+            clap::Arg::with_name("filter_interval")
+                .help("Filter intervals for attributes, e.g. --filter intensity=2.0,51.0")
+                .long("filter_interval")
+                .takes_value(true)
+                .multiple(true),
         ]);
     app = T::pre_init(app);
     app.get_matches()
@@ -155,18 +159,26 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     let point_cloud_client = PointCloudClient::new(&octree_locations, data_provider_factory)
         .expect("Could not create point cloud client.");
 
-    let query_from_global = T::query_from_global(&args, &point_cloud_client);
+    let filter_intervals = args
+        .values_of("filter_interval")
+        .unwrap_or_default()
+        .map(|f| parse_key_val(f).unwrap())
+        .collect::<HashMap<String, ClosedInterval<f64>>>();
+    let parameters = XrayParameters {
+        point_cloud_client,
+        query_from_global: T::query_from_global(&args),
+        filter_intervals,
+        tile_background_color,
+    };
     build_xray_quadtree(
         &pool,
-        &point_cloud_client,
-        &query_from_global,
         output_directory,
         &Tile {
             size_px: tile_size,
             resolution,
         },
         &coloring_strategy_kind,
-        tile_background_color,
+        &parameters,
     )
     .unwrap();
 }

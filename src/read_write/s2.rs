@@ -100,15 +100,7 @@ where
                         (F64Vec3(in_vec), F64Vec3(out_vec)) => out_vec.push(in_vec[i]),
                         _ => panic!("Input data type unequal output data type."),
                     })
-                    .or_insert(match in_data {
-                        U8(in_vec) => U8(vec![in_vec[i]]),
-                        I64(in_vec) => I64(vec![in_vec[i]]),
-                        U64(in_vec) => U64(vec![in_vec[i]]),
-                        F32(in_vec) => F32(vec![in_vec[i]]),
-                        F64(in_vec) => F64(vec![in_vec[i]]),
-                        U8Vec3(in_vec) => U8Vec3(vec![in_vec[i]]),
-                        F64Vec3(in_vec) => F64Vec3(vec![in_vec[i]]),
-                    });
+                    .or_insert_with(|| in_data.get(i));
             }
         }
 

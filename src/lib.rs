@@ -11,7 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+#[macro_use]
+pub mod attributes;
 pub mod color;
 pub mod data_provider;
 pub mod errors;
@@ -20,9 +21,10 @@ pub mod math;
 pub mod octree;
 pub mod read_write;
 pub mod s2_cells;
+pub mod utils;
 
 use cgmath::Vector3;
-use errors::{ErrorKind, Result};
+use errors::Result;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::{TryFrom, TryInto};
 
@@ -42,6 +44,8 @@ pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 pub trait NumberOfPoints {
     fn num_points(&self) -> usize;
 }
+
+use attributes::{AttributeData, AttributeDataType};
 
 #[derive(Debug, Clone)]
 pub struct Point {
@@ -79,202 +83,6 @@ trait PointCloudMeta {
             .collect()
     }
 }
-
-#[derive(Copy, Debug, Clone, PartialEq, Eq)]
-pub enum AttributeDataType {
-    U8,
-    I64,
-    U64,
-    F32,
-    F64,
-    U8Vec3,
-    F64Vec3,
-}
-
-impl AttributeDataType {
-    pub fn to_proto(self) -> proto::AttributeDataType {
-        match self {
-            AttributeDataType::U8 => proto::AttributeDataType::U8,
-            AttributeDataType::I64 => proto::AttributeDataType::I64,
-            AttributeDataType::U64 => proto::AttributeDataType::U64,
-            AttributeDataType::F32 => proto::AttributeDataType::F32,
-            AttributeDataType::F64 => proto::AttributeDataType::F64,
-            AttributeDataType::U8Vec3 => proto::AttributeDataType::U8Vec3,
-            AttributeDataType::F64Vec3 => proto::AttributeDataType::F64Vec3,
-        }
-    }
-
-    pub fn from_proto(attr_proto: proto::AttributeDataType) -> Result<Self> {
-        let attr = match attr_proto {
-            proto::AttributeDataType::U8 => AttributeDataType::U8,
-            proto::AttributeDataType::I64 => AttributeDataType::I64,
-            proto::AttributeDataType::U64 => AttributeDataType::U64,
-            proto::AttributeDataType::F32 => AttributeDataType::F32,
-            proto::AttributeDataType::F64 => AttributeDataType::F64,
-            proto::AttributeDataType::U8Vec3 => AttributeDataType::U8Vec3,
-            proto::AttributeDataType::F64Vec3 => AttributeDataType::F64Vec3,
-            proto::AttributeDataType::U16
-            | proto::AttributeDataType::U32
-            | proto::AttributeDataType::I8
-            | proto::AttributeDataType::I16
-            | proto::AttributeDataType::I32 => {
-                return Err(ErrorKind::InvalidInput(
-                    "Attribute data type not supported yet".to_string(),
-                )
-                .into())
-            }
-            proto::AttributeDataType::INVALID_DATA_TYPE => {
-                return Err(
-                    ErrorKind::InvalidInput("Attribute data type invalid".to_string()).into(),
-                )
-            }
-        };
-        Ok(attr)
-    }
-
-    pub fn size_of(self) -> usize {
-        match self {
-            AttributeDataType::U8 => 1,
-            AttributeDataType::F32 => 4,
-            AttributeDataType::I64 | AttributeDataType::U64 | AttributeDataType::F64 => 8,
-            AttributeDataType::U8Vec3 => 3,
-            AttributeDataType::F64Vec3 => 3 * 8,
-        }
-    }
-}
-
-/// General field to describe point feature attributes such as color, intensity, ...
-#[derive(Debug, Clone)]
-pub enum AttributeData {
-    U8(Vec<u8>),
-    I64(Vec<i64>),
-    U64(Vec<u64>),
-    F32(Vec<f32>),
-    F64(Vec<f64>),
-    U8Vec3(Vec<Vector3<u8>>),
-    F64Vec3(Vec<Vector3<f64>>),
-}
-
-impl AttributeData {
-    pub fn len(&self) -> usize {
-        match self {
-            AttributeData::U8(data) => data.len(),
-            AttributeData::I64(data) => data.len(),
-            AttributeData::U64(data) => data.len(),
-            AttributeData::F32(data) => data.len(),
-            AttributeData::F64(data) => data.len(),
-            AttributeData::U8Vec3(data) => data.len(),
-            AttributeData::F64Vec3(data) => data.len(),
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn dim(&self) -> usize {
-        match self {
-            AttributeData::U8(_)
-            | AttributeData::I64(_)
-            | AttributeData::U64(_)
-            | AttributeData::F32(_)
-            | AttributeData::F64(_) => 1,
-            AttributeData::U8Vec3(_) | AttributeData::F64Vec3(_) => 3,
-        }
-    }
-
-    pub fn data_type(&self) -> AttributeDataType {
-        match self {
-            AttributeData::U8(_) => AttributeDataType::U8,
-            AttributeData::I64(_) => AttributeDataType::I64,
-            AttributeData::U64(_) => AttributeDataType::U64,
-            AttributeData::F32(_) => AttributeDataType::F32,
-            AttributeData::F64(_) => AttributeDataType::F64,
-            AttributeData::U8Vec3(_) => AttributeDataType::U8Vec3,
-            AttributeData::F64Vec3(_) => AttributeDataType::F64Vec3,
-        }
-    }
-
-    pub fn append(&mut self, other: &mut Self) -> std::result::Result<(), String> {
-        match (self, other) {
-            (AttributeData::U8(s), AttributeData::U8(o)) => s.append(o),
-            (AttributeData::U64(s), AttributeData::U64(o)) => s.append(o),
-            (AttributeData::I64(s), AttributeData::I64(o)) => s.append(o),
-            (AttributeData::F32(s), AttributeData::F32(o)) => s.append(o),
-            (AttributeData::F64(s), AttributeData::F64(o)) => s.append(o),
-            (AttributeData::U8Vec3(s), AttributeData::U8Vec3(o)) => s.append(o),
-            (AttributeData::F64Vec3(s), AttributeData::F64Vec3(o)) => s.append(o),
-            (s, o) => {
-                return Err(format!(
-                    "Own data type '{:?}' is incompatible with other type '{:?}'.",
-                    s.data_type(),
-                    o.data_type(),
-                ))
-            }
-        };
-        Ok(())
-    }
-
-    pub fn split_off(&mut self, at: usize) -> Self {
-        match self {
-            AttributeData::U8(data) => AttributeData::U8(data.split_off(at)),
-            AttributeData::U64(data) => AttributeData::U64(data.split_off(at)),
-            AttributeData::I64(data) => AttributeData::I64(data.split_off(at)),
-            AttributeData::F32(data) => AttributeData::F32(data.split_off(at)),
-            AttributeData::F64(data) => AttributeData::F64(data.split_off(at)),
-            AttributeData::U8Vec3(data) => AttributeData::U8Vec3(data.split_off(at)),
-            AttributeData::F64Vec3(data) => AttributeData::F64Vec3(data.split_off(at)),
-        }
-    }
-}
-
-macro_rules! try_from_impl {
-    ($data:ident, $attribute_data_type:ident, $vec_data_type:ty) => {
-        match $data {
-            AttributeData::$attribute_data_type(data) => Ok(data),
-            _ => Err(format!(
-                "Attribute data type '{:?}' is incompatible with requested type '{}'.",
-                $data.data_type(),
-                stringify!($vec_data_type)
-            )),
-        }
-    };
-}
-
-macro_rules! try_from_attribute_data {
-    ($attribute_data_type:ident, $vec_data_type:ty) => {
-        impl TryFrom<AttributeData> for Vec<$vec_data_type> {
-            type Error = String;
-
-            fn try_from(data: AttributeData) -> std::result::Result<Self, Self::Error> {
-                try_from_impl!(data, $attribute_data_type, $vec_data_type)
-            }
-        }
-
-        impl<'a> TryFrom<&'a AttributeData> for &'a Vec<$vec_data_type> {
-            type Error = String;
-
-            fn try_from(data: &'a AttributeData) -> std::result::Result<Self, Self::Error> {
-                try_from_impl!(data, $attribute_data_type, $vec_data_type)
-            }
-        }
-
-        impl<'a> TryFrom<&'a mut AttributeData> for &'a mut Vec<$vec_data_type> {
-            type Error = String;
-
-            fn try_from(data: &'a mut AttributeData) -> std::result::Result<Self, Self::Error> {
-                try_from_impl!(data, $attribute_data_type, $vec_data_type)
-            }
-        }
-    };
-}
-try_from_attribute_data!(U8, u8);
-try_from_attribute_data!(I64, i64);
-try_from_attribute_data!(U64, u64);
-try_from_attribute_data!(F32, f32);
-try_from_attribute_data!(F64, f64);
-try_from_attribute_data!(U8Vec3, Vector3<u8>);
-try_from_attribute_data!(F64Vec3, Vector3<f64>);
 
 /// General structure that contains points and attached feature attributes.
 #[derive(Debug, Clone)]
@@ -320,15 +128,12 @@ impl PointsBatch {
         let mut keep = keep.iter().copied().cycle();
         self.position.retain(|_| keep.next().unwrap());
         for a in self.attributes.values_mut() {
-            match a {
-                AttributeData::U8(data) => data.retain(|_| keep.next().unwrap()),
-                AttributeData::U64(data) => data.retain(|_| keep.next().unwrap()),
-                AttributeData::I64(data) => data.retain(|_| keep.next().unwrap()),
-                AttributeData::F32(data) => data.retain(|_| keep.next().unwrap()),
-                AttributeData::F64(data) => data.retain(|_| keep.next().unwrap()),
-                AttributeData::U8Vec3(data) => data.retain(|_| keep.next().unwrap()),
-                AttributeData::F64Vec3(data) => data.retain(|_| keep.next().unwrap()),
+            macro_rules! rhs {
+                ($dtype:ident, $data:ident, $keep:expr) => {
+                    $data.retain(|_| $keep.next().unwrap())
+                };
             }
+            match_attr_data!(a, rhs, keep)
         }
     }
 
