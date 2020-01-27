@@ -8,10 +8,11 @@ use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
 use num_traits::ToPrimitive;
 use s2::cellunion::CellUnion;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PointLocation {
     AllPoints,
     Aabb(Aabb3<f64>),
@@ -38,10 +39,12 @@ impl PointLocation {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PointQuery<'a> {
+    #[serde(borrow)]
     pub attributes: Vec<&'a str>,
     pub location: PointLocation,
+    #[serde(borrow)]
     pub filter_intervals: HashMap<&'a str, ClosedInterval<f64>>,
 }
 
