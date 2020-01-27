@@ -155,23 +155,12 @@ impl S2Meta {
     }
 }
 
-/// Just a wrapper that implements Display
-/// TODO(nnmm): Remove as soon as version 0.10 of s2 is released
-#[derive(Copy, Clone)]
-pub struct S2CellId(pub CellID);
-
-impl std::fmt::Display for S2CellId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0.to_token())
-    }
-}
-
 impl PointCloud for S2Cells {
-    type Id = S2CellId;
+    type Id = CellID;
 
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
         match location {
-            PointLocation::AllPoints => self.cells.keys().cloned().map(S2CellId).collect(),
+            PointLocation::AllPoints => self.cells.keys().cloned().collect(),
             PointLocation::Aabb(aabb) => self.cells_in_cuboid(aabb),
             PointLocation::Obb(obb) => self.cells_in_cuboid(obb),
             PointLocation::Frustum(frustum) => self.cells_in_cuboid(frustum),
@@ -191,7 +180,7 @@ impl PointCloud for S2Cells {
     ) -> Result<FilteredIterator<'a>> {
         let culling = query.location.get_point_culling();
         let filter_intervals = &query.filter_intervals;
-        let num_points = self.meta.cells[&node_id.0].num_points as usize;
+        let num_points = self.meta.cells[&node_id].num_points as usize;
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
             &self.meta.attribute_data_types_for(&query.attributes)?,
@@ -229,7 +218,7 @@ impl S2Cells {
     }
 
     /// Wrapper arround cells_in_convex_hull for Obbs
-    fn cells_in_cuboid<T>(&self, cuboid: &T) -> Vec<S2CellId>
+    fn cells_in_cuboid<T>(&self, cuboid: &T) -> Vec<CellID>
     where
         T: Cuboid<f64>,
     {
@@ -237,7 +226,7 @@ impl S2Cells {
     }
 
     /// Returns all cells that intersect the convex hull of the given points
-    fn cells_in_convex_hull<IterPoint>(&self, points: IterPoint) -> Vec<S2CellId>
+    fn cells_in_convex_hull<IterPoint>(&self, points: IterPoint) -> Vec<CellID>
     where
         IterPoint: IntoIterator<Item = Point3<f64>>,
     {
@@ -252,11 +241,11 @@ impl S2Cells {
         self.cells_intersecting_region(&rect)
     }
 
-    fn cells_intersecting_region(&self, region: &impl Region) -> Vec<S2CellId> {
+    fn cells_intersecting_region(&self, region: &impl Region) -> Vec<CellID> {
         self.cells
             .values()
             .filter(|cell| region.intersects_cell(cell))
-            .map(|cell| S2CellId(cell.id))
+            .map(|cell| cell.id)
             .collect()
     }
 }
