@@ -217,6 +217,10 @@ impl S2Cells {
         })
     }
 
+    pub fn to_meta_proto(&self) -> proto::Meta {
+        self.meta.to_proto()
+    }
+
     /// Wrapper arround cells_in_convex_hull for Obbs
     fn cells_in_cuboid<T>(&self, cuboid: &T) -> Vec<CellID>
     where
