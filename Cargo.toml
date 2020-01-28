@@ -54,7 +54,7 @@ tempdir = "0.3.7"
 members = [
    "octree_web_viewer",
    "point_cloud_client",
-   "point_cloud_test_lib",
+   "point_cloud_test",
    "point_viewer_grpc",
    "point_viewer_grpc_proto_rust",
    "point_viewer_proto_rust",
