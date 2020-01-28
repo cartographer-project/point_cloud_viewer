@@ -1,8 +1,8 @@
 use cgmath::{InnerSpace, Vector3};
 use num_integer::div_ceil;
 use point_cloud_test_lib::{
-    get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query, setup_pointcloud, Arguments,
-    SyntheticData,
+    get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query, setup_pointcloud,
+    Arguments, SyntheticData,
 };
 use point_viewer::iterator::PointCloud;
 use point_viewer::iterator::{PointLocation, PointQuery};
