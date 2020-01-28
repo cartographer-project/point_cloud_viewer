@@ -1,7 +1,7 @@
 use cgmath::{InnerSpace, Vector3};
 use num_integer::div_ceil;
 use point_cloud_test_lib::{
-    get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query, setup, Arguments,
+    get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query, setup_pointcloud, Arguments,
     SyntheticData,
 };
 use point_viewer::iterator::PointCloud;
@@ -11,7 +11,7 @@ use std::cmp::Ordering;
 #[test]
 fn num_points_in_octree_meta() {
     let args = Arguments::default();
-    let (_, oct, _) = setup(&args);
+    let (_, oct, _) = setup_pointcloud(&args);
     let meta = oct.to_meta_proto();
     assert!(meta.has_octree());
     let num_points: i64 = meta
@@ -26,7 +26,7 @@ fn num_points_in_octree_meta() {
 #[test]
 fn num_points_in_s2_meta() {
     let args = Arguments::default();
-    let (s2, _, _) = setup(&args);
+    let (s2, _, _) = setup_pointcloud(&args);
     let meta = s2.to_meta_proto();
     assert!(meta.has_s2());
     let num_points: u64 = meta.get_s2().get_cells().iter().map(|c| c.num_points).sum();
@@ -63,7 +63,7 @@ where
     F: FnOnce(SyntheticData) -> PointLocation,
 {
     let args = Arguments::default();
-    let (s2, oct, data) = setup(&args);
+    let (s2, oct, data) = setup_pointcloud(&args);
     let query = PointQuery {
         attributes: vec!["color"],
         location: gen_location(data),
