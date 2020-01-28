@@ -1,8 +1,8 @@
 // Some synthetic queries for synthetic data. These are just examples, more can be added.
 use crate::synthetic_data::SyntheticData;
 use crate::S2_LEVEL;
-use cgmath::{InnerSpace, PerspectiveFov, Rad, Vector3};
-use point_viewer::iterator::{PointLocation, PointQuery};
+use cgmath::{PerspectiveFov, Rad, Vector3};
+use point_viewer::iterator::{PointLocation};
 use point_viewer::math::{Frustum, Obb, S2Point};
 
 pub fn get_abb_query(data: SyntheticData) -> PointLocation {
