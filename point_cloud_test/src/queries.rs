@@ -2,7 +2,7 @@
 use crate::synthetic_data::SyntheticData;
 use crate::S2_LEVEL;
 use cgmath::{PerspectiveFov, Rad, Vector3};
-use point_viewer::iterator::{PointLocation};
+use point_viewer::iterator::PointLocation;
 use point_viewer::math::{Frustum, Obb, S2Point};
 
 pub fn get_abb_query(data: SyntheticData) -> PointLocation {
