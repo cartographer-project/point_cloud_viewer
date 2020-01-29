@@ -12,9 +12,9 @@ main() {
     popd
 
     # root
-    cargo clippy --all -- -D warnings
-    cargo build --all --verbose
-    cargo test --all
+    cargo clippy --workspace -- -D warnings
+    cargo build --workspace --verbose
+    cargo test --workspace
 }
 
 main

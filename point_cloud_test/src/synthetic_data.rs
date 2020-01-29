@@ -9,17 +9,17 @@ use rand::{Rng, SeedableRng};
 use std::collections::BTreeMap;
 
 #[derive(Clone)]
-pub struct RandomPointsOnEarth {
+pub struct SyntheticData {
     rng: StdRng,
-    half_width: f64,
-    half_height: f64,
+    pub half_width: f64,
+    pub half_height: f64,
     ecef_from_local: Isometry3<f64>,
     ecef_from_local_mat: Matrix4<f64>,
     size: usize,
     count: usize,
 }
 
-impl RandomPointsOnEarth {
+impl SyntheticData {
     pub fn new(width: f64, height: f64, size: usize, seed: u64) -> Self {
         assert!(size <= 16_777_216, "Only up to 2^24 points can be indexed.");
         let mut rng = StdRng::seed_from_u64(seed);
@@ -28,7 +28,7 @@ impl RandomPointsOnEarth {
         let ecef_from_local = local_frame_from_lat_lng(lat, lon).inverse();
         let ecef_from_local_decomp: Decomposed<Vector3<f64>, Quaternion<f64>> =
             ecef_from_local.clone().into();
-        RandomPointsOnEarth {
+        SyntheticData {
             rng,
             half_width: width * 0.5,
             half_height: height * 0.5,
@@ -58,7 +58,7 @@ impl RandomPointsOnEarth {
     }
 }
 
-impl Iterator for RandomPointsOnEarth {
+impl Iterator for SyntheticData {
     type Item = Point;
 
     fn next(&mut self) -> Option<Point> {
