@@ -11,8 +11,8 @@ use std::collections::BTreeMap;
 #[derive(Clone)]
 pub struct SyntheticData {
     rng: StdRng,
-    half_width: f64,
-    half_height: f64,
+    pub half_width: f64,
+    pub half_height: f64,
     ecef_from_local: Isometry3<f64>,
     ecef_from_local_mat: Matrix4<f64>,
     size: usize,

@@ -10,10 +10,16 @@ pub fn get_abb_query(data: SyntheticData) -> PointLocation {
     PointLocation::Aabb(abb)
 }
 
+// An OBB that lies in the center of the point cloud and is aligned with gravity.
+// Its half-extent is half of that of the data.
 pub fn get_obb_query(data: SyntheticData) -> PointLocation {
     let obb = Obb::new(
         data.ecef_from_local().clone(),
-        Vector3::new(15.0, 15.0, 15.0),
+        Vector3::new(
+            0.5 * data.half_width,
+            0.5 * data.half_width,
+            0.5 * data.half_height,
+        ),
     );
     PointLocation::Obb(obb)
 }

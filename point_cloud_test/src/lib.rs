@@ -98,7 +98,7 @@ pub fn get_s2_and_octree_path(args: &Arguments) -> (PathBuf, PathBuf, SyntheticD
         let octree_path_buf = OCTREE_DIR.as_ref().unwrap().path().to_owned();
         (s2_path_buf, octree_path_buf)
     };
-    let data = SyntheticData::new(10.0, 10.0, args.num_points, args.seed);
+    let data = SyntheticData::new(args.width, args.height, args.num_points, args.seed);
     (s2_path_buf, octree_path_buf, data)
 }
 
