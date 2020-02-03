@@ -15,6 +15,8 @@
 pub mod attributes;
 pub mod color;
 pub mod data_provider;
+// Workaround for https://github.com/rust-lang-nursery/error-chain/issues/254
+#[allow(deprecated)]
 pub mod errors;
 pub mod iterator;
 pub mod math;
