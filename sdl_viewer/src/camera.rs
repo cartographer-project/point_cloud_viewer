@@ -20,7 +20,6 @@ use cgmath::{
 use point_viewer::math::Isometry3;
 use serde_derive::{Deserialize, Serialize};
 use std::f64;
-use time;
 
 #[derive(Debug)]
 struct RotationAngle {

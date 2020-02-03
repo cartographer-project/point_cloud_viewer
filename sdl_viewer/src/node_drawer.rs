@@ -21,7 +21,6 @@ use lru::LruCache;
 use point_viewer::octree;
 use point_viewer::read_write::PositionEncoding;
 use rand::{prelude::SliceRandom, thread_rng};
-use std;
 use std::os::raw::c_void;
 use std::ptr;
 use std::rc::Rc;
