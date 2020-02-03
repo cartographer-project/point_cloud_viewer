@@ -23,7 +23,6 @@ use grpcio::{
     Environment, RpcContext, RpcStatus, RpcStatusCode, Server, ServerBuilder, ServerStreamingSink,
     UnarySink, WriteFlags,
 };
-use num_cpus;
 use point_viewer::attributes::AttributeData;
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::*;
