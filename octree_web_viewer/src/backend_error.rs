@@ -1,6 +1,5 @@
 use actix_web::{error::ResponseError, HttpResponse};
 use failure::Fail;
-use point_viewer;
 
 #[derive(Fail, Debug)]
 pub enum PointsViewerError {

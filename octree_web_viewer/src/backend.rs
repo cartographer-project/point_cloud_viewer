@@ -6,7 +6,6 @@ use cgmath::Matrix4;
 use point_viewer::octree::{self, Octree};
 use std::str::FromStr;
 use std::sync::Arc;
-use time;
 
 #[derive(Deserialize)]
 pub struct Info {
