@@ -20,13 +20,13 @@ edition = "2018"
 
 [build-dependencies]
 protobuf_provider = { path = "../protobuf_provider" }
-protoc-grpcio = "1.0.2"
-protoc-rust = "2.8.0"
+protoc-grpcio = "1.1.0"
+protoc-rust = "2.10.1"
 
 [dependencies]
-protobuf = "2.8.0"
+protobuf = "2.10.1"
 grpcio = "0.4"
-futures = "0.1.17"
+futures = "0.1.29"
 
 [dependencies.point_viewer]
 path = ".."

@@ -24,7 +24,7 @@ lazy_static = "1.4.0"
 num-integer = "0.1.42"
 point_viewer = { path = ".." }
 point_cloud_client = { path = "../point_cloud_client" }
-protobuf = "2.8.0"
+protobuf = "2.10.1"
 rand = "0.7.3"
 tempdir = "0.3.7"
 s2 = { git = "https://github.com/nnmm/rust-s2", branch = "serde", features = ["serde"] }

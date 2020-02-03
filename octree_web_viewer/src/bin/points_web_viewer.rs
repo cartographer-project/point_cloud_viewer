@@ -28,13 +28,13 @@ pub struct CommandLineArguments {
     #[structopt(name = "DIR", parse(from_os_str))]
     octree_path: PathBuf,
     /// Port to listen on.
-    #[structopt(default_value = "5433", long = "port")]
+    #[structopt(default_value = "5433")]
     port: u16,
     /// IP string.
-    #[structopt(default_value = "127.0.0.1", long = "ip")]
+    #[structopt(default_value = "127.0.0.1")]
     ip: String,
-    #[structopt(default_value = "100", long = "cache_items")]
-    cache_max: usize,
+    #[structopt(default_value = "100")]
+    cache_items: usize,
 }
 
 /// init app state with command arguments
@@ -46,7 +46,7 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
     let data_provider_factory = DataProviderFactory::new();
     let octree_id = args.octree_path.strip_prefix(&prefix)?;
     Ok(AppState::new(
-        args.cache_max,
+        args.cache_items,
         prefix,
         suffix,
         octree_id.to_str().unwrap(),

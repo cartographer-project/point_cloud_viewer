@@ -61,9 +61,9 @@ use std::thread;
 struct PointCloudRenderer {
     gl: Rc<opengl::Gl>,
     node_drawer: NodeDrawer,
-    last_moving: time::PreciseTime,
+    last_moving: time::Instant,
     // TODO(sirver): Logging does not fit into this classes responsibilities.
-    last_log: time::PreciseTime,
+    last_log: time::Instant,
     visible_nodes: Vec<octree::NodeId>,
     get_visible_nodes_params_tx: mpsc::Sender<Matrix4<f64>>,
     get_visible_nodes_result_rx: mpsc::Receiver<Vec<octree::NodeId>>,
@@ -90,7 +90,7 @@ impl PointCloudRenderer {
         gl: Rc<opengl::Gl>,
         octree: Arc<octree::Octree>,
     ) -> Self {
-        let now = time::PreciseTime::now();
+        let now = time::Instant::now();
 
         // This thread waits for requests to calculate the currently visible nodes, runs a
         // calculation and sends the visible nodes back to the drawing thread. If multiple requests
@@ -132,13 +132,13 @@ impl PointCloudRenderer {
     }
 
     pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f64>) {
-        self.last_moving = time::PreciseTime::now();
+        self.last_moving = time::Instant::now();
         self.needs_drawing = true;
         self.node_drawer.update_world_to_gl(world_to_gl);
         self.get_visible_nodes_params_tx
             .send(world_to_gl.clone())
             .unwrap();
-        self.last_moving = time::PreciseTime::now();
+        self.last_moving = time::Instant::now();
         self.world_to_gl = *world_to_gl;
     }
 
@@ -162,8 +162,8 @@ impl PointCloudRenderer {
         let mut num_points_drawn = 0;
         let mut num_nodes_drawn = 0;
 
-        let now = time::PreciseTime::now();
-        let moving = self.last_moving.to(now) < time::Duration::milliseconds(150);
+        let now = time::Instant::now();
+        let moving = now - self.last_moving < time::Duration::milliseconds(150);
         self.needs_drawing |= self.node_views.consume_arrived_nodes(&self.node_drawer);
         while let Ok(visible_nodes) = self.get_visible_nodes_result_rx.try_recv() {
             self.visible_nodes.clear();
@@ -215,9 +215,9 @@ impl PointCloudRenderer {
         self.needs_drawing = moving;
 
         self.num_frames += 1;
-        let now = time::PreciseTime::now();
-        if self.last_log.to(now) > time::Duration::seconds(1) {
-            let duration = self.last_log.to(now).num_microseconds().unwrap();
+        let now = time::Instant::now();
+        if now - self.last_log > time::Duration::seconds(1) {
+            let duration = (now - self.last_log).whole_microseconds();
             let fps = f64::from(self.num_frames) / duration as f64 * 1_000_000.;
             if moving {
                 if fps < 20. {
@@ -478,7 +478,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     let mut camera = Camera::new(&gl, WINDOW_WIDTH, WINDOW_HEIGHT, local_from_global);
 
     let mut events = ctx.event_pump().unwrap();
-    let mut last_frame_time = time::PreciseTime::now();
+    let mut last_frame_time = time::Instant::now();
     'outer_loop: loop {
         for event in events.poll_iter() {
             match event {
@@ -591,8 +591,8 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         for j in &joysticks {
             j.act(&mut camera);
         }
-        let current_time = time::PreciseTime::now();
-        let elapsed = last_frame_time.to(current_time);
+        let current_time = time::Instant::now();
+        let elapsed = current_time - last_frame_time;
         last_frame_time = current_time;
         if camera.update(elapsed) {
             renderer.camera_changed(&camera.get_world_to_gl());

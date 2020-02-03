@@ -47,10 +47,10 @@ pub fn start_octree_server(
             )
             .service(web::resource("/init_tree").to(get_init_tree))
             .service(web::resource("/visible_nodes/{octree_id}/").to(get_visible_nodes))
-            .service(web::resource("/nodes_data/{octree_id}/").to_async(get_nodes_data))
+            .service(web::resource("/nodes_data/{octree_id}/").to(get_nodes_data))
     })
     .bind(&ip_port)
     .unwrap_or_else(|_| panic!("Can not bind to {}", &ip_port))
-    .start();
+    .run();
     Ok(())
 }

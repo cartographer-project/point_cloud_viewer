@@ -24,16 +24,16 @@ struct CommandlineArguments {
     input: PathBuf,
 
     /// Output directory to write the octree into.
-    #[structopt(long = "output_directory", parse(from_os_str))]
+    #[structopt(long, parse(from_os_str))]
     output_directory: PathBuf,
 
     /// Minimal precision that this point cloud should have.
     /// This decides on the number of bits used to encode each node.
-    #[structopt(long = "resolution", default_value = "0.001")]
+    #[structopt(long, default_value = "0.001")]
     resolution: f64,
 
     /// The number of threads used to shard octree building. Set this as high as possible for SSDs.
-    #[structopt(long = "num_threads", default_value = "10")]
+    #[structopt(long, default_value = "10")]
     num_threads: usize,
 }
 
