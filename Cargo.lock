@@ -1731,7 +1731,6 @@ dependencies = [
  "actix-web",
  "byteorder",
  "cgmath 0.17.0",
- "clap",
  "crossbeam-utils",
  "failure",
  "json",
