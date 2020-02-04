@@ -18,6 +18,7 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
+bencher = "0.1.5"
 cgmath = "0.17.0"
 collision = "0.20.1"
 lazy_static = "1.4.0"
@@ -29,3 +30,7 @@ rand = "0.7.3"
 tempdir = "0.3.7"
 s2 = { git = "https://github.com/nnmm/rust-s2", branch = "serde", features = ["serde"] }
 scoped-pool = "1.0.0"
+
+[[bench]]
+name = "main"
+harness = false
