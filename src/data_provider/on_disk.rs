@@ -2,7 +2,6 @@ use crate::attribute_extension;
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::proto;
-use protobuf;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{Cursor, Read};

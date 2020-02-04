@@ -20,7 +20,6 @@ use cgmath::{
 use point_viewer::math::Isometry3;
 use serde_derive::{Deserialize, Serialize};
 use std::f64;
-use time;
 
 #[derive(Debug)]
 struct RotationAngle {
@@ -238,7 +237,7 @@ impl Camera {
             self.pan += pan.normalize();
         }
 
-        let elapsed_seconds = elapsed.num_milliseconds() as f64 / 1000.;
+        let elapsed_seconds = elapsed.as_seconds_f64();
 
         const TURNING_SPEED: Rad<f64> = Rad(0.5);
         if self.turning_left {

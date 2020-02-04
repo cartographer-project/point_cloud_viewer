@@ -20,8 +20,7 @@ use fnv::FnvHashSet;
 use lru::LruCache;
 use point_viewer::octree;
 use point_viewer::read_write::PositionEncoding;
-use rand::{thread_rng, Rng};
-use std;
+use rand::{prelude::SliceRandom, thread_rng};
 use std::os::raw::c_void;
 use std::ptr;
 use std::rc::Rc;
@@ -187,7 +186,7 @@ impl NodeView {
         // to draw less.
         let mut indices: Vec<usize> = (0..node_data.meta.num_points as usize).collect();
         let mut rng = thread_rng();
-        rng.shuffle(&mut indices);
+        indices.shuffle(&mut rng);
 
         let position = reshuffle(
             &indices,

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use error_chain::*;
+use error_chain::error_chain;
 use std::io;
 
 error_chain! {
@@ -23,7 +23,7 @@ error_chain! {
     errors {
         InvalidInput(msg: String) {
             description("The input is not supported or invalid")
-                display("{}", msg)
+            display("{}", msg)
         }
 
         InvalidVersion(version: i32) {

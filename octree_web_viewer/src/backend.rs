@@ -1,13 +1,11 @@
 use crate::backend_error::PointsViewerError;
 use crate::state::AppState;
-use actix_web::{http::ContentEncoding, middleware::BodyEncoding, web, Error, HttpResponse};
+use actix_web::{dev::BodyEncoding, http::ContentEncoding, web, HttpResponse};
 use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::Matrix4;
-use futures::future::{self, result, Future};
 use point_viewer::octree::{self, Octree};
 use std::str::FromStr;
 use std::sync::Arc;
-use time;
 
 #[derive(Deserialize)]
 pub struct Info {
@@ -89,91 +87,91 @@ fn get_octree_from_state(
 }
 
 /// Asynchronous Handler to get Node Data
-pub fn get_nodes_data(
+pub async fn get_nodes_data(
     (octree_id, state, nodes): (
         web::Path<String>,
         web::Data<Arc<AppState>>,
         web::Json<Vec<String>>,
     ),
-) -> impl Future<Item = HttpResponse, Error = Error> {
-    let mut start = 0;
-    future::ok(()).and_then(move |_| {
-        start = time::precise_time_ns();
-        let data: Vec<String> = web::Json::into_inner(nodes);
-        let nodes_to_load = data
-            .into_iter()
-            .map(|e| octree::NodeId::from_str(e.as_str()).unwrap());
+) -> HttpResponse {
+    let start = time::Instant::now();
+    let data: Vec<String> = web::Json::into_inner(nodes);
+    let nodes_to_load = data
+        .into_iter()
+        .map(|e| octree::NodeId::from_str(e.as_str()).unwrap());
 
-        // So this is godawful: We need to get data to the GPU without JavaScript herp-derping with
-        // it - because that will stall interaction. The straight forward approach would be to ship
-        // json with base64 encoded values - unfortunately base64 decoding in JavaScript yields a
-        // string which cannot be used as a buffer. So we would need to manually convert this into
-        // an Array with is very slow.
-        // The alternative is to binary encode the whole request and parse it on the client side,
-        // which requires careful constructing on the server and parsing on the client.
-        let mut reply_blob = Vec::<u8>::new();
+    // So this is godawful: We need to get data to the GPU without JavaScript herp-derping with
+    // it - because that will stall interaction. The straight forward approach would be to ship
+    // json with base64 encoded values - unfortunately base64 decoding in JavaScript yields a
+    // string which cannot be used as a buffer. So we would need to manually convert this into
+    // an Array with is very slow.
+    // The alternative is to binary encode the whole request and parse it on the client side,
+    // which requires careful constructing on the server and parsing on the client.
+    let mut reply_blob = Vec::<u8>::new();
 
-        let mut num_nodes_fetched = 0;
-        let mut num_points = 0;
-        let octree: Arc<octree::Octree> =
-            get_octree_from_state(&octree_id.into_inner(), &state).unwrap();
-        for node_id in nodes_to_load {
-            let mut node_data = octree
-                .get_node_data(&node_id)
-                .map_err(|_error| {
+    let mut num_nodes_fetched = 0;
+    let mut num_points = 0;
+    let octree: Arc<octree::Octree> =
+        get_octree_from_state(&octree_id.into_inner(), &state).unwrap();
+    for node_id in nodes_to_load {
+        let mut node_data = match octree.get_node_data(&node_id) {
+            Ok(node_data) => node_data,
+            Err(_) => {
+                return HttpResponse::from_error(
                     crate::backend_error::PointsViewerError::NotFound(format!(
                         "Could not get node {}.",
                         node_id
                     ))
-                })
-                .unwrap();
+                    .into(),
+                );
+            }
+        };
 
-            // Write the bounding box information.
-            let min = node_data.meta.bounding_cube.min();
-            reply_blob.write_f64::<LittleEndian>(min.x).unwrap();
-            reply_blob.write_f64::<LittleEndian>(min.y).unwrap();
-            reply_blob.write_f64::<LittleEndian>(min.z).unwrap();
-            reply_blob
-                .write_f64::<LittleEndian>(node_data.meta.bounding_cube.edge_length())
-                .unwrap();
+        // Write the bounding box information.
+        let min = node_data.meta.bounding_cube.min();
+        reply_blob.write_f64::<LittleEndian>(min.x).unwrap();
+        reply_blob.write_f64::<LittleEndian>(min.y).unwrap();
+        reply_blob.write_f64::<LittleEndian>(min.z).unwrap();
+        reply_blob
+            .write_f64::<LittleEndian>(node_data.meta.bounding_cube.edge_length())
+            .unwrap();
 
-            // Number of points.
-            reply_blob
-                .write_u32::<LittleEndian>(node_data.meta.num_points as u32)
-                .unwrap();
+        // Number of points.
+        reply_blob
+            .write_u32::<LittleEndian>(node_data.meta.num_points as u32)
+            .unwrap();
 
-            // Position encoding.
-            let bytes_per_coordinate = node_data.meta.position_encoding.bytes_per_coordinate();
-            reply_blob.write_u8(bytes_per_coordinate as u8).unwrap();
-            assert!(
-                bytes_per_coordinate * node_data.meta.num_points as usize * 3
-                    == node_data.position.len()
-            );
-            assert!(node_data.meta.num_points as usize * 3 == node_data.color.len());
-            pad(&mut reply_blob);
-
-            reply_blob.append(&mut node_data.position);
-            pad(&mut reply_blob);
-
-            reply_blob.append(&mut node_data.color);
-            pad(&mut reply_blob);
-
-            num_nodes_fetched += 1;
-            num_points += node_data.meta.num_points;
-        }
-
-        let duration_ms = (time::precise_time_ns() - start) as f32 / 1_000_000.;
-        println!(
-            "Got {} nodes with {} points ({}ms).",
-            num_nodes_fetched, num_points, duration_ms
+        // Position encoding.
+        let bytes_per_coordinate = node_data.meta.position_encoding.bytes_per_coordinate();
+        reply_blob.write_u8(bytes_per_coordinate as u8).unwrap();
+        assert!(
+            bytes_per_coordinate * node_data.meta.num_points as usize * 3
+                == node_data.position.len()
         );
+        assert!(node_data.meta.num_points as usize * 3 == node_data.color.len());
+        pad(&mut reply_blob);
 
-        result(Ok(HttpResponse::Ok()
-            .content_type("application/octet-stream")
-            // disabling default encoding:
-            // Local test (same machine) default encoding doubles the computing time in that condition by saving only 10% of the data volume
-            // TODO(catevita) tests are required to find the most meaningful option
-            .encoding(ContentEncoding::Identity)
-            .body(reply_blob)))
-    })
+        reply_blob.append(&mut node_data.position);
+        pad(&mut reply_blob);
+
+        reply_blob.append(&mut node_data.color);
+        pad(&mut reply_blob);
+
+        num_nodes_fetched += 1;
+        num_points += node_data.meta.num_points;
+    }
+
+    let duration_ms = start.elapsed().as_seconds_f64() * 1_000.;
+    println!(
+        "Got {} nodes with {} points ({}ms).",
+        num_nodes_fetched, num_points, duration_ms
+    );
+
+    HttpResponse::Ok()
+        .content_type("application/octet-stream")
+        // disabling default encoding:
+        // Local test (same machine) default encoding doubles the computing time in that condition by saving only 10% of the data volume
+        // TODO(catevita) tests are required to find the most meaningful option
+        .encoding(ContentEncoding::Identity)
+        .body(reply_blob)
 }

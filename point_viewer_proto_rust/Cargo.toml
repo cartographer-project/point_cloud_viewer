@@ -20,9 +20,9 @@ edition = "2018"
 
 [build-dependencies]
 protobuf_provider = { path = "../protobuf_provider" }
-protoc-rust = "2.8.0"
+protoc-rust = "2.10.1"
 
 [dependencies]
 cgmath = "0.17.0"
 collision = "0.20.1"
-protobuf = "2.8.0"
+protobuf = "2.10.1"

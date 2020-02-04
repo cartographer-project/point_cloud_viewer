@@ -446,6 +446,6 @@ impl RawNodeWriter {
             Encoding::Plain => std::mem::size_of::<f64>(),
             Encoding::ScaledToCube(_, _, pos_enc) => pos_enc.bytes_per_coordinate(),
         } as i64;
-        (self.xyz_writer.bytes_written() as i64 / bytes_per_coordinate / 3)
+        self.xyz_writer.bytes_written() as i64 / bytes_per_coordinate / 3
     }
 }

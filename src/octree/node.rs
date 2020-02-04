@@ -150,7 +150,7 @@ impl NodeId {
 
     /// Returns the index of this node at the current level.
     pub fn index(&self) -> u128 {
-        (self.0 & 0x00ff_ffff_ffff_ffff_ffff_ffff_ffff_ffff)
+        self.0 & 0x00ff_ffff_ffff_ffff_ffff_ffff_ffff_ffff
     }
 
     /// Computes the bounding cube from a NodeID.

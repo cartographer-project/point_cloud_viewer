@@ -19,7 +19,7 @@ version = "0.1.0"
 edition = "2018"
 
 [build-dependencies]
-gl_generator = "0.13.0"
+gl_generator = "0.14.0"
 version_check = "0.9.1"
 
 [dependencies]
@@ -28,15 +28,15 @@ cgmath = "0.17.0"
 clap = "2.33.0"
 collision = "0.20.1"
 fnv = "1.0.6"
-image = "0.22.2"
-lru = "0.1.15"
-num-integer = "0.1.41"
-rand = "0.3.15"
-sdl2 = "0.32.2"
-serde = "1.0.101"
-serde_derive = "1.0.101"
-serde_json = "1.0.33"
-time = "^0.1.35"
+image = "0.22.4"
+lru = "0.4.3"
+num-integer = "0.1.42"
+rand = "0.7.3"
+sdl2 = "0.33.0"
+serde = "1.0.104"
+serde_derive = "1.0.104"
+serde_json = "1.0.46"
+time = "^0.2.6"
 
 [features]
 static-link = [ "sdl2/static-link", "sdl2/bundled" ]
