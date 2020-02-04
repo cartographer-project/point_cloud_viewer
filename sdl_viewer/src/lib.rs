@@ -217,8 +217,8 @@ impl PointCloudRenderer {
         self.num_frames += 1;
         let now = time::Instant::now();
         if now - self.last_log > time::Duration::seconds(1) {
-            let duration = (now - self.last_log).whole_microseconds();
-            let fps = f64::from(self.num_frames) / duration as f64 * 1_000_000.;
+            let duration_s = (now - self.last_log).as_seconds_f64();
+            let fps = f64::from(self.num_frames) / duration_s;
             if moving {
                 if fps < 20. {
                     self.max_nodes_moving = (self.max_nodes_moving as f32 * 0.9) as usize;
