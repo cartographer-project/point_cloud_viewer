@@ -58,7 +58,7 @@ struct CommandlineArguments {
 
     /// The maximum number of points sent through batch.
     #[structopt(long, default_value = "500000")]
-    num_points_per_batch: usize,
+    batch_size: usize,
 }
 
 fn main() {
@@ -67,7 +67,7 @@ fn main() {
     let mut point_cloud_client = PointCloudClient::new(&args.locations, DataProviderFactory::new())
         .expect("Couldn't create octree client.");
     point_cloud_client.num_threads = args.num_threads;
-    point_cloud_client.num_points_per_batch = args.num_points_per_batch;
+    point_cloud_client.num_points_per_batch = args.batch_size;
 
     let point_location = PointQuery {
         attributes: vec!["color", "intensity"],
