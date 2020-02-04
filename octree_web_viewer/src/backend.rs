@@ -161,7 +161,7 @@ pub async fn get_nodes_data(
         num_points += node_data.meta.num_points;
     }
 
-    let duration_ms = start.elapsed().as_seconds_f32() / 1_000.;
+    let duration_ms = start.elapsed().as_seconds_f64() * 1_000.;
     println!(
         "Got {} nodes with {} points ({}ms).",
         num_nodes_fetched, num_points, duration_ms
