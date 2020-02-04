@@ -237,7 +237,7 @@ impl Camera {
             self.pan += pan.normalize();
         }
 
-        let elapsed_seconds = elapsed.whole_milliseconds() as f64 / 1000.;
+        let elapsed_seconds = elapsed.as_seconds_f64();
 
         const TURNING_SPEED: Rad<f64> = Rad(0.5);
         if self.turning_left {
