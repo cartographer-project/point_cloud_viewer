@@ -1,4 +1,4 @@
-// TODO(feuerste): Use the #test framework instead of bencher once stabilized.
+// TODO(feuerste): Use #![feature(test)] instead of bencher once it is stable.
 use bencher::{benchmark_group, benchmark_main, black_box, Bencher};
 use point_cloud_client::PointCloudClient;
 use point_cloud_test_lib::{
