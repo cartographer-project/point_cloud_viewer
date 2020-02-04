@@ -25,7 +25,7 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
         .args(&[
             clap::Arg::with_name("output_directory")
                 .help("Output directory to write the X-Ray quadtree into.")
-                .long("output_directory")
+                .long("output-directory")
                 .required(true)
                 .takes_value(true),
             clap::Arg::with_name("resolution")
@@ -35,14 +35,14 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
             clap::Arg::with_name("num_threads")
                 .help("The number of threads used to shard X-Ray tile building.")
                 .takes_value(true)
-                .long("num_threads")
+                .long("num-threads")
                 .default_value("10"),
             clap::Arg::with_name("tile_size")
                 .help("Size of finest X-Ray level tile in pixels. Must be a power of two.")
-                .long("tile_size")
+                .long("tile-size")
                 .default_value("256"),
             clap::Arg::with_name("coloring_strategy")
-                .long("coloring_strategy")
+                .long("coloring-strategy")
                 .takes_value(true)
                 .possible_values(&ColoringStrategyArgument::variants())
                 .default_value("xray"),
@@ -57,7 +57,7 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                     "Minimum intensity of all points for color scaling. \
                      Only used for 'colored_with_intensity'.",
                 )
-                .long("min_intensity")
+                .long("min-intensity")
                 .takes_value(true)
                 .required_if("coloring_strategy", "colored_with_intensity"),
             clap::Arg::with_name("max_stddev")
@@ -66,7 +66,7 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                      will be clamped to this value and appear saturated in the X-Rays. \
                      Only used for 'colored_with_height_stddev'.",
                 )
-                .long("max_stddev")
+                .long("max-stddev")
                 .takes_value(true)
                 .required_if("coloring_strategy", "colored_with_height_stddev"),
             clap::Arg::with_name("max_intensity")
@@ -74,7 +74,7 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                     "Minimum intensity of all points for color scaling. \
                      Only used for 'colored_with_intensity'.",
                 )
-                .long("max_intensity")
+                .long("max-intensity")
                 .takes_value(true)
                 .required_if("coloring_strategy", "colored_with_intensity"),
             clap::Arg::with_name("octree_locations")
@@ -83,13 +83,13 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .multiple(true)
                 .required(true),
             clap::Arg::with_name("tile_background_color")
-                .long("tile_background_color")
+                .long("tile-background-color")
                 .takes_value(true)
                 .possible_values(&TileBackgroundColorArgument::variants())
                 .default_value("white"),
             clap::Arg::with_name("filter_interval")
                 .help("Filter intervals for attributes, e.g. --filter intensity=2.0,51.0")
-                .long("filter_interval")
+                .long("filter-interval")
                 .takes_value(true)
                 .multiple(true),
         ]);
