@@ -77,31 +77,19 @@ pub enum ColoringStrategyKind {
 
 impl ColoringStrategyKind {
     pub fn new_strategy(&self) -> Box<dyn ColoringStrategy> {
+        use ColoringStrategyKind::*;
         match self {
-            ColoringStrategyKind::XRay => Box::new(XRayColoringStrategy::new()),
-            ColoringStrategyKind::Colored(binning) => {
-                Box::new(PointColorColoringStrategy::new(binning.clone()))
+            XRay => Box::new(XRayColoringStrategy::new()),
+            Colored(binning) => Box::new(PointColorColoringStrategy::new(binning.clone())),
+            ColoredWithIntensity(min_intensity, max_intensity, binning) => Box::new(
+                IntensityColoringStrategy::new(*min_intensity, *max_intensity, binning.clone()),
+            ),
+            ColoredWithHeightStddev(max_stddev, ColormapArgument::jet) => {
+                Box::new(HeightStddevColoringStrategy::new(*max_stddev, Jet {}))
             }
-            ColoringStrategyKind::ColoredWithIntensity(min_intensity, max_intensity, binning) => {
-                Box::new(IntensityColoringStrategy::new(
-                    *min_intensity,
-                    *max_intensity,
-                    binning.clone(),
-                ))
-            }
-            ColoringStrategyKind::ColoredWithHeightStddev(max_stddev, ColormapArgument::jet) => {
-                Box::new(HeightStddevColoringStrategy::<Jet>::new(
-                    *max_stddev,
-                    Jet {},
-                ))
-            }
-            ColoringStrategyKind::ColoredWithHeightStddev(
-                max_stddev,
-                ColormapArgument::purplish,
-            ) => Box::new(HeightStddevColoringStrategy::new(
-                *max_stddev,
-                Monochrome(PURPLISH),
-            )),
+            ColoredWithHeightStddev(max_stddev, ColormapArgument::purplish) => Box::new(
+                HeightStddevColoringStrategy::new(*max_stddev, Monochrome(PURPLISH)),
+            ),
         }
     }
 }
