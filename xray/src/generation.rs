@@ -140,7 +140,7 @@ pub trait ColoringStrategy: Send {
     // the pixel (x, y) in the final tile image.
     fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8>;
 
-    fn attributes(&self) -> Vec<String>;
+    fn attributes(&self) -> HashSet<String>;
 }
 
 trait BinnedColoringStrategy {
@@ -212,8 +212,8 @@ impl ColoringStrategy for XRayColoringStrategy {
         }
     }
 
-    fn attributes(&self) -> Vec<String> {
-        vec![]
+    fn attributes(&self) -> HashSet<String> {
+        HashSet::default()
     }
 }
 
@@ -313,10 +313,11 @@ impl ColoringStrategy for IntensityColoringStrategy {
         .to_u8()
     }
 
-    fn attributes(&self) -> Vec<String> {
-        let mut attributes = vec!["intensity".into()];
+    fn attributes(&self) -> HashSet<String> {
+        let mut attributes = HashSet::default();
+        attributes.insert("intensity".into());
         if let Some((attr_name, _)) = &self.binning {
-            attributes.push(attr_name.clone());
+            attributes.insert(attr_name.clone());
         }
         attributes
     }
@@ -411,10 +412,11 @@ impl ColoringStrategy for PointColorColoringStrategy {
             .to_u8()
     }
 
-    fn attributes(&self) -> Vec<String> {
-        let mut attributes = vec!["color".into()];
+    fn attributes(&self) -> HashSet<String> {
+        let mut attributes = HashSet::default();
+        attributes.insert("color".into());
         if let Some((attr_name, _)) = &self.binning {
-            attributes.push(attr_name.clone());
+            attributes.insert(attr_name.clone());
         }
         attributes
     }
@@ -463,8 +465,8 @@ impl<C: Colormap> ColoringStrategy for HeightStddevColoringStrategy<C> {
         self.colormap.for_value(saturation)
     }
 
-    fn attributes(&self) -> Vec<String> {
-        vec![]
+    fn attributes(&self) -> HashSet<String> {
+        HashSet::default()
     }
 }
 
@@ -549,7 +551,7 @@ pub fn xray_from_points(
         }
         None => PointLocation::Aabb(*bbox),
     };
-    let mut attributes: HashSet<_> = coloring_strategy.attributes().into_iter().collect();
+    let mut attributes: HashSet<_> = coloring_strategy.attributes();
     attributes.extend(parameters.filter_intervals.keys().cloned());
     let point_query = PointQuery {
         attributes: attributes.iter().map(|a| a.as_ref()).collect(),
