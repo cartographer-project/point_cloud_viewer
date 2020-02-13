@@ -272,7 +272,7 @@ impl ColoringStrategy for IntensityColoringStrategy {
         let c = &self.per_column_data[&(x, y)];
         let mean = (c
             .values()
-            .map(|data| data.sum / data.count as f32)
+            .map(|bin_data| bin_data.sum / bin_data.count as f32)
             .sum::<f32>()
             / c.len() as f32)
             .max(self.min)
@@ -363,7 +363,7 @@ impl ColoringStrategy for PointColorColoringStrategy {
         }
         let c = &self.per_column_data[&(x, y)];
         (c.values()
-            .map(|data| data.color_sum / data.count as f32)
+            .map(|bin_data| bin_data.color_sum / bin_data.count as f32)
             .sum::<Color<f32>>()
             / c.len() as f32)
             .to_u8()
