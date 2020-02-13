@@ -551,7 +551,7 @@ pub fn xray_from_points(
         }
         None => PointLocation::Aabb(*bbox),
     };
-    let mut attributes: HashSet<_> = coloring_strategy.attributes();
+    let mut attributes = coloring_strategy.attributes();
     attributes.extend(parameters.filter_intervals.keys().cloned());
     let point_query = PointQuery {
         attributes: attributes.iter().map(|a| a.as_ref()).collect(),
