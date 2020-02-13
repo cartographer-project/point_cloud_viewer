@@ -111,6 +111,26 @@ macro_rules! match_attr_data {
     };
 }
 
+#[macro_export]
+macro_rules! match_1d_attr_data {
+    ($x:expr, $match_rhs:tt $(, $arg:tt )* ) => {
+        match $x {
+            AttributeData::U8(_d) => $match_rhs!(U8, _d $(, $arg )* ),
+            AttributeData::U16(_d) => $match_rhs!(U16, _d $(, $arg )* ),
+            AttributeData::U32(_d) => $match_rhs!(U32, _d $(, $arg )* ),
+            AttributeData::U64(_d) => $match_rhs!(U64, _d $(, $arg )* ),
+            AttributeData::I8(_d) => $match_rhs!(I8, _d $(, $arg )* ),
+            AttributeData::I16(_d) => $match_rhs!(I16, _d $(, $arg )* ),
+            AttributeData::I32(_d) => $match_rhs!(I32, _d $(, $arg )* ),
+            AttributeData::I64(_d) => $match_rhs!(I64, _d $(, $arg )* ),
+            AttributeData::F32(_d) => $match_rhs!(F32, _d $(, $arg )* ),
+            AttributeData::F64(_d) => $match_rhs!(F64, _d $(, $arg )* ),
+            AttributeData::U8Vec3(_d) => unimplemented!(),
+            AttributeData::F64Vec3(_d) => unimplemented!(),
+        }
+    };
+}
+
 impl AttributeData {
     pub fn len(&self) -> usize {
         macro_rules! rhs {

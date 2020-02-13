@@ -77,8 +77,8 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .long("max-intensity")
                 .takes_value(true)
                 .required_if("coloring_strategy", "colored_with_intensity"),
-            clap::Arg::with_name("octree_locations")
-                .help("Octree locations to turn into xrays.")
+            clap::Arg::with_name("point_cloud_locations")
+                .help("Point cloud locations to turn into xrays.")
                 .index(1)
                 .multiple(true)
                 .required(true),
@@ -88,10 +88,16 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .possible_values(&TileBackgroundColorArgument::variants())
                 .default_value("white"),
             clap::Arg::with_name("filter_interval")
-                .help("Filter intervals for attributes, e.g. --filter intensity=2.0,51.0")
+                .help("Filter intervals for attributes, e.g. --filter-interval intensity=2.0,51.0")
                 .long("filter-interval")
                 .takes_value(true)
                 .multiple(true),
+            clap::Arg::with_name("binning")
+                .help(
+                    "Bining size for one attribute, e.g. --binning timestamp=30000000000, \
+                     which will be applied to 'colored' and 'colored_with_intensity' strategies.")
+                .long("binning")
+                .takes_value(true),
         ]);
     app = T::pre_init(app);
     app.get_matches()
@@ -120,16 +126,18 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         panic!("tile_size is not a power of two.");
     }
 
+    let binning = args.value_of("binning").map(|f| parse_key_val(f).unwrap());
     let coloring_strategy_kind = {
         use ColoringStrategyArgument::*;
         let arg = value_t!(args, "coloring_strategy", ColoringStrategyArgument)
             .expect("coloring_strategy is invalid");
         match arg {
             xray => ColoringStrategyKind::XRay,
-            colored => ColoringStrategyKind::Colored,
+            colored => ColoringStrategyKind::Colored(binning),
             colored_with_intensity => ColoringStrategyKind::ColoredWithIntensity(
                 value_t!(args, "min_intensity", f32).unwrap_or(1.),
                 value_t!(args, "max_intensity", f32).unwrap_or(1.),
+                binning,
             ),
             colored_with_height_stddev => ColoringStrategyKind::ColoredWithHeightStddev(
                 value_t!(args, "max_stddev", f32).unwrap_or(1.),

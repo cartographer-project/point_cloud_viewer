@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::iter::Sum;
+use std::ops::{Add, AddAssign, Div};
+
 // Entries follow GL semantics: they are in [0.; 1.] with 1. being fully saturated.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Color<T> {
@@ -39,6 +42,47 @@ impl Color<u8> {
             green: f32::from(self.green) / 255.,
             blue: f32::from(self.blue) / 255.,
             alpha: f32::from(self.alpha) / 255.,
+        }
+    }
+}
+
+impl Add for Color<f32> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self {
+            red: self.red + other.red,
+            green: self.green + other.green,
+            blue: self.blue + other.blue,
+            alpha: self.alpha + other.alpha,
+        }
+    }
+}
+
+impl AddAssign for Color<f32> {
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+impl Sum<Color<f32>> for Color<f32> {
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = Color<f32>>,
+    {
+        iter.fold(ZERO, |acc, x| acc + x)
+    }
+}
+
+impl Div<f32> for Color<f32> {
+    type Output = Self;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        Self {
+            red: self.red / rhs,
+            green: self.green / rhs,
+            blue: self.blue / rhs,
+            alpha: self.alpha / rhs,
         }
     }
 }
@@ -89,5 +133,11 @@ pub const TRANSPARENT: Color<f32> = Color {
     red: 1.,
     green: 1.,
     blue: 1.,
+    alpha: 0.,
+};
+pub const ZERO: Color<f32> = Color {
+    red: 0.,
+    green: 0.,
+    blue: 0.,
     alpha: 0.,
 };

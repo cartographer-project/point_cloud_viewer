@@ -11,9 +11,10 @@ use image::{self, GenericImage};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
+use point_viewer::color::{self, Color};
 use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::math::{ClosedInterval, Isometry3, Obb};
-use point_viewer::{color::Color, PointsBatch};
+use point_viewer::{match_1d_attr_data, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use scoped_pool::Pool;
@@ -59,13 +60,16 @@ arg_enum! {
     }
 }
 
+// Maps from attribute name to the bin size
+type Binning = Option<(String, f64)>;
+
 #[derive(Debug)]
 pub enum ColoringStrategyKind {
     XRay,
-    Colored,
+    Colored(Binning),
 
     // Min and max intensities.
-    ColoredWithIntensity(f32, f32),
+    ColoredWithIntensity(f32, f32, Binning),
 
     // Colored in heat-map colors by stddev. Takes the max stddev to clamp on.
     ColoredWithHeightStddev(f32, ColormapArgument),
@@ -73,20 +77,29 @@ pub enum ColoringStrategyKind {
 
 impl ColoringStrategyKind {
     pub fn new_strategy(&self) -> Box<dyn ColoringStrategy> {
-        match *self {
+        match self {
             ColoringStrategyKind::XRay => Box::new(XRayColoringStrategy::new()),
-            ColoringStrategyKind::Colored => Box::new(PointColorColoringStrategy::default()),
-            ColoringStrategyKind::ColoredWithIntensity(min_intensity, max_intensity) => {
-                Box::new(IntensityColoringStrategy::new(min_intensity, max_intensity))
+            ColoringStrategyKind::Colored(binning) => {
+                Box::new(PointColorColoringStrategy::new(binning.clone()))
+            }
+            ColoringStrategyKind::ColoredWithIntensity(min_intensity, max_intensity, binning) => {
+                Box::new(IntensityColoringStrategy::new(
+                    *min_intensity,
+                    *max_intensity,
+                    binning.clone(),
+                ))
             }
             ColoringStrategyKind::ColoredWithHeightStddev(max_stddev, ColormapArgument::jet) => {
-                Box::new(HeightStddevColoringStrategy::<Jet>::new(max_stddev, Jet {}))
+                Box::new(HeightStddevColoringStrategy::<Jet>::new(
+                    *max_stddev,
+                    Jet {},
+                ))
             }
             ColoringStrategyKind::ColoredWithHeightStddev(
                 max_stddev,
                 ColormapArgument::purplish,
             ) => Box::new(HeightStddevColoringStrategy::new(
-                max_stddev,
+                *max_stddev,
                 Monochrome(PURPLISH),
             )),
         }
@@ -127,7 +140,24 @@ pub trait ColoringStrategy: Send {
     // the pixel (x, y) in the final tile image.
     fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8>;
 
-    fn attributes(&self) -> Vec<&'static str>;
+    fn attributes(&self) -> Vec<String>;
+}
+
+fn bins(points_batch: &PointsBatch, binning: &Binning) -> Vec<i64> {
+    if let Some((attrib_name, size)) = binning {
+        if let Some(attr_data) = points_batch.attributes.get(attrib_name) {
+            macro_rules! rhs {
+                ($dtype:ident, $data:ident, $size:expr) => {
+                    $data
+                        .iter()
+                        .map(|e| *e as i64 / *$size as i64)
+                        .collect::<Vec<i64>>()
+                };
+            }
+            return match_1d_attr_data!(attr_data, rhs, size);
+        }
+    }
+    vec![0; points_batch.position.len()]
 }
 
 struct XRayColoringStrategy {
@@ -179,7 +209,7 @@ impl ColoringStrategy for XRayColoringStrategy {
         }
     }
 
-    fn attributes(&self) -> Vec<&'static str> {
+    fn attributes(&self) -> Vec<String> {
         vec![]
     }
 }
@@ -192,14 +222,16 @@ struct IntensityPerColumnData {
 struct IntensityColoringStrategy {
     min: f32,
     max: f32,
-    per_column_data: FnvHashMap<(u32, u32), IntensityPerColumnData>,
+    binning: Binning,
+    per_column_data: FnvHashMap<(u32, u32), FnvHashMap<i64, IntensityPerColumnData>>,
 }
 
 impl IntensityColoringStrategy {
-    fn new(min: f32, max: f32) -> Self {
+    fn new(min: f32, max: f32, binning: Binning) -> Self {
         IntensityColoringStrategy {
             min,
             max,
+            binning,
             per_column_data: FnvHashMap::default(),
         }
     }
@@ -211,6 +243,7 @@ impl ColoringStrategy for IntensityColoringStrategy {
         points_batch: &PointsBatch,
         discretized_locations: Vec<Point3<u32>>,
     ) {
+        let bins = bins(points_batch, &self.binning);
         let intensity_attribute = points_batch
             .attributes
             .get("intensity")
@@ -227,14 +260,22 @@ impl ColoringStrategy for IntensityColoringStrategy {
                 {
                     Entry::Occupied(mut e) => {
                         let per_column_data = e.get_mut();
-                        per_column_data.sum += intensity;
-                        per_column_data.count += 1;
+                        let data = per_column_data
+                            .entry(bins[i])
+                            .or_insert(IntensityPerColumnData { sum: 0.0, count: 0 });
+                        data.sum += intensity;
+                        data.count += 1;
                     }
                     Entry::Vacant(v) => {
-                        v.insert(IntensityPerColumnData {
-                            sum: intensity,
-                            count: 1,
-                        });
+                        let mut data = FnvHashMap::default();
+                        data.insert(
+                            bins[i],
+                            IntensityPerColumnData {
+                                sum: intensity,
+                                count: 1,
+                            },
+                        );
+                        v.insert(data);
                     }
                 }
             }
@@ -246,7 +287,13 @@ impl ColoringStrategy for IntensityColoringStrategy {
             return background_color;
         }
         let c = &self.per_column_data[&(x, y)];
-        let mean = (c.sum / c.count as f32).max(self.min).min(self.max);
+        let mean = (c
+            .values()
+            .map(|data| data.sum / data.count as f32)
+            .sum::<f32>()
+            / c.len() as f32)
+            .max(self.min)
+            .min(self.max);
         let brighten = (mean - self.min).ln() / (self.max - self.min).ln();
         Color {
             red: brighten,
@@ -257,8 +304,12 @@ impl ColoringStrategy for IntensityColoringStrategy {
         .to_u8()
     }
 
-    fn attributes(&self) -> Vec<&'static str> {
-        vec!["intensity"]
+    fn attributes(&self) -> Vec<String> {
+        let mut attributes = vec!["intensity".into()];
+        if let Some((attr_name, _)) = &self.binning {
+            attributes.push(attr_name.clone());
+        }
+        attributes
     }
 }
 
@@ -270,9 +321,18 @@ struct PerColumnData {
     count: usize,
 }
 
-#[derive(Default)]
 struct PointColorColoringStrategy {
-    per_column_data: FnvHashMap<(u32, u32), PerColumnData>,
+    binning: Binning,
+    per_column_data: FnvHashMap<(u32, u32), FnvHashMap<i64, PerColumnData>>,
+}
+
+impl PointColorColoringStrategy {
+    fn new(binning: Binning) -> Self {
+        Self {
+            binning,
+            per_column_data: FnvHashMap::default(),
+        }
+    }
 }
 
 impl ColoringStrategy for PointColorColoringStrategy {
@@ -281,6 +341,7 @@ impl ColoringStrategy for PointColorColoringStrategy {
         points_batch: &PointsBatch,
         discretized_locations: Vec<Point3<u32>>,
     ) {
+        let bins = bins(points_batch, &self.binning);
         let color_attribute = points_batch
             .attributes
             .get("color")
@@ -300,17 +361,23 @@ impl ColoringStrategy for PointColorColoringStrategy {
                 {
                     Entry::Occupied(mut e) => {
                         let per_column_data = e.get_mut();
-                        per_column_data.color_sum.red += clr.red;
-                        per_column_data.color_sum.green += clr.green;
-                        per_column_data.color_sum.blue += clr.blue;
-                        per_column_data.color_sum.alpha += clr.alpha;
-                        per_column_data.count += 1;
+                        let data = per_column_data.entry(bins[i]).or_insert(PerColumnData {
+                            color_sum: color::ZERO,
+                            count: 0,
+                        });
+                        data.color_sum += clr;
+                        data.count += 1;
                     }
                     Entry::Vacant(v) => {
-                        v.insert(PerColumnData {
-                            color_sum: clr,
-                            count: 1,
-                        });
+                        let mut data = FnvHashMap::default();
+                        data.insert(
+                            bins[i],
+                            PerColumnData {
+                                color_sum: clr,
+                                count: 1,
+                            },
+                        );
+                        v.insert(data);
                     }
                 }
             }
@@ -322,17 +389,19 @@ impl ColoringStrategy for PointColorColoringStrategy {
             return background_color;
         }
         let c = &self.per_column_data[&(x, y)];
-        Color {
-            red: c.color_sum.red / c.count as f32,
-            green: c.color_sum.green / c.count as f32,
-            blue: c.color_sum.blue / c.count as f32,
-            alpha: 1.,
-        }
-        .to_u8()
+        (c.values()
+            .map(|data| data.color_sum / data.count as f32)
+            .sum::<Color<f32>>()
+            / c.len() as f32)
+            .to_u8()
     }
 
-    fn attributes(&self) -> Vec<&'static str> {
-        vec!["color"]
+    fn attributes(&self) -> Vec<String> {
+        let mut attributes = vec!["color".into()];
+        if let Some((attr_name, _)) = &self.binning {
+            attributes.push(attr_name.clone());
+        }
+        attributes
     }
 }
 
@@ -379,7 +448,7 @@ impl<C: Colormap> ColoringStrategy for HeightStddevColoringStrategy<C> {
         self.colormap.for_value(saturation)
     }
 
-    fn attributes(&self) -> Vec<&'static str> {
+    fn attributes(&self) -> Vec<String> {
         vec![]
     }
 }
@@ -466,9 +535,9 @@ pub fn xray_from_points(
         None => PointLocation::Aabb(*bbox),
     };
     let mut attributes: HashSet<_> = coloring_strategy.attributes().into_iter().collect();
-    attributes.extend(parameters.filter_intervals.keys().map(|k| &k[..]));
+    attributes.extend(parameters.filter_intervals.keys().cloned());
     let point_query = PointQuery {
-        attributes: attributes.into_iter().collect(),
+        attributes: attributes.iter().map(|a| a.as_ref()).collect(),
         location,
         filter_intervals: parameters
             .filter_intervals
