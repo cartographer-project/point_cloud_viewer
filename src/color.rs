@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use cgmath::BaseFloat;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div};
 
 // Entries follow GL semantics: they are in [0.; 1.] with 1. being fully saturated.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct Color<T> {
     pub red: T,
     pub green: T,
@@ -46,7 +47,10 @@ impl Color<u8> {
     }
 }
 
-impl Add for Color<f32> {
+impl<T: Add<Output = T>> Add for Color<T>
+where
+    T: BaseFloat,
+{
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -59,18 +63,24 @@ impl Add for Color<f32> {
     }
 }
 
-impl AddAssign for Color<f32> {
+impl<T> AddAssign for Color<T>
+where
+    T: BaseFloat,
+{
     fn add_assign(&mut self, other: Self) {
         *self = *self + other;
     }
 }
 
-impl Sum<Color<f32>> for Color<f32> {
+impl<T> Sum<Color<T>> for Color<T>
+where
+    T: BaseFloat + Default,
+{
     fn sum<I>(iter: I) -> Self
     where
-        I: Iterator<Item = Color<f32>>,
+        I: Iterator<Item = Self>,
     {
-        iter.fold(ZERO, |acc, x| acc + x)
+        iter.fold(Color::default(), |acc, x| acc + x)
     }
 }
 
@@ -133,11 +143,5 @@ pub const TRANSPARENT: Color<f32> = Color {
     red: 1.,
     green: 1.,
     blue: 1.,
-    alpha: 0.,
-};
-pub const ZERO: Color<f32> = Color {
-    red: 0.,
-    green: 0.,
-    blue: 0.,
     alpha: 0.,
 };

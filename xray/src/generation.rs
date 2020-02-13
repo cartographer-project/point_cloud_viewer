@@ -11,7 +11,7 @@ use image::{self, GenericImage};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
-use point_viewer::color::{self, Color};
+use point_viewer::color::Color;
 use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::math::{ClosedInterval, Isometry3, Obb};
 use point_viewer::{match_1d_attr_data, PointsBatch};
@@ -128,26 +128,32 @@ pub trait ColoringStrategy: Send {
     // the pixel (x, y) in the final tile image.
     fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8>;
 
-    fn attributes(&self) -> HashSet<String>;
+    fn attributes(&self) -> HashSet<String> {
+        HashSet::default()
+    }
 }
 
 trait BinnedColoringStrategy {
     fn binning(&self) -> &Binning;
     fn bins(&self, points_batch: &PointsBatch) -> Vec<i64> {
-        if let Some((attrib_name, size)) = self.binning() {
-            if let Some(attr_data) = points_batch.attributes.get(attrib_name) {
+        match self.binning() {
+            Some((attrib_name, size)) => {
+                let attr_data = points_batch
+                    .attributes
+                    .get(attrib_name)
+                    .expect("Binning attribute needs to be available in points batch.");
                 macro_rules! rhs {
                     ($dtype:ident, $data:ident, $size:expr) => {
                         $data
                             .iter()
-                            .map(|e| *e as i64 / *$size as i64)
+                            .map(|e| (*e as f64 / *$size) as i64)
                             .collect::<Vec<i64>>()
                     };
                 }
-                return match_1d_attr_data!(attr_data, rhs, size);
+                match_1d_attr_data!(attr_data, rhs, size)
             }
+            None => (vec![0; points_batch.position.len()]),
         }
-        vec![0; points_batch.position.len()]
     }
 }
 
@@ -199,12 +205,9 @@ impl ColoringStrategy for XRayColoringStrategy {
             alpha: 255,
         }
     }
-
-    fn attributes(&self) -> HashSet<String> {
-        HashSet::default()
-    }
 }
 
+#[derive(Default)]
 struct IntensityPerColumnData {
     sum: f32,
     count: usize,
@@ -251,30 +254,13 @@ impl ColoringStrategy for IntensityColoringStrategy {
                 if intensity < 0. {
                     return;
                 }
-                match self
+                let per_column_data = self
                     .per_column_data
                     .entry((discretized_locations[i].x, discretized_locations[i].y))
-                {
-                    Entry::Occupied(mut e) => {
-                        let per_column_data = e.get_mut();
-                        let data = per_column_data
-                            .entry(bins[i])
-                            .or_insert(IntensityPerColumnData { sum: 0.0, count: 0 });
-                        data.sum += intensity;
-                        data.count += 1;
-                    }
-                    Entry::Vacant(v) => {
-                        let mut data = FnvHashMap::default();
-                        data.insert(
-                            bins[i],
-                            IntensityPerColumnData {
-                                sum: intensity,
-                                count: 1,
-                            },
-                        );
-                        v.insert(data);
-                    }
-                }
+                    .or_default();
+                let bin_data = per_column_data.entry(bins[i]).or_default();
+                bin_data.sum += intensity;
+                bin_data.count += 1;
             }
         }
     }
@@ -311,6 +297,7 @@ impl ColoringStrategy for IntensityColoringStrategy {
     }
 }
 
+#[derive(Default)]
 struct PerColumnData {
     // The sum of all seen color values.
     color_sum: Color<f32>,
@@ -359,31 +346,13 @@ impl ColoringStrategy for PointColorColoringStrategy {
                     alpha: 255,
                 }
                 .to_f32();
-                match self
+                let per_column_data = self
                     .per_column_data
                     .entry((discretized_locations[i].x, discretized_locations[i].y))
-                {
-                    Entry::Occupied(mut e) => {
-                        let per_column_data = e.get_mut();
-                        let data = per_column_data.entry(bins[i]).or_insert(PerColumnData {
-                            color_sum: color::ZERO,
-                            count: 0,
-                        });
-                        data.color_sum += clr;
-                        data.count += 1;
-                    }
-                    Entry::Vacant(v) => {
-                        let mut data = FnvHashMap::default();
-                        data.insert(
-                            bins[i],
-                            PerColumnData {
-                                color_sum: clr,
-                                count: 1,
-                            },
-                        );
-                        v.insert(data);
-                    }
-                }
+                    .or_default();
+                let bin_data = per_column_data.entry(bins[i]).or_default();
+                bin_data.color_sum += clr;
+                bin_data.count += 1;
             }
         }
     }
@@ -451,10 +420,6 @@ impl<C: Colormap> ColoringStrategy for HeightStddevColoringStrategy<C> {
         let c = &self.per_column_data[&(x, y)];
         let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
         self.colormap.for_value(saturation)
-    }
-
-    fn attributes(&self) -> HashSet<String> {
-        HashSet::default()
     }
 }
 
