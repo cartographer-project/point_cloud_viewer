@@ -143,21 +143,24 @@ pub trait ColoringStrategy: Send {
     fn attributes(&self) -> Vec<String>;
 }
 
-fn bins(points_batch: &PointsBatch, binning: &Binning) -> Vec<i64> {
-    if let Some((attrib_name, size)) = binning {
-        if let Some(attr_data) = points_batch.attributes.get(attrib_name) {
-            macro_rules! rhs {
-                ($dtype:ident, $data:ident, $size:expr) => {
-                    $data
-                        .iter()
-                        .map(|e| *e as i64 / *$size as i64)
-                        .collect::<Vec<i64>>()
-                };
+trait BinnedColoringStrategy {
+    fn binning(&self) -> &Binning;
+    fn bins(&self, points_batch: &PointsBatch) -> Vec<i64> {
+        if let Some((attrib_name, size)) = self.binning() {
+            if let Some(attr_data) = points_batch.attributes.get(attrib_name) {
+                macro_rules! rhs {
+                    ($dtype:ident, $data:ident, $size:expr) => {
+                        $data
+                            .iter()
+                            .map(|e| *e as i64 / *$size as i64)
+                            .collect::<Vec<i64>>()
+                    };
+                }
+                return match_1d_attr_data!(attr_data, rhs, size);
             }
-            return match_1d_attr_data!(attr_data, rhs, size);
         }
+        vec![0; points_batch.position.len()]
     }
-    vec![0; points_batch.position.len()]
 }
 
 struct XRayColoringStrategy {
@@ -237,13 +240,19 @@ impl IntensityColoringStrategy {
     }
 }
 
+impl BinnedColoringStrategy for IntensityColoringStrategy {
+    fn binning(&self) -> &Binning {
+        &self.binning
+    }
+}
+
 impl ColoringStrategy for IntensityColoringStrategy {
     fn process_discretized_point_data(
         &mut self,
         points_batch: &PointsBatch,
         discretized_locations: Vec<Point3<u32>>,
     ) {
-        let bins = bins(points_batch, &self.binning);
+        let bins = self.bins(points_batch);
         let intensity_attribute = points_batch
             .attributes
             .get("intensity")
@@ -335,13 +344,19 @@ impl PointColorColoringStrategy {
     }
 }
 
+impl BinnedColoringStrategy for PointColorColoringStrategy {
+    fn binning(&self) -> &Binning {
+        &self.binning
+    }
+}
+
 impl ColoringStrategy for PointColorColoringStrategy {
     fn process_discretized_point_data(
         &mut self,
         points_batch: &PointsBatch,
         discretized_locations: Vec<Point3<u32>>,
     ) {
-        let bins = bins(points_batch, &self.binning);
+        let bins = self.bins(points_batch);
         let color_attribute = points_batch
             .attributes
             .get("color")
