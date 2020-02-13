@@ -159,12 +159,12 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
 
     let pool = Pool::new(num_threads);
 
-    let octree_locations = args
-        .values_of("octree_locations")
+    let point_cloud_locations = args
+        .values_of("point_cloud_locations")
         .unwrap()
         .map(String::from)
         .collect::<Vec<_>>();
-    let point_cloud_client = PointCloudClient::new(&octree_locations, data_provider_factory)
+    let point_cloud_client = PointCloudClient::new(&point_cloud_locations, data_provider_factory)
         .expect("Could not create point cloud client.");
 
     let filter_intervals = args
