@@ -94,7 +94,7 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .multiple(true),
             clap::Arg::with_name("binning")
                 .help(
-                    "Bining size for one attribute, e.g. --binning timestamp=30000000000, \
+                    "Binning size for one attribute, e.g. --binning timestamp=30000000000, \
                      which will be applied to 'colored' and 'colored_with_intensity' strategies.")
                 .long("binning")
                 .takes_value(true),
