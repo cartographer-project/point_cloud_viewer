@@ -9,6 +9,7 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
 use num::clamp;
+use pbr::ProgressBar;
 use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
 use point_viewer::color::Color;
@@ -24,7 +25,8 @@ use std::error::Error;
 use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::Duration;
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
@@ -589,53 +591,61 @@ pub fn build_xray_quadtree(
     // Create the deepest level of the quadtree.
     let (parents_to_create_tx, mut parents_to_create_rx) = mpsc::channel();
     let (all_nodes_tx, all_nodes_rx) = mpsc::channel();
-    println!("Building level {}.", deepest_level);
+    let num_leaf_nodes = 4usize.pow(deepest_level.into());
+    let num_all_nodes = (4 * num_leaf_nodes - 1) / 3;
 
-    pool.scoped(|scope| {
-        let mut open = vec![Node::root_with_bounding_rect(bounding_rect.clone())];
-        while !open.is_empty() {
-            let node = open.pop().unwrap();
-            if node.level() == deepest_level {
-                let parents_to_create_tx_clone = parents_to_create_tx.clone();
-                let all_nodes_tx_clone = all_nodes_tx.clone();
-                let strategy: Box<dyn ColoringStrategy> = coloring_strategy_kind.new_strategy();
-                scope.execute(move || {
-                    let bbox = Aabb3::new(
-                        Point3::new(
-                            node.bounding_rect.min().x,
-                            node.bounding_rect.min().y,
-                            bounding_box.min().z,
-                        ),
-                        Point3::new(
-                            node.bounding_rect.max().x,
-                            node.bounding_rect.max().y,
-                            bounding_box.max().z,
-                        ),
-                    );
-                    if xray_from_points(
-                        &bbox,
-                        &get_image_path(output_directory, node.id),
-                        Vector2::new(tile.size_px, tile.size_px),
-                        strategy,
-                        parameters,
-                    ) {
-                        all_nodes_tx_clone.send(node.id).unwrap();
-                        if let Some(id) = node.id.parent_id() {
-                            parents_to_create_tx_clone.send(id).unwrap()
-                        }
-                    }
-                });
-            } else {
-                for i in 0..4 {
-                    open.push(node.get_child(&ChildIndex::from_u8(i)));
-                }
+    let mut progress_bar = ProgressBar::new(num_all_nodes as u64);
+    progress_bar.set_max_refresh_rate(Some(Duration::from_secs(2)));
+    progress_bar.message(&format!("Building level {}: ", deepest_level));
+    let progress_bar = Arc::new(Mutex::new(progress_bar));
+
+    let mut leaf_nodes = Vec::with_capacity(num_leaf_nodes);
+    let mut nodes_to_traverse = Vec::with_capacity(num_all_nodes);
+    nodes_to_traverse.push(Node::root_with_bounding_rect(bounding_rect.clone()));
+    while let Some(node) = nodes_to_traverse.pop() {
+        if node.level() == deepest_level {
+            leaf_nodes.push(node);
+        } else {
+            for i in 0..4 {
+                nodes_to_traverse.push(node.get_child(&ChildIndex::from_u8(i)));
             }
+        }
+    }
+    pool.scoped(|scope| {
+        while let Some(node) = leaf_nodes.pop() {
+            let parents_to_create_tx_clone = parents_to_create_tx.clone();
+            let all_nodes_tx_clone = all_nodes_tx.clone();
+            let strategy: Box<dyn ColoringStrategy> = coloring_strategy_kind.new_strategy();
+            let progress_bar = Arc::clone(&progress_bar);
+            scope.execute(move || {
+                let rect_min = node.bounding_rect.min();
+                let rect_max = node.bounding_rect.max();
+                let min = Point3::new(rect_min.x, rect_min.y, bounding_box.min().z);
+                let max = Point3::new(rect_max.x, rect_max.y, bounding_box.max().z);
+                let bbox = Aabb3::new(min, max);
+                if xray_from_points(
+                    &bbox,
+                    &get_image_path(output_directory, node.id),
+                    Vector2::new(tile.size_px, tile.size_px),
+                    strategy,
+                    parameters,
+                ) {
+                    all_nodes_tx_clone.send(node.id).unwrap();
+                    if let Some(id) = node.id.parent_id() {
+                        parents_to_create_tx_clone.send(id).unwrap()
+                    }
+                }
+                progress_bar.lock().unwrap().inc();
+            });
         }
     });
     drop(parents_to_create_tx);
 
     for current_level in (0..deepest_level).rev() {
-        println!("Building level {}.", current_level);
+        progress_bar
+            .lock()
+            .unwrap()
+            .message(&format!("Building level {}: ", current_level));
         let nodes_to_create: FnvHashSet<NodeId> = parents_to_create_rx.into_iter().collect();
         let (parents_to_create_tx, new_rx) = mpsc::channel();
         parents_to_create_rx = new_rx;
@@ -643,6 +653,7 @@ pub fn build_xray_quadtree(
             for node_id in nodes_to_create {
                 all_nodes_tx.send(node_id).unwrap();
                 let tx_clone = parents_to_create_tx.clone();
+                let progress_bar = Arc::clone(&progress_bar);
                 scope.execute(move || {
                     let mut children = [None, None, None, None];
 
@@ -674,6 +685,7 @@ pub fn build_xray_quadtree(
                     if let Some(id) = node_id.parent_id() {
                         tx_clone.send(id).unwrap()
                     }
+                    progress_bar.lock().unwrap().inc();
                 });
             }
         });
@@ -706,6 +718,8 @@ pub fn build_xray_quadtree(
 
     let mut buf_writer = BufWriter::new(File::create(output_directory.join("meta.pb")).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
+
+    progress_bar.lock().unwrap().finish();
 
     Ok(())
 }
