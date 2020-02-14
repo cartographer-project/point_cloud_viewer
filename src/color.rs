@@ -84,10 +84,13 @@ where
     }
 }
 
-impl Div<f32> for Color<f32> {
+impl<T> Div<T> for Color<T>
+where
+    T: BaseFloat,
+{
     type Output = Self;
 
-    fn div(self, rhs: f32) -> Self::Output {
+    fn div(self, rhs: T) -> Self::Output {
         Self {
             red: self.red / rhs,
             green: self.green / rhs,
