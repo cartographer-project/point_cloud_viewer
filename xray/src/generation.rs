@@ -585,18 +585,11 @@ pub fn build_xray_quadtree(
             let strategy: Box<dyn ColoringStrategy> = coloring_strategy_kind.new_strategy();
             let progress_bar = Arc::clone(&progress_bar);
             scope.execute(move || {
-                let bbox = Aabb3::new(
-                    Point3::new(
-                        node.bounding_rect.min().x,
-                        node.bounding_rect.min().y,
-                        bounding_box.min().z,
-                    ),
-                    Point3::new(
-                        node.bounding_rect.max().x,
-                        node.bounding_rect.max().y,
-                        bounding_box.max().z,
-                    ),
-                );
+                let rect_min = node.bounding_rect.min();
+                let rect_max = node.bounding_rect.max();
+                let min = Point3::new(rect_min.x, rect_min.y, bounding_box.min().z);
+                let max = Point3::new(rect_max.x, rect_max.y, bounding_box.max().z);
+                let bbox = Aabb3::new(min, max);
                 if xray_from_points(
                     &bbox,
                     &get_image_path(output_directory, node.id),
