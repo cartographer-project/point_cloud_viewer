@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use cgmath::BaseFloat;
+use std::iter::Sum;
+use std::ops::{Add, AddAssign, Div};
+
 // Entries follow GL semantics: they are in [0.; 1.] with 1. being fully saturated.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct Color<T> {
     pub red: T,
     pub green: T,
@@ -39,6 +43,59 @@ impl Color<u8> {
             green: f32::from(self.green) / 255.,
             blue: f32::from(self.blue) / 255.,
             alpha: f32::from(self.alpha) / 255.,
+        }
+    }
+}
+
+impl<T: Add<Output = T>> Add for Color<T>
+where
+    T: BaseFloat,
+{
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self {
+            red: self.red + other.red,
+            green: self.green + other.green,
+            blue: self.blue + other.blue,
+            alpha: self.alpha + other.alpha,
+        }
+    }
+}
+
+impl<T> AddAssign for Color<T>
+where
+    T: BaseFloat,
+{
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+impl<T> Sum<Color<T>> for Color<T>
+where
+    T: BaseFloat + Default,
+{
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = Self>,
+    {
+        iter.fold(Color::default(), |acc, x| acc + x)
+    }
+}
+
+impl<T> Div<T> for Color<T>
+where
+    T: BaseFloat,
+{
+    type Output = Self;
+
+    fn div(self, rhs: T) -> Self::Output {
+        Self {
+            red: self.red / rhs,
+            green: self.green / rhs,
+            blue: self.blue / rhs,
+            alpha: self.alpha / rhs,
         }
     }
 }

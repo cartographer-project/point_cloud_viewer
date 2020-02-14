@@ -2,7 +2,7 @@ use crate::errors::*;
 use crate::math::PointCulling;
 use crate::math::{AllPoints, ClosedInterval, Frustum, Obb};
 use crate::read_write::{Encoding, NodeIterator};
-use crate::{AttributeData, PointsBatch};
+use crate::{match_1d_attr_data, AttributeData, PointsBatch};
 use cgmath::Point3;
 use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
@@ -80,25 +80,17 @@ impl<'a> Iterator for FilteredIterator<'a> {
                     culling.contains(&<Point3<f64> as cgmath::EuclideanSpace>::from_vec(*pos))
                 })
                 .collect();
+            macro_rules! rhs {
+                ($dtype:ident, $data:ident, $interval:expr) => {
+                    update_keep(&mut keep, $data, $interval)
+                };
+            }
             for (attrib, interval) in self.filter_intervals {
-                match batch
+                let attr_data = batch
                     .attributes
                     .get(*attrib)
-                    .expect("Filter attribute needs to be specified as query attribute.")
-                {
-                    AttributeData::U8(d) => update_keep(&mut keep, d, interval),
-                    AttributeData::U16(d) => update_keep(&mut keep, d, interval),
-                    AttributeData::U32(d) => update_keep(&mut keep, d, interval),
-                    AttributeData::U64(d) => update_keep(&mut keep, d, interval),
-                    AttributeData::I8(d) => update_keep(&mut keep, d, interval),
-                    AttributeData::I16(d) => update_keep(&mut keep, d, interval),
-                    AttributeData::I32(d) => update_keep(&mut keep, d, interval),
-                    AttributeData::I64(d) => update_keep(&mut keep, d, interval),
-                    AttributeData::F32(d) => update_keep(&mut keep, d, interval),
-                    AttributeData::F64(d) => update_keep(&mut keep, d, interval),
-                    AttributeData::U8Vec3(_) => unimplemented!(),
-                    AttributeData::F64Vec3(_) => unimplemented!(),
-                }
+                    .expect("Filter attribute needs to be specified as query attribute.");
+                match_1d_attr_data!(attr_data, rhs, interval)
             }
             batch.retain(&keep);
             batch
