@@ -144,15 +144,12 @@ trait BinnedColoringStrategy {
                     .expect("Binning attribute needs to be available in points batch.");
                 macro_rules! rhs {
                     ($dtype:ident, $data:ident, $size:expr) => {
-                        $data
-                            .iter()
-                            .map(|e| (*e as f64 / *$size) as i64)
-                            .collect::<Vec<i64>>()
+                        $data.iter().map(|e| (*e as f64 / *$size) as i64).collect()
                     };
                 }
                 match_1d_attr_data!(attr_data, rhs, size)
             }
-            None => (vec![0; points_batch.position.len()]),
+            None => vec![0; points_batch.position.len()],
         }
     }
 }
@@ -208,16 +205,20 @@ impl ColoringStrategy for XRayColoringStrategy {
 }
 
 #[derive(Default)]
-struct IntensityPerColumnData {
-    sum: f32,
+struct PerColumnData<T> {
+    // The sum of all seen values.
+    sum: T,
+    // The number of all points that landed in this column.
     count: usize,
 }
+
+type IntensityPerColumnData = FnvHashMap<(u32, u32), FnvHashMap<i64, PerColumnData<f32>>>;
 
 struct IntensityColoringStrategy {
     min: f32,
     max: f32,
     binning: Binning,
-    per_column_data: FnvHashMap<(u32, u32), FnvHashMap<i64, IntensityPerColumnData>>,
+    per_column_data: IntensityPerColumnData,
 }
 
 impl IntensityColoringStrategy {
@@ -297,18 +298,11 @@ impl ColoringStrategy for IntensityColoringStrategy {
     }
 }
 
-#[derive(Default)]
-struct PerColumnData {
-    // The sum of all seen color values.
-    color_sum: Color<f32>,
-
-    // The number of all points that landed in this column.
-    count: usize,
-}
+type PointColorPerColumnData = FnvHashMap<(u32, u32), FnvHashMap<i64, PerColumnData<Color<f32>>>>;
 
 struct PointColorColoringStrategy {
     binning: Binning,
-    per_column_data: FnvHashMap<(u32, u32), FnvHashMap<i64, PerColumnData>>,
+    per_column_data: PointColorPerColumnData,
 }
 
 impl PointColorColoringStrategy {
@@ -339,7 +333,7 @@ impl ColoringStrategy for PointColorColoringStrategy {
             .expect("Coloring was requested, but point data without color found.");
         if let AttributeData::U8Vec3(color_vec) = color_attribute {
             for i in 0..color_vec.len() {
-                let clr = Color::<u8> {
+                let color = Color::<u8> {
                     red: color_vec[i][0],
                     green: color_vec[i][1],
                     blue: color_vec[i][2],
@@ -351,7 +345,7 @@ impl ColoringStrategy for PointColorColoringStrategy {
                     .entry((discretized_locations[i].x, discretized_locations[i].y))
                     .or_default();
                 let bin_data = per_column_data.entry(bins[i]).or_default();
-                bin_data.color_sum += clr;
+                bin_data.sum += color;
                 bin_data.count += 1;
             }
         }
@@ -363,7 +357,7 @@ impl ColoringStrategy for PointColorColoringStrategy {
         }
         let c = &self.per_column_data[&(x, y)];
         (c.values()
-            .map(|bin_data| bin_data.color_sum / bin_data.count as f32)
+            .map(|bin_data| bin_data.sum / bin_data.count as f32)
             .sum::<Color<f32>>()
             / c.len() as f32)
             .to_u8()
