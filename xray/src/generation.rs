@@ -671,19 +671,21 @@ pub fn build_xray_quadtree(
                         }
                         children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
                     }
-                    let large_image = build_parent(&children, parameters.tile_background_color);
-                    let image = image::DynamicImage::ImageRgba8(large_image).resize(
-                        tile.size_px,
-                        tile.size_px,
-                        image::FilterType::Lanczos3,
-                    );
-                    image
-                        .as_rgba8()
-                        .unwrap()
-                        .save(&get_image_path(output_directory, node_id))
-                        .unwrap();
-                    if let Some(id) = node_id.parent_id() {
-                        tx_clone.send(id).unwrap()
+                    if children.iter().any(|child| child.is_some()) {
+                        let large_image = build_parent(&children, parameters.tile_background_color);
+                        let image = image::DynamicImage::ImageRgba8(large_image).resize(
+                            tile.size_px,
+                            tile.size_px,
+                            image::FilterType::Lanczos3,
+                        );
+                        image
+                            .as_rgba8()
+                            .unwrap()
+                            .save(&get_image_path(output_directory, node_id))
+                            .unwrap();
+                        if let Some(id) = node_id.parent_id() {
+                            tx_clone.send(id).unwrap()
+                        }
                     }
                     progress_bar.lock().unwrap().inc();
                 });
