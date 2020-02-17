@@ -2484,8 +2484,9 @@ checksum = "bfa8506c1de11c9c4e4c38863ccbe02a305c8188e85a05a784c9e11e1c3910c8"
 
 [[package]]
 name = "s2"
-version = "0.0.9"
-source = "git+https://github.com/nnmm/rust-s2?branch=serde#7c4705d3f5fc9d62c8fd7be42129ae81ed0b6a89"
+version = "0.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da73b163bcaaf46522b80f8b2049437cc47f5665f061ac94727179de45b57e90"
 dependencies = [
  "bigdecimal",
  "cgmath 0.16.1",
@@ -3272,6 +3273,7 @@ dependencies = [
  "image",
  "iron",
  "num",
+ "pbr",
  "point_cloud_client",
  "point_viewer",
  "point_viewer_grpc",
