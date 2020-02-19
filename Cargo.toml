@@ -25,6 +25,7 @@ collision = { version = "0.20.1", features = ["serde"] }
 crossbeam = "0.7.3"
 error-chain = "0.12.1"
 fnv = "1.0.6"
+image = "0.22.5"
 libc = "0.2.66"
 lru = "0.4.3"
 nalgebra = "0.19.0"

@@ -7,14 +7,15 @@ use cgmath::{Decomposed, EuclideanSpace, Point2, Point3, Quaternion, Vector2, Ve
 use clap::arg_enum;
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
-use image::{self, GenericImage};
+use image::{self, GenericImage, Rgba, RgbaImage};
+use imageproc::map::map_colors;
 use num::clamp;
-use pbr::ProgressBar;
 use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
-use point_viewer::color::Color;
+use point_viewer::color::{Color, TRANSPARENT};
 use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::math::{ClosedInterval, Isometry3, Obb};
+use point_viewer::utils::create_progress_bar;
 use point_viewer::{match_1d_attr_data, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
@@ -25,8 +26,7 @@ use std::error::Error;
 use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
-use std::sync::{mpsc, Arc, Mutex};
-use std::time::Duration;
+use std::sync::{mpsc, Arc};
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
@@ -128,7 +128,7 @@ pub trait ColoringStrategy: Send {
 
     // After all points are processed, this is used to query the color that should be assigned to
     // the pixel (x, y) in the final tile image.
-    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8>;
+    fn get_pixel_color(&self, x: u32, y: u32) -> Option<Color<u8>>;
 
     fn attributes(&self) -> HashSet<String> {
         HashSet::default()
@@ -191,18 +191,17 @@ impl ColoringStrategy for XRayColoringStrategy {
         }
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
-        if !self.z_buckets.contains_key(&(x, y)) {
-            return background_color;
-        }
-        let saturation = (self.z_buckets[&(x, y)].len() as f64).ln() / self.max_saturation;
-        let value = ((1. - saturation) * 255.) as u8;
-        Color {
-            red: value,
-            green: value,
-            blue: value,
-            alpha: 255,
-        }
+    fn get_pixel_color(&self, x: u32, y: u32) -> Option<Color<u8>> {
+        self.z_buckets.get(&(x, y)).map(|z| {
+            let saturation = (z.len() as f64).ln() / self.max_saturation;
+            let value = ((1. - saturation) * 255.) as u8;
+            Color {
+                red: value,
+                green: value,
+                blue: value,
+                alpha: 255,
+            }
+        })
     }
 }
 
@@ -268,26 +267,24 @@ impl ColoringStrategy for IntensityColoringStrategy {
         }
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
-        if !self.per_column_data.contains_key(&(x, y)) {
-            return background_color;
-        }
-        let c = &self.per_column_data[&(x, y)];
-        let mean = (c
-            .values()
-            .map(|bin_data| bin_data.sum / bin_data.count as f32)
-            .sum::<f32>()
-            / c.len() as f32)
-            .max(self.min)
-            .min(self.max);
-        let brighten = (mean - self.min).ln() / (self.max - self.min).ln();
-        Color {
-            red: brighten,
-            green: brighten,
-            blue: brighten,
-            alpha: 1.,
-        }
-        .to_u8()
+    fn get_pixel_color(&self, x: u32, y: u32) -> Option<Color<u8>> {
+        self.per_column_data.get(&(x, y)).map(|c| {
+            let mean = (c
+                .values()
+                .map(|bin_data| bin_data.sum / bin_data.count as f32)
+                .sum::<f32>()
+                / c.len() as f32)
+                .max(self.min)
+                .min(self.max);
+            let brighten = (mean - self.min).ln() / (self.max - self.min).ln();
+            Color {
+                red: brighten,
+                green: brighten,
+                blue: brighten,
+                alpha: 1.,
+            }
+            .to_u8()
+        })
     }
 
     fn attributes(&self) -> HashSet<String> {
@@ -353,16 +350,14 @@ impl ColoringStrategy for PointColorColoringStrategy {
         }
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
-        if !self.per_column_data.contains_key(&(x, y)) {
-            return background_color;
-        }
-        let c = &self.per_column_data[&(x, y)];
-        (c.values()
-            .map(|bin_data| bin_data.sum / bin_data.count as f32)
-            .sum::<Color<f32>>()
-            / c.len() as f32)
-            .to_u8()
+    fn get_pixel_color(&self, x: u32, y: u32) -> Option<Color<u8>> {
+        self.per_column_data.get(&(x, y)).map(|c| {
+            (c.values()
+                .map(|bin_data| bin_data.sum / bin_data.count as f32)
+                .sum::<Color<f32>>()
+                / c.len() as f32)
+                .to_u8()
+        })
     }
 
     fn attributes(&self) -> HashSet<String> {
@@ -409,23 +404,18 @@ impl<C: Colormap> ColoringStrategy for HeightStddevColoringStrategy<C> {
         }
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32, background_color: Color<u8>) -> Color<u8> {
-        if !self.per_column_data.contains_key(&(x, y)) {
-            return background_color;
-        }
-        let c = &self.per_column_data[&(x, y)];
-        let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
-        self.colormap.for_value(saturation)
+    fn get_pixel_color(&self, x: u32, y: u32) -> Option<Color<u8>> {
+        self.per_column_data.get(&(x, y)).map(|c| {
+            let saturation = clamp(c.stddev() as f32, 0., self.max_stddev) / self.max_stddev;
+            self.colormap.for_value(saturation)
+        })
     }
 }
 
 /// Build a parent image created of the 4 children tiles. All tiles are optionally, in which case
 /// they are left white in the resulting image. The input images must be square with length N,
 /// the returned image is square with length 2*N.
-pub fn build_parent(
-    children: &[Option<image::RgbaImage>],
-    tile_background_color: Color<u8>,
-) -> image::RgbaImage {
+pub fn build_parent(children: &[Option<RgbaImage>], tile_background_color: Color<u8>) -> RgbaImage {
     assert_eq!(children.len(), 4);
     let mut child_size_px = None;
     for c in children.iter() {
@@ -446,15 +436,10 @@ pub fn build_parent(
         }
     }
     let child_size_px = child_size_px.expect("No children passed to 'build_parent'.");
-    let mut large_image = image::RgbaImage::from_pixel(
+    let mut large_image = RgbaImage::from_pixel(
         child_size_px * 2,
         child_size_px * 2,
-        image::Rgba([
-            tile_background_color.red,
-            tile_background_color.green,
-            tile_background_color.blue,
-            tile_background_color.alpha,
-        ]),
+        Rgba::from(tile_background_color),
     );
 
     // We want the x-direction to be up in the octree. Since (0, 0) is the top left
@@ -528,16 +513,11 @@ pub fn xray_from_points(
         return false;
     }
 
-    let mut image = image::RgbaImage::new(image_size.x, image_size.y);
-    for x in 0..image.width() {
-        for y in 0..image.height() {
-            let color = coloring_strategy.get_pixel_color(x, y, parameters.tile_background_color);
-            image.put_pixel(
-                x,
-                y,
-                image::Rgba([color.red, color.green, color.blue, color.alpha]),
-            );
-        }
+    let mut image = RgbaImage::new(image_size.x, image_size.y);
+    let background_color = Rgba::from(TRANSPARENT.to_u8());
+    for (x, y, i) in image.enumerate_pixels_mut() {
+        let pixel_color = coloring_strategy.get_pixel_color(x, y);
+        *i = pixel_color.map(Rgba::from).unwrap_or(background_color);
     }
     image.save(png_file).unwrap();
     true
@@ -591,16 +571,10 @@ pub fn build_xray_quadtree(
     // Create the deepest level of the quadtree.
     let (parents_to_create_tx, mut parents_to_create_rx) = mpsc::channel();
     let (all_nodes_tx, all_nodes_rx) = mpsc::channel();
-    let num_leaf_nodes = 4usize.pow(deepest_level.into());
-    let num_all_nodes = (4 * num_leaf_nodes - 1) / 3;
+    let (created_leaf_node_ids_tx, created_leaf_node_ids_rx) = mpsc::channel();
 
-    let mut progress_bar = ProgressBar::new(num_all_nodes as u64);
-    progress_bar.set_max_refresh_rate(Some(Duration::from_secs(2)));
-    progress_bar.message(&format!("Building level {}: ", deepest_level));
-    let progress_bar = Arc::new(Mutex::new(progress_bar));
-
-    let mut leaf_nodes = Vec::with_capacity(num_leaf_nodes);
-    let mut nodes_to_traverse = Vec::with_capacity(num_all_nodes);
+    let mut leaf_nodes = Vec::with_capacity(4usize.pow(deepest_level.into()));
+    let mut nodes_to_traverse = Vec::with_capacity((4 * leaf_nodes.capacity() - 1) / 3);
     nodes_to_traverse.push(Node::root_with_bounding_rect(bounding_rect.clone()));
     while let Some(node) = nodes_to_traverse.pop() {
         if node.level() == deepest_level {
@@ -611,10 +585,15 @@ pub fn build_xray_quadtree(
             }
         }
     }
+    let progress_bar = create_progress_bar(
+        leaf_nodes.len(),
+        &format!("Building level {}", deepest_level),
+    );
     pool.scoped(|scope| {
         while let Some(node) = leaf_nodes.pop() {
             let parents_to_create_tx_clone = parents_to_create_tx.clone();
             let all_nodes_tx_clone = all_nodes_tx.clone();
+            let created_leaf_node_ids_tx_clone = created_leaf_node_ids_tx.clone();
             let strategy: Box<dyn ColoringStrategy> = coloring_strategy_kind.new_strategy();
             let progress_bar = Arc::clone(&progress_bar);
             scope.execute(move || {
@@ -631,6 +610,7 @@ pub fn build_xray_quadtree(
                     parameters,
                 ) {
                     all_nodes_tx_clone.send(node.id).unwrap();
+                    created_leaf_node_ids_tx_clone.send(node.id).unwrap();
                     if let Some(id) = node.id.parent_id() {
                         parents_to_create_tx_clone.send(id).unwrap()
                     }
@@ -639,14 +619,34 @@ pub fn build_xray_quadtree(
             });
         }
     });
+    progress_bar.lock().unwrap().finish_println("");
     drop(parents_to_create_tx);
+    drop(created_leaf_node_ids_tx);
+
+    let created_leaf_node_ids: FnvHashSet<NodeId> = created_leaf_node_ids_rx.into_iter().collect();
+    let progress_bar =
+        create_progress_bar(created_leaf_node_ids.len(), "Assigning background color");
+    pool.scoped(|scope| {
+        let background_color = Rgba::from(parameters.tile_background_color);
+        for node_id in created_leaf_node_ids {
+            let progress_bar = Arc::clone(&progress_bar);
+            scope.execute(move || {
+                let image_path = get_image_path(output_directory, node_id);
+                let mut image = image::open(&image_path).unwrap().to_rgba();
+                image = map_colors(&image, |p| if p[3] == 0 { background_color } else { p });
+                image.save(&image_path).unwrap();
+                progress_bar.lock().unwrap().inc();
+            });
+        }
+    });
+    progress_bar.lock().unwrap().finish_println("");
 
     for current_level in (0..deepest_level).rev() {
-        progress_bar
-            .lock()
-            .unwrap()
-            .message(&format!("Building level {}: ", current_level));
         let nodes_to_create: FnvHashSet<NodeId> = parents_to_create_rx.into_iter().collect();
+        let progress_bar = create_progress_bar(
+            nodes_to_create.len(),
+            &format!("Building level {}", current_level),
+        );
         let (parents_to_create_tx, new_rx) = mpsc::channel();
         parents_to_create_rx = new_rx;
         pool.scoped(|scope| {
@@ -691,6 +691,7 @@ pub fn build_xray_quadtree(
                 });
             }
         });
+        progress_bar.lock().unwrap().finish_println("");
         drop(parents_to_create_tx);
     }
     drop(all_nodes_tx);
