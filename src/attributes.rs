@@ -1,5 +1,5 @@
 use crate::errors::{ErrorKind, Result};
-use cgmath::Vector3;
+use nalgebra::Vector3;
 use std::convert::TryFrom;
 
 pub use point_viewer_proto_rust::proto;

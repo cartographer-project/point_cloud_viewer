@@ -25,8 +25,8 @@ pub mod read_write;
 pub mod s2_cells;
 pub mod utils;
 
-use cgmath::Vector3;
 use errors::Result;
+use nalgebra::Point3;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::{TryFrom, TryInto};
 
@@ -43,15 +43,17 @@ pub const CURRENT_VERSION: i32 = 13;
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;
 
+/// This exists because ExactSizeIterator would only return the number of batches, not points.
 pub trait NumberOfPoints {
     fn num_points(&self) -> usize;
 }
 
 use attributes::{AttributeData, AttributeDataType};
 
+// TODO(nnmm): Remove
 #[derive(Debug, Clone)]
 pub struct Point {
-    pub position: Vector3<f64>,
+    pub position: Point3<f64>,
     // TODO(sirver): Make color optional, we might not always have it.
     pub color: color::Color<u8>,
 
@@ -60,6 +62,7 @@ pub struct Point {
     pub intensity: Option<f32>,
 }
 
+// TODO(nnmm): Remove
 pub fn attribute_extension(attribute: &str) -> &str {
     match attribute {
         "position" => "xyz",
@@ -89,7 +92,7 @@ trait PointCloudMeta {
 /// General structure that contains points and attached feature attributes.
 #[derive(Debug, Clone)]
 pub struct PointsBatch {
-    pub position: Vec<Vector3<f64>>,
+    pub position: Vec<Point3<f64>>,
     // BTreeMap for deterministic iteration order.
     pub attributes: BTreeMap<String, AttributeData>,
 }

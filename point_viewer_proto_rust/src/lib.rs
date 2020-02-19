@@ -12,13 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::Point3;
 use collision::{Aabb, Aabb3};
 
 include!(concat!(env!("OUT_DIR"), "/proto.rs"));
 
-impl From<Point3<f64>> for proto::Vector3d {
-    fn from(vec: Point3<f64>) -> Self {
+impl From<cgmath::Point3<f64>> for proto::Vector3d {
+    fn from(vec: cgmath::Point3<f64>) -> Self {
+        let mut proto_vec = proto::Vector3d::new();
+        proto_vec.set_x(vec.x);
+        proto_vec.set_y(vec.y);
+        proto_vec.set_z(vec.z);
+        proto_vec
+    }
+}
+
+impl From<&nalgebra::Point3<f64>> for proto::Vector3d {
+    fn from(vec: &nalgebra::Point3<f64>) -> Self {
         let mut proto_vec = proto::Vector3d::new();
         proto_vec.set_x(vec.x);
         proto_vec.set_y(vec.y);
@@ -37,9 +46,15 @@ impl From<proto::Vector3f> for proto::Vector3d {
     }
 }
 
-impl From<proto::Vector3d> for Point3<f64> {
+impl From<proto::Vector3d> for cgmath::Point3<f64> {
     fn from(proto_vec: proto::Vector3d) -> Self {
-        Point3::new(proto_vec.get_x(), proto_vec.get_y(), proto_vec.get_z())
+        cgmath::Point3::new(proto_vec.get_x(), proto_vec.get_y(), proto_vec.get_z())
+    }
+}
+
+impl From<proto::Vector3d> for nalgebra::Point3<f64> {
+    fn from(proto_vec: proto::Vector3d) -> Self {
+        nalgebra::Point3::new(proto_vec.get_x(), proto_vec.get_y(), proto_vec.get_z())
     }
 }
 
@@ -62,6 +77,6 @@ impl From<&proto::AxisAlignedCuboid> for Aabb3<f64> {
             let deprecated_max = aac.deprecated_max.clone().unwrap(); // Version 9
             proto::Vector3d::from(deprecated_max)
         });
-        Aabb3::new(Point3::from(aac_min), Point3::from(aac_max))
+        Aabb3::new(cgmath::Point3::from(aac_min), cgmath::Point3::from(aac_max))
     }
 }

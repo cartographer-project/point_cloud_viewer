@@ -646,7 +646,6 @@ dependencies = [
  "cgmath 0.17.0",
  "num",
  "rand 0.6.5",
- "serde",
  "smallvec 0.6.13",
 ]
 
@@ -1571,6 +1570,8 @@ dependencies = [
  "num-traits 0.2.11",
  "rand 0.7.3",
  "rand_distr",
+ "serde",
+ "serde_derive",
  "typenum",
 ]
 
@@ -1933,9 +1934,8 @@ dependencies = [
 name = "point_viewer"
 version = "0.1.0"
 dependencies = [
+ "alga",
  "byteorder",
- "cgmath 0.17.0",
- "collision",
  "crossbeam 0.7.3",
  "error-chain",
  "fnv",
@@ -1999,6 +1999,7 @@ version = "0.1.0"
 dependencies = [
  "cgmath 0.17.0",
  "collision",
+ "nalgebra 0.19.0",
  "protobuf",
  "protobuf_provider",
  "protoc-rust",

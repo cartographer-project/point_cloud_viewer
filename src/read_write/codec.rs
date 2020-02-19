@@ -13,10 +13,11 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::{self, Cube};
+use crate::math::Cube;
 use crate::proto;
-use cgmath::{BaseFloat, Vector3, Zero};
+use nalgebra::{Point3, Scalar, Vector3};
 use num::clamp;
+use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PositionEncoding {
@@ -75,7 +76,7 @@ impl PositionEncoding {
 #[derive(Clone)]
 pub enum Encoding {
     Plain,
-    ScaledToCube(Vector3<f64>, f64, PositionEncoding),
+    ScaledToCube(Point3<f64>, f64, PositionEncoding),
 }
 
 pub fn fixpoint_encode<T>(value: f64, min: f64, edge_length: f64) -> T
@@ -94,33 +95,35 @@ where
     num::cast(clamp((value - min) / edge_length, 0., 1.)).unwrap()
 }
 
+// Careful: num's (or nalgebra's) clamp accepts Vector3 too, but does not work elementwise like this
+fn clamp_elementwise_to_unit(value: Vector3<f64>) -> Vector3<f64> {
+    Vector3::new(
+        clamp(value.x, 0.0, 1.0),
+        clamp(value.y, 0.0, 1.0),
+        clamp(value.z, 0.0, 1.0),
+    )
+}
+
+// TODO(nnmm): Revisit
 pub fn vec3_fixpoint_encode<T>(
-    value: &Vector3<f64>,
-    min: &Vector3<f64>,
+    value: &Point3<f64>,
+    min: &Point3<f64>,
     edge_length: f64,
 ) -> Vector3<T>
 where
-    T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
+    T: Scalar + num_traits::PrimInt + num_traits::Bounded + alga::general::SubsetOf<f64>,
 {
-    let value = math::clamp(
-        (value - min) / edge_length,
-        Vector3::zero(),
-        Vector3::new(1.0, 1.0, 1.0),
-    ) * num::cast::<T, f64>(T::max_value()).unwrap();
-    value.cast::<T>().unwrap()
+    let value = clamp_elementwise_to_unit((value - min) / edge_length)
+        * num::cast::<T, f64>(T::max_value()).unwrap();
+    nalgebra::try_convert(value).unwrap()
 }
 
-pub fn vec3_encode<T>(value: &Vector3<f64>, min: &Vector3<f64>, edge_length: f64) -> Vector3<T>
+pub fn vec3_encode<T>(value: &Point3<f64>, min: &Point3<f64>, edge_length: f64) -> Vector3<T>
 where
-    T: BaseFloat,
+    T: Scalar + alga::general::SubsetOf<f64>,
 {
-    math::clamp(
-        (value - min) / edge_length,
-        Vector3::zero(),
-        Vector3::new(1.0, 1.0, 1.0),
-    )
-    .cast::<T>()
-    .unwrap()
+    let clamped = clamp_elementwise_to_unit((value - min) / edge_length);
+    nalgebra::try_convert(clamped).unwrap()
 }
 
 pub fn fixpoint_decode<T>(value: T, min: f64, edge_length: f64) -> f64

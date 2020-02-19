@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::BaseFloat;
+use num_traits::Float;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div};
 
@@ -49,7 +49,7 @@ impl Color<u8> {
 
 impl<T: Add<Output = T>> Add for Color<T>
 where
-    T: BaseFloat,
+    T: Float,
 {
     type Output = Self;
 
@@ -65,7 +65,7 @@ where
 
 impl<T> AddAssign for Color<T>
 where
-    T: BaseFloat,
+    T: Float,
 {
     fn add_assign(&mut self, other: Self) {
         *self = *self + other;
@@ -74,7 +74,7 @@ where
 
 impl<T> Sum<Color<T>> for Color<T>
 where
-    T: BaseFloat + Default,
+    T: Float + Default,
 {
     fn sum<I>(iter: I) -> Self
     where
@@ -86,7 +86,7 @@ where
 
 impl<T> Div<T> for Color<T>
 where
-    T: BaseFloat,
+    T: Float,
 {
     type Output = Self;
 
