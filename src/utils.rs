@@ -2,7 +2,6 @@ use pbr::ProgressBar;
 use std::error::Error;
 use std::io::Stdout;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub const PROGRESS_REFRESH_RATE_SECS: u64 = 2;
@@ -20,9 +19,9 @@ where
     Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
 }
 
-pub fn create_progress_bar(total: usize, message: &str) -> Arc<Mutex<ProgressBar<Stdout>>> {
+pub fn create_progress_bar(total: usize, message: &str) -> ProgressBar<Stdout> {
     let mut progress_bar = ProgressBar::new(total as u64);
     progress_bar.set_max_refresh_rate(Some(Duration::from_secs(PROGRESS_REFRESH_RATE_SECS)));
     progress_bar.message(&format!("{}: ", message));
-    Arc::new(Mutex::new(progress_bar))
+    progress_bar
 }

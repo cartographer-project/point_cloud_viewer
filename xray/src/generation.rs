@@ -26,7 +26,7 @@ use std::error::Error;
 use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
-use std::sync::{mpsc, Arc};
+use std::sync::{mpsc, Arc, Mutex};
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
@@ -585,10 +585,10 @@ pub fn build_xray_quadtree(
             }
         }
     }
-    let progress_bar = create_progress_bar(
+    let progress_bar = Arc::new(Mutex::new(create_progress_bar(
         leaf_nodes.len(),
         &format!("Building level {}", deepest_level),
-    );
+    )));
     pool.scoped(|scope| {
         while let Some(node) = leaf_nodes.pop() {
             let parents_to_create_tx_clone = parents_to_create_tx.clone();
@@ -624,8 +624,10 @@ pub fn build_xray_quadtree(
     drop(created_leaf_node_ids_tx);
 
     let created_leaf_node_ids: FnvHashSet<NodeId> = created_leaf_node_ids_rx.into_iter().collect();
-    let progress_bar =
-        create_progress_bar(created_leaf_node_ids.len(), "Assigning background color");
+    let progress_bar = Arc::new(Mutex::new(create_progress_bar(
+        created_leaf_node_ids.len(),
+        "Assigning background color",
+    )));
     pool.scoped(|scope| {
         let background_color = Rgba::from(parameters.tile_background_color);
         for node_id in created_leaf_node_ids {
@@ -643,10 +645,10 @@ pub fn build_xray_quadtree(
 
     for current_level in (0..deepest_level).rev() {
         let nodes_to_create: FnvHashSet<NodeId> = parents_to_create_rx.into_iter().collect();
-        let progress_bar = create_progress_bar(
+        let progress_bar = Arc::new(Mutex::new(create_progress_bar(
             nodes_to_create.len(),
             &format!("Building level {}", current_level),
-        );
+        )));
         let (parents_to_create_tx, new_rx) = mpsc::channel();
         parents_to_create_rx = new_rx;
         pool.scoped(|scope| {

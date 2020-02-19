@@ -21,7 +21,7 @@ use crate::read_write::{
     attempt_increasing_rlimit_to_max, Encoding, NodeIterator, NodeWriter, OpenMode, PlyIterator,
     PositionEncoding, RawNodeWriter,
 };
-use crate::utils::PROGRESS_REFRESH_RATE_SECS;
+use crate::utils::create_progress_bar;
 use crate::{AttributeDataType, NumberOfPoints, PointCloudMeta, PointsBatch, NUM_POINTS_PER_BATCH};
 use cgmath::{EuclideanSpace, Point3, Vector3};
 use collision::{Aabb, Aabb3};
@@ -35,7 +35,6 @@ use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::Path;
 use std::sync::mpsc;
-use std::time::Duration;
 
 const MAX_POINTS_PER_NODE: i64 = 100_000;
 
@@ -263,9 +262,7 @@ fn subsample_children_into(
 fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb3<f64> {
     let mut bounding_box = None;
     let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap();
-    let mut progress_bar = ProgressBar::new(stream.num_points() as u64);
-    progress_bar.set_max_refresh_rate(Some(Duration::from_secs(PROGRESS_REFRESH_RATE_SECS)));
-    progress_bar.message("Determining bounding box: ");
+    let mut progress_bar = create_progress_bar(stream.num_points(), "Determining bounding box");
 
     stream.for_each(|batch| {
         for position in batch.position {
