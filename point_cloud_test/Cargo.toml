@@ -28,7 +28,7 @@ point_cloud_client = { path = "../point_cloud_client" }
 protobuf = "2.10.1"
 rand = "0.7.3"
 tempdir = "0.3.7"
-s2 = { git = "https://github.com/nnmm/rust-s2", branch = "serde", features = ["serde"] }
+s2 = { version = "0.0.10", features = ["serde"] }
 scoped-pool = "1.0.0"
 
 [[bench]]

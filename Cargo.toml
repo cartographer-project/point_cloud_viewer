@@ -35,7 +35,7 @@ num-integer = "0.1.42"
 num-traits = "0.2.11"
 pbr = "1.0.2"
 protobuf = "2.10.1"
-s2 = { git = "https://github.com/nnmm/rust-s2", branch = "serde", features = ["serde"] }
+s2 = { version = "0.0.10", features = ["serde"] }
 scoped-pool = "1.0.0"
 serde = "1.0.104"
 serde_derive = "1.0.104"
