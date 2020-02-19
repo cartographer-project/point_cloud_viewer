@@ -47,6 +47,15 @@ impl Color<u8> {
     }
 }
 
+impl<T> From<Color<T>> for image::Rgba<T>
+where
+    T: image::Primitive,
+{
+    fn from(col: Color<T>) -> Self {
+        Self([col.red, col.green, col.blue, col.alpha])
+    }
+}
+
 impl<T: Add<Output = T>> Add for Color<T>
 where
     T: BaseFloat,

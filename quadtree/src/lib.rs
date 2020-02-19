@@ -110,7 +110,7 @@ impl Node {
     }
 }
 
-/// Represents a child of an quadree Node.
+/// Represents a child of a quadtree Node.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ChildIndex(u8);
 
