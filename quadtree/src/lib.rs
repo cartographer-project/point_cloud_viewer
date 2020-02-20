@@ -214,9 +214,95 @@ impl fmt::Display for NodeId {
     }
 }
 
+pub enum SpatialNeighbor {
+    Left,
+    TopLeft,
+    Top,
+    TopRight,
+    Right,
+    BottomRight,
+    Bottom,
+    BottomLeft,
+}
+
+#[derive(Clone, Copy)]
+pub struct SpatialNodeId {
+    level: u8,
+    x: u64,
+    y: u64,
+}
+
+impl SpatialNodeId {
+    pub fn new(level: u8, x: u64, y: u64) -> Self {
+        Self { level, x, y }
+    }
+
+    pub fn neighbor(&self, kind: SpatialNeighbor) -> Option<Self> {
+        let cur_x = self.x as i64;
+        let cur_y = self.y as i64;
+        let (x, y) = match kind {
+            SpatialNeighbor::Left => (cur_x - 1, cur_y),
+            SpatialNeighbor::TopLeft => (cur_x - 1, cur_y + 1),
+            SpatialNeighbor::Top => (cur_x, cur_y + 1),
+            SpatialNeighbor::TopRight => (cur_x + 1, cur_y + 1),
+            SpatialNeighbor::Right => (cur_x + 1, cur_y),
+            SpatialNeighbor::BottomRight => (cur_x + 1, cur_y - 1),
+            SpatialNeighbor::Bottom => (cur_x, cur_y - 1),
+            SpatialNeighbor::BottomLeft => (cur_x - 1, cur_y - 1),
+        };
+        let max_dim = 2i64.pow(self.level as u32);
+        if 0 <= x && x < max_dim && 0 <= y && y < max_dim {
+            Some(Self::new(self.level, x as u64, y as u64))
+        } else {
+            None
+        }
+    }
+}
+
+/// See e.g. https://docs.microsoft.com/en-us/bingmaps/articles/bing-maps-tile-system
+/// on how to convert between coordinates and the quadkey.
+impl From<NodeId> for SpatialNodeId {
+    fn from(node_id: NodeId) -> Self {
+        let level = node_id.level;
+        let mut x = 0;
+        let mut y = 0;
+        for i in 1..=level {
+            let mask = 1 << (level - i);
+            match 3 & (node_id.index >> ((level - i) * 2)) {
+                1 => y |= mask,
+                2 => x |= mask,
+                3 => {
+                    x |= mask;
+                    y |= mask;
+                }
+                _ => (),
+            }
+        }
+        Self::new(level, x, y)
+    }
+}
+
+impl From<SpatialNodeId> for NodeId {
+    fn from(spatial_node_id: SpatialNodeId) -> Self {
+        let level = spatial_node_id.level;
+        let mut index = 0;
+        for i in 1..=level {
+            index <<= 2;
+            let mask = 1 << (level - i);
+            if (spatial_node_id.y & mask) != 0 {
+                index += 1;
+            }
+            if (spatial_node_id.x & mask) != 0 {
+                index += 2;
+            }
+        }
+        Self::new(level, index)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ChildIndex, NodeId};
+    use super::{ChildIndex, NodeId, SpatialNodeId};
     use std::str::FromStr;
 
     #[test]
@@ -244,6 +330,15 @@ mod tests {
     fn test_to_string() {
         for id in &["r", "r0", "r123323"] {
             assert_eq!(&NodeId::from_str(id).unwrap().to_string(), id);
+        }
+    }
+
+    #[test]
+    fn test_conversion() {
+        for id in &["r", "r0", "r123323"] {
+            let node_id = NodeId::from_str(id).unwrap();
+            let spatial_node_id = SpatialNodeId::from(node_id);
+            assert_eq!(NodeId::from(spatial_node_id), node_id);
         }
     }
 }
