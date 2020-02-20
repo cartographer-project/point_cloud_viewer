@@ -636,7 +636,7 @@ pub fn build_xray_quadtree(
             scope.execute(move || {
                 let image_path = get_image_path(output_directory, node_id);
                 let mut image = image::open(&image_path).unwrap().to_rgba();
-                image = map_colors(&image, |p| if p[3] == 0 { background_color } else { p });
+                image = map_colors(&image, |p| if p[3] != 255 { background_color } else { p });
                 image.save(&image_path).unwrap();
                 progress_bar.lock().unwrap().inc();
             });
