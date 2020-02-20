@@ -1,5 +1,4 @@
 use crate::utils::get_image_path;
-use cgmath::Vector2;
 use fnv::FnvHashSet;
 use image::{DynamicImage, GenericImage, GenericImageView, ImageBuffer, Luma, Rgba, RgbaImage};
 use imageproc::distance_transform::Norm;
