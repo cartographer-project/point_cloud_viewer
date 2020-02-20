@@ -101,6 +101,11 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                      weight than points temporally further away.")
                 .long("binning")
                 .takes_value(true),
+            clap::Arg::with_name("inpaint_distance_px")
+                .help("The inpainting distance in pixels to fill holes (in particular useful \
+                       for high resolutions).")
+                .long("inpaint-distance-px")
+                .default_value("0"),
         ]);
     app = T::pre_init(app);
     app.get_matches()
@@ -175,11 +180,17 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         .unwrap_or_default()
         .map(|f| parse_key_val(f).unwrap())
         .collect::<HashMap<String, ClosedInterval<f64>>>();
+    let inpaint_distance_px = args
+        .value_of("inpaint_distance_px")
+        .unwrap()
+        .parse::<u8>()
+        .expect("inpaint_distance_px could not be parsed.");
     let parameters = XrayParameters {
         point_cloud_client,
         query_from_global: T::query_from_global(&args),
         filter_intervals,
         tile_background_color,
+        inpaint_distance_px,
     };
     build_xray_quadtree(
         &pool,

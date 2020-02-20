@@ -1,8 +1,9 @@
 // Code related to X-Ray generation.
 
 use crate::colormap::{Colormap, Jet, Monochrome, PURPLISH};
-use crate::proto;
-use crate::CURRENT_VERSION;
+use crate::inpaint::perform_inpainting;
+use crate::utils::get_image_path;
+use crate::{proto, CURRENT_VERSION};
 use cgmath::{Decomposed, EuclideanSpace, Point2, Point3, Quaternion, Vector2, Vector3};
 use clap::arg_enum;
 use collision::{Aabb, Aabb3};
@@ -25,7 +26,7 @@ use std::collections::{hash_map::Entry, HashMap, HashSet};
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::BufWriter;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{mpsc, Arc};
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
@@ -468,6 +469,7 @@ pub struct XrayParameters {
     pub query_from_global: Option<Isometry3<f64>>,
     pub filter_intervals: HashMap<String, ClosedInterval<f64>>,
     pub tile_background_color: Color<u8>,
+    pub inpaint_distance_px: u8,
 }
 
 pub fn xray_from_points(
@@ -536,12 +538,6 @@ fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb3<f64>, tile_size_m: f64) -
     )
 }
 
-pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
-    let mut rv = directory.join(&id.to_string());
-    rv.set_extension("png");
-    rv
-}
-
 pub fn build_xray_quadtree(
     pool: &Pool,
     output_directory: &Path,
@@ -567,6 +563,7 @@ pub fn build_xray_quadtree(
         &bounding_box,
         f64::from(tile.size_px) * tile.resolution,
     );
+    let image_size = Vector2::new(tile.size_px, tile.size_px);
 
     // Create the deepest level of the quadtree.
     let (parents_to_create_tx, mut parents_to_create_rx) = mpsc::channel();
@@ -605,7 +602,7 @@ pub fn build_xray_quadtree(
                 if xray_from_points(
                     &bbox,
                     &get_image_path(output_directory, node.id),
-                    Vector2::new(tile.size_px, tile.size_px),
+                    image_size,
                     strategy,
                     parameters,
                 ) {
@@ -622,8 +619,16 @@ pub fn build_xray_quadtree(
     progress_bar.lock().unwrap().finish_println("");
     drop(parents_to_create_tx);
     drop(created_leaf_node_ids_tx);
-
     let created_leaf_node_ids: FnvHashSet<NodeId> = created_leaf_node_ids_rx.into_iter().collect();
+
+    perform_inpainting(
+        pool,
+        output_directory,
+        image_size,
+        parameters.inpaint_distance_px,
+        &created_leaf_node_ids,
+    );
+
     let progress_bar =
         create_syncable_progress_bar(created_leaf_node_ids.len(), "Assigning background color");
     pool.scoped(|scope| {
