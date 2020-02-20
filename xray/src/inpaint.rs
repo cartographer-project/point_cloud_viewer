@@ -20,6 +20,8 @@ fn inpaint(image: RgbaImage, distance_px: u8) -> Result<RgbaImage, Error> {
     let closed_mask = close(&mask, Norm::LInf, distance_px);
     let inpaint_mask = map_colors2(&closed_mask, &mask, |c, m| Luma([255 - (c[0] - m[0])]));
     let texsynth = Session::builder()
+        // we perform multithreading outside, so one deterministic thread here is enough
+        .max_thread_count(1)
         .inpaint_example(
             DynamicImage::ImageLuma8(inpaint_mask),
             Example::builder(DynamicImage::ImageRgba8(image))
