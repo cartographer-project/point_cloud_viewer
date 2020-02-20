@@ -90,14 +90,10 @@ fn inpaint_image_from(
         .and_then(|id| image_from_path(&get_inpaint_image_path(id, output_directory)))
 }
 
-fn stitched_image(
-    tile_size: Vector2<u32>,
-    spatial_node_id: SpatialNodeId,
-    output_directory: &Path,
-) -> Option<RgbaImage> {
+fn stitched_image(spatial_node_id: SpatialNodeId, output_directory: &Path) -> Option<RgbaImage> {
     image_from(spatial_node_id, output_directory, None).map(|current| {
-        let w = tile_size.x / 2;
-        let h = tile_size.y / 2;
+        let w = current.width() / 2;
+        let h = current.height() / 2;
 
         let mut image = RgbaImage::from_pixel(4 * w, 4 * h, Rgba::from(TRANSPARENT.to_u8()));
         image.copy_from(&current, w, h);
@@ -132,13 +128,12 @@ fn stitched_image(
 }
 
 fn interpolate_inpaint_image(
-    tile_size: Vector2<u32>,
     spatial_node_id: SpatialNodeId,
     output_directory: &Path,
 ) -> Option<RgbaImage> {
     inpaint_image_from(spatial_node_id, output_directory, None).map(|current| {
-        let w = tile_size.x / 2;
-        let h = tile_size.y / 2;
+        let w = current.width() / 4;
+        let h = current.height() / 4;
 
         let mut image = ImageBuffer::<Rgba<f32>, Vec<f32>>::from_pixel(
             2 * w,
@@ -231,7 +226,6 @@ fn inpainting_step<F>(
 pub fn perform_inpainting(
     pool: &Pool,
     output_directory: &Path,
-    image_size: Vector2<u32>,
     inpaint_distance_px: u8,
     leaf_node_ids: &FnvHashSet<NodeId>,
 ) {
@@ -250,7 +244,7 @@ pub fn perform_inpainting(
         pool,
         &spatial_leaf_node_ids,
         |spatial_node_id| {
-            if let Some(mut image) = stitched_image(image_size, spatial_node_id, output_directory) {
+            if let Some(mut image) = stitched_image(spatial_node_id, output_directory) {
                 image = inpaint(image, inpaint_distance_px).expect("Inpaint failed.");
                 let image_path = get_inpaint_image_path(spatial_node_id, output_directory);
                 image.save(image_path).unwrap();
@@ -263,9 +257,7 @@ pub fn perform_inpainting(
         pool,
         &spatial_leaf_node_ids,
         |spatial_node_id| {
-            if let Some(image) =
-                interpolate_inpaint_image(image_size, spatial_node_id, output_directory)
-            {
+            if let Some(image) = interpolate_inpaint_image(spatial_node_id, output_directory) {
                 let node_id = NodeId::from(spatial_node_id);
                 let image_path = get_image_path(output_directory, node_id);
                 image.save(image_path).unwrap();

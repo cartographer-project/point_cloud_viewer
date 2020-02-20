@@ -563,7 +563,6 @@ pub fn build_xray_quadtree(
         &bounding_box,
         f64::from(tile.size_px) * tile.resolution,
     );
-    let image_size = Vector2::new(tile.size_px, tile.size_px);
 
     // Create the deepest level of the quadtree.
     let (parents_to_create_tx, mut parents_to_create_rx) = mpsc::channel();
@@ -602,7 +601,7 @@ pub fn build_xray_quadtree(
                 if xray_from_points(
                     &bbox,
                     &get_image_path(output_directory, node.id),
-                    image_size,
+                    Vector2::new(tile.size_px, tile.size_px),
                     strategy,
                     parameters,
                 ) {
@@ -624,7 +623,6 @@ pub fn build_xray_quadtree(
     perform_inpainting(
         pool,
         output_directory,
-        image_size,
         parameters.inpaint_distance_px,
         &created_leaf_node_ids,
     );
