@@ -214,7 +214,7 @@ impl fmt::Display for NodeId {
     }
 }
 
-pub enum SpatialNeighbor {
+pub enum Direction {
     Left,
     TopLeft,
     Top,
@@ -225,7 +225,7 @@ pub enum SpatialNeighbor {
     BottomLeft,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
 pub struct SpatialNodeId {
     level: u8,
     x: u64,
@@ -237,18 +237,18 @@ impl SpatialNodeId {
         Self { level, x, y }
     }
 
-    pub fn neighbor(&self, kind: SpatialNeighbor) -> Option<Self> {
+    pub fn neighbor(&self, direction: Direction) -> Option<Self> {
         let cur_x = self.x as i64;
         let cur_y = self.y as i64;
-        let (x, y) = match kind {
-            SpatialNeighbor::Left => (cur_x - 1, cur_y),
-            SpatialNeighbor::TopLeft => (cur_x - 1, cur_y + 1),
-            SpatialNeighbor::Top => (cur_x, cur_y + 1),
-            SpatialNeighbor::TopRight => (cur_x + 1, cur_y + 1),
-            SpatialNeighbor::Right => (cur_x + 1, cur_y),
-            SpatialNeighbor::BottomRight => (cur_x + 1, cur_y - 1),
-            SpatialNeighbor::Bottom => (cur_x, cur_y - 1),
-            SpatialNeighbor::BottomLeft => (cur_x - 1, cur_y - 1),
+        let (x, y) = match direction {
+            Direction::Left => (cur_x - 1, cur_y),
+            Direction::TopLeft => (cur_x - 1, cur_y + 1),
+            Direction::Top => (cur_x, cur_y + 1),
+            Direction::TopRight => (cur_x + 1, cur_y + 1),
+            Direction::Right => (cur_x + 1, cur_y),
+            Direction::BottomRight => (cur_x + 1, cur_y - 1),
+            Direction::Bottom => (cur_x, cur_y - 1),
+            Direction::BottomLeft => (cur_x - 1, cur_y - 1),
         };
         let max_dim = 2i64.pow(self.level as u32);
         if 0 <= x && x < max_dim && 0 <= y && y < max_dim {
@@ -268,14 +268,12 @@ impl From<NodeId> for SpatialNodeId {
         let mut y = 0;
         for i in 1..=level {
             let mask = 1 << (level - i);
-            match 3 & (node_id.index >> ((level - i) * 2)) {
-                1 => y |= mask,
-                2 => x |= mask,
-                3 => {
-                    x |= mask;
-                    y |= mask;
-                }
-                _ => (),
+            let index = node_id.index >> ((level - i) * 2);
+            if 0b01 & index != 0 {
+                y |= mask;
+            }
+            if 0b10 & index != 0 {
+                x |= mask;
             }
         }
         Self::new(level, x, y)
@@ -290,10 +288,10 @@ impl From<SpatialNodeId> for NodeId {
             index <<= 2;
             let mask = 1 << (level - i);
             if (spatial_node_id.y & mask) != 0 {
-                index += 1;
+                index += 0b01;
             }
             if (spatial_node_id.x & mask) != 0 {
-                index += 2;
+                index += 0b10;
             }
         }
         Self::new(level, index)
@@ -331,6 +329,14 @@ mod tests {
         for id in &["r", "r0", "r123323"] {
             assert_eq!(&NodeId::from_str(id).unwrap().to_string(), id);
         }
+    }
+
+    #[test]
+    fn test_spatial_node_id_from_node_id() {
+        assert_eq!(
+            SpatialNodeId::new(3, 4, 5),
+            SpatialNodeId::from(NodeId::from_str("r301").unwrap())
+        );
     }
 
     #[test]
