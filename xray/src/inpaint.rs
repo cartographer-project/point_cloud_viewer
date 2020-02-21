@@ -1,6 +1,6 @@
 use crate::utils::get_image_path;
 use fnv::FnvHashSet;
-use image::{DynamicImage, GenericImage, GenericImageView, Luma, Rgba, RgbaImage};
+use image::{DynamicImage, GenericImage, GenericImageView, Luma, Rgba, RgbaImage, SubImage};
 use imageproc::distance_transform::Norm;
 use imageproc::map::{map_colors, map_colors2};
 use imageproc::morphology::close;
@@ -31,24 +31,6 @@ fn inpaint(image: RgbaImage, distance_px: u8) -> Result<RgbaImage, Error> {
         .build()?;
     let generated = texsynth.run(None);
     Ok(generated.into_image().into_rgba())
-}
-
-fn to_u8(rgba: Rgba<f32>) -> Rgba<u8> {
-    Rgba([
-        rgba[0].round() as u8,
-        rgba[1].round() as u8,
-        rgba[2].round() as u8,
-        rgba[3].round() as u8,
-    ])
-}
-
-fn to_f32(rgba: Rgba<u8>) -> Rgba<f32> {
-    Rgba([
-        rgba[0] as f32,
-        rgba[1] as f32,
-        rgba[2] as f32,
-        rgba[3] as f32,
-    ])
 }
 
 fn get_inpaint_image_path(spatial_node_id: SpatialNodeId, output_directory: &Path) -> PathBuf {
@@ -128,70 +110,71 @@ fn stitched_image(spatial_node_id: SpatialNodeId, output_directory: &Path) -> Op
     })
 }
 
-fn interpolate_inpaint_image(
+fn interpolate_sub_images<F>(
+    mut this: SubImage<&mut RgbaImage>,
+    other: SubImage<&RgbaImage>,
+    this_weight_function: F,
+) where
+    F: Fn(u32, u32, u32, u32) -> f32,
+{
+    let (width, height) = this.dimensions();
+    for j in 0..height {
+        for i in 0..width {
+            let this_pix = this.get_pixel_mut(i, j);
+            let this_weight = this_weight_function(i, j, width, height);
+            *this_pix = interpolate(*this_pix, other.get_pixel(i, j), this_weight);
+        }
+    }
+}
+
+fn interpolate_inpaint_image_left_right(
     spatial_node_id: SpatialNodeId,
     output_directory: &Path,
 ) -> Option<RgbaImage> {
     inpaint_image_from(spatial_node_id, output_directory, None).map(|mut current| {
-        let w = current.width() / 4;
-        let h = current.height() / 4;
+        let (width, height) = current.dimensions();
+        if let Some(left) = inpaint_image_from(spatial_node_id, output_directory, Direction::Left) {
+            interpolate_sub_images(
+                current.sub_image(0, 0, width / 2, height),
+                left.view(width / 2, 0, width / 2, height),
+                |i, _, w, _| 0.5 * i as f32 / (w - 1) as f32,
+            );
+        }
+        if let Some(right) = inpaint_image_from(spatial_node_id, output_directory, Direction::Right)
+        {
+            interpolate_sub_images(
+                current.sub_image(width / 2, 0, width / 2, height),
+                right.view(0, 0, width / 2, height),
+                |i, _, w, _| 0.5 * (w - 1 - i) as f32 / (w - 1) as f32,
+            );
+        }
+        current
+    })
+}
 
-        let mut image = map_colors(&current.sub_image(w, h, 2 * w, 2 * h), to_f32);
-
-        use Direction::*;
-        if let Some(top) = inpaint_image_from(spatial_node_id, output_directory, Top) {
-            let mut sub_image = image.sub_image(0, 0, 2 * w, h);
-            let width = sub_image.width();
-            let height = sub_image.height();
-            let inpaint_view = top.view(w, 3 * h, width, height);
-            for j in 0..height {
-                let factor = 0.5 * (height - 1 - j) as f32 / (height - 1) as f32;
-                for i in 0..width {
-                    let pix = sub_image.get_pixel_mut(i, j);
-                    *pix = interpolate(to_f32(inpaint_view.get_pixel(i, j)), *pix, factor);
-                }
-            }
+fn interpolate_inpaint_image_top_bottom(
+    spatial_node_id: SpatialNodeId,
+    output_directory: &Path,
+) -> Option<RgbaImage> {
+    inpaint_image_from(spatial_node_id, output_directory, None).map(|mut current| {
+        let (width, height) = current.dimensions();
+        if let Some(top) = inpaint_image_from(spatial_node_id, output_directory, Direction::Top) {
+            interpolate_sub_images(
+                current.sub_image(0, 0, width, height / 2),
+                top.view(0, height / 2, width, height / 2),
+                |_, j, _, h| 0.5 * j as f32 / (h - 1) as f32,
+            );
         }
-        if let Some(bottom) = inpaint_image_from(spatial_node_id, output_directory, Bottom) {
-            let mut sub_image = image.sub_image(0, h, 2 * w, h);
-            let width = sub_image.width();
-            let height = sub_image.height();
-            let inpaint_view = bottom.view(w, 0, width, height);
-            for j in 0..height {
-                let factor = 0.5 * j as f32 / (height - 1) as f32;
-                for i in 0..width {
-                    let pix = sub_image.get_pixel_mut(i, j);
-                    *pix = interpolate(to_f32(inpaint_view.get_pixel(i, j)), *pix, factor);
-                }
-            }
+        if let Some(bottom) =
+            inpaint_image_from(spatial_node_id, output_directory, Direction::Bottom)
+        {
+            interpolate_sub_images(
+                current.sub_image(0, height / 2, width, height / 2),
+                bottom.view(0, 0, width, height / 2),
+                |_, j, _, h| 0.5 * (h - 1 - j) as f32 / (h - 1) as f32,
+            );
         }
-        if let Some(left) = inpaint_image_from(spatial_node_id, output_directory, Left) {
-            let mut sub_image = image.sub_image(0, 0, w, 2 * h);
-            let width = sub_image.width();
-            let height = sub_image.height();
-            let inpaint_view = left.view(3 * w, h, width, height);
-            for i in 0..width {
-                let factor = 0.5 * (width - 1 - i) as f32 / (width - 1) as f32;
-                for j in 0..height {
-                    let pix = sub_image.get_pixel_mut(i, j);
-                    *pix = interpolate(to_f32(inpaint_view.get_pixel(i, j)), *pix, factor);
-                }
-            }
-        }
-        if let Some(right) = inpaint_image_from(spatial_node_id, output_directory, Right) {
-            let mut sub_image = image.sub_image(w, 0, w, 2 * h);
-            let width = sub_image.width();
-            let height = sub_image.height();
-            let inpaint_view = right.view(0, h, width, height);
-            for i in 0..width {
-                let factor = 0.5 * i as f32 / (width - 1) as f32;
-                for j in 0..height {
-                    let pix = sub_image.get_pixel_mut(i, j);
-                    *pix = interpolate(to_f32(inpaint_view.get_pixel(i, j)), *pix, factor);
-                }
-            }
-        }
-        map_colors(&image, to_u8)
+        current
     })
 }
 
@@ -237,10 +220,39 @@ pub fn perform_inpainting(
         pool,
         &spatial_leaf_node_ids,
         |spatial_node_id| {
-            if let Some(mut image) = stitched_image(spatial_node_id, output_directory) {
-                image = inpaint(image, inpaint_distance_px).expect("Inpaint failed.");
-                let image_path = get_inpaint_image_path(spatial_node_id, output_directory);
-                image.save(image_path).unwrap();
+            if let Some(mut inpaint_image) = stitched_image(spatial_node_id, output_directory) {
+                inpaint_image =
+                    inpaint(inpaint_image, inpaint_distance_px).expect("Inpaint failed.");
+                let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
+                inpaint_image.save(inpaint_image_path).unwrap();
+            }
+        },
+    );
+
+    inpainting_step(
+        "Horizontally interpolating inpaint images",
+        pool,
+        &spatial_leaf_node_ids,
+        |spatial_node_id| {
+            if let Some(inpaint_image) =
+                interpolate_inpaint_image_left_right(spatial_node_id, output_directory)
+            {
+                let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
+                inpaint_image.save(inpaint_image_path).unwrap();
+            }
+        },
+    );
+
+    inpainting_step(
+        "Vertically interpolating inpaint images",
+        pool,
+        &spatial_leaf_node_ids,
+        |spatial_node_id| {
+            if let Some(inpaint_image) =
+                interpolate_inpaint_image_top_bottom(spatial_node_id, output_directory)
+            {
+                let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
+                inpaint_image.save(inpaint_image_path).unwrap();
             }
         },
     );
@@ -250,22 +262,13 @@ pub fn perform_inpainting(
         pool,
         &spatial_leaf_node_ids,
         |spatial_node_id| {
-            if let Some(image) = interpolate_inpaint_image(spatial_node_id, output_directory) {
-                let node_id = NodeId::from(spatial_node_id);
-                let image_path = get_image_path(output_directory, node_id);
-                image.save(image_path).unwrap();
-            }
-        },
-    );
-
-    inpainting_step(
-        "Removing inpaint images",
-        pool,
-        &spatial_leaf_node_ids,
-        |spatial_node_id| {
-            let image_path = get_inpaint_image_path(spatial_node_id, output_directory);
-            if image_path.exists() {
-                fs::remove_file(image_path).unwrap();
+            if let Some(inpaint_image) = inpaint_image_from(spatial_node_id, output_directory, None)
+            {
+                let (width, height) = inpaint_image.dimensions();
+                let image_view = inpaint_image.view(width / 4, height / 4, width / 2, height / 2);
+                let image_path = get_image_path(output_directory, NodeId::from(spatial_node_id));
+                image_view.to_image().save(image_path).unwrap();
+                fs::remove_file(get_inpaint_image_path(spatial_node_id, output_directory)).unwrap();
             }
         },
     );
