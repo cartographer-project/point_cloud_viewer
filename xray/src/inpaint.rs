@@ -1,11 +1,11 @@
 use crate::utils::get_image_path;
 use fnv::FnvHashSet;
-use image::{DynamicImage, GenericImage, GenericImageView, ImageBuffer, Luma, Rgba, RgbaImage};
+use image::{DynamicImage, GenericImage, GenericImageView, Luma, Rgba, RgbaImage};
 use imageproc::distance_transform::Norm;
 use imageproc::map::{map_colors, map_colors2};
 use imageproc::morphology::close;
 use imageproc::pixelops::interpolate;
-use point_viewer::color::{Color, TRANSPARENT};
+use point_viewer::color::TRANSPARENT;
 use point_viewer::utils::create_syncable_progress_bar;
 use quadtree::{Direction, NodeId, SpatialNodeId};
 use scoped_pool::Pool;
@@ -132,19 +132,11 @@ fn interpolate_inpaint_image(
     spatial_node_id: SpatialNodeId,
     output_directory: &Path,
 ) -> Option<RgbaImage> {
-    inpaint_image_from(spatial_node_id, output_directory, None).map(|current| {
+    inpaint_image_from(spatial_node_id, output_directory, None).map(|mut current| {
         let w = current.width() / 4;
         let h = current.height() / 4;
 
-        let mut image = ImageBuffer::<Rgba<f32>, Vec<f32>>::from_pixel(
-            2 * w,
-            2 * h,
-            Rgba::from(Color::<f32>::default()),
-        );
-        let current_inpaint_view = current.view(w, h, image.width(), image.height());
-        for (i, j, pix) in image.enumerate_pixels_mut() {
-            *pix = to_f32(current_inpaint_view.get_pixel(i, j));
-        }
+        let mut image = map_colors(&current.sub_image(w, h, 2 * w, 2 * h), to_f32);
 
         use Direction::*;
         if let Some(top) = inpaint_image_from(spatial_node_id, output_directory, Top) {
