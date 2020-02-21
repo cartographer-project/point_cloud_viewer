@@ -113,7 +113,7 @@ fn stitched_image(spatial_node_id: SpatialNodeId, output_directory: &Path) -> Op
 fn interpolate_sub_images<F>(
     mut this: SubImage<&mut RgbaImage>,
     other: SubImage<&RgbaImage>,
-    this_weight_function: F,
+    weight_of_this: F,
 ) where
     F: Fn(u32, u32, u32, u32) -> f32,
 {
@@ -121,7 +121,7 @@ fn interpolate_sub_images<F>(
     for j in 0..height {
         for i in 0..width {
             let this_pix = this.get_pixel_mut(i, j);
-            let this_weight = this_weight_function(i, j, width, height);
+            let this_weight = weight_of_this(i, j, width, height);
             *this_pix = interpolate(*this_pix, other.get_pixel(i, j), this_weight);
         }
     }
