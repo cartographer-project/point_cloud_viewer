@@ -81,31 +81,22 @@ fn stitched_image(spatial_node_id: SpatialNodeId, output_directory: &Path) -> Op
         let mut image = RgbaImage::from_pixel(4 * w, 4 * h, Rgba::from(TRANSPARENT.to_u8()));
         image.copy_from(&current, w, h);
 
-        use Direction::*;
-        if let Some(top_left) = image_from(spatial_node_id, output_directory, TopLeft) {
-            image.copy_from(&top_left.view(w, h, w, h), 0, 0);
-        }
-        if let Some(top) = image_from(spatial_node_id, output_directory, Top) {
-            image.copy_from(&top.view(0, h, 2 * w, h), w, 0);
-        }
-        if let Some(top_right) = image_from(spatial_node_id, output_directory, TopRight) {
-            image.copy_from(&top_right.view(0, h, w, h), 3 * w, 0);
-        }
-        if let Some(right) = image_from(spatial_node_id, output_directory, Right) {
-            image.copy_from(&right.view(0, 0, w, 2 * h), 3 * w, h);
-        }
-        if let Some(bottom_right) = image_from(spatial_node_id, output_directory, BottomRight) {
-            image.copy_from(&bottom_right.view(0, 0, w, h), 3 * w, 3 * h);
-        }
-        if let Some(bottom) = image_from(spatial_node_id, output_directory, Bottom) {
-            image.copy_from(&bottom.view(0, 0, 2 * w, h), w, 3 * h);
-        }
-        if let Some(bottom_left) = image_from(spatial_node_id, output_directory, BottomLeft) {
-            image.copy_from(&bottom_left.view(w, 0, w, h), 0, 3 * h);
-        }
-        if let Some(left) = image_from(spatial_node_id, output_directory, Left) {
-            image.copy_from(&left.view(w, 0, w, 2 * h), 0, h);
-        }
+        let mut copy_subimage =
+            |dir: Direction, x: u32, y: u32, width: u32, height: u32, to_x: u32, to_y: u32| {
+                if let Some(neighbor) = image_from(spatial_node_id, output_directory, dir) {
+                    image.copy_from(&neighbor.view(x, y, width, height), to_x, to_y);
+                }
+            };
+
+        copy_subimage(Direction::TopLeft, w, h, w, h, 0, 0);
+        copy_subimage(Direction::Top, 0, h, 2 * w, h, w, 0);
+        copy_subimage(Direction::TopRight, 0, h, w, h, 3 * w, 0);
+        copy_subimage(Direction::Right, 0, 0, w, 2 * h, 3 * w, h);
+        copy_subimage(Direction::BottomRight, 0, 0, w, h, 3 * w, 3 * h);
+        copy_subimage(Direction::Bottom, 0, 0, 2 * w, h, w, 3 * h);
+        copy_subimage(Direction::BottomLeft, w, 0, w, h, 0, 3 * h);
+        copy_subimage(Direction::Left, w, 0, w, 2 * h, 0, h);
+
         image
     })
 }
