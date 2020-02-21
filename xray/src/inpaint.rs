@@ -104,15 +104,17 @@ fn stitched_image(spatial_node_id: SpatialNodeId, output_directory: &Path) -> Op
 fn interpolate_sub_images<F>(
     mut this: SubImage<&mut RgbaImage>,
     other: SubImage<&RgbaImage>,
-    weight_of_this: F,
+    weight_of_progress_on_this: F,
 ) where
-    F: Fn(u32, u32, u32, u32) -> f32,
+    F: Fn(f32, f32) -> f32,
 {
     let (width, height) = this.dimensions();
     for j in 0..height {
         for i in 0..width {
             let this_pix = this.get_pixel_mut(i, j);
-            let this_weight = weight_of_this(i, j, width, height);
+            let i_progress = i as f32 / (width - 1) as f32;
+            let j_progress = j as f32 / (height - 1) as f32;
+            let this_weight = weight_of_progress_on_this(i_progress, j_progress);
             *this_pix = interpolate(*this_pix, other.get_pixel(i, j), this_weight);
         }
     }
@@ -128,7 +130,7 @@ fn interpolate_inpaint_image_horizontally(
             interpolate_sub_images(
                 current.sub_image(0, 0, width / 2, height),
                 left.view(width / 2, 0, width / 2, height),
-                |i, _, w, _| i as f32 / (w - 1) as f32,
+                |i, _| i,
             );
         }
         if let Some(right) = inpaint_image_from(spatial_node_id, output_directory, Direction::Right)
@@ -136,7 +138,7 @@ fn interpolate_inpaint_image_horizontally(
             interpolate_sub_images(
                 current.sub_image(width / 2, 0, width / 2, height),
                 right.view(0, 0, width / 2, height),
-                |i, _, w, _| (w - 1 - i) as f32 / (w - 1) as f32,
+                |i, _| 1.0 - i,
             );
         }
         current
@@ -153,7 +155,7 @@ fn interpolate_inpaint_image_vertically(
             interpolate_sub_images(
                 current.sub_image(0, 0, width, height / 2),
                 top.view(0, height / 2, width, height / 2),
-                |_, j, _, h| j as f32 / (h - 1) as f32,
+                |_, j| j,
             );
         }
         if let Some(bottom) =
@@ -162,7 +164,7 @@ fn interpolate_inpaint_image_vertically(
             interpolate_sub_images(
                 current.sub_image(0, height / 2, width, height / 2),
                 bottom.view(0, 0, width, height / 2),
-                |_, j, _, h| (h - 1 - j) as f32 / (h - 1) as f32,
+                |_, j| 1.0 - j,
             );
         }
         current
