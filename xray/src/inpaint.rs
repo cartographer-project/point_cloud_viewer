@@ -235,6 +235,7 @@ pub fn perform_inpainting(
         "Horizontally interpolating inpaint images",
         pool,
         &spatial_leaf_node_ids,
+        // Interleave interpolation to avoid race conditions when writing images
         |spatial_node_id| spatial_node_id.x() % 2 == 0,
         |spatial_node_id| {
             if let Some(inpaint_image) =
@@ -250,6 +251,7 @@ pub fn perform_inpainting(
         "Vertically interpolating inpaint images",
         pool,
         &spatial_leaf_node_ids,
+        // Interleave interpolation to avoid race conditions when writing images
         |spatial_node_id| spatial_node_id.y() % 2 == 0,
         |spatial_node_id| {
             if let Some(inpaint_image) =
