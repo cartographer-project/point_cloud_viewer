@@ -176,7 +176,7 @@ fn inpainting_step<P, F>(
     partitioning_function: P,
     spatial_node_function: F,
 ) where
-    P: FnMut(&&SpatialNodeId) -> bool + Send + Copy,
+    P: FnMut(&&SpatialNodeId) -> bool,
     F: Fn(SpatialNodeId) + Send + Copy,
 {
     let progress_bar = create_syncable_progress_bar(spatial_node_ids.len(), message);
