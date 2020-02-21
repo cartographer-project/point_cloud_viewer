@@ -128,7 +128,7 @@ fn interpolate_inpaint_image_horizontally(
             interpolate_sub_images(
                 current.sub_image(0, 0, width / 2, height),
                 left.view(width / 2, 0, width / 2, height),
-                |i, _, w, _| 0.5 * i as f32 / (w - 1) as f32,
+                |i, _, w, _| i as f32 / (w - 1) as f32,
             );
         }
         if let Some(right) = inpaint_image_from(spatial_node_id, output_directory, Direction::Right)
@@ -136,7 +136,7 @@ fn interpolate_inpaint_image_horizontally(
             interpolate_sub_images(
                 current.sub_image(width / 2, 0, width / 2, height),
                 right.view(0, 0, width / 2, height),
-                |i, _, w, _| 0.5 * (w - 1 - i) as f32 / (w - 1) as f32,
+                |i, _, w, _| (w - 1 - i) as f32 / (w - 1) as f32,
             );
         }
         current
@@ -153,7 +153,7 @@ fn interpolate_inpaint_image_vertically(
             interpolate_sub_images(
                 current.sub_image(0, 0, width, height / 2),
                 top.view(0, height / 2, width, height / 2),
-                |_, j, _, h| 0.5 * j as f32 / (h - 1) as f32,
+                |_, j, _, h| j as f32 / (h - 1) as f32,
             );
         }
         if let Some(bottom) =
@@ -162,7 +162,7 @@ fn interpolate_inpaint_image_vertically(
             interpolate_sub_images(
                 current.sub_image(0, height / 2, width, height / 2),
                 bottom.view(0, 0, width, height / 2),
-                |_, j, _, h| 0.5 * (h - 1 - j) as f32 / (h - 1) as f32,
+                |_, j, _, h| (h - 1 - j) as f32 / (h - 1) as f32,
             );
         }
         current
