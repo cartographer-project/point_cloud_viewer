@@ -127,7 +127,7 @@ fn interpolate_sub_images<F>(
     }
 }
 
-fn interpolate_inpaint_image_left_right(
+fn interpolate_inpaint_image_horizontally(
     spatial_node_id: SpatialNodeId,
     output_directory: &Path,
 ) -> Option<RgbaImage> {
@@ -152,7 +152,7 @@ fn interpolate_inpaint_image_left_right(
     })
 }
 
-fn interpolate_inpaint_image_top_bottom(
+fn interpolate_inpaint_image_vertically(
     spatial_node_id: SpatialNodeId,
     output_directory: &Path,
 ) -> Option<RgbaImage> {
@@ -235,7 +235,7 @@ pub fn perform_inpainting(
         &spatial_leaf_node_ids,
         |spatial_node_id| {
             if let Some(inpaint_image) =
-                interpolate_inpaint_image_left_right(spatial_node_id, output_directory)
+                interpolate_inpaint_image_horizontally(spatial_node_id, output_directory)
             {
                 let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
                 inpaint_image.save(inpaint_image_path).unwrap();
@@ -249,7 +249,7 @@ pub fn perform_inpainting(
         &spatial_leaf_node_ids,
         |spatial_node_id| {
             if let Some(inpaint_image) =
-                interpolate_inpaint_image_top_bottom(spatial_node_id, output_directory)
+                interpolate_inpaint_image_vertically(spatial_node_id, output_directory)
             {
                 let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
                 inpaint_image.save(inpaint_image_path).unwrap();
