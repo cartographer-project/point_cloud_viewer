@@ -33,8 +33,23 @@ fn inpaint(image: RgbaImage, distance_px: u8) -> Result<RgbaImage, Error> {
     Ok(generated.into_image().into_rgba())
 }
 
+fn get_image_path_with_extension(
+    spatial_node_id: SpatialNodeId,
+    output_directory: &Path,
+    extension: &str,
+) -> PathBuf {
+    get_image_path(output_directory, NodeId::from(spatial_node_id)).with_extension(extension)
+}
+
 fn get_inpaint_image_path(spatial_node_id: SpatialNodeId, output_directory: &Path) -> PathBuf {
-    get_image_path(output_directory, NodeId::from(spatial_node_id)).with_extension("inpaint.png")
+    get_image_path_with_extension(spatial_node_id, output_directory, "inpaint.png")
+}
+
+fn get_interpolation_image_path(
+    spatial_node_id: SpatialNodeId,
+    output_directory: &Path,
+) -> PathBuf {
+    get_image_path_with_extension(spatial_node_id, output_directory, "interpolation.png")
 }
 
 fn image_from_path(image_path: &Path) -> Option<RgbaImage> {
@@ -171,35 +186,61 @@ fn interpolate_inpaint_image_vertically(
     })
 }
 
-fn inpainting_step<P, F>(
+fn inpainting_step<F>(
     message: &str,
     pool: &Pool,
     spatial_node_ids: &[SpatialNodeId],
-    partitioning_function: P,
     spatial_node_function: F,
 ) where
-    P: FnMut(&&SpatialNodeId) -> bool,
     F: Fn(SpatialNodeId) + Send + Copy,
 {
     let progress_bar = create_syncable_progress_bar(spatial_node_ids.len(), message);
-    let run_partition = |spatial_node_ids: Vec<SpatialNodeId>| {
-        pool.scoped(|scope| {
-            for spatial_node_id in spatial_node_ids {
-                let progress_bar = Arc::clone(&progress_bar);
-                scope.execute(move || {
-                    spatial_node_function(spatial_node_id);
-                    progress_bar.lock().unwrap().inc();
-                });
-            }
-        });
-    };
-
-    let (first, second): (Vec<SpatialNodeId>, Vec<SpatialNodeId>) =
-        spatial_node_ids.iter().partition(partitioning_function);
-    run_partition(first);
-    run_partition(second);
-
+    pool.scoped(|scope| {
+        for spatial_node_id in spatial_node_ids {
+            let progress_bar = Arc::clone(&progress_bar);
+            scope.execute(move || {
+                spatial_node_function(*spatial_node_id);
+                progress_bar.lock().unwrap().inc();
+            });
+        }
+    });
     progress_bar.lock().unwrap().finish_println("");
+}
+
+fn interpolate_images(
+    interpolation_type: &str,
+    pool: &Pool,
+    output_directory: &Path,
+    spatial_leaf_node_ids: &[SpatialNodeId],
+    interpolate: fn(SpatialNodeId, &Path) -> Option<RgbaImage>,
+) {
+    inpainting_step(
+        &format!("Interpolating inpaint images {}", interpolation_type),
+        pool,
+        &spatial_leaf_node_ids,
+        |spatial_node_id| {
+            if let Some(interpolation_inpaint_image) =
+                interpolate(spatial_node_id, output_directory)
+            {
+                let interpolation_image_path =
+                    get_interpolation_image_path(spatial_node_id, output_directory);
+                interpolation_inpaint_image
+                    .save(interpolation_image_path)
+                    .unwrap();
+            }
+        },
+    );
+    inpainting_step(
+        &format!("Moving {} interpolated inpaint images", interpolation_type),
+        pool,
+        spatial_leaf_node_ids,
+        |spatial_node_id| {
+            let interpolation_image_path =
+                get_interpolation_image_path(spatial_node_id, output_directory);
+            let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
+            fs::rename(interpolation_image_path, inpaint_image_path).unwrap();
+        },
+    );
 }
 
 pub fn perform_inpainting(
@@ -222,7 +263,6 @@ pub fn perform_inpainting(
         "Creating inpaint images",
         pool,
         &spatial_leaf_node_ids,
-        |_| false,
         |spatial_node_id| {
             if let Some(mut inpaint_image) = stitched_image(spatial_node_id, output_directory) {
                 inpaint_image =
@@ -233,43 +273,26 @@ pub fn perform_inpainting(
         },
     );
 
-    inpainting_step(
-        "Horizontally interpolating inpaint images",
+    interpolate_images(
+        "horizontally",
         pool,
+        output_directory,
         &spatial_leaf_node_ids,
-        // Interleave interpolation to avoid race conditions when writing images
-        |spatial_node_id| spatial_node_id.x() % 2 == 0,
-        |spatial_node_id| {
-            if let Some(inpaint_image) =
-                interpolate_inpaint_image_horizontally(spatial_node_id, output_directory)
-            {
-                let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
-                inpaint_image.save(inpaint_image_path).unwrap();
-            }
-        },
+        interpolate_inpaint_image_horizontally,
     );
 
-    inpainting_step(
-        "Vertically interpolating inpaint images",
+    interpolate_images(
+        "vertically",
         pool,
+        output_directory,
         &spatial_leaf_node_ids,
-        // Interleave interpolation to avoid race conditions when writing images
-        |spatial_node_id| spatial_node_id.y() % 2 == 0,
-        |spatial_node_id| {
-            if let Some(inpaint_image) =
-                interpolate_inpaint_image_vertically(spatial_node_id, output_directory)
-            {
-                let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
-                inpaint_image.save(inpaint_image_path).unwrap();
-            }
-        },
+        interpolate_inpaint_image_vertically,
     );
 
     inpainting_step(
         "Applying inpainting",
         pool,
         &spatial_leaf_node_ids,
-        |_| false,
         |spatial_node_id| {
             if let Some(inpaint_image) = inpaint_image_from(spatial_node_id, output_directory, None)
             {
