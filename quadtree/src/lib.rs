@@ -237,6 +237,18 @@ impl SpatialNodeId {
         Self { level, x, y }
     }
 
+    pub fn level(&self) -> u8 {
+        self.level
+    }
+
+    pub fn x(&self) -> u64 {
+        self.x
+    }
+
+    pub fn y(&self) -> u64 {
+        self.y
+    }
+
     pub fn neighbor(&self, direction: Direction) -> Option<Self> {
         let cur_x = self.x as i64;
         let cur_y = self.y as i64;

@@ -169,24 +169,34 @@ fn interpolate_inpaint_image_vertically(
     })
 }
 
-fn inpainting_step<F>(
+fn inpainting_step<P, F>(
     message: &str,
     pool: &Pool,
     spatial_node_ids: &[SpatialNodeId],
+    partitioning_function: P,
     spatial_node_function: F,
 ) where
+    P: FnMut(&&SpatialNodeId) -> bool + Send + Copy,
     F: Fn(SpatialNodeId) + Send + Copy,
 {
     let progress_bar = create_syncable_progress_bar(spatial_node_ids.len(), message);
-    pool.scoped(|scope| {
-        for spatial_node_id in spatial_node_ids {
-            let progress_bar = Arc::clone(&progress_bar);
-            scope.execute(move || {
-                spatial_node_function(*spatial_node_id);
-                progress_bar.lock().unwrap().inc();
-            });
-        }
-    });
+    let run_partition = |spatial_node_ids: Vec<SpatialNodeId>| {
+        pool.scoped(|scope| {
+            for spatial_node_id in spatial_node_ids {
+                let progress_bar = Arc::clone(&progress_bar);
+                scope.execute(move || {
+                    spatial_node_function(spatial_node_id);
+                    progress_bar.lock().unwrap().inc();
+                });
+            }
+        });
+    };
+
+    let (first, second): (Vec<SpatialNodeId>, Vec<SpatialNodeId>) =
+        spatial_node_ids.iter().partition(partitioning_function);
+    run_partition(first);
+    run_partition(second);
+
     progress_bar.lock().unwrap().finish_println("");
 }
 
@@ -210,6 +220,7 @@ pub fn perform_inpainting(
         "Creating inpaint images",
         pool,
         &spatial_leaf_node_ids,
+        |_| false,
         |spatial_node_id| {
             if let Some(mut inpaint_image) = stitched_image(spatial_node_id, output_directory) {
                 inpaint_image =
@@ -224,6 +235,7 @@ pub fn perform_inpainting(
         "Horizontally interpolating inpaint images",
         pool,
         &spatial_leaf_node_ids,
+        |spatial_node_id| spatial_node_id.x() % 2 == 0,
         |spatial_node_id| {
             if let Some(inpaint_image) =
                 interpolate_inpaint_image_horizontally(spatial_node_id, output_directory)
@@ -238,6 +250,7 @@ pub fn perform_inpainting(
         "Vertically interpolating inpaint images",
         pool,
         &spatial_leaf_node_ids,
+        |spatial_node_id| spatial_node_id.y() % 2 == 0,
         |spatial_node_id| {
             if let Some(inpaint_image) =
                 interpolate_inpaint_image_vertically(spatial_node_id, output_directory)
@@ -252,6 +265,7 @@ pub fn perform_inpainting(
         "Applying inpainting",
         pool,
         &spatial_leaf_node_ids,
+        |_| false,
         |spatial_node_id| {
             if let Some(inpaint_image) = inpaint_image_from(spatial_node_id, output_directory, None)
             {
