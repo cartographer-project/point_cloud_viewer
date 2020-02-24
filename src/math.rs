@@ -100,7 +100,7 @@ impl From<&proto::AxisAlignedCuboid> for AABB<f64> {
             let deprecated_max = aac.deprecated_max.clone().unwrap(); // Version 9
             proto::Vector3d::from(deprecated_max)
         });
-        AABB::new(aac_min.into(), aac_max.into())
+        AABB::new(std::convert::From::from(&aac_min), std::convert::From::from(&aac_max))
     }
 }
 
@@ -536,6 +536,16 @@ pub mod collision {
                     c3r0, c3r1, c3r2, c3r3,
                 );
             Self { matrix }
+        }
+
+        // This emulates cgmath::PerspectiveFov, which more restricted
+        // and corresponds to nalgebra::Perspective.
+        pub fn new_fov(fovy: S, aspect: S, near: S, far: S) -> Self {
+            let angle = nalgebra::convert::<f64, S>(0.5) * fovy;
+            let ymax = near * angle.tan();
+            let xmax = ymax * aspect;
+
+            Self::new(-xmax, xmax, -ymax, ymax, near, far)
         }
 
         pub fn as_matrix(&self) -> &Matrix4<S> {

@@ -1,7 +1,6 @@
 use crate::graphic::tiled_texture_loader::{TilePos, TiledTextureLoader};
-use cgmath::Vector3;
 use image::{LumaA, Rgba};
-use point_viewer::math::Isometry3;
+use nalgebra::{Isometry3, Vector3};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{self, ErrorKind};

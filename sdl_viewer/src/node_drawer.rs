@@ -15,9 +15,9 @@
 use crate::graphic::{GlBuffer, GlProgram, GlProgramBuilder, GlVertexArray};
 use crate::opengl;
 use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
-use cgmath::{Array, Matrix, Matrix4};
 use fnv::FnvHashSet;
 use lru::LruCache;
+use nalgebra::Matrix4;
 use point_viewer::octree;
 use point_viewer::read_write::PositionEncoding;
 use rand::{prelude::SliceRandom, thread_rng};
@@ -149,7 +149,7 @@ impl NodeDrawer {
             program.gl.Uniform3dv(
                 node_program.u_min,
                 1,
-                node_view.meta.bounding_cube.min().as_ptr(),
+                node_view.meta.bounding_cube.min().coords.as_ptr(),
             );
 
             program.gl.DrawArrays(opengl::POINTS, 0, num_points as i32);

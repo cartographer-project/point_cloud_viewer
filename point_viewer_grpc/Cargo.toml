@@ -20,7 +20,7 @@ edition = "2018"
 
 [dependencies]
 collision = "0.20.1"
-cgmath = "0.17.0"
+nalgebra = "0.19.0"
 clap = "2.33.0"
 crossbeam-channel = "0.4.0"
 ctrlc = "3.1.3"

@@ -13,25 +13,25 @@
 // limitations under the License.
 
 use crate::opengl;
-use cgmath::{
-    Decomposed, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Quaternion, Rad, Rotation,
-    Rotation3, Transform, Vector3, Zero,
-};
-use point_viewer::math::Isometry3;
+use nalgebra::{Isometry3, Matrix4, Perspective3, UnitQuaternion, Vector3};
+use num_traits::One;
+use point_viewer::math::collision::Perspective;
 use serde_derive::{Deserialize, Serialize};
 use std::f64;
 
 #[derive(Debug)]
 struct RotationAngle {
-    theta: Rad<f64>,
-    phi: Rad<f64>,
+    /// Horizontal angle in radians
+    theta: f64,
+    /// Vertical angle in radians
+    phi: f64,
 }
 
 impl RotationAngle {
     pub fn zero() -> Self {
         RotationAngle {
-            theta: Rad::zero(),
-            phi: Rad::zero(),
+            theta: 0.0,
+            phi: 0.0,
         }
     }
 }
@@ -59,8 +59,8 @@ pub struct Camera {
     ct_mode: CtMode,
 
     movement_speed: f64,
-    theta: Rad<f64>,
-    phi: Rad<f64>,
+    theta: f64,
+    phi: f64,
     pan: Vector3<f64>,
 
     // The speed we currently want to rotate at. This is multiplied with the seconds since the last
@@ -73,17 +73,17 @@ pub struct Camera {
     delta_rotation: RotationAngle,
 
     moved: bool,
-    transform: Decomposed<Vector3<f64>, Quaternion<f64>>,
+    transform: Isometry3<f64>,
 
     projection_matrix: Matrix4<f32>,
-    local_from_global: Matrix4<f64>,
+    local_from_global: Isometry3<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct State {
-    transform: Decomposed<Vector3<f64>, Quaternion<f64>>,
-    phi: Rad<f64>,
-    theta: Rad<f64>,
+    transform: Isometry3<f64>,
+    phi: f64,
+    theta: f64,
 }
 
 const FAR_PLANE: f32 = 10000.;
@@ -96,10 +96,7 @@ impl Camera {
         height: i32,
         local_from_global: Option<Isometry3<f64>>,
     ) -> Self {
-        let local_from_global = local_from_global.map_or_else(One::one, |local_from_global| {
-            let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> = local_from_global.into();
-            decomposed.into()
-        });
+        let local_from_global = local_from_global.unwrap_or_else(One::one);
         let mut camera = Camera {
             movement_speed: 10.,
             moving_backward: false,
@@ -113,20 +110,16 @@ impl Camera {
             turning_down: false,
             turning_up: false,
             moved: true,
-            theta: Rad::zero(),
-            phi: Rad::zero(),
-            pan: Vector3::zero(),
+            theta: 0.0,
+            phi: 0.0,
+            pan: nalgebra::zero(),
             rotation_speed: RotationAngle::zero(),
             delta_rotation: RotationAngle::zero(),
-            transform: Decomposed {
-                scale: 1.,
-                rot: Quaternion::one(),
-                disp: Vector3::new(0., 0., 150.),
-            },
+            transform: Isometry3::translation(0., 0., 150.),
             local_from_global,
 
             // These will be set by set_size().
-            projection_matrix: One::one(),
+            projection_matrix: Matrix4::identity(),
             width: 0,
             height: 0,
             ct_mode: CtMode {
@@ -181,12 +174,13 @@ impl Camera {
             (NEAR_PLANE, FAR_PLANE)
         };
 
-        self.projection_matrix = Matrix4::from(PerspectiveFov {
-            fovy: Rad::from(Deg(45.)),
-            aspect: self.width as f32 / self.height as f32,
+        self.projection_matrix = Perspective3::new(
+            self.width as f32 / self.height as f32,
+            std::f32::consts::FRAC_PI_4,
             near,
             far,
-        });
+        )
+        .to_homogeneous();
         unsafe {
             gl.Viewport(0, 0, self.width, self.height);
         }
@@ -198,13 +192,14 @@ impl Camera {
         self.update_viewport(gl);
     }
 
-    pub fn get_camera_to_world(&self) -> Matrix4<f64> {
-        self.local_from_global.inverse_transform().unwrap() * Matrix4::from(self.transform)
+    pub fn get_camera_to_world(&self) -> Isometry3<f64> {
+        self.local_from_global.inverse() * self.transform
     }
 
     pub fn get_world_to_gl(&self) -> Matrix4<f64> {
-        let camera_from_local: Matrix4<f64> = self.transform.inverse_transform().unwrap().into();
-        self.projection_matrix.cast::<f64>().unwrap() * camera_from_local * self.local_from_global
+        let camera_from_global = self.transform.inverse() * self.local_from_global;
+        nalgebra::convert::<Matrix4<f32>, Matrix4<f64>>(self.projection_matrix)
+            * camera_from_global.to_homogeneous()
     }
 
     /// Update the camera position for the current frame. Returns true if the camera moved in this
@@ -214,7 +209,7 @@ impl Camera {
         self.moved = false;
 
         // Handle keyboard input
-        let mut pan = Vector3::zero();
+        let mut pan: Vector3<f64> = nalgebra::zero();
         if self.moving_right {
             pan.x += 1.;
         }
@@ -233,13 +228,13 @@ impl Camera {
         if self.moving_down {
             pan.y -= 1.;
         }
-        if pan.magnitude2() > 0. {
+        if pan.norm_squared() > 0. {
             self.pan += pan.normalize();
         }
 
         let elapsed_seconds = elapsed.as_seconds_f64();
 
-        const TURNING_SPEED: Rad<f64> = Rad(0.5);
+        const TURNING_SPEED: f64 = 0.5;
         if self.turning_left {
             self.rotation_speed.theta += TURNING_SPEED;
         }
@@ -254,38 +249,38 @@ impl Camera {
         }
 
         // Apply changes
-        if self.pan.magnitude2() > 0. {
+        if self.pan.norm_squared() > 0. {
             moved = true;
             let translation = self
                 .transform
-                .rot
-                .rotate_vector(self.pan * self.movement_speed * elapsed_seconds);
-            self.transform.disp += translation;
+                .rotation
+                .transform_vector(&(self.pan * self.movement_speed * elapsed_seconds));
+            self.transform.append_translation_mut(&translation.into());
         }
 
-        if !self.rotation_speed.theta.is_zero()
-            || !self.rotation_speed.phi.is_zero()
-            || !self.delta_rotation.theta.is_zero()
-            || !self.delta_rotation.phi.is_zero()
+        if self.rotation_speed.theta != 0.0
+            || self.rotation_speed.phi != 0.0
+            || self.delta_rotation.theta != 0.0
+            || self.delta_rotation.phi != 0.0
         {
             moved = true;
-            if !self.delta_rotation.theta.is_zero() || !self.delta_rotation.phi.is_zero() {
+            if self.delta_rotation.theta != 0.0 || self.delta_rotation.phi != 0.0 {
                 self.theta += self.delta_rotation.theta;
                 self.phi += self.delta_rotation.phi;
             } else {
                 self.theta += self.rotation_speed.theta * elapsed_seconds;
                 self.phi += self.rotation_speed.phi * elapsed_seconds;
             }
-            let rotation_z = Quaternion::from_angle_z(self.theta);
-            let rotation_x = Quaternion::from_angle_x(self.phi);
-            self.transform.rot = rotation_z * rotation_x;
+            let rotation_z = UnitQuaternion::from_axis_angle(&Vector3::z_axis(), self.theta);
+            let rotation_x = UnitQuaternion::from_axis_angle(&Vector3::x_axis(), self.phi);
+            self.transform.rotation = rotation_z * rotation_x;
         }
 
-        self.pan = Vector3::zero();
-        self.rotation_speed.theta = Rad::zero();
-        self.rotation_speed.phi = Rad::zero();
-        self.delta_rotation.theta = Rad::zero();
-        self.delta_rotation.phi = Rad::zero();
+        self.pan = nalgebra::zero();
+        self.rotation_speed.theta = 0.0;
+        self.rotation_speed.phi = 0.0;
+        self.delta_rotation.theta = 0.0;
+        self.delta_rotation.phi = 0.0;
         moved
     }
 
@@ -296,9 +291,9 @@ impl Camera {
 
     pub fn mouse_drag_rotate(&mut self, delta_x: i32, delta_y: i32) {
         self.delta_rotation.theta -=
-            Rad(2. * f64::consts::PI * f64::from(delta_x) / f64::from(self.width));
+            2. * f64::consts::PI * f64::from(delta_x) / f64::from(self.width);
         self.delta_rotation.phi -=
-            Rad(2. * f64::consts::PI * f64::from(delta_y) / f64::from(self.height));
+            2. * f64::consts::PI * f64::from(delta_y) / f64::from(self.height);
     }
 
     pub fn mouse_wheel(&mut self, delta: i32) {
@@ -314,7 +309,7 @@ impl Camera {
     }
 
     pub fn rotate(&mut self, up: f64, around: f64) {
-        self.rotation_speed.phi += Rad(up);
-        self.rotation_speed.theta += Rad(around);
+        self.rotation_speed.phi += up;
+        self.rotation_speed.theta += around;
     }
 }

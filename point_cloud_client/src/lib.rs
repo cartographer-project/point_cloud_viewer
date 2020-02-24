@@ -1,8 +1,8 @@
-use collision::{Aabb, Aabb3, Union};
 use point_viewer::data_provider::{DataProvider, DataProviderFactory};
 use point_viewer::errors::*;
 use point_viewer::iterator::{ParallelIterator, PointCloud, PointQuery};
 use point_viewer::octree::Octree;
+use point_viewer::math::AABB;
 use point_viewer::s2_cells::S2Cells;
 use point_viewer::{PointsBatch, NUM_POINTS_PER_BATCH};
 
@@ -13,7 +13,7 @@ enum PointClouds {
 
 pub struct PointCloudClient {
     point_clouds: PointClouds,
-    aabb: Aabb3<f64>,
+    aabb: AABB<f64>,
     pub num_points_per_batch: usize,
     pub num_threads: usize,
     pub buffer_size: usize,
@@ -28,8 +28,8 @@ impl PointCloudClient {
             .iter()
             .map(|location| data_provider_factory.generate_data_provider(location))
             .collect::<Result<Vec<Box<dyn DataProvider>>>>()?;
-        let mut aabb: Option<Aabb3<f64>> = None;
-        let unite = |bbox: &Aabb3<f64>, with: &mut Option<Aabb3<f64>>| {
+        let mut aabb: Option<AABB<f64>> = None;
+        let unite = |bbox: &AABB<f64>, with: &mut Option<AABB<f64>>| {
             let b = with.get_or_insert(*bbox);
             *b = b.union(bbox);
         };

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::proto_grpc::OctreeClient;
-use cgmath::Vector3;
+use nalgebra::Point3;
 use collision::Aabb3;
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
@@ -74,7 +74,7 @@ impl GrpcOctreeDataProvider {
                 let last_num_points = points.len();
                 for (p, color) in reply.positions.iter().zip(reply.colors.iter()) {
                     points.push(Point {
-                        position: Vector3::new(p.x, p.y, p.z),
+                        position: Point3::from(p),
                         color: Color {
                             red: color.red,
                             green: color.green,

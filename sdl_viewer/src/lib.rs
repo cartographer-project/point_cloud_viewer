@@ -43,10 +43,9 @@ use crate::box_drawer::BoxDrawer;
 use crate::camera::Camera;
 use crate::node_drawer::{NodeDrawer, NodeViewContainer};
 use crate::terrain_drawer::TerrainRenderer;
-use cgmath::{Matrix4, SquareMatrix};
+use nalgebra::{Isometry3, Matrix4};
 use point_viewer::color::YELLOW;
 use point_viewer::data_provider::DataProviderFactory;
-use point_viewer::math::Isometry3;
 use point_viewer::octree::{self, Octree};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Mod, Scancode};
@@ -203,7 +202,7 @@ impl PointCloudRenderer {
 
             if self.show_octree_nodes {
                 self.box_drawer.draw_outlines(
-                    &view.meta.bounding_cube.to_aabb3(),
+                    &view.meta.bounding_cube.to_aabb(),
                     &self.world_to_gl,
                     &YELLOW,
                 );

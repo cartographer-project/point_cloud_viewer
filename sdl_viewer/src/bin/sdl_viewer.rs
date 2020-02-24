@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::Matrix4;
+use nalgebra::{Isometry3, Matrix4};
 use point_viewer::data_provider::DataProviderFactory;
-use point_viewer::math::Isometry3;
 use point_viewer::octree::Octree;
 use point_viewer_grpc::data_provider_from_grpc_address;
 use sdl_viewer::{opengl, run, Extension};

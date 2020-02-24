@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use crate::proto_grpc::OctreeClient;
-use cgmath::{Deg, EuclideanSpace, Point3, Rad, Vector3};
-use collision::{Aabb, Aabb3};
+use nalgebra::{Point3, Vector3};
+use point_viewer::math::{AABB};
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use num_integer::div_ceil;
@@ -124,7 +124,7 @@ fn main() {
                 let p = Point3::new(position.x, position.y, position.z);
                 bounding_box = bounding_box.grow(p);
                 points.push(Point {
-                    position: p.to_vec(),
+                    position: p,
                     color: Color {
                         red: color.red,
                         green: color.green,

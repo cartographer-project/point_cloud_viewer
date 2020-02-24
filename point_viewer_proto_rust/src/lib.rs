@@ -52,8 +52,8 @@ impl From<proto::Vector3d> for cgmath::Point3<f64> {
     }
 }
 
-impl From<proto::Vector3d> for nalgebra::Point3<f64> {
-    fn from(proto_vec: proto::Vector3d) -> Self {
+impl From<&proto::Vector3d> for nalgebra::Point3<f64> {
+    fn from(proto_vec: &proto::Vector3d) -> Self {
         nalgebra::Point3::new(proto_vec.get_x(), proto_vec.get_y(), proto_vec.get_z())
     }
 }
