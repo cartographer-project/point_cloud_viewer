@@ -1,6 +1,6 @@
 use crate::utils::get_image_path;
 use fnv::FnvHashSet;
-use image::{DynamicImage, GenericImage, GenericImageView, Luma, Rgba, RgbaImage, SubImage};
+use image::{DynamicImage, GenericImage, GenericImageView, Luma, Pixel, Rgba, RgbaImage, SubImage};
 use imageproc::distance_transform::Norm;
 use imageproc::map::{map_colors, map_colors2};
 use imageproc::morphology::close;
@@ -124,9 +124,11 @@ fn interpolate(
 ) {
     let this_pix = this.get_pixel_mut(i, j);
     let other_pix = other.get_pixel_mut(i, j);
-    let interpolated = imageproc::pixelops::interpolate(*this_pix, *other_pix, this_weight);
-    *this_pix = interpolated;
-    *other_pix = interpolated;
+    // We don't use imageproc::pixelops::interpolate as it doesn't round the result
+    this_pix.apply2(&other_pix, |this_c, other_c| {
+        (this_c as f32 * this_weight + other_c as f32 * (1.0 - this_weight)).round() as u8
+    });
+    *other_pix = *this_pix;
 }
 
 fn interpolate_inpaint_image_with_right(spatial_node_id: SpatialNodeId, output_directory: &Path) {
