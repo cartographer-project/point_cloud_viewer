@@ -4,7 +4,6 @@ use image::{DynamicImage, GenericImage, GenericImageView, Luma, Rgba, RgbaImage,
 use imageproc::distance_transform::Norm;
 use imageproc::map::{map_colors, map_colors2};
 use imageproc::morphology::close;
-use imageproc::pixelops::interpolate;
 use point_viewer::color::TRANSPARENT;
 use point_viewer::utils::create_syncable_progress_bar;
 use quadtree::{Direction, NodeId, SpatialNodeId};
@@ -45,13 +44,6 @@ fn get_inpaint_image_path(spatial_node_id: SpatialNodeId, output_directory: &Pat
     get_image_path_with_extension(spatial_node_id, output_directory, "inpaint.png")
 }
 
-fn get_interpolation_image_path(
-    spatial_node_id: SpatialNodeId,
-    output_directory: &Path,
-) -> PathBuf {
-    get_image_path_with_extension(spatial_node_id, output_directory, "interpolation.png")
-}
-
 fn image_from_path(image_path: &Path) -> Option<RgbaImage> {
     if image_path.exists() {
         Some(image::open(image_path).unwrap().to_rgba())
@@ -79,13 +71,16 @@ fn image_from(
         .and_then(|id| image_from_path(&get_image_path(output_directory, NodeId::from(id))))
 }
 
-fn inpaint_image_from(
+fn inpaint_image_and_path_from(
     spatial_node_id: SpatialNodeId,
     output_directory: &Path,
     neighbor: impl Into<Option<Direction>>,
-) -> Option<RgbaImage> {
-    spatial_id_from(spatial_node_id, neighbor)
-        .and_then(|id| image_from_path(&get_inpaint_image_path(id, output_directory)))
+) -> Option<(RgbaImage, PathBuf)> {
+    spatial_id_from(spatial_node_id, neighbor).and_then(|id| {
+        let inpaint_image_path = get_inpaint_image_path(id, output_directory);
+        image_from_path(&inpaint_image_path)
+            .map(|inpaint_image| (inpaint_image, inpaint_image_path))
+    })
 }
 
 fn stitched_image(spatial_node_id: SpatialNodeId, output_directory: &Path) -> Option<RgbaImage> {
@@ -116,131 +111,113 @@ fn stitched_image(spatial_node_id: SpatialNodeId, output_directory: &Path) -> Op
     })
 }
 
-fn interpolate_sub_images<F>(
-    mut this: SubImage<&mut RgbaImage>,
-    other: SubImage<&RgbaImage>,
-    weight_of_progress_on_this: F,
-) where
-    F: Fn(f32, f32) -> f32,
-{
-    let (width, height) = this.dimensions();
-    for j in 0..height {
-        for i in 0..width {
-            let this_pix = this.get_pixel_mut(i, j);
-            let i_progress = i as f32 / (width - 1) as f32;
-            let j_progress = j as f32 / (height - 1) as f32;
-            let this_weight = weight_of_progress_on_this(i_progress, j_progress);
-            *this_pix = interpolate(*this_pix, other.get_pixel(i, j), this_weight);
-        }
+fn create_inpaint_image(
+    spatial_node_id: SpatialNodeId,
+    output_directory: &Path,
+    inpaint_distance_px: u8,
+) {
+    if let Some(mut inpaint_image) = stitched_image(spatial_node_id, output_directory) {
+        inpaint_image = inpaint(inpaint_image, inpaint_distance_px).expect("Inpaint failed.");
+        let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
+        inpaint_image.save(inpaint_image_path).unwrap();
     }
 }
 
-fn interpolate_inpaint_image_horizontally(
-    spatial_node_id: SpatialNodeId,
-    output_directory: &Path,
-) -> Option<RgbaImage> {
-    inpaint_image_from(spatial_node_id, output_directory, None).map(|mut current| {
-        let (width, height) = current.dimensions();
-        if let Some(left) = inpaint_image_from(spatial_node_id, output_directory, Direction::Left) {
-            interpolate_sub_images(
-                current.sub_image(0, 0, width / 2, height),
-                left.view(width / 2, 0, width / 2, height),
-                |i, _| i,
-            );
-        }
-        if let Some(right) = inpaint_image_from(spatial_node_id, output_directory, Direction::Right)
-        {
-            interpolate_sub_images(
-                current.sub_image(width / 2, 0, width / 2, height),
-                right.view(0, 0, width / 2, height),
-                |i, _| 1.0 - i,
-            );
-        }
-        current
-    })
+fn interpolate(
+    i: u32,
+    j: u32,
+    this_weight: f32,
+    this: &mut SubImage<&mut RgbaImage>,
+    other: &mut SubImage<&mut RgbaImage>,
+) {
+    let this_pix = this.get_pixel_mut(i, j);
+    let other_pix = other.get_pixel_mut(i, j);
+    let interpolated = imageproc::pixelops::interpolate(*this_pix, *other_pix, this_weight);
+    *this_pix = interpolated;
+    *other_pix = interpolated;
 }
 
-fn interpolate_inpaint_image_vertically(
-    spatial_node_id: SpatialNodeId,
-    output_directory: &Path,
-) -> Option<RgbaImage> {
-    inpaint_image_from(spatial_node_id, output_directory, None).map(|mut current| {
-        let (width, height) = current.dimensions();
-        if let Some(top) = inpaint_image_from(spatial_node_id, output_directory, Direction::Top) {
-            interpolate_sub_images(
-                current.sub_image(0, 0, width, height / 2),
-                top.view(0, height / 2, width, height / 2),
-                |_, j| j,
-            );
+fn interpolate_inpaint_image_with_right(spatial_node_id: SpatialNodeId, output_directory: &Path) {
+    if let (Some((mut current, current_path)), Some((mut right, right_path))) = (
+        inpaint_image_and_path_from(spatial_node_id, output_directory, None),
+        inpaint_image_and_path_from(spatial_node_id, output_directory, Direction::Right),
+    ) {
+        let width = current.width() / 2;
+        let height = current.height();
+        let mut current_sub = current.sub_image(width, 0, width, height);
+        let mut right_sub = right.sub_image(0, 0, width, height);
+        for i in 0..width {
+            let right_weight = i as f32 / (width - 1) as f32;
+            for j in 0..height {
+                interpolate(i, j, right_weight, &mut right_sub, &mut current_sub);
+            }
         }
-        if let Some(bottom) =
-            inpaint_image_from(spatial_node_id, output_directory, Direction::Bottom)
-        {
-            interpolate_sub_images(
-                current.sub_image(0, height / 2, width, height / 2),
-                bottom.view(0, 0, width, height / 2),
-                |_, j| 1.0 - j,
-            );
-        }
-        current
-    })
+        current.save(current_path).unwrap();
+        right.save(right_path).unwrap();
+    }
 }
 
-fn inpainting_step<F>(
+fn interpolate_inpaint_image_with_bottom(spatial_node_id: SpatialNodeId, output_directory: &Path) {
+    if let (Some((mut current, current_path)), Some((mut bottom, bottom_path))) = (
+        inpaint_image_and_path_from(spatial_node_id, output_directory, None),
+        inpaint_image_and_path_from(spatial_node_id, output_directory, Direction::Bottom),
+    ) {
+        let width = current.width();
+        let height = current.height() / 2;
+        let mut current_sub = current.sub_image(0, height, width, height);
+        let mut bottom_sub = bottom.sub_image(0, 0, width, height);
+        for j in 0..height {
+            let bottom_weight = j as f32 / (height - 1) as f32;
+            for i in 0..width {
+                interpolate(i, j, bottom_weight, &mut bottom_sub, &mut current_sub);
+            }
+        }
+        current.save(current_path).unwrap();
+        bottom.save(bottom_path).unwrap();
+    }
+}
+
+fn apply_inpainting(spatial_node_id: SpatialNodeId, output_directory: &Path) {
+    if let Some((inpaint_image, _)) =
+        inpaint_image_and_path_from(spatial_node_id, output_directory, None)
+    {
+        let (width, height) = inpaint_image.dimensions();
+        let image_view = inpaint_image.view(width / 4, height / 4, width / 2, height / 2);
+        let image_path = get_image_path(output_directory, NodeId::from(spatial_node_id));
+        image_view.to_image().save(image_path).unwrap();
+        fs::remove_file(get_inpaint_image_path(spatial_node_id, output_directory)).unwrap();
+    }
+}
+
+fn inpainting_step<P, F>(
     message: &str,
     pool: &Pool,
     spatial_node_ids: &[SpatialNodeId],
+    partitioning_function: P,
     spatial_node_function: F,
 ) where
+    P: FnMut(&&SpatialNodeId) -> bool,
     F: Fn(SpatialNodeId) + Send + Copy,
 {
     let progress_bar = create_syncable_progress_bar(spatial_node_ids.len(), message);
-    pool.scoped(|scope| {
-        for spatial_node_id in spatial_node_ids {
-            let progress_bar = Arc::clone(&progress_bar);
-            scope.execute(move || {
-                spatial_node_function(*spatial_node_id);
-                progress_bar.lock().unwrap().inc();
-            });
-        }
-    });
-    progress_bar.lock().unwrap().finish_println("");
-}
-
-fn interpolate_images(
-    interpolation_type: &str,
-    pool: &Pool,
-    output_directory: &Path,
-    spatial_leaf_node_ids: &[SpatialNodeId],
-    interpolate: fn(SpatialNodeId, &Path) -> Option<RgbaImage>,
-) {
-    inpainting_step(
-        &format!("Interpolating inpaint images {}", interpolation_type),
-        pool,
-        &spatial_leaf_node_ids,
-        |spatial_node_id| {
-            if let Some(interpolation_inpaint_image) =
-                interpolate(spatial_node_id, output_directory)
-            {
-                let interpolation_image_path =
-                    get_interpolation_image_path(spatial_node_id, output_directory);
-                interpolation_inpaint_image
-                    .save(interpolation_image_path)
-                    .unwrap();
+    let run_partition = |spatial_node_ids: Vec<SpatialNodeId>| {
+        pool.scoped(|scope| {
+            for spatial_node_id in spatial_node_ids {
+                let progress_bar = Arc::clone(&progress_bar);
+                scope.execute(move || {
+                    spatial_node_function(spatial_node_id);
+                    progress_bar.lock().unwrap().inc();
+                });
             }
-        },
-    );
-    inpainting_step(
-        &format!("Moving {} interpolated inpaint images", interpolation_type),
-        pool,
-        spatial_leaf_node_ids,
-        |spatial_node_id| {
-            let interpolation_image_path =
-                get_interpolation_image_path(spatial_node_id, output_directory);
-            let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
-            fs::rename(interpolation_image_path, inpaint_image_path).unwrap();
-        },
-    );
+        });
+    };
+
+    let (first, second): (Vec<SpatialNodeId>, Vec<SpatialNodeId>) =
+        spatial_node_ids.iter().partition(partitioning_function);
+    run_partition(first);
+    run_partition(second);
+
+    progress_bar.lock().unwrap().finish_println("");
 }
 
 pub fn perform_inpainting(
@@ -263,45 +240,35 @@ pub fn perform_inpainting(
         "Creating inpaint images",
         pool,
         &spatial_leaf_node_ids,
+        |_| false,
         |spatial_node_id| {
-            if let Some(mut inpaint_image) = stitched_image(spatial_node_id, output_directory) {
-                inpaint_image =
-                    inpaint(inpaint_image, inpaint_distance_px).expect("Inpaint failed.");
-                let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
-                inpaint_image.save(inpaint_image_path).unwrap();
-            }
+            create_inpaint_image(spatial_node_id, output_directory, inpaint_distance_px)
         },
     );
 
-    interpolate_images(
-        "horizontally",
+    inpainting_step(
+        "Horizontally interpolating inpaint images",
         pool,
-        output_directory,
         &spatial_leaf_node_ids,
-        interpolate_inpaint_image_horizontally,
+        // Interleave interpolation to avoid race conditions when writing images
+        |spatial_node_id| spatial_node_id.x() % 2 == 0,
+        |spatial_node_id| interpolate_inpaint_image_with_right(spatial_node_id, output_directory),
     );
 
-    interpolate_images(
-        "vertically",
+    inpainting_step(
+        "Vertically interpolating inpaint images",
         pool,
-        output_directory,
         &spatial_leaf_node_ids,
-        interpolate_inpaint_image_vertically,
+        // Interleave interpolation to avoid race conditions when writing images
+        |spatial_node_id| spatial_node_id.y() % 2 == 0,
+        |spatial_node_id| interpolate_inpaint_image_with_bottom(spatial_node_id, output_directory),
     );
 
     inpainting_step(
         "Applying inpainting",
         pool,
         &spatial_leaf_node_ids,
-        |spatial_node_id| {
-            if let Some(inpaint_image) = inpaint_image_from(spatial_node_id, output_directory, None)
-            {
-                let (width, height) = inpaint_image.dimensions();
-                let image_view = inpaint_image.view(width / 4, height / 4, width / 2, height / 2);
-                let image_path = get_image_path(output_directory, NodeId::from(spatial_node_id));
-                image_view.to_image().save(image_path).unwrap();
-                fs::remove_file(get_inpaint_image_path(spatial_node_id, output_directory)).unwrap();
-            }
-        },
+        |_| false,
+        |spatial_node_id| apply_inpainting(spatial_node_id, output_directory),
     );
 }
