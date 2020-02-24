@@ -32,16 +32,8 @@ fn inpaint(image: RgbaImage, distance_px: u8) -> Result<RgbaImage, Error> {
     Ok(generated.into_image().into_rgba())
 }
 
-fn get_image_path_with_extension(
-    spatial_node_id: SpatialNodeId,
-    output_directory: &Path,
-    extension: &str,
-) -> PathBuf {
-    get_image_path(output_directory, NodeId::from(spatial_node_id)).with_extension(extension)
-}
-
 fn get_inpaint_image_path(spatial_node_id: SpatialNodeId, output_directory: &Path) -> PathBuf {
-    get_image_path_with_extension(spatial_node_id, output_directory, "inpaint.png")
+    get_image_path(output_directory, NodeId::from(spatial_node_id)).with_extension("inpaint.png")
 }
 
 fn image_from_path(image_path: &Path) -> Option<RgbaImage> {
