@@ -170,14 +170,14 @@ fn interpolate_inpaint_image_with_bottom(spatial_node_id: SpatialNodeId, output_
 }
 
 fn apply_inpainting(spatial_node_id: SpatialNodeId, output_directory: &Path) {
-    if let Some((inpaint_image, _)) =
+    if let Some((inpaint_image, inpaint_image_path)) =
         inpaint_image_and_path_from(spatial_node_id, output_directory, None)
     {
         let (width, height) = inpaint_image.dimensions();
         let image_view = inpaint_image.view(width / 4, height / 4, width / 2, height / 2);
         let image_path = get_image_path(output_directory, NodeId::from(spatial_node_id));
         image_view.to_image().save(image_path).unwrap();
-        fs::remove_file(get_inpaint_image_path(spatial_node_id, output_directory)).unwrap();
+        fs::remove_file(inpaint_image_path).unwrap();
     }
 }
 
