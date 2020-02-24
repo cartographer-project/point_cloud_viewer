@@ -1,6 +1,9 @@
 use crate::utils::get_image_path;
 use fnv::FnvHashSet;
-use image::{DynamicImage, GenericImage, GenericImageView, Luma, Pixel, Rgba, RgbaImage, SubImage};
+use image::{
+    DynamicImage, GenericImage, GenericImageView, ImageResult, Luma, Pixel, Rgba, RgbaImage,
+    SubImage,
+};
 use imageproc::distance_transform::Norm;
 use imageproc::map::{map_colors, map_colors2};
 use imageproc::morphology::close;
@@ -36,9 +39,9 @@ fn get_inpaint_image_path(spatial_node_id: SpatialNodeId, output_directory: &Pat
     get_image_path(output_directory, NodeId::from(spatial_node_id)).with_extension("inpaint.png")
 }
 
-fn image_from_path(image_path: &Path) -> Option<RgbaImage> {
+fn image_from_path(image_path: &Path) -> Option<ImageResult<RgbaImage>> {
     if image_path.exists() {
-        Some(image::open(image_path).unwrap().to_rgba())
+        Some(image::open(image_path).map(|image| image.to_rgba()))
     } else {
         None
     }
@@ -58,61 +61,78 @@ fn image_from(
     spatial_node_id: SpatialNodeId,
     output_directory: &Path,
     neighbor: impl Into<Option<Direction>>,
-) -> Option<RgbaImage> {
+) -> ImageResult<Option<RgbaImage>> {
     spatial_id_from(spatial_node_id, neighbor)
         .and_then(|id| image_from_path(&get_image_path(output_directory, NodeId::from(id))))
+        .transpose()
 }
 
 fn inpaint_image_and_path_from(
     spatial_node_id: SpatialNodeId,
     output_directory: &Path,
     neighbor: impl Into<Option<Direction>>,
-) -> Option<(RgbaImage, PathBuf)> {
-    spatial_id_from(spatial_node_id, neighbor).and_then(|id| {
-        let inpaint_image_path = get_inpaint_image_path(id, output_directory);
-        image_from_path(&inpaint_image_path)
-            .map(|inpaint_image| (inpaint_image, inpaint_image_path))
-    })
+) -> ImageResult<Option<(RgbaImage, PathBuf)>> {
+    spatial_id_from(spatial_node_id, neighbor)
+        .and_then(|id| {
+            let inpaint_image_path = get_inpaint_image_path(id, output_directory);
+            image_from_path(&inpaint_image_path).map(|inpaint_image_res| {
+                inpaint_image_res.map(|inpaint_image| (inpaint_image, inpaint_image_path))
+            })
+        })
+        .transpose()
 }
 
-fn stitched_image(spatial_node_id: SpatialNodeId, output_directory: &Path) -> Option<RgbaImage> {
-    image_from(spatial_node_id, output_directory, None).map(|current| {
+fn stitched_image(
+    spatial_node_id: SpatialNodeId,
+    output_directory: &Path,
+) -> ImageResult<Option<RgbaImage>> {
+    if let Some(current) = image_from(spatial_node_id, output_directory, None)? {
         let w = current.width() / 2;
         let h = current.height() / 2;
 
         let mut image = RgbaImage::from_pixel(4 * w, 4 * h, Rgba::from(TRANSPARENT.to_u8()));
         image.copy_from(&current, w, h);
 
-        let mut copy_subimage =
-            |dir: Direction, x: u32, y: u32, width: u32, height: u32, to_x: u32, to_y: u32| {
-                if let Some(neighbor) = image_from(spatial_node_id, output_directory, dir) {
-                    image.copy_from(&neighbor.view(x, y, width, height), to_x, to_y);
-                }
-            };
+        let mut copy_subimage = |dir: Direction,
+                                 x: u32,
+                                 y: u32,
+                                 width: u32,
+                                 height: u32,
+                                 to_x: u32,
+                                 to_y: u32|
+         -> ImageResult<()> {
+            if let Some(neighbor) = image_from(spatial_node_id, output_directory, dir)? {
+                image.copy_from(&neighbor.view(x, y, width, height), to_x, to_y);
+            }
+            Ok(())
+        };
 
-        copy_subimage(Direction::TopLeft, w, h, w, h, 0, 0);
-        copy_subimage(Direction::Top, 0, h, 2 * w, h, w, 0);
-        copy_subimage(Direction::TopRight, 0, h, w, h, 3 * w, 0);
-        copy_subimage(Direction::Right, 0, 0, w, 2 * h, 3 * w, h);
-        copy_subimage(Direction::BottomRight, 0, 0, w, h, 3 * w, 3 * h);
-        copy_subimage(Direction::Bottom, 0, 0, 2 * w, h, w, 3 * h);
-        copy_subimage(Direction::BottomLeft, w, 0, w, h, 0, 3 * h);
-        copy_subimage(Direction::Left, w, 0, w, 2 * h, 0, h);
+        copy_subimage(Direction::TopLeft, w, h, w, h, 0, 0)?;
+        copy_subimage(Direction::Top, 0, h, 2 * w, h, w, 0)?;
+        copy_subimage(Direction::TopRight, 0, h, w, h, 3 * w, 0)?;
+        copy_subimage(Direction::Right, 0, 0, w, 2 * h, 3 * w, h)?;
+        copy_subimage(Direction::BottomRight, 0, 0, w, h, 3 * w, 3 * h)?;
+        copy_subimage(Direction::Bottom, 0, 0, 2 * w, h, w, 3 * h)?;
+        copy_subimage(Direction::BottomLeft, w, 0, w, h, 0, 3 * h)?;
+        copy_subimage(Direction::Left, w, 0, w, 2 * h, 0, h)?;
 
-        image
-    })
+        Ok(Some(image))
+    } else {
+        Ok(None)
+    }
 }
 
 fn create_inpaint_image(
     spatial_node_id: SpatialNodeId,
     output_directory: &Path,
     inpaint_distance_px: u8,
-) {
-    if let Some(mut inpaint_image) = stitched_image(spatial_node_id, output_directory) {
+) -> ImageResult<()> {
+    if let Some(mut inpaint_image) = stitched_image(spatial_node_id, output_directory)? {
         inpaint_image = inpaint(inpaint_image, inpaint_distance_px).expect("Inpaint failed.");
         let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
-        inpaint_image.save(inpaint_image_path).unwrap();
+        inpaint_image.save(inpaint_image_path)?;
     }
+    Ok(())
 }
 
 fn interpolate(
@@ -131,13 +151,15 @@ fn interpolate(
     *other_pix = *this_pix;
 }
 
-fn interpolate_inpaint_image_with_right(spatial_node_id: SpatialNodeId, output_directory: &Path) {
+fn interpolate_inpaint_image_with_right(
+    spatial_node_id: SpatialNodeId,
+    output_directory: &Path,
+) -> ImageResult<()> {
     if let (Some((mut current, current_path)), Some((mut right, right_path))) = (
-        inpaint_image_and_path_from(spatial_node_id, output_directory, None),
-        inpaint_image_and_path_from(spatial_node_id, output_directory, Direction::Right),
+        inpaint_image_and_path_from(spatial_node_id, output_directory, None)?,
+        inpaint_image_and_path_from(spatial_node_id, output_directory, Direction::Right)?,
     ) {
-        let width = current.width() / 2;
-        let height = current.height();
+        let (width, height) = (current.width() / 2, current.height());
         let mut current_sub = current.sub_image(width, 0, width, height);
         let mut right_sub = right.sub_image(0, 0, width, height);
         for i in 0..width {
@@ -146,18 +168,21 @@ fn interpolate_inpaint_image_with_right(spatial_node_id: SpatialNodeId, output_d
                 interpolate(i, j, right_weight, &mut right_sub, &mut current_sub);
             }
         }
-        current.save(current_path).unwrap();
-        right.save(right_path).unwrap();
+        current.save(current_path)?;
+        right.save(right_path)?;
     }
+    Ok(())
 }
 
-fn interpolate_inpaint_image_with_bottom(spatial_node_id: SpatialNodeId, output_directory: &Path) {
+fn interpolate_inpaint_image_with_bottom(
+    spatial_node_id: SpatialNodeId,
+    output_directory: &Path,
+) -> ImageResult<()> {
     if let (Some((mut current, current_path)), Some((mut bottom, bottom_path))) = (
-        inpaint_image_and_path_from(spatial_node_id, output_directory, None),
-        inpaint_image_and_path_from(spatial_node_id, output_directory, Direction::Bottom),
+        inpaint_image_and_path_from(spatial_node_id, output_directory, None)?,
+        inpaint_image_and_path_from(spatial_node_id, output_directory, Direction::Bottom)?,
     ) {
-        let width = current.width();
-        let height = current.height() / 2;
+        let (width, height) = (current.width(), current.height() / 2);
         let mut current_sub = current.sub_image(0, height, width, height);
         let mut bottom_sub = bottom.sub_image(0, 0, width, height);
         for j in 0..height {
@@ -166,21 +191,23 @@ fn interpolate_inpaint_image_with_bottom(spatial_node_id: SpatialNodeId, output_
                 interpolate(i, j, bottom_weight, &mut bottom_sub, &mut current_sub);
             }
         }
-        current.save(current_path).unwrap();
-        bottom.save(bottom_path).unwrap();
+        current.save(current_path)?;
+        bottom.save(bottom_path)?;
     }
+    Ok(())
 }
 
-fn apply_inpainting(spatial_node_id: SpatialNodeId, output_directory: &Path) {
+fn apply_inpainting(spatial_node_id: SpatialNodeId, output_directory: &Path) -> ImageResult<()> {
     if let Some((inpaint_image, inpaint_image_path)) =
-        inpaint_image_and_path_from(spatial_node_id, output_directory, None)
+        inpaint_image_and_path_from(spatial_node_id, output_directory, None)?
     {
         let (width, height) = inpaint_image.dimensions();
         let image_view = inpaint_image.view(width / 4, height / 4, width / 2, height / 2);
         let image_path = get_image_path(output_directory, NodeId::from(spatial_node_id));
-        image_view.to_image().save(image_path).unwrap();
-        fs::remove_file(inpaint_image_path).unwrap();
+        image_view.to_image().save(image_path)?;
+        fs::remove_file(inpaint_image_path)?;
     }
+    Ok(())
 }
 
 fn inpainting_step<P, F>(
@@ -191,7 +218,7 @@ fn inpainting_step<P, F>(
     spatial_node_function: F,
 ) where
     P: FnMut(&&SpatialNodeId) -> bool,
-    F: Fn(SpatialNodeId) + Send + Copy,
+    F: Fn(SpatialNodeId) -> ImageResult<()> + Send + Copy,
 {
     let progress_bar = create_syncable_progress_bar(spatial_node_ids.len(), message);
     let run_partition = |spatial_node_ids: Vec<SpatialNodeId>| {
@@ -199,7 +226,8 @@ fn inpainting_step<P, F>(
             for spatial_node_id in spatial_node_ids {
                 let progress_bar = Arc::clone(&progress_bar);
                 scope.execute(move || {
-                    spatial_node_function(spatial_node_id);
+                    // TODO(feuerste): Move to rayon and try_for_each to handle errors properly!
+                    spatial_node_function(spatial_node_id).unwrap();
                     progress_bar.lock().unwrap().inc();
                 });
             }
