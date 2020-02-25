@@ -6,12 +6,9 @@
 // dimension, apply inpainting on the enlarged tiles and bilinearly interpolate
 // between tiles, before cutting out the original tile.
 
-use crate::utils::{get_image_path, image_from_path};
+use crate::utils::{get_image_path, image_from_path, interpolate_subimages};
 use fnv::FnvHashSet;
-use image::{
-    DynamicImage, GenericImage, GenericImageView, ImageResult, Luma, Pixel, Rgba, RgbaImage,
-    SubImage,
-};
+use image::{DynamicImage, GenericImage, GenericImageView, ImageResult, Luma, Rgba, RgbaImage};
 use imageproc::distance_transform::Norm;
 use imageproc::map::{map_colors, map_colors2};
 use imageproc::morphology::close;
@@ -41,40 +38,6 @@ fn inpaint(image: RgbaImage, distance_px: u8) -> RgbaImage {
         .build()
         .expect("Inpaint failed.");
     texsynth.run(None).into_image().into_rgba()
-}
-
-/// Interpolates pixels at position (i, j) of this and the other subimage,
-/// where this_weight weighs the pixel of this image, while (1 - this_weight)
-/// weighs the pixel of the other image.
-fn interpolate_pixels(
-    i: u32,
-    j: u32,
-    this: &mut SubImage<&mut RgbaImage>,
-    other: &mut SubImage<&mut RgbaImage>,
-    this_weight: f32,
-) {
-    let this_pix = this.get_pixel_mut(i, j);
-    let other_pix = other.get_pixel_mut(i, j);
-    // We don't use imageproc::pixelops::interpolate as it doesn't round the result
-    this_pix.apply2(&other_pix, |this_c, other_c| {
-        (this_c as f32 * this_weight + other_c as f32 * (1.0 - this_weight)).round() as u8
-    });
-    *other_pix = *this_pix;
-}
-
-fn interpolate_subimages<W>(
-    this: &mut SubImage<&mut RgbaImage>,
-    other: &mut SubImage<&mut RgbaImage>,
-    this_weighting_function: W,
-) where
-    W: Fn(u32, u32) -> f32,
-{
-    let (width, height) = this.dimensions();
-    for j in 0..height {
-        for i in 0..width {
-            interpolate_pixels(i, j, this, other, this_weighting_function(i, j));
-        }
-    }
 }
 
 struct SpatialNodeInpainter<'a> {
