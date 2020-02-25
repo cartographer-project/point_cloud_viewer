@@ -90,7 +90,7 @@ impl<'a> SpatialNodeInpainter<'a> {
             let h = current.height() / 2;
             let mut image = RgbaImage::from_pixel(4 * w, 4 * h, Rgba::from(TRANSPARENT.to_u8()));
             image.copy_from(&current, w, h);
-            let mut copy_subimage = |dir: Direction,
+            let mut copy_subimage = |direction: Direction,
                                      from_x: u32,
                                      from_y: u32,
                                      width: u32,
@@ -98,7 +98,7 @@ impl<'a> SpatialNodeInpainter<'a> {
                                      to_x: u32,
                                      to_y: u32|
              -> ImageResult<()> {
-                if let Some(neighbor) = self.image_from(dir)? {
+                if let Some(neighbor) = self.image_from(direction)? {
                     image.copy_from(&neighbor.view(from_x, from_y, width, height), to_x, to_y);
                 }
                 Ok(())
@@ -183,7 +183,7 @@ impl<'a> Inpainting<'a> {
     fn step<P, F>(&self, message: &str, partitioning_function: P, inpainter_function: F)
     where
         P: FnMut(&&SpatialNodeId) -> bool,
-        F: Fn(SpatialNodeInpainter) -> ImageResult<()> + Send + Copy,
+        F: Fn(&SpatialNodeInpainter<'a>) -> ImageResult<()> + Send + Copy,
     {
         let progress_bar = create_syncable_progress_bar(self.spatial_node_ids.len(), message);
         let run_partition = |spatial_node_ids: Vec<SpatialNodeId>| {
@@ -196,7 +196,7 @@ impl<'a> Inpainting<'a> {
                     let progress_bar = Arc::clone(&progress_bar);
                     scope.execute(move || {
                         // TODO(feuerste): Move to rayon and try_for_each to handle errors properly!
-                        inpainter_function(inpainter).unwrap();
+                        inpainter_function(&inpainter).unwrap();
                         progress_bar.lock().unwrap().inc();
                     });
                 }
@@ -244,19 +244,19 @@ pub fn perform_inpainting(
         "Horizontally interpolating inpaint images",
         // Interleave interpolation to avoid race conditions when writing images
         |spatial_node_id| spatial_node_id.x() % 2 == 0,
-        |inpainter| inpainter.interpolate_inpaint_image_with_right(),
+        SpatialNodeInpainter::interpolate_inpaint_image_with_right,
     );
 
     inpainting.step(
         "Vertically interpolating inpaint images",
         // Interleave interpolation to avoid race conditions when writing images
         |spatial_node_id| spatial_node_id.y() % 2 == 0,
-        |inpainter| inpainter.interpolate_inpaint_image_with_bottom(),
+        SpatialNodeInpainter::interpolate_inpaint_image_with_bottom,
     );
 
     inpainting.step(
         "Applying inpainting",
         |_| false,
-        |inpainter| inpainter.apply_inpainting(),
+        SpatialNodeInpainter::apply_inpainting,
     );
 }
