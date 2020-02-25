@@ -21,10 +21,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use texture_synthesis::{Dims, Example, Session};
 
+/// Inpaints only holes with radius <= distance_px in the image, but leaves big borders untouched.
 fn inpaint(image: RgbaImage, distance_px: u8) -> RgbaImage {
     let (width, height) = image.dimensions();
+    // extract the alpha channel as sampling mask
     let mask = map_colors(&image, |p| Luma([p[3]]));
+    // fill holes in the alpha channel
     let closed_mask = close(&mask, Norm::LInf, distance_px);
+    // mark pixels to be inpainted
     let inpaint_mask = map_colors2(&closed_mask, &mask, |c, m| Luma([255 - (c[0] - m[0])]));
     let texsynth = Session::builder()
         // we perform multithreading outside, so one deterministic thread here is enough
@@ -198,7 +202,7 @@ impl<'a> Inpainting<'a> {
                     let progress_bar = Arc::clone(&progress_bar);
                     scope.execute(move || {
                         // TODO(feuerste): Move to rayon and try_for_each to handle errors properly!
-                        inpainter_function(&inpainter).unwrap();
+                        inpainter_function(&inpainter).expect("Inpainting failed.");
                         progress_bar.lock().unwrap().inc();
                     });
                 }
