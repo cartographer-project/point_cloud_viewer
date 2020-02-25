@@ -14,9 +14,9 @@ use scoped_pool::Pool;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use texture_synthesis::{Dims, Error, Example, Session};
+use texture_synthesis::{Dims, Example, Session};
 
-fn inpaint(image: RgbaImage, distance_px: u8) -> Result<RgbaImage, Error> {
+fn inpaint(image: RgbaImage, distance_px: u8) -> RgbaImage {
     let (width, height) = image.dimensions();
     let mask = map_colors(&image, |p| Luma([p[3]]));
     let closed_mask = close(&mask, Norm::LInf, distance_px);
@@ -30,9 +30,9 @@ fn inpaint(image: RgbaImage, distance_px: u8) -> Result<RgbaImage, Error> {
                 .set_sample_method(DynamicImage::ImageLuma8(mask)),
             Dims::new(width, height),
         )
-        .build()?;
-    let generated = texsynth.run(None);
-    Ok(generated.into_image().into_rgba())
+        .build()
+        .expect("Inpaint failed.");
+    texsynth.run(None).into_image().into_rgba()
 }
 
 fn get_inpaint_image_path(spatial_node_id: SpatialNodeId, output_directory: &Path) -> PathBuf {
@@ -128,7 +128,7 @@ fn create_inpaint_image(
     inpaint_distance_px: u8,
 ) -> ImageResult<()> {
     if let Some(mut inpaint_image) = stitched_image(spatial_node_id, output_directory)? {
-        inpaint_image = inpaint(inpaint_image, inpaint_distance_px).expect("Inpaint failed.");
+        inpaint_image = inpaint(inpaint_image, inpaint_distance_px);
         let inpaint_image_path = get_inpaint_image_path(spatial_node_id, output_directory);
         inpaint_image.save(inpaint_image_path)?;
     }
