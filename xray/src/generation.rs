@@ -636,6 +636,10 @@ pub fn build_xray_quadtree(
             scope.execute(move || {
                 let image_path = get_image_path(output_directory, node_id);
                 let mut image = image::open(&image_path).unwrap().to_rgba();
+                // Depending on the implementation of the inpainting function above we may get pixels
+                // that are not fully opaque or fully transparent. This is why we choose a threshold
+                // in the middle to consider pixels as background or foreground and could be reevaluated
+                // in the future.
                 image = map_colors(&image, |p| if p[3] < 128 { background_color } else { p });
                 image.save(&image_path).unwrap();
                 progress_bar.lock().unwrap().inc();
