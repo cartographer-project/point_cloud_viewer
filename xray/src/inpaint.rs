@@ -128,15 +128,15 @@ impl<'a> SpatialNodeInpainter<'a> {
             let mut image = RgbaImage::from_pixel(4 * w, 4 * h, Rgba::from(TRANSPARENT.to_u8()));
             image.copy_from(&current, w, h);
             let mut copy_subimage = |dir: Direction,
-                                     x: u32,
-                                     y: u32,
+                                     from_x: u32,
+                                     from_y: u32,
                                      width: u32,
                                      height: u32,
                                      to_x: u32,
                                      to_y: u32|
              -> ImageResult<()> {
                 if let Some(neighbor) = self.image_from(dir)? {
-                    image.copy_from(&neighbor.view(x, y, width, height), to_x, to_y);
+                    image.copy_from(&neighbor.view(from_x, from_y, width, height), to_x, to_y);
                 }
                 Ok(())
             };
