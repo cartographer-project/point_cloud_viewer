@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use crate::proto_grpc::OctreeClient;
-use nalgebra::Point3;
 use collision::Aabb3;
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
+use nalgebra::Point3;
 use point_viewer::color::Color;
 use point_viewer::data_provider::{DataProvider, DataProviderFactoryResult};
 use point_viewer::errors::*;

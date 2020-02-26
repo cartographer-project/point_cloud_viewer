@@ -1,4 +1,4 @@
-use crate::math::{S2Point, AABB, EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
+use crate::math::{FromPoint3, AABB, EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
 use crate::read_write::{Encoding, NodeWriter, OpenMode};
 use crate::s2_cells::{S2CellMeta, S2Meta};
 use crate::{AttributeData, AttributeDataType, PointsBatch};
@@ -72,8 +72,7 @@ where
             let p3 = *pos;
             let b = self.bounding_box.get_or_insert(AABB::new(p3, p3));
             b.grow(p3);
-            let s2_point = S2Point::from(pos);
-            let s2_cell_id = CellID::from(s2_point).parent(self.split_level);
+            let s2_cell_id = CellID::from_point(pos).parent(self.split_level);
             self.cell_stats
                 .entry(s2_cell_id)
                 .or_insert(S2CellMeta { num_points: 0 })

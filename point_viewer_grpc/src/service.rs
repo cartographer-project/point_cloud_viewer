@@ -15,18 +15,18 @@
 use crate::proto;
 use crate::proto_grpc;
 use crate::Color;
-use nalgebra::{Isometry3, Point3, UnitQuaternion, Quaternion, Vector3};
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};
 use grpcio::{
     Environment, RpcContext, RpcStatus, RpcStatusCode, Server, ServerBuilder, ServerStreamingSink,
     UnarySink, WriteFlags,
 };
+use nalgebra::{Isometry3, Point3, Quaternion, UnitQuaternion, Vector3};
 use point_viewer::attributes::AttributeData;
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::*;
 use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
-use point_viewer::math::{Frustum, AABB, collision::Perspective};
+use point_viewer::math::{collision::Perspective, Frustum, AABB};
 use point_viewer::octree::{NodeId, Octree};
 use point_viewer::PointsBatch;
 use protobuf::Message;
@@ -116,12 +116,7 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetPointsInFrustumRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        let perspective = Perspective::new_fov(
-            req.fovy_rad,
-            req.aspect,
-            req.z_near,
-            req.z_far,
-        );
+        let perspective = Perspective::new_fov(req.fovy_rad, req.aspect, req.z_near, req.z_far);
         let rotation = {
             let q = req.rotation.unwrap();
             UnitQuaternion::new_normalize(Quaternion::new(q.w, q.x, q.y, q.z))
@@ -132,8 +127,7 @@ impl proto_grpc::Octree for OctreeService {
             Vector3::new(t.x, t.y, t.z)
         };
 
-        let view_transform = Isometry3::from_parts(translation.into(),
-            rotation);
+        let view_transform = Isometry3::from_parts(translation.into(), rotation);
         let frustum = Frustum::new(view_transform, perspective);
         let location = PointLocation::Frustum(frustum);
         self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)

@@ -21,7 +21,7 @@ use crate::read_write::{
     attempt_increasing_rlimit_to_max, Encoding, NodeIterator, NodeWriter, OpenMode, PlyIterator,
     PositionEncoding, RawNodeWriter,
 };
-use crate::{AttributeDataType, NumberOfPoints, PointCloudMeta, PointsBatch, NUM_POINTS_PER_BATCH};
+use crate::{AttributeDataType, NumberOfPoints, PointsBatch, NUM_POINTS_PER_BATCH};
 use fnv::{FnvHashMap, FnvHashSet};
 use pbr::ProgressBar;
 use protobuf::Message;
@@ -66,9 +66,7 @@ where
 {
     let mut children: Vec<Option<RawNodeWriter>> =
         vec![None, None, None, None, None, None, None, None];
-    println!(
-        "Splitting node {}.", node_id
-    );
+    println!("Splitting node {}.", node_id);
 
     let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
     stream.for_each(|batch| {
@@ -292,7 +290,7 @@ pub fn build_octree(
     resolution: f64,
     bounding_box: AABB<f64>,
     input: impl Iterator<Item = PointsBatch> + NumberOfPoints,
-    attributes: &[&str],
+    _attributes: &[&str],
 ) {
     attempt_increasing_rlimit_to_max();
 
@@ -304,8 +302,15 @@ pub fn build_octree(
     let mut input = input.peekable();
 
     let attribute_data_types: &HashMap<String, AttributeDataType> = &match input.peek() {
-        Some(batch) => { batch.attributes.iter().map(|(name, attr)| (name.to_owned(), attr.data_type())).collect() }
-        None => { println!("Input is empty, no octree is being built."); return; }
+        Some(batch) => batch
+            .attributes
+            .iter()
+            .map(|(name, attr)| (name.to_owned(), attr.data_type()))
+            .collect(),
+        None => {
+            println!("Input is empty, no octree is being built.");
+            return;
+        }
     };
     let octree_data_provider = OnDiskDataProvider {
         directory: output_directory.as_ref().to_path_buf(),

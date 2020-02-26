@@ -1936,6 +1936,8 @@ version = "0.1.0"
 dependencies = [
  "alga",
  "byteorder",
+ "cgmath 0.17.0",
+ "collision",
  "crossbeam 0.7.3",
  "error-chain",
  "fnv",

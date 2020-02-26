@@ -1,7 +1,7 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::{Cuboid, S2Point, AABB};
+use crate::math::{Cuboid, FromPoint3, AABB};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -234,10 +234,7 @@ impl S2Cells {
         IterPoint: IntoIterator<Item = Point3<f64>>,
     {
         // We could choose either a covering rect or a covering cap as a convex hull
-        let point_cells = points
-            .into_iter()
-            .map(|p| CellID::from(S2Point::from(&p)))
-            .collect();
+        let point_cells = points.into_iter().map(|p| CellID::from_point(&p)).collect();
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();
         let rect = cell_union.rect_bound();

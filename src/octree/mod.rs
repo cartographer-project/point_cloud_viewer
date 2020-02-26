@@ -62,7 +62,7 @@ impl OctreeMeta {
     }
 
     pub fn dummy() -> Self {
-        let mut attribute_data_types = HashMap::new();
+        let attribute_data_types = HashMap::new();
         OctreeMeta {
             resolution: 0.0,
             bounding_box: AABB::zero(),
