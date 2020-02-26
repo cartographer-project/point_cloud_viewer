@@ -15,10 +15,9 @@ use imageproc::morphology::close;
 use point_viewer::color::TRANSPARENT;
 use point_viewer::utils::create_syncable_progress_bar;
 use quadtree::{Direction, NodeId, SpatialNodeId};
-use scoped_pool::Pool;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use texture_synthesis::{Dims, Example, Session};
 
 /// Inpaints only holes with radius <= distance_px in the image, but leaves big borders untouched.
@@ -177,52 +176,53 @@ impl<'a> SpatialNodeInpainter<'a> {
 }
 
 struct Inpainting<'a> {
-    pool: &'a Pool,
     output_directory: &'a Path,
     spatial_node_ids: Vec<SpatialNodeId>,
 }
 
 impl<'a> Inpainting<'a> {
-    fn step<P, F>(&self, message: &str, partitioning_function: P, inpainter_function: F)
+    fn step<P, F>(
+        &self,
+        message: &str,
+        partitioning_function: P,
+        inpainter_function: F,
+    ) -> ImageResult<()>
     where
         P: FnMut(&&SpatialNodeId) -> bool,
-        F: Fn(&SpatialNodeInpainter<'a>) -> ImageResult<()> + Send + Copy,
+        F: Fn(&SpatialNodeInpainter<'a>) -> ImageResult<()> + Sync,
     {
         let progress_bar = create_syncable_progress_bar(self.spatial_node_ids.len(), message);
-        let run_partition = |spatial_node_ids: Vec<SpatialNodeId>| {
-            self.pool.scoped(|scope| {
-                for spatial_node_id in spatial_node_ids {
+        let run_partition = |spatial_node_ids: Vec<SpatialNodeId>| -> ImageResult<()> {
+            spatial_node_ids
+                .into_par_iter()
+                .try_for_each(|spatial_node_id| {
                     let inpainter = SpatialNodeInpainter {
                         spatial_node_id,
                         output_directory: self.output_directory,
                     };
-                    let progress_bar = Arc::clone(&progress_bar);
-                    scope.execute(move || {
-                        // TODO(feuerste): Move to rayon and try_for_each to handle errors properly!
-                        inpainter_function(&inpainter).expect("Inpainting failed.");
-                        progress_bar.lock().unwrap().inc();
-                    });
-                }
-            });
+                    let res = inpainter_function(&inpainter);
+                    progress_bar.lock().unwrap().inc();
+                    res
+                })
         };
         let (first, second): (Vec<SpatialNodeId>, Vec<SpatialNodeId>) = self
             .spatial_node_ids
             .iter()
             .partition(partitioning_function);
-        run_partition(first);
-        run_partition(second);
+        run_partition(first)?;
+        run_partition(second)?;
         progress_bar.lock().unwrap().finish_println("");
+        Ok(())
     }
 }
 
 pub fn perform_inpainting(
-    pool: &Pool,
     output_directory: &Path,
     inpaint_distance_px: u8,
     leaf_node_ids: &FnvHashSet<NodeId>,
-) {
+) -> ImageResult<()> {
     if inpaint_distance_px == 0 {
-        return;
+        return Ok(());
     }
 
     let spatial_node_ids: Vec<SpatialNodeId> = leaf_node_ids
@@ -232,7 +232,6 @@ pub fn perform_inpainting(
         .collect();
 
     let inpainting = Inpainting {
-        pool,
         output_directory,
         spatial_node_ids,
     };
@@ -241,25 +240,27 @@ pub fn perform_inpainting(
         "Creating inpaint images",
         |_| false,
         |inpainter| inpainter.create_inpaint_image(inpaint_distance_px),
-    );
+    )?;
 
     inpainting.step(
         "Horizontally interpolating inpaint images",
         // Interleave interpolation to avoid race conditions when writing images
         |spatial_node_id| spatial_node_id.x() % 2 == 0,
         |inpainter| inpainter.interpolate_inpaint_image_with(Direction::Right),
-    );
+    )?;
 
     inpainting.step(
         "Vertically interpolating inpaint images",
         // Interleave interpolation to avoid race conditions when writing images
         |spatial_node_id| spatial_node_id.y() % 2 == 0,
         |inpainter| inpainter.interpolate_inpaint_image_with(Direction::Bottom),
-    );
+    )?;
 
     inpainting.step(
         "Applying inpainting",
         |_| false,
         SpatialNodeInpainter::apply_inpainting,
-    );
+    )?;
+
+    Ok(())
 }

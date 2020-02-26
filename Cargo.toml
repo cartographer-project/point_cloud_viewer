@@ -19,14 +19,14 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-byteorder = "1.3.2"
+byteorder = "1.3.4"
 cgmath = { version = "0.17.0", features = ["serde"] }
 collision = { version = "0.20.1", features = ["serde"] }
 crossbeam = "0.7.3"
-error-chain = "0.12.1"
+error-chain = "0.12.2"
 fnv = "1.0.6"
 image = "0.22.5"
-libc = "0.2.66"
+libc = "0.2.67"
 lru = "0.4.3"
 nalgebra = "0.19.0"
 nav-types = "0.4.2"
@@ -36,8 +36,8 @@ num-integer = "0.1.42"
 num-traits = "0.2.11"
 pbr = "1.0.2"
 protobuf = "2.10.1"
+rayon = "1.3.0"
 s2 = { version = "0.0.10", features = ["serde"] }
-scoped-pool = "1.0.0"
 serde = "1.0.104"
 serde_derive = "1.0.104"
 structopt = "0.3.9"

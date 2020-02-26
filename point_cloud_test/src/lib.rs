@@ -29,8 +29,6 @@ pub struct Arguments {
     pub width: f64,
     // Height of the area to generate points for, in meters
     pub height: f64,
-    // The number of threads used to shard octree building.
-    pub num_threads: usize,
     // The number of points in the test point cloud.
     pub num_points: usize,
     // The batch size used for building the S2 point cloud.
@@ -47,7 +45,6 @@ impl Default for Arguments {
             resolution: 0.001,
             width: 200.0,
             height: 20.0,
-            num_threads: 10,
             num_points: 1_000_000,
             batch_size: 5000,
             seed: 80_293_751_232,
@@ -59,9 +56,8 @@ pub fn make_octree(args: &Arguments, dir: &Path) {
     let points_oct = SyntheticData::new(args.width, args.height, args.num_points, args.seed);
     let bbox = points_oct.bbox();
     let batches_oct = Batched::new(points_oct, args.batch_size);
-    let pool = scoped_pool::Pool::new(args.num_threads);
 
-    build_octree(&pool, dir, args.resolution, bbox, batches_oct, &["color"]);
+    build_octree(dir, args.resolution, bbox, batches_oct, &["color"]);
 }
 
 pub fn make_s2_cells(args: &Arguments, dir: &Path) {

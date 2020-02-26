@@ -34,11 +34,9 @@ mod tests {
         let p = Point3::new(6_400_000.0, 6_400_000.0, 6_400_000.0);
         let bounding_box = Aabb3::new(-1.0 * p, p);
 
-        let pool = scoped_pool::Pool::new(10);
         let tmp_dir = TempDir::new("octree").unwrap();
 
         build_octree(
-            &pool,
             &tmp_dir,
             1.0,
             bounding_box,
@@ -66,11 +64,9 @@ mod tests {
 
         let bounding_box = Aabb3::zero().grow(Point3::from_vec(batch.position[NUM_POINTS - 1]));
 
-        let pool = scoped_pool::Pool::new(10);
         let tmp_dir = TempDir::new("octree").unwrap();
 
         build_octree(
-            &pool,
             &tmp_dir,
             1.0,
             bounding_box,
