@@ -214,6 +214,7 @@ impl fmt::Display for NodeId {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Direction {
     Left,
     TopLeft,

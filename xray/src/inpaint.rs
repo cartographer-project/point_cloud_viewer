@@ -132,36 +132,33 @@ impl<'a> SpatialNodeInpainter<'a> {
         Ok(())
     }
 
-    fn interpolate_inpaint_image_with_right(&self) -> ImageResult<()> {
-        if let (Some((mut current, current_path)), Some((mut right, right_path))) = (
+    fn interpolate_inpaint_image_with(&self, direction: Direction) -> ImageResult<()> {
+        if let (Some((mut current, current_path)), Some((mut neighbor, neighbor_path))) = (
             self.inpaint_image_and_path_from(None)?,
-            self.inpaint_image_and_path_from(Direction::Right)?,
+            self.inpaint_image_and_path_from(direction)?,
         ) {
-            let (width, height) = (current.width() / 2, current.height());
+            let (width, height) = match direction {
+                Direction::Right => (current.width() / 2, current.height()),
+                Direction::Bottom => (current.width(), current.height() / 2),
+                _ => unimplemented!(),
+            };
+            let ((current_x, current_y), (neighbor_x, neighbor_y)) = match direction {
+                Direction::Right => ((width, 0), (0, 0)),
+                Direction::Bottom => ((0, height), (0, 0)),
+                _ => unimplemented!(),
+            };
+            let neighbor_weighting_function: Box<dyn Fn(u32, u32) -> f32> = match direction {
+                Direction::Right => Box::new(|i, _| i as f32 / (width - 1) as f32),
+                Direction::Bottom => Box::new(|_, j| j as f32 / (height - 1) as f32),
+                _ => unimplemented!(),
+            };
             interpolate_subimages(
-                &mut right.sub_image(0, 0, width, height),
-                &mut current.sub_image(width, 0, width, height),
-                |i, _| i as f32 / (width - 1) as f32,
+                &mut neighbor.sub_image(neighbor_x, neighbor_y, width, height),
+                &mut current.sub_image(current_x, current_y, width, height),
+                neighbor_weighting_function,
             );
             current.save(current_path)?;
-            right.save(right_path)?;
-        }
-        Ok(())
-    }
-
-    fn interpolate_inpaint_image_with_bottom(&self) -> ImageResult<()> {
-        if let (Some((mut current, current_path)), Some((mut bottom, bottom_path))) = (
-            self.inpaint_image_and_path_from(None)?,
-            self.inpaint_image_and_path_from(Direction::Bottom)?,
-        ) {
-            let (width, height) = (current.width(), current.height() / 2);
-            interpolate_subimages(
-                &mut bottom.sub_image(0, 0, width, height),
-                &mut current.sub_image(0, height, width, height),
-                |_, j| j as f32 / (height - 1) as f32,
-            );
-            current.save(current_path)?;
-            bottom.save(bottom_path)?;
+            neighbor.save(neighbor_path)?;
         }
         Ok(())
     }
@@ -250,14 +247,14 @@ pub fn perform_inpainting(
         "Horizontally interpolating inpaint images",
         // Interleave interpolation to avoid race conditions when writing images
         |spatial_node_id| spatial_node_id.x() % 2 == 0,
-        SpatialNodeInpainter::interpolate_inpaint_image_with_right,
+        |inpainter| inpainter.interpolate_inpaint_image_with(Direction::Right),
     );
 
     inpainting.step(
         "Vertically interpolating inpaint images",
         // Interleave interpolation to avoid race conditions when writing images
         |spatial_node_id| spatial_node_id.y() % 2 == 0,
-        SpatialNodeInpainter::interpolate_inpaint_image_with_bottom,
+        |inpainter| inpainter.interpolate_inpaint_image_with(Direction::Bottom),
     );
 
     inpainting.step(
