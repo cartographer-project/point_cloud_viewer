@@ -9,7 +9,6 @@ use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::{ClosedInterval, Isometry3};
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
 use point_viewer::utils::parse_key_val;
-use rayon::ThreadPoolBuilder;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -165,7 +164,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
 
     let output_directory = Path::new(args.value_of("output_directory").unwrap());
 
-    ThreadPoolBuilder::new()
+    rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build_global()
         .expect("Could not create thread pool.");
