@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use point_viewer::octree::build_octree_from_file;
+use rayon::ThreadPoolBuilder;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -39,7 +40,10 @@ struct CommandlineArguments {
 
 fn main() {
     let args = CommandlineArguments::from_args();
-    let pool = scoped_pool::Pool::new(args.num_threads);
+    let pool = ThreadPoolBuilder::new()
+        .num_threads(args.num_threads)
+        .build()
+        .expect("Could not create thread pool.");
     build_octree_from_file(
         &pool,
         args.output_directory,

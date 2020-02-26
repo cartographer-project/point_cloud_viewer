@@ -34,7 +34,10 @@ mod tests {
         let p = Point3::new(6_400_000.0, 6_400_000.0, 6_400_000.0);
         let bounding_box = Aabb3::new(-1.0 * p, p);
 
-        let pool = scoped_pool::Pool::new(10);
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(10)
+            .build()
+            .expect("Could not create thread pool.");
         let tmp_dir = TempDir::new("octree").unwrap();
 
         build_octree(
@@ -66,7 +69,10 @@ mod tests {
 
         let bounding_box = Aabb3::zero().grow(Point3::from_vec(batch.position[NUM_POINTS - 1]));
 
-        let pool = scoped_pool::Pool::new(10);
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(10)
+            .build()
+            .expect("Could not create thread pool.");
         let tmp_dir = TempDir::new("octree").unwrap();
 
         build_octree(
