@@ -28,7 +28,8 @@ use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use pbr::ProgressBar;
 use protobuf::Message;
-use rayon::{Scope, ThreadPool};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::Scope;
 use std::cmp;
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -276,7 +277,6 @@ fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb3<f64> {
 }
 
 pub fn build_octree_from_file(
-    pool: &ThreadPool,
     output_directory: impl AsRef<Path>,
     resolution: f64,
     filename: impl AsRef<Path>,
@@ -285,7 +285,6 @@ pub fn build_octree_from_file(
     let bounding_box = find_bounding_box(filename.as_ref());
     let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap();
     build_octree(
-        pool,
         output_directory,
         resolution,
         bounding_box,
@@ -295,7 +294,6 @@ pub fn build_octree_from_file(
 }
 
 pub fn build_octree(
-    pool: &ThreadPool,
     output_directory: impl AsRef<Path>,
     resolution: f64,
     bounding_box: Aabb3<f64>,
@@ -322,7 +320,7 @@ pub fn build_octree(
     println!("Creating octree structure.");
 
     let (leaf_nodes_sender, leaf_nodes_receiver) = crossbeam::channel::unbounded();
-    pool.scope(move |scope| {
+    rayon::scope(move |scope| {
         let root_node = octree::Node::root_with_bounding_cube(Cube::bounding(&bounding_box));
         split_node(
             scope,
@@ -363,7 +361,7 @@ pub fn build_octree(
 
         let (finished_nodes_sender, finished_nodes_receiver) = crossbeam::channel::unbounded();
         let (progress_tx, progress_rx) = crossbeam::channel::unbounded();
-        pool.scope(|scope| {
+        rayon::scope(|scope| {
             scope.spawn(|_| {
                 for (id, num_points) in finished_nodes_receiver {
                     finished_nodes.insert(id, num_points);
@@ -376,21 +374,17 @@ pub fn build_octree(
                 }
             });
 
-            for id in &parent_ids {
-                let finished_nodes_sender_clone = finished_nodes_sender.clone();
-                let progress_tx_clone = progress_tx.clone();
-                scope.spawn(move |_| {
-                    subsample_children_into(
-                        octree_data_provider,
-                        octree_meta,
-                        attribute_data_types,
-                        id,
-                        &finished_nodes_sender_clone,
-                    )
-                    .unwrap();
-                    progress_tx_clone.send(()).unwrap();
-                });
-            }
+            parent_ids.par_iter().for_each(|id| {
+                subsample_children_into(
+                    octree_data_provider,
+                    octree_meta,
+                    attribute_data_types,
+                    id,
+                    &finished_nodes_sender,
+                )
+                .unwrap();
+                progress_tx.send(()).unwrap();
+            });
             drop(finished_nodes_sender);
             drop(progress_tx);
         });
@@ -510,18 +504,7 @@ mod tests {
         for point in &points {
             bounding_box = bounding_box.grow(Point3::from_vec(point.position));
         }
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(10)
-            .build()
-            .expect("Could not create thread pool.");
         let tmp_dir = TempDir::new("octree").unwrap();
-        build_octree(
-            &pool,
-            tmp_dir,
-            1.0,
-            bounding_box,
-            Points::new(points),
-            &["color"],
-        );
+        build_octree(tmp_dir, 1.0, bounding_box, Points::new(points), &["color"]);
     }
 }

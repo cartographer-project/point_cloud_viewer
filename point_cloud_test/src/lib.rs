@@ -59,12 +59,12 @@ pub fn make_octree(args: &Arguments, dir: &Path) {
     let points_oct = SyntheticData::new(args.width, args.height, args.num_points, args.seed);
     let bbox = points_oct.bbox();
     let batches_oct = Batched::new(points_oct, args.batch_size);
-    let pool = rayon::ThreadPoolBuilder::new()
+    rayon::ThreadPoolBuilder::new()
         .num_threads(args.num_threads)
-        .build()
+        .build_global()
         .expect("Could not create thread pool.");
 
-    build_octree(&pool, dir, args.resolution, bbox, batches_oct, &["color"]);
+    build_octree(dir, args.resolution, bbox, batches_oct, &["color"]);
 }
 
 pub fn make_s2_cells(args: &Arguments, dir: &Path) {

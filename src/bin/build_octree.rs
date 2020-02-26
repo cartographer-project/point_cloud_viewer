@@ -40,12 +40,11 @@ struct CommandlineArguments {
 
 fn main() {
     let args = CommandlineArguments::from_args();
-    let pool = ThreadPoolBuilder::new()
+    ThreadPoolBuilder::new()
         .num_threads(args.num_threads)
-        .build()
+        .build_global()
         .expect("Could not create thread pool.");
     build_octree_from_file(
-        &pool,
         args.output_directory,
         args.resolution,
         args.input,

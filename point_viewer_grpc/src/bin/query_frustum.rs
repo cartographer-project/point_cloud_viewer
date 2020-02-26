@@ -145,12 +145,11 @@ fn main() {
         })
         .wait()
         .unwrap();
-    let pool = rayon::ThreadPoolBuilder::new()
+    rayon::ThreadPoolBuilder::new()
         .num_threads(10)
-        .build()
+        .build_global()
         .expect("Could not create thread pool.");
     build_octree(
-        &pool,
         "/tmp/octree",
         0.001,
         bounding_box,
