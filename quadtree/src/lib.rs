@@ -214,6 +214,7 @@ impl fmt::Display for NodeId {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Direction {
     Left,
     TopLeft,
@@ -235,6 +236,18 @@ pub struct SpatialNodeId {
 impl SpatialNodeId {
     pub fn new(level: u8, x: u64, y: u64) -> Self {
         Self { level, x, y }
+    }
+
+    pub fn level(&self) -> u8 {
+        self.level
+    }
+
+    pub fn x(&self) -> u64 {
+        self.x
+    }
+
+    pub fn y(&self) -> u64 {
+        self.y
     }
 
     pub fn neighbor(&self, direction: Direction) -> Option<Self> {

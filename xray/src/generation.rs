@@ -1,8 +1,9 @@
 // Code related to X-Ray generation.
 
 use crate::colormap::{Colormap, Jet, Monochrome, PURPLISH};
-use crate::proto;
-use crate::CURRENT_VERSION;
+use crate::inpaint::perform_inpainting;
+use crate::utils::get_image_path;
+use crate::{proto, CURRENT_VERSION};
 use cgmath::{Decomposed, EuclideanSpace, Point2, Point3, Quaternion, Vector2, Vector3};
 use clap::arg_enum;
 use collision::{Aabb, Aabb3};
@@ -25,7 +26,7 @@ use std::collections::{hash_map::Entry, HashMap, HashSet};
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::BufWriter;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{mpsc, Arc};
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
@@ -468,6 +469,7 @@ pub struct XrayParameters {
     pub query_from_global: Option<Isometry3<f64>>,
     pub filter_intervals: HashMap<String, ClosedInterval<f64>>,
     pub tile_background_color: Color<u8>,
+    pub inpaint_distance_px: u8,
 }
 
 pub fn xray_from_points(
@@ -534,12 +536,6 @@ fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb3<f64>, tile_size_m: f64) -
         Rect::new(Point2::new(bbox.min().x, bbox.min().y), cur_size),
         levels,
     )
-}
-
-pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
-    let mut rv = directory.join(&id.to_string());
-    rv.set_extension("png");
-    rv
 }
 
 pub fn build_xray_quadtree(
@@ -622,8 +618,15 @@ pub fn build_xray_quadtree(
     progress_bar.lock().unwrap().finish_println("");
     drop(parents_to_create_tx);
     drop(created_leaf_node_ids_tx);
-
     let created_leaf_node_ids: FnvHashSet<NodeId> = created_leaf_node_ids_rx.into_iter().collect();
+
+    perform_inpainting(
+        pool,
+        output_directory,
+        parameters.inpaint_distance_px,
+        &created_leaf_node_ids,
+    );
+
     let progress_bar =
         create_syncable_progress_bar(created_leaf_node_ids.len(), "Assigning background color");
     pool.scoped(|scope| {
@@ -633,7 +636,11 @@ pub fn build_xray_quadtree(
             scope.execute(move || {
                 let image_path = get_image_path(output_directory, node_id);
                 let mut image = image::open(&image_path).unwrap().to_rgba();
-                image = map_colors(&image, |p| if p[3] == 0 { background_color } else { p });
+                // Depending on the implementation of the inpainting function above we may get pixels
+                // that are not fully opaque or fully transparent. This is why we choose a threshold
+                // in the middle to consider pixels as background or foreground and could be reevaluated
+                // in the future.
+                image = map_colors(&image, |p| if p[3] < 128 { background_color } else { p });
                 image.save(&image_path).unwrap();
                 progress_bar.lock().unwrap().inc();
             });
