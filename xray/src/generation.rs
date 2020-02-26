@@ -650,47 +650,42 @@ pub fn build_xray_quadtree(
         );
         let (parents_to_create_tx, new_rx) = crossbeam::channel::unbounded();
         parents_to_create_rx = new_rx;
-        rayon::scope(|scope| {
-            for node_id in nodes_to_create {
-                all_nodes_tx.send(node_id).unwrap();
-                let tx_clone = parents_to_create_tx.clone();
-                let progress_bar = Arc::clone(&progress_bar);
-                scope.spawn(move |_| {
-                    let mut children = [None, None, None, None];
+        nodes_to_create.into_par_iter().for_each(|node_id| {
+            all_nodes_tx.send(node_id).unwrap();
 
-                    // We a right handed coordinate system with the x-axis of world and images
-                    // aligning. This means that the y-axis aligns too, but the origin of the image
-                    // space must be at the bottom left. Since images have their origin at the top
-                    // left, we need actually have to invert y and go from the bottom of the image.
-                    for id in 0..4 {
-                        let png = get_image_path(
-                            output_directory,
-                            node_id.get_child_id(&ChildIndex::from_u8(id)),
-                        );
-                        if !png.exists() {
-                            continue;
-                        }
-                        children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
-                    }
-                    if children.iter().any(|child| child.is_some()) {
-                        let large_image = build_parent(&children, parameters.tile_background_color);
-                        let image = image::DynamicImage::ImageRgba8(large_image).resize(
-                            tile.size_px,
-                            tile.size_px,
-                            image::FilterType::Lanczos3,
-                        );
-                        image
-                            .as_rgba8()
-                            .unwrap()
-                            .save(&get_image_path(output_directory, node_id))
-                            .unwrap();
-                        if let Some(id) = node_id.parent_id() {
-                            tx_clone.send(id).unwrap()
-                        }
-                    }
-                    progress_bar.lock().unwrap().inc();
-                });
+            let mut children = [None, None, None, None];
+
+            // We a right handed coordinate system with the x-axis of world and images
+            // aligning. This means that the y-axis aligns too, but the origin of the image
+            // space must be at the bottom left. Since images have their origin at the top
+            // left, we need actually have to invert y and go from the bottom of the image.
+            for id in 0..4 {
+                let png = get_image_path(
+                    output_directory,
+                    node_id.get_child_id(&ChildIndex::from_u8(id)),
+                );
+                if !png.exists() {
+                    continue;
+                }
+                children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
             }
+            if children.iter().any(|child| child.is_some()) {
+                let large_image = build_parent(&children, parameters.tile_background_color);
+                let image = image::DynamicImage::ImageRgba8(large_image).resize(
+                    tile.size_px,
+                    tile.size_px,
+                    image::FilterType::Lanczos3,
+                );
+                image
+                    .as_rgba8()
+                    .unwrap()
+                    .save(&get_image_path(output_directory, node_id))
+                    .unwrap();
+                if let Some(id) = node_id.parent_id() {
+                    parents_to_create_tx.send(id).unwrap()
+                }
+            }
+            progress_bar.lock().unwrap().inc();
         });
         progress_bar.lock().unwrap().finish_println("");
         drop(parents_to_create_tx);
