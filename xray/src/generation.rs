@@ -20,6 +20,7 @@ use point_viewer::utils::create_syncable_progress_bar;
 use point_viewer::{match_1d_attr_data, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use stats::OnlineStats;
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 use std::error::Error;
@@ -627,22 +628,17 @@ pub fn build_xray_quadtree(
 
     let progress_bar =
         create_syncable_progress_bar(created_leaf_node_ids.len(), "Assigning background color");
-    rayon::scope(|scope| {
-        let background_color = Rgba::from(parameters.tile_background_color);
-        for node_id in created_leaf_node_ids {
-            let progress_bar = Arc::clone(&progress_bar);
-            scope.spawn(move |_| {
-                let image_path = get_image_path(output_directory, node_id);
-                let mut image = image::open(&image_path).unwrap().to_rgba();
-                // Depending on the implementation of the inpainting function above we may get pixels
-                // that are not fully opaque or fully transparent. This is why we choose a threshold
-                // in the middle to consider pixels as background or foreground and could be reevaluated
-                // in the future.
-                image = map_colors(&image, |p| if p[3] < 128 { background_color } else { p });
-                image.save(&image_path).unwrap();
-                progress_bar.lock().unwrap().inc();
-            });
-        }
+    let background_color = Rgba::from(parameters.tile_background_color);
+    created_leaf_node_ids.into_par_iter().for_each(|node_id| {
+        let image_path = get_image_path(output_directory, node_id);
+        let mut image = image::open(&image_path).unwrap().to_rgba();
+        // Depending on the implementation of the inpainting function above we may get pixels
+        // that are not fully opaque or fully transparent. This is why we choose a threshold
+        // in the middle to consider pixels as background or foreground and could be reevaluated
+        // in the future.
+        image = map_colors(&image, |p| if p[3] < 128 { background_color } else { p });
+        image.save(&image_path).unwrap();
+        progress_bar.lock().unwrap().inc();
     });
     progress_bar.lock().unwrap().finish_println("");
 
