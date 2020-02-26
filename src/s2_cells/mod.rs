@@ -1,7 +1,7 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::{Cuboid, FromPoint3, AABB};
+use crate::math::{FromPoint3, AABB, ConvexPolyhedron};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -223,9 +223,9 @@ impl S2Cells {
     /// Wrapper arround cells_in_convex_hull for Obbs
     fn cells_in_cuboid<T>(&self, cuboid: &T) -> Vec<CellID>
     where
-        T: Cuboid<f64>,
+        T: ConvexPolyhedron<f64>,
     {
-        self.cells_in_convex_hull(cuboid.corners().iter().cloned())
+        self.cells_in_convex_hull(cuboid.compute_corners().iter().cloned())
     }
 
     /// Returns all cells that intersect the convex hull of the given points

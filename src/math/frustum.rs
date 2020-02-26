@@ -1,6 +1,7 @@
 use super::aabb::AABB;
-use super::base::{Cuboid, PointCulling, Relation};
-use nalgebra::{Isometry3, Matrix4, Point3, RealField};
+use super::base::{PointCulling, Relation};
+use super::sat::{ConvexPolyhedron};
+use nalgebra::{Isometry3, Matrix4, Point3, RealField, Vector3};
 use serde::{Deserialize, Serialize};
 
 pub mod collision {
@@ -182,12 +183,11 @@ where
     }
 }
 
-impl<S> Cuboid<S> for Frustum<S>
+impl<S> ConvexPolyhedron<S> for Frustum<S>
 where
     S: RealField,
 {
-    fn corners(&self) -> [Point3<S>; 8] {
-        // TODO(nnmm): Precompute
+    fn compute_corners(&self) -> [Point3<S>; 8] {
         let corner_from = |x, y, z| self.query_from_clip.transform_point(&Point3::new(x, y, z));
         [
             corner_from(-S::one(), -S::one(), -S::one()),
@@ -199,5 +199,9 @@ where
             corner_from(S::one(), S::one(), -S::one()),
             corner_from(S::one(), S::one(), S::one()),
         ]
+    }
+
+    fn compute_edges(&self) -> [Option<Vector3<S>>; 6] {
+        unimplemented!()
     }
 }

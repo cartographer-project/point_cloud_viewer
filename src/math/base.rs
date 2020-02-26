@@ -1,5 +1,5 @@
 use super::aabb::AABB;
-use nalgebra::{Point3, RealField, Scalar};
+use nalgebra::{Point3, RealField, Scalar, Vector3};
 use std::fmt;
 
 pub trait PointCulling<S>: fmt::Debug + Sync + Send
@@ -9,10 +9,6 @@ where
     fn contains(&self, point: &Point3<S>) -> bool;
     // TODO(nnmm): better name
     fn intersects_aabb(&self, aabb: &AABB<S>) -> Relation;
-}
-
-pub trait Cuboid<S: Scalar> {
-    fn corners(&self) -> [Point3<S>; 8];
 }
 
 /// Spatial relation between two objects.

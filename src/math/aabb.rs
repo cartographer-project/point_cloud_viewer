@@ -1,5 +1,5 @@
-use super::base::{Cuboid, PointCulling, Relation};
-use super::sat::intersects_aabb;
+use super::base::{PointCulling, Relation};
+use super::sat::{ConvexPolyhedron, intersects_aabb};
 use crate::proto;
 use nalgebra::{Point3, RealField, Vector3};
 use serde::{Deserialize, Serialize};
@@ -100,11 +100,22 @@ where
     }
 }
 
-impl<S> Cuboid<S> for AABB<S>
+impl<S> ConvexPolyhedron<S> for AABB<S>
 where
     S: RealField,
 {
-    fn corners(&self) -> [Point3<S>; 8] {
+    fn compute_corners(&self) -> [Point3<S>; 8] {
         self.corners()
+    }
+
+    fn compute_edges(&self) -> [Option<Vector3<S>>; 6] {
+        [
+            Some(Vector3::x()),
+            Some(Vector3::y()),
+            Some(Vector3::z()),
+            None,
+            None,
+            None,
+        ]
     }
 }

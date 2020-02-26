@@ -31,6 +31,7 @@ pub use aabb::*;
 pub use base::*;
 pub use frustum::*;
 pub use obb::*;
+pub use sat::*;
 
 /// Lower bound for distance from earth's center.
 /// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes
