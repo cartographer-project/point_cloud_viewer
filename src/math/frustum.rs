@@ -1,6 +1,6 @@
 use super::aabb::AABB;
 use super::base::{PointCulling, Relation};
-use super::sat::{ConvexPolyhedron};
+use super::sat::ConvexPolyhedron;
 use nalgebra::{Isometry3, Matrix4, Point3, RealField, Vector3};
 use serde::{Deserialize, Serialize};
 
@@ -202,6 +202,10 @@ where
     }
 
     fn compute_edges(&self) -> [Option<Vector3<S>>; 6] {
+        unimplemented!()
+    }
+
+    fn compute_face_normals(&self) -> [Option<Vector3<S>>; 6] {
         unimplemented!()
     }
 }

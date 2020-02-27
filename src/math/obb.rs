@@ -96,7 +96,11 @@ where
     fn compute_corners(&self) -> [Point3<S>; 8] {
         let corner_from = |x, y, z| self.query_from_obb * &Point3::new(x, y, z);
         [
-            corner_from(-self.half_extent.x, -self.half_extent.y, -self.half_extent.z),
+            corner_from(
+                -self.half_extent.x,
+                -self.half_extent.y,
+                -self.half_extent.z,
+            ),
             corner_from(self.half_extent.x, -self.half_extent.y, -self.half_extent.z),
             corner_from(-self.half_extent.x, self.half_extent.y, -self.half_extent.z),
             corner_from(self.half_extent.x, self.half_extent.y, -self.half_extent.z),
@@ -114,8 +118,12 @@ where
             Some(self.query_from_obb * Vector3::z()),
             None,
             None,
-            None
+            None,
         ]
+    }
+
+    fn compute_face_normals(&self) -> [Option<Vector3<S>>; 6] {
+        self.compute_edges()
     }
 }
 

@@ -1,5 +1,5 @@
 use super::base::{PointCulling, Relation};
-use super::sat::{ConvexPolyhedron, intersects_aabb};
+use super::sat::{intersects_aabb, ConvexPolyhedron};
 use crate::proto;
 use nalgebra::{Point3, RealField, Vector3};
 use serde::{Deserialize, Serialize};
@@ -117,5 +117,9 @@ where
             None,
             None,
         ]
+    }
+
+    fn compute_face_normals(&self) -> [Option<Vector3<S>>; 6] {
+        self.compute_edges()
     }
 }

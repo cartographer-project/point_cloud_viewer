@@ -26,7 +26,7 @@ mod aabb;
 mod base;
 mod frustum;
 mod obb;
-mod sat;
+pub mod sat;
 pub use aabb::*;
 pub use base::*;
 pub use frustum::*;
@@ -115,7 +115,7 @@ where
 }
 
 /// Convenience trait to get a CellID from a Point3.
-/// From<Point3<S>> cannot be used because of orphan rules.
+/// `From<Point3<S>>` cannot be used because of orphan rules.
 pub trait FromPoint3<S: Scalar> {
     fn from_point(p: &Point3<S>) -> Self;
 }
