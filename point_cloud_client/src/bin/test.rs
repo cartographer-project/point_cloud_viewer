@@ -4,7 +4,6 @@
 use cgmath::Point3;
 use collision::Aabb3;
 use point_cloud_client::PointCloudClientBuilder;
-use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::{ErrorKind, Result};
 use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::PointsBatch;
@@ -64,12 +63,11 @@ struct CommandlineArguments {
 fn main() {
     let args = CommandlineArguments::from_args();
     let num_points = args.num_points;
-    let point_cloud_client =
-        PointCloudClientBuilder::new(&args.locations, DataProviderFactory::new())
-            .num_threads(args.num_threads)
-            .num_points_per_batch(args.batch_size)
-            .build()
-            .expect("Couldn't create point cloud client.");
+    let point_cloud_client = PointCloudClientBuilder::new(&args.locations)
+        .num_threads(args.num_threads)
+        .num_points_per_batch(args.batch_size)
+        .build()
+        .expect("Couldn't create point cloud client.");
 
     let point_location = PointQuery {
         attributes: vec!["color", "intensity"],

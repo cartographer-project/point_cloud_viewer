@@ -69,7 +69,7 @@ fn main() {
     let num_threads = usize::from_str(
         matches
             .value_of("num-threads")
-            .unwrap_or(&(num_cpus::get() - 1).to_string()),
+            .unwrap_or(&(std::cmp::max(1, num_cpus::get() - 1)).to_string()),
     )
     .expect("num-threads needs to be a number");
     let buffer_size = usize::from_str(matches.value_of("buffer-size").unwrap_or("4"))

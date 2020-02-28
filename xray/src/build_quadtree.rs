@@ -174,12 +174,12 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         .unwrap()
         .map(String::from)
         .collect::<Vec<_>>();
-    let point_cloud_client =
-        PointCloudClientBuilder::new(&point_cloud_locations, data_provider_factory)
-            // We do threading outside
-            .num_threads(1)
-            .build()
-            .expect("Could not create point cloud client.");
+    let point_cloud_client = PointCloudClientBuilder::new(&point_cloud_locations)
+        .data_provider_factory(data_provider_factory)
+        // We do threading outside
+        .num_threads(1)
+        .build()
+        .expect("Could not create point cloud client.");
 
     let filter_intervals = args
         .values_of("filter_interval")

@@ -24,33 +24,29 @@ impl PointCloudClient {
         &self.aabb
     }
 
-    pub fn for_each_point_data<F>(&self, point_query: &PointQuery, mut func: F) -> Result<()>
+    fn for_each<C, F>(&self, point_cloud: &[C], point_query: &PointQuery, mut func: F) -> Result<()>
+    where
+        C: PointCloud,
+        F: FnMut(PointsBatch) -> Result<()>,
+    {
+        let mut parallel_iterator = ParallelIterator::new(
+            point_cloud,
+            point_query,
+            self.num_points_per_batch,
+            self.num_threads,
+            self.buffer_size,
+        );
+        parallel_iterator.try_for_each_batch(&mut func)
+    }
+
+    pub fn for_each_point_data<F>(&self, point_query: &PointQuery, func: F) -> Result<()>
     where
         F: FnMut(PointsBatch) -> Result<()>,
     {
         match &self.point_clouds {
-            PointClouds::Octrees(octrees) => {
-                let mut parallel_iterator = ParallelIterator::new(
-                    octrees,
-                    point_query,
-                    self.num_points_per_batch,
-                    self.num_threads,
-                    self.buffer_size,
-                );
-                parallel_iterator.try_for_each_batch(&mut func)?;
-            }
-            PointClouds::S2Cells(s2_cells) => {
-                let mut parallel_iterator = ParallelIterator::new(
-                    s2_cells,
-                    point_query,
-                    self.num_points_per_batch,
-                    self.num_threads,
-                    self.buffer_size,
-                );
-                parallel_iterator.try_for_each_batch(&mut func)?;
-            }
+            PointClouds::Octrees(octrees) => self.for_each(octrees, point_query, func),
+            PointClouds::S2Cells(s2_cells) => self.for_each(s2_cells, point_query, func),
         }
-        Ok(())
     }
 }
 
@@ -63,14 +59,19 @@ pub struct PointCloudClientBuilder<'a> {
 }
 
 impl<'a> PointCloudClientBuilder<'a> {
-    pub fn new(locations: &'a [String], data_provider_factory: DataProviderFactory) -> Self {
+    pub fn new(locations: &'a [String]) -> Self {
         Self {
             locations,
-            data_provider_factory,
+            data_provider_factory: DataProviderFactory::new(),
             num_points_per_batch: NUM_POINTS_PER_BATCH,
-            num_threads: num_cpus::get() - 1,
+            num_threads: std::cmp::max(1, num_cpus::get() - 1),
             buffer_size: 4,
         }
+    }
+
+    pub fn data_provider_factory(mut self, data_provider_factory: DataProviderFactory) -> Self {
+        self.data_provider_factory = data_provider_factory;
+        self
     }
 
     pub fn num_points_per_batch(mut self, num_points_per_batch: usize) -> Self {
