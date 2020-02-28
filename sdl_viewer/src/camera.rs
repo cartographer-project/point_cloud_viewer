@@ -15,7 +15,7 @@
 use crate::opengl;
 use nalgebra::{Isometry3, Matrix4, Perspective3, UnitQuaternion, Vector3};
 use num_traits::One;
-use point_viewer::math::collision::Perspective;
+
 use serde_derive::{Deserialize, Serialize};
 use std::f64;
 

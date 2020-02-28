@@ -14,7 +14,8 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::{collision, Cube, Relation, AABB};
+use crate::math::sat::{ConvexPolyhedron, Intersector};
+use crate::math::{cell_union_intersects_aabb, Cube, Frustum, Relation, AABB};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -224,7 +225,11 @@ impl Octree {
     }
 
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
-        let frustum = collision::Frustum::from_matrix4(projection_matrix.clone());
+        let frustum =
+            Frustum::from_matrix4(projection_matrix.clone()).expect("Invalid projection matrix.");
+        let frustum_isec = frustum
+            .intersector()
+            .cache_separating_axes(&AABB::axes(), &AABB::axes());
         let mut open = BinaryHeap::new();
         maybe_push_node(
             &mut open,
@@ -240,7 +245,8 @@ impl Octree {
                 Relation::Cross => {
                     for child_index in 0..8 {
                         let child = current.node.get_child(ChildIndex::from_u8(child_index));
-                        let child_relation = frustum.contains(&child.bounding_cube.to_aabb());
+                        let child_relation = frustum_isec
+                            .intersect(&child.bounding_cube.to_aabb().compute_corners());
                         if child_relation == Relation::Out {
                             continue;
                         }
@@ -309,13 +315,26 @@ impl PointCloud for Octree {
     type Id = NodeId;
 
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
-        let culling = location.get_point_culling();
-        let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
-            let current = &octree.nodes[&node_id];
-            // TODO(nnmm): Make more efficient by using Relation
-            culling.intersects_aabb(&current.bounding_cube.to_aabb()) != Relation::Out
+        let node_ids_for_intersector = |isec: Intersector<f64>| {
+            let cached_intersector = isec.cache_separating_axes(&AABB::axes(), &AABB::axes());
+            NodeIdsIterator::new(&self, move |node_id, octree| {
+                let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
+                cached_intersector.intersect(&aabb.corners()) != Relation::Out
+            })
+            .collect()
         };
-        NodeIdsIterator::new(&self, filter_func).collect()
+        use PointLocation::*;
+        match location {
+            AllPoints => NodeIdsIterator::new(&self, |_, _| true).collect(),
+            Aabb(aabb) => node_ids_for_intersector(aabb.intersector()),
+            Frustum(f) => node_ids_for_intersector(f.intersector()),
+            Obb(obb) => node_ids_for_intersector(obb.intersector()),
+            S2Cells(cu) => NodeIdsIterator::new(&self, |node_id, octree| {
+                let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
+                cell_union_intersects_aabb(cu, &aabb) != Relation::Out
+            })
+            .collect(),
+        }
     }
 
     fn encoding_for_node(&self, id: Self::Id) -> Encoding {

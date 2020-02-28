@@ -93,7 +93,7 @@ impl<'a> Iterator for FilteredIterator<'a> {
     }
 }
 
-/// current implementation of the stream of points used in ParallelIterator
+/// Current implementation of the stream of points used in ParallelIterator
 struct PointStream<'a, F>
 where
     F: Fn(PointsBatch) -> Result<()>,

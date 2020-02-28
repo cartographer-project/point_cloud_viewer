@@ -1,11 +1,10 @@
-use super::aabb::AABB;
-use super::base::{PointCulling, Relation};
-use super::sat::ConvexPolyhedron;
-use nalgebra::{Isometry3, Matrix4, Point3, RealField, Vector3};
+use super::base::PointCulling;
+use super::sat::{ConvexPolyhedron, Intersector};
+use arrayvec::ArrayVec;
+use nalgebra::{Isometry3, Matrix4, Point3, RealField, Unit, Vector3};
 use serde::{Deserialize, Serialize};
 
 pub mod collision {
-    use super::{Relation, AABB};
     use nalgebra::{Matrix4, RealField};
     use serde::{Deserialize, Serialize};
 
@@ -111,30 +110,11 @@ pub mod collision {
             )
         }
     }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct Frustum<S: RealField> {
-        matrix: Matrix4<S>,
-    }
-
-    impl<S: RealField> Frustum<S> {
-        pub fn from_matrix4(matrix: Matrix4<S>) -> Self {
-            Self { matrix }
-        }
-
-        pub fn contains(&self, aabb: &AABB<S>) -> Relation {
-            super::contains_aabb(&self.matrix, aabb)
-        }
-    }
 }
 
 fn contains_point<S: RealField>(matrix: &Matrix4<S>, point: &Point3<S>) -> bool {
     let p_clip = matrix.transform_point(point);
     p_clip.coords.min() > nalgebra::convert(-1.0) && p_clip.coords.max() < nalgebra::convert(1.0)
-}
-
-fn contains_aabb<S: RealField>(_matrix: &Matrix4<S>, _aabb: &AABB<S>) -> Relation {
-    unimplemented!()
 }
 
 /// A frustum is defined in eye coordinates, where x points right, y points up,
@@ -144,8 +124,6 @@ fn contains_aabb<S: RealField>(_matrix: &Matrix4<S>, _aabb: &AABB<S>) -> Relatio
 /// creating the perspective projection, see also the frustum unit test below.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Frustum<S: RealField> {
-    query_from_eye: Isometry3<S>,
-    clip_from_eye: collision::Perspective<S>,
     query_from_clip: Matrix4<S>,
     clip_from_query: Matrix4<S>,
 }
@@ -155,18 +133,18 @@ impl<S: RealField> Frustum<S> {
         let clip_from_query = clip_from_eye.as_matrix() * query_from_eye.inverse().to_homogeneous();
         let query_from_clip = query_from_eye.to_homogeneous() * clip_from_eye.inverse();
         Frustum {
-            query_from_eye,
-            clip_from_eye,
             query_from_clip,
             clip_from_query,
         }
     }
 
-    pub fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
-        Self::new(
-            global_from_query * &self.query_from_eye,
-            self.clip_from_eye.clone(),
-        )
+    /// Fails if the matrix is not invertible.
+    pub fn from_matrix4(clip_from_query: Matrix4<S>) -> Option<Self> {
+        let query_from_clip = clip_from_query.try_inverse()?;
+        Some(Self {
+            query_from_clip,
+            clip_from_query,
+        })
     }
 }
 
@@ -176,10 +154,6 @@ where
 {
     fn contains(&self, point: &Point3<S>) -> bool {
         contains_point(&self.clip_from_query, point)
-    }
-
-    fn intersects_aabb(&self, _aabb: &AABB<S>) -> Relation {
-        unimplemented!()
     }
 }
 
@@ -201,11 +175,45 @@ where
         ]
     }
 
-    fn compute_edges(&self) -> [Option<Vector3<S>>; 6] {
-        unimplemented!()
+    fn compute_edges(&self) -> ArrayVec<[Unit<Vector3<S>>; 6]> {
+        // To compute the edges, we need the points, so it's more efficient to implement
+        // intersector() directly and compute the points only once. We still provide this
+        // function, but it will not be used since intersection testing only needs
+        // intersector().
+        self.intersector().edges
     }
 
-    fn compute_face_normals(&self) -> [Option<Vector3<S>>; 6] {
-        unimplemented!()
+    fn compute_face_normals(&self) -> ArrayVec<[Unit<Vector3<S>>; 6]> {
+        // To compute the face normals, we need the edges, so it's more efficient to
+        // implement intersector() directly and compute the points and edges only once.
+        // We still provide this function, but it will not be used since intersection
+        // testing only needs intersector().
+        self.intersector().face_normals
+    }
+
+    fn intersector(&self) -> Intersector<S> {
+        let corners = self.compute_corners();
+
+        let edges = ArrayVec::from([
+            Unit::new_normalize(corners[4] - corners[0]), // x
+            Unit::new_normalize(corners[2] - corners[0]), // y
+            Unit::new_normalize(corners[1] - corners[0]), // z lower left
+            Unit::new_normalize(corners[3] - corners[2]), // z upper left
+            Unit::new_normalize(corners[5] - corners[4]), // z lower right
+            Unit::new_normalize(corners[7] - corners[6]), // z upper right
+        ]);
+
+        let mut face_normals = ArrayVec::new();
+        face_normals.push(Unit::new_normalize(edges[0].cross(&edges[1]))); // Front and back sides
+        face_normals.push(Unit::new_normalize(edges[0].cross(&edges[2]))); // Lower side
+        face_normals.push(Unit::new_normalize(edges[0].cross(&edges[3]))); // Upper side
+        face_normals.push(Unit::new_normalize(edges[1].cross(&edges[2]))); // Left side
+        face_normals.push(Unit::new_normalize(edges[1].cross(&edges[2]))); // right side
+
+        Intersector {
+            corners,
+            edges,
+            face_normals,
+        }
     }
 }

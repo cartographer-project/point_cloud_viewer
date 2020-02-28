@@ -1,7 +1,8 @@
-use super::base::{PointCulling, Relation};
-use super::sat::{intersects_aabb, ConvexPolyhedron};
+use super::base::PointCulling;
+use super::sat::ConvexPolyhedron;
 use crate::proto;
-use nalgebra::{Point3, RealField, Vector3};
+use arrayvec::ArrayVec;
+use nalgebra::{Point3, RealField, Unit, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// An Axis Aligned Bounding Box.
@@ -59,6 +60,13 @@ impl<S: RealField> AABB<S> {
     pub fn center(&self) -> Point3<S> {
         nalgebra::center(&self.mins, &self.maxs)
     }
+
+    /// It's convenient to have this associated function for intersection testing.
+    /// To be precise, it's nice if we can give this to cache_separating_axes() without
+    /// having to reference a specific AABB instance.
+    pub fn axes() -> [Unit<Vector3<S>>; 3] {
+        [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()]
+    }
 }
 
 impl From<&proto::AxisAlignedCuboid> for AABB<f64> {
@@ -94,10 +102,6 @@ where
     fn contains(&self, p: &Point3<S>) -> bool {
         self.contains(p)
     }
-    fn intersects_aabb(&self, aabb: &AABB<S>) -> Relation {
-        let separating_axes = &[Vector3::x(), Vector3::y(), Vector3::z()];
-        intersects_aabb(&self.corners(), separating_axes, aabb)
-    }
 }
 
 impl<S> ConvexPolyhedron<S> for AABB<S>
@@ -108,18 +112,15 @@ where
         self.corners()
     }
 
-    fn compute_edges(&self) -> [Option<Vector3<S>>; 6] {
-        [
-            Some(Vector3::x()),
-            Some(Vector3::y()),
-            Some(Vector3::z()),
-            None,
-            None,
-            None,
-        ]
+    fn compute_edges(&self) -> ArrayVec<[Unit<Vector3<S>>; 6]> {
+        let mut edges = ArrayVec::new();
+        edges.push(Vector3::x_axis());
+        edges.push(Vector3::y_axis());
+        edges.push(Vector3::z_axis());
+        edges
     }
 
-    fn compute_face_normals(&self) -> [Option<Vector3<S>>; 6] {
+    fn compute_face_normals(&self) -> ArrayVec<[Unit<Vector3<S>>; 6]> {
         self.compute_edges()
     }
 }

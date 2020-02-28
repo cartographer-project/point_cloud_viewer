@@ -145,10 +145,8 @@ where
     fn contains(&self, _p: &Point3<S>) -> bool {
         true
     }
-    fn intersects_aabb(&self, _aabb: &AABB<S>) -> Relation {
-        Relation::In
-    }
 }
+
 #[derive(Debug, Clone)]
 pub struct Cube {
     min: Point3<f64>,
@@ -202,6 +200,30 @@ impl Cube {
     }
 }
 
+pub fn cell_union_intersects_aabb<S>(cell_union: &CellUnion, aabb: &AABB<S>) -> Relation
+where
+    S: RealField,
+    f64: From<S>,
+{
+    let point_cells = aabb
+        .corners()
+        .iter()
+        .map(|p| CellID::from_point(p))
+        .collect();
+    let mut cell_union = CellUnion(point_cells);
+    cell_union.normalize();
+    let rect = cell_union.rect_bound();
+    let intersects = cell_union
+        .0
+        .iter()
+        .any(|cell_id| rect.intersects_cell(&Cell::from(cell_id)));
+    if intersects {
+        Relation::Cross
+    } else {
+        Relation::Out
+    }
+}
+
 impl<S> PointCulling<S> for CellUnion
 where
     S: RealField,
@@ -209,25 +231,6 @@ where
 {
     fn contains(&self, p: &Point3<S>) -> bool {
         self.contains_cellid(&CellID::from_point(p))
-    }
-    fn intersects_aabb(&self, aabb: &AABB<S>) -> Relation {
-        let point_cells = aabb
-            .corners()
-            .iter()
-            .map(|p| CellID::from_point(p))
-            .collect();
-        let mut cell_union = CellUnion(point_cells);
-        cell_union.normalize();
-        let rect = cell_union.rect_bound();
-        let intersects = self
-            .0
-            .iter()
-            .any(|cell_id| rect.intersects_cell(&Cell::from(cell_id)));
-        if intersects {
-            Relation::Cross
-        } else {
-            Relation::Out
-        }
     }
 }
 
@@ -280,7 +283,10 @@ mod tests {
         let bbox_min = Point3::new(-0.5, 0.25, 1.5);
         let bbox_max = Point3::new(-0.25, 0.5, 3.5);
         let bbox = AABB::new(bbox_min, bbox_max);
-        assert_eq!(frustum.intersects_aabb(&bbox), Relation::In);
+        assert_eq!(
+            frustum.intersector().intersect(&bbox.intersector()),
+            Relation::In
+        );
         assert!(frustum.contains(&bbox_min));
         assert!(frustum.contains(&bbox_max));
     }
