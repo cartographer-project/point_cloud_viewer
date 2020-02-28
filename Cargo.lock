@@ -1047,15 +1047,6 @@ dependencies = [
 
 [[package]]
 name = "generic-array"
-version = "0.12.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c68f0274ae0e023facc3c97b2e00f076be70e254bc851d972503b328db79b2ec"
-dependencies = [
- "typenum",
-]
-
-[[package]]
-name = "generic-array"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ed1e761351b56f54eb9dcd0cfaca9fd0daecf93918e1cfc01c8a3d26ee7adcd"
@@ -1601,30 +1592,13 @@ checksum = "41f5c9112cb662acd3b204077e0de5bc66305fa8df65c8019d5adb10e9ab6e58"
 
 [[package]]
 name = "nalgebra"
-version = "0.18.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aaa9fddbc34c8c35dd2108515587b8ce0cab396f17977b8c738568e4edb521a2"
-dependencies = [
- "alga",
- "approx 0.3.2",
- "generic-array 0.12.3",
- "matrixmultiply 0.2.3",
- "num-complex",
- "num-rational",
- "num-traits 0.2.11",
- "rand 0.6.5",
- "typenum",
-]
-
-[[package]]
-name = "nalgebra"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0abb021006c01b126a936a8dd1351e0720d83995f4fc942d0d426c654f990745"
 dependencies = [
  "alga",
  "approx 0.3.2",
- "generic-array 0.13.2",
+ "generic-array",
  "matrixmultiply 0.2.3",
  "num-complex",
  "num-rational",
@@ -1636,11 +1610,11 @@ dependencies = [
 
 [[package]]
 name = "nav-types"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a318a0b14c8928617dd3a71cbe4c8ccbaee150058e9c26b102002284d46e8fe"
+checksum = "18fca71170e9c6bea562ddf5a24bfed1fa4cb0f3bd2c9811bb1914bce413e1f7"
 dependencies = [
- "nalgebra 0.18.1",
+ "nalgebra",
 ]
 
 [[package]]
@@ -2029,7 +2003,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "lru",
- "nalgebra 0.19.0",
+ "nalgebra",
  "nav-types",
  "num 0.2.1",
  "num-integer",
