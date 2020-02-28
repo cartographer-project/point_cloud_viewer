@@ -66,15 +66,17 @@ pub struct Intersector<S: RealField> {
 }
 
 impl<S: RealField + Bounded> Intersector<S> {
+    /// An iterator over separating axes – if we're only going to use the separating axes once,
+    /// we don't want to require an allocation.
     fn separating_axes_iter<'a>(
         &'a self,
         other_edges: &'a [Unit<Vector3<S>>],
         other_face_normals: &'a [Unit<Vector3<S>>],
     ) -> impl Iterator<Item = Unit<Vector3<S>>> + 'a {
-        let self_edges = self.edges.iter();
-        let nested_iter = move |e1| other_face_normals.iter().map(move |e2| (e1, e2));
-        let cross_products =
-            self.face_normals
+        let self_face_normals = self.face_normals.iter();
+        let nested_iter = move |e1| other_edges.iter().map(move |e2| (e1, e2));
+        let edge_cross_products =
+            self.edges
                 .iter()
                 .flat_map(nested_iter)
                 .filter_map(|(e1, e2)| {
@@ -85,7 +87,7 @@ impl<S: RealField + Bounded> Intersector<S> {
                         None
                     }
                 });
-        self_edges.chain(other_edges).cloned().chain(cross_products)
+        self_face_normals.chain(other_face_normals).cloned().chain(edge_cross_products)
     }
 
     /// If you know that the edges and normals of the other object do not change, precompute
@@ -147,11 +149,13 @@ impl<S: RealField + Bounded> CachedAxesIntersector<S> {
 }
 
 /// See https://www.gamedev.net/forums/topic/694911-separating-axis-theorem-3d-polygons/ for more detail
+/// Return `Relation::In` if B is contained in A
 fn sat<S, I>(separating_axes: I, corners_a: &[Point3<S>], corners_b: &[Point3<S>]) -> Relation
 where
     S: RealField + Bounded,
     I: IntoIterator<Item = Unit<Vector3<S>>>,
 {
+    let mut rel = Relation::In;
     for sep_axis in separating_axes {
         // Project corners of A onto that axis
         let mut a_min_proj: S = Bounded::max_value();
@@ -172,8 +176,12 @@ where
         if b_min_proj > a_max_proj || b_max_proj < a_min_proj {
             return Relation::Out;
         }
+        // If B is not inside A wrt that axis, the only choice is between Cross and Out.
+        if a_min_proj > b_min_proj || b_max_proj > a_max_proj {
+            rel = Relation::Cross;
+        }
     }
-    Relation::Cross
+    rel
 }
 
 #[cfg(test)]
