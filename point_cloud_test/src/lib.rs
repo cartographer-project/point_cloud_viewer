@@ -1,7 +1,7 @@
-use point_cloud_client::PointCloudClient;
+use point_cloud_client::{PointCloudClient, PointCloudClientBuilder};
 /// This module has functions to generate synthetic point clouds in a temp dir
 /// and provides queries on these synthetic point clouds.
-use point_viewer::data_provider::{DataProviderFactory, OnDiskDataProvider};
+use point_viewer::data_provider::OnDiskDataProvider;
 use point_viewer::octree::{build_octree, Octree};
 use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2Splitter};
 use point_viewer::s2_cells::S2Cells;
@@ -114,13 +114,15 @@ pub fn setup_pointcloud(args: &Arguments) -> (S2Cells, Octree, SyntheticData) {
 pub fn setup_s2_client(args: &Arguments) -> (PointCloudClient, SyntheticData) {
     let (s2_path_buf, _, data) = get_s2_and_octree_path(args);
     let s2_locations = &[s2_path_buf.to_str().unwrap().to_owned()];
-    let client = PointCloudClient::new(s2_locations, DataProviderFactory::new()).unwrap();
+    let client = PointCloudClientBuilder::new(s2_locations).build().unwrap();
     (client, data)
 }
 
 pub fn setup_octree_client(args: &Arguments) -> (PointCloudClient, SyntheticData) {
     let (_, oct_path_buf, data) = get_s2_and_octree_path(args);
     let octree_locations = &[oct_path_buf.to_str().unwrap().to_owned()];
-    let client = PointCloudClient::new(octree_locations, DataProviderFactory::new()).unwrap();
+    let client = PointCloudClientBuilder::new(octree_locations)
+        .build()
+        .unwrap();
     (client, data)
 }
