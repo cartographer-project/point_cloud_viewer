@@ -14,19 +14,88 @@ enum PointClouds {
 pub struct PointCloudClient {
     point_clouds: PointClouds,
     aabb: Aabb3<f64>,
-    pub num_points_per_batch: usize,
-    pub num_threads: usize,
-    pub buffer_size: usize,
+    num_points_per_batch: usize,
+    num_threads: usize,
+    buffer_size: usize,
 }
 
 impl PointCloudClient {
-    pub fn new(locations: &[String], data_provider_factory: DataProviderFactory) -> Result<Self> {
-        if locations.is_empty() {
+    pub fn bounding_box(&self) -> &Aabb3<f64> {
+        &self.aabb
+    }
+
+    pub fn for_each_point_data<F>(&self, point_query: &PointQuery, mut func: F) -> Result<()>
+    where
+        F: FnMut(PointsBatch) -> Result<()>,
+    {
+        match &self.point_clouds {
+            PointClouds::Octrees(octrees) => {
+                let mut parallel_iterator = ParallelIterator::new(
+                    octrees,
+                    point_query,
+                    self.num_points_per_batch,
+                    self.num_threads,
+                    self.buffer_size,
+                );
+                parallel_iterator.try_for_each_batch(&mut func)?;
+            }
+            PointClouds::S2Cells(s2_cells) => {
+                let mut parallel_iterator = ParallelIterator::new(
+                    s2_cells,
+                    point_query,
+                    self.num_points_per_batch,
+                    self.num_threads,
+                    self.buffer_size,
+                );
+                parallel_iterator.try_for_each_batch(&mut func)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+pub struct PointCloudClientBuilder<'a> {
+    locations: &'a [String],
+    data_provider_factory: DataProviderFactory,
+    num_points_per_batch: usize,
+    num_threads: usize,
+    buffer_size: usize,
+}
+
+impl<'a> PointCloudClientBuilder<'a> {
+    pub fn new(locations: &'a [String], data_provider_factory: DataProviderFactory) -> Self {
+        Self {
+            locations,
+            data_provider_factory,
+            num_points_per_batch: NUM_POINTS_PER_BATCH,
+            num_threads: num_cpus::get() - 1,
+            buffer_size: 4,
+        }
+    }
+
+    pub fn num_points_per_batch(mut self, num_points_per_batch: usize) -> Self {
+        self.num_points_per_batch = num_points_per_batch;
+        self
+    }
+
+    pub fn num_threads(mut self, num_threads: usize) -> Self {
+        self.num_threads = num_threads;
+        self
+    }
+
+    pub fn buffer_size(mut self, buffer_size: usize) -> Self {
+        self.buffer_size = buffer_size;
+        self
+    }
+
+    pub fn build(self) -> Result<PointCloudClient> {
+        if self.locations.is_empty() {
             return Err("No locations specified for point cloud client.".into());
         }
-        let data_providers = locations
+        let data_providers = self
+            .locations
             .iter()
-            .map(|location| data_provider_factory.generate_data_provider(location))
+            .map(|location| self.data_provider_factory.generate_data_provider(location))
             .collect::<Result<Vec<Box<dyn DataProvider>>>>()?;
         let mut aabb: Option<Aabb3<f64>> = None;
         let unite = |bbox: &Aabb3<f64>, with: &mut Option<Aabb3<f64>>| {
@@ -63,42 +132,9 @@ impl PointCloudClient {
         Ok(PointCloudClient {
             point_clouds,
             aabb: aabb.unwrap_or_else(Aabb3::zero),
-            num_points_per_batch: NUM_POINTS_PER_BATCH,
-            num_threads: num_cpus::get() - 1,
-            buffer_size: 4,
+            num_points_per_batch: self.num_points_per_batch,
+            num_threads: self.num_threads,
+            buffer_size: self.buffer_size,
         })
-    }
-
-    pub fn bounding_box(&self) -> &Aabb3<f64> {
-        &self.aabb
-    }
-
-    pub fn for_each_point_data<F>(&self, point_query: &PointQuery, mut func: F) -> Result<()>
-    where
-        F: FnMut(PointsBatch) -> Result<()>,
-    {
-        match &self.point_clouds {
-            PointClouds::Octrees(octrees) => {
-                let mut parallel_iterator = ParallelIterator::new(
-                    octrees,
-                    point_query,
-                    self.num_points_per_batch,
-                    self.num_threads,
-                    self.buffer_size,
-                );
-                parallel_iterator.try_for_each_batch(&mut func)?;
-            }
-            PointClouds::S2Cells(s2_cells) => {
-                let mut parallel_iterator = ParallelIterator::new(
-                    s2_cells,
-                    point_query,
-                    self.num_points_per_batch,
-                    self.num_threads,
-                    self.buffer_size,
-                );
-                parallel_iterator.try_for_each_batch(&mut func)?;
-            }
-        }
-        Ok(())
     }
 }

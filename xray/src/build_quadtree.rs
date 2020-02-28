@@ -3,7 +3,7 @@ use crate::generation::{
     TileBackgroundColorArgument, XrayParameters,
 };
 use clap::value_t;
-use point_cloud_client::PointCloudClient;
+use point_cloud_client::PointCloudClientBuilder;
 use point_viewer::color::{TRANSPARENT, WHITE};
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::{ClosedInterval, Isometry3};
@@ -174,11 +174,12 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         .unwrap()
         .map(String::from)
         .collect::<Vec<_>>();
-    let mut point_cloud_client =
-        PointCloudClient::new(&point_cloud_locations, data_provider_factory)
+    let point_cloud_client =
+        PointCloudClientBuilder::new(&point_cloud_locations, data_provider_factory)
+            // We do threading outside
+            .num_threads(1)
+            .build()
             .expect("Could not create point cloud client.");
-    // We do threading outside
-    point_cloud_client.num_threads = 1;
 
     let filter_intervals = args
         .values_of("filter_interval")
