@@ -139,6 +139,6 @@ mod tests {
         let arbitrary_obb_isec = arbitrary_obb
             .intersector()
             .cache_separating_axes(&AABB::axes(), &AABB::axes());
-        assert_eq!(fourty_five_deg_obb_isec.axes.len(), 15);
+        assert_eq!(arbitrary_obb_isec.axes.len(), 15);
     }
 }

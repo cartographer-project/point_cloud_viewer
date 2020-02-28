@@ -10,7 +10,7 @@
 //! // For a generic intersection:
 //! let frustum_intersector = frustum.intersector();
 //! for obb in many_obbs {
-//!   let relation = frustum_intersector.intersects(obb));
+//!   let relation = frustum_intersector.intersects(&obb));
 //! }
 //! // For intersection with many AABBs, which can per definition only differ in
 //! // their corners, not their edges and face normals (which are both the axis vecs):
@@ -91,17 +91,30 @@ impl<S: RealField + Bounded> Intersector<S> {
     /// If you know that the edges and normals of the other object do not change, precompute
     /// the separating axes with this function. It's essentially partially applying
     /// [`intersect`](#method.intersect), leaving only the corners to be supplied.
+    ///
+    /// It applies deduplication of separating axes to speed up queries made using those axes.
+    /// That deduplication is currently O(n^2).
     pub fn cache_separating_axes(
         self,
         other_edges: &[Unit<Vector3<S>>],
         other_face_normals: &[Unit<Vector3<S>>],
     ) -> CachedAxesIntersector<S> {
-        let axes: Vec<_> = self
+        let all_axes: Vec<_> = self
             .separating_axes_iter(other_edges, other_face_normals)
             .collect();
-        // TODO(nnmm): De-duplicate axes
+        let mut dedup_axes = Vec::new();
+        for ax1 in all_axes {
+            let is_dupe = dedup_axes.iter().any(|ax2: &Unit<Vector3<S>>| {
+                let d1 = (ax1.as_ref() - ax2.as_ref()).norm_squared();
+                let d2 = (ax1.as_ref() + ax2.as_ref()).norm_squared();
+                d1.min(d2) < S::default_epsilon()
+            });
+            if !is_dupe {
+                dedup_axes.push(ax1);
+            }
+        }
         CachedAxesIntersector {
-            axes,
+            axes: dedup_axes,
             corners: self.corners,
         }
     }
