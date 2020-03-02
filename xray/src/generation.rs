@@ -3,7 +3,7 @@
 use crate::colormap::{Colormap, Jet, Monochrome, PURPLISH};
 use crate::proto;
 use crate::CURRENT_VERSION;
-use cgmath::{Decomposed, EuclideanSpace, Point2, Point3, Quaternion, Vector2, Vector3};
+use nalgebra::{Point2, Point3, Vector2, Vector3};
 use clap::arg_enum;
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
@@ -574,12 +574,10 @@ pub fn build_xray_quadtree(
 
     let bounding_box = match &parameters.query_from_global {
         Some(query_from_global) => {
-            let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> =
-                query_from_global.clone().into();
             parameters
                 .point_cloud_client
                 .bounding_box()
-                .transform(&decomposed)
+                .transform(&query_from_global)
         }
         None => *parameters.point_cloud_client.bounding_box(),
     };

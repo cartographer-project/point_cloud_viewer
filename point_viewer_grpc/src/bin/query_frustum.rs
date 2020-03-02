@@ -108,12 +108,12 @@ fn main() {
     request.mut_translation().set_y(-105.560_104);
     request.mut_translation().set_z(-132.893_23);
 
-    request.set_fovy_rad(Rad::from(Deg(45.)).0);
+    request.set_fovy_rad(std::f64::consts::FRAC_PI_4);
     request.set_aspect(800. / 600.);
     request.set_z_near(0.1);
     request.set_z_far(10000.);
 
-    let mut bounding_box = Aabb3::zero();
+    let mut bounding_box = AABB::zero();
 
     let replies = client.get_points_in_frustum(&request).expect("rpc");
     let mut points = Vec::new();
@@ -122,7 +122,7 @@ fn main() {
             let last_num_points = points.len();
             for (position, color) in reply.positions.iter().zip(reply.colors.iter()) {
                 let p = Point3::new(position.x, position.y, position.z);
-                bounding_box = bounding_box.grow(p);
+                bounding_box.grow(p);
                 points.push(Point {
                     position: p,
                     color: Color {

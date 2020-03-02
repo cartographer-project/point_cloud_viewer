@@ -1,8 +1,8 @@
 // This removes clippy warnings regarding redundant StructOpt.
 #![allow(clippy::redundant_closure)]
 
-use cgmath::Point3;
-use collision::Aabb3;
+use nalgebra::Point3;
+use point_viewer::math::AABB;
 use point_cloud_client::PointCloudClient;
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::{ErrorKind, Result};
@@ -71,7 +71,7 @@ fn main() {
 
     let point_location = PointQuery {
         attributes: vec!["color", "intensity"],
-        location: PointLocation::Aabb(Aabb3::new(args.min, args.max)),
+        location: PointLocation::Aabb(AABB::new(args.min, args.max)),
         ..Default::default()
     };
     let mut point_count: usize = 0;

@@ -30,8 +30,9 @@ impl PointCloudClient {
             .collect::<Result<Vec<Box<dyn DataProvider>>>>()?;
         let mut aabb: Option<AABB<f64>> = None;
         let unite = |bbox: &AABB<f64>, with: &mut Option<AABB<f64>>| {
-            let b = with.get_or_insert(*bbox);
-            *b = b.union(bbox);
+            let mut b = with.get_or_insert(bbox.clone());
+            b.grow(*bbox.min());
+            b.grow(*bbox.max());
         };
         let first_meta = data_providers[0].meta_proto()?;
         let point_clouds = if first_meta.version <= 11 || first_meta.has_octree() {
@@ -62,14 +63,14 @@ impl PointCloudClient {
 
         Ok(PointCloudClient {
             point_clouds,
-            aabb: aabb.unwrap_or_else(Aabb3::zero),
+            aabb: aabb.unwrap_or_else(AABB::zero),
             num_points_per_batch: NUM_POINTS_PER_BATCH,
             num_threads: num_cpus::get() - 1,
             buffer_size: 4,
         })
     }
 
-    pub fn bounding_box(&self) -> &Aabb3<f64> {
+    pub fn bounding_box(&self) -> &AABB<f64> {
         &self.aabb
     }
 

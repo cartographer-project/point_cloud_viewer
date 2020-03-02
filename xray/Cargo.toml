@@ -5,23 +5,22 @@ authors = ["Holger Rapp <hrapp@lyft.com>"]
 edition = "2018"
 
 [dependencies]
-cgmath = "0.17.0"
 clap = "2.33.0"
-collision = "0.20.1"
 fnv = "1.0.6"
 image = "0.22.4"
 iron = "0.6.1"
+nalgebra = "0.19.0"
 num = "0.2.1"
 pbr = "1.0.2"
 protobuf = "2.10.1"
 router = "0.6.0"
 scoped-pool = "1.0.0"
 serde = "1.0.104"
-serde_json = "1.0.46"
 serde_derive = "1.0.104"
+serde_json = "1.0.46"
+streaming-stats = "0.2.3"
 structopt = "0.3.9"
 urlencoded = "0.6.0"
-streaming-stats = "0.2.3"
 
 [dependencies.point_viewer]
 path = ".."

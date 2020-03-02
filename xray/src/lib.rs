@@ -1,6 +1,5 @@
-use cgmath::Point2;
-use cgmath::{Matrix4, Point3};
-use collision::{Aabb3, Frustum, Relation};
+use nalgebra::{Matrix4, Point3, Point2};
+use point_viewer::math::{AABB, Frustum, Relation};
 use fnv::FnvHashSet;
 use quadtree::{ChildIndex, Node};
 use quadtree::{NodeId, Rect};
@@ -114,7 +113,7 @@ impl Meta {
         let mut open = vec![Node::root_with_bounding_rect(self.bounding_rect.clone())];
         while !open.is_empty() {
             let node = open.pop().unwrap();
-            let aabb = Aabb3::new(
+            let aabb = AABB::new(
                 Point3::new(node.bounding_rect.min().x, node.bounding_rect.min().y, -0.1),
                 Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
             );

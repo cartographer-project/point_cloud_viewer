@@ -71,7 +71,7 @@ pub fn make_s2_cells(args: &Arguments, dir: &Path) {
     Batched::new(points_s2, args.batch_size)
         .try_for_each(|batch| s2_writer.write(&batch))
         .expect("Writing failed");
-    let meta = s2_writer.get_meta().to_proto();
+    let meta = s2_writer.get_meta().unwrap().to_proto();
     let mut meta_writer = BufWriter::new(File::create(dir.join("meta.pb")).unwrap());
     meta.write_to_writer(&mut meta_writer).unwrap();
 }
