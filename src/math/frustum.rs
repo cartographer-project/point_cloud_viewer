@@ -36,32 +36,32 @@ pub mod collision {
 
             let two: S = nalgebra::convert(2.0);
 
-            let c0r0 = (two * near) / (right - left);
-            let c0r1 = nalgebra::zero();
-            let c0r2 = nalgebra::zero();
-            let c0r3 = nalgebra::zero();
+            let r0c0 = (two * near) / (right - left);
+            let r0c1 = nalgebra::zero();
+            let r0c2 = (right + left) / (right - left);
+            let r0c3 = nalgebra::zero();
 
-            let c1r0 = nalgebra::zero();
-            let c1r1 = (two * near) / (top - bottom);
-            let c1r2 = nalgebra::zero();
-            let c1r3 = nalgebra::zero();
+            let r1c0 = nalgebra::zero();
+            let r1c1 = (two * near) / (top - bottom);
+            let r1c2 = (top + bottom) / (top - bottom);
+            let r1c3 = nalgebra::zero();
 
-            let c2r0 = (right + left) / (right - left);
-            let c2r1 = (top + bottom) / (top - bottom);
-            let c2r2 = -(far + near) / (far - near);
-            let c2r3 = -S::one();
+            let r2c0 = nalgebra::zero();
+            let r2c1 = nalgebra::zero();
+            let r2c2 = -(far + near) / (far - near);
+            let r2c3 = -(two * far * near) / (far - near);
 
-            let c3r0 = nalgebra::zero();
-            let c3r1 = nalgebra::zero();
-            let c3r2 = -(two * far * near) / (far - near);
-            let c3r3 = nalgebra::zero();
+            let r3c0 = nalgebra::zero();
+            let r3c1 = nalgebra::zero();
+            let r3c2 = -S::one();
+            let r3c3 = nalgebra::zero();
 
             #[cfg_attr(rustfmt, rustfmt_skip)]
                 let matrix = Matrix4::new(
-                    c0r0, c0r1, c0r2, c0r3,
-                    c1r0, c1r1, c1r2, c1r3,
-                    c2r0, c2r1, c2r2, c2r3,
-                    c3r0, c3r1, c3r2, c3r3,
+                    r0c0, r0c1, r0c2, r0c3,
+                    r1c0, r1c1, r1c2, r1c3,
+                    r2c0, r2c1, r2c2, r2c3,
+                    r3c0, r3c1, r3c2, r3c3,
                 );
             Self { matrix }
         }
@@ -81,32 +81,32 @@ pub mod collision {
         }
 
         pub fn inverse(&self) -> Matrix4<S> {
-            let c0r0 = self.matrix[(0, 0)].recip();
-            let c0r1 = nalgebra::zero();
-            let c0r2 = nalgebra::zero();
-            let c0r3 = nalgebra::zero();
+            let r0c0 = self.matrix[(0, 0)].recip();
+            let r0c1 = nalgebra::zero();
+            let r0c2 = nalgebra::zero();
+            let r0c3 = self.matrix[(0, 2)] / self.matrix[(0, 0)];
 
-            let c1r0 = nalgebra::zero();
-            let c1r1 = self.matrix[(1, 1)].recip();
-            let c1r2 = nalgebra::zero();
-            let c1r3 = nalgebra::zero();
+            let r1c0 = nalgebra::zero();
+            let r1c1 = self.matrix[(1, 1)].recip();
+            let r1c2 = nalgebra::zero();
+            let r1c3 = self.matrix[(1, 2)] / self.matrix[(1, 1)];
 
-            let c2r0 = nalgebra::zero();
-            let c2r1 = nalgebra::zero();
-            let c2r2 = nalgebra::zero();
-            let c2r3 = self.matrix[(3, 2)].recip();
+            let r2c0 = nalgebra::zero();
+            let r2c1 = nalgebra::zero();
+            let r2c2 = nalgebra::zero();
+            let r2c3 = -S::one();
 
-            let c3r0 = self.matrix[(2, 0)] / self.matrix[(0, 0)];
-            let c3r1 = self.matrix[(2, 1)] / self.matrix[(1, 1)];
-            let c3r2 = -S::one();
-            let c3r3 = self.matrix[(2, 2)] / self.matrix[(3, 2)];
+            let r3c0 = nalgebra::zero();
+            let r3c1 = nalgebra::zero();
+            let r3c2 = self.matrix[(2, 3)].recip();
+            let r3c3 = self.matrix[(2, 2)] / self.matrix[(2, 3)];
 
             #[cfg_attr(rustfmt, rustfmt_skip)]
             Matrix4::new(
-                c0r0, c0r1, c0r2, c0r3,
-                c1r0, c1r1, c1r2, c1r3,
-                c2r0, c2r1, c2r2, c2r3,
-                c3r0, c3r1, c3r2, c3r3,
+                r0c0, r0c1, r0c2, r0c3,
+                r1c0, r1c1, r1c2, r1c3,
+                r2c0, r2c1, r2c2, r2c3,
+                r3c0, r3c1, r3c2, r3c3,
             )
         }
     }

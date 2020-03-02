@@ -6,25 +6,45 @@
 //! in these cases. If the edges and face normals do not change between objects, create a
 //! [`CachedAxesIntersector`](struct.CachedAxesIntersector.html) and reuse it between intersection tests.
 //!
-//! ```
-//! // For a generic intersection:
+//! ```no_run
+//! use nalgebra::Vector3;
+//! use point_viewer::math::sat::ConvexPolyhedron;
+//! use point_viewer::math::{AABB, Obb, Frustum};
+//! // Use your imagination here
+//! let many_obbs: Vec<Obb<f64>> = unimplemented!();
+//! let many_aabbs: Vec<AABB<f64>> = unimplemented!();
+//! let frustum: Frustum<f64> = unimplemented!();
+//! // For a generic intersection, you can reuse the intersector:
 //! let frustum_intersector = frustum.intersector();
 //! for obb in many_obbs {
-//!   let relation = frustum_intersector.intersects(&obb));
+//!   let relation = frustum_intersector.intersect(&obb.intersector());
 //! }
 //! // For intersection with many AABBs, which can per definition only differ in
-//! // their corners, not their edges and face normals (which are both the axis vecs):
-//! let unit_vecs = [Vector3::x(), Vector3::y(), Vector3::z()];
+//! // their corners, not their edges and face normals (which are both the axis vecs),
+//! // you can reuse not only the intersector, but also the separating axes:
+//! let unit_vecs = [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()];
 //! let frustum_cached_intersector = frustum.intersector().cache_separating_axes(&unit_vecs, &unit_vecs);
 //! for aabb in many_aabbs {
 //!   let relation = frustum_cached_intersector.intersect(&aabb.compute_corners());
 //! }
 //! ```
 
-use super::base::Relation;
 use arrayvec::ArrayVec;
 use nalgebra::{Point3, RealField, Unit, Vector3};
 use num_traits::Bounded;
+
+/// Spatial relation between two objects.
+/// Modeled after the collision crate.
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
+pub enum Relation {
+    /// Completely inside.
+    In,
+    /// Crosses the boundary.
+    Cross,
+    /// Completely outside.
+    Out,
+}
+
 
 /// A trait for convex polyhedra that can perform intersection tests against other convex polyhedra.
 ///
@@ -187,7 +207,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::base::Relation;
     use arrayvec::ArrayVec;
     use nalgebra::{Point3, Vector3};
 

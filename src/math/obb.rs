@@ -91,7 +91,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::base::Relation;
+    use crate::math::sat::Relation;
     use nalgebra::{Unit, UnitQuaternion, Vector3};
     use num_traits::One;
 
