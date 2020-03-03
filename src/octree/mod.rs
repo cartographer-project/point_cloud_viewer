@@ -226,7 +226,7 @@ impl Octree {
 
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
         let frustum =
-            Frustum::from_matrix4(projection_matrix.clone()).expect("Invalid projection matrix.");
+            Frustum::from_matrix4(*projection_matrix).expect("Invalid projection matrix.");
         let frustum_isec = frustum
             .intersector()
             .cache_separating_axes(&AABB::axes(), &AABB::axes());

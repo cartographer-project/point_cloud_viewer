@@ -14,10 +14,7 @@ pub struct AABB<S: RealField> {
 
 impl<S: RealField> AABB<S> {
     pub fn new(mins: Point3<S>, maxs: Point3<S>) -> Self {
-        AABB {
-            mins: mins,
-            maxs: maxs,
-        }
+        AABB { mins, maxs }
     }
 
     pub fn zero() -> Self {

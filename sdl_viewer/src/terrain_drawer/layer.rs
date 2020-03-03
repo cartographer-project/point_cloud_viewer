@@ -152,8 +152,8 @@ impl TerrainLayer {
         self.u_terrain_pos.value = Self::convert_terrain_pos(cur_pos)
     }
 
-    pub fn terrain_from_world(&self) -> Isometry3<f64> {
-        self.grid_coordinates.terrain_from_world.clone()
+    pub fn terrain_from_world(&self) -> &Isometry3<f64> {
+        &self.grid_coordinates.terrain_from_world
     }
 
     pub fn submit(&self) {
@@ -219,7 +219,7 @@ impl GridCoordinateFrame {
     /// Returns the terrain pos (i.e. the coordinate of the lower corner of the terrain) for
     /// a given camera position (in the world coordinate system).
     fn terrain_pos_for_camera_pos(&self, world_pos: Point3<f64>) -> Vector2<i64> {
-        let local_pos = &self.terrain_from_world * &world_pos;
+        let local_pos = self.terrain_from_world * world_pos;
         let x = ((local_pos.x - self.u_origin.value.x) / self.u_resolution_m.value).floor();
         let y = ((local_pos.y - self.u_origin.value.y) / self.u_resolution_m.value).floor();
         Vector2::new(x as i64, y as i64) - self.texture_half_extent

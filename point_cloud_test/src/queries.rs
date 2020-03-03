@@ -15,7 +15,7 @@ pub fn get_abb_query(data: SyntheticData) -> PointLocation {
 // Its half-extent is half of that of the data.
 pub fn get_obb_query(data: SyntheticData) -> PointLocation {
     let obb = Obb::new(
-        data.ecef_from_local().clone(),
+        *data.ecef_from_local(),
         Vector3::new(
             0.5 * data.half_width,
             0.5 * data.half_width,
@@ -25,7 +25,7 @@ pub fn get_obb_query(data: SyntheticData) -> PointLocation {
     PointLocation::Obb(obb)
 }
 pub fn get_frustum_query(data: SyntheticData) -> PointLocation {
-    let ecef_from_local = data.ecef_from_local().clone();
+    let ecef_from_local = *data.ecef_from_local();
     let perspective = Perspective::new_fov(
         /* fovy */ 1.2, /* aspect */ 1.0, /* near */ 0.1, /* far */ 10.0,
     );

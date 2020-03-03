@@ -189,6 +189,6 @@ impl TerrainRenderer {
     pub fn local_from_global(&self) -> Option<Isometry3<f64>> {
         self.terrain_layers
             .first()
-            .map(|layer| layer.terrain_from_world())
+            .map(|layer| *layer.terrain_from_world())
     }
 }

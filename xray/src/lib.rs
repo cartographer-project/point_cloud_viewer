@@ -101,7 +101,7 @@ impl Meta {
 
         let matrix = {
             let e = &matrix_entries;
-            #[cfg_attr(rustfmt, rustfmt_skip)]
+            #[rustfmt::skip]
             let mat = Matrix4::new(
                 e[0],  e[1],  e[2],  e[3],
                 e[4],  e[5],  e[6],  e[7],

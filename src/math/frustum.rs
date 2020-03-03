@@ -56,13 +56,13 @@ pub mod collision {
             let r3c2 = -S::one();
             let r3c3 = nalgebra::zero();
 
-            #[cfg_attr(rustfmt, rustfmt_skip)]
-                let matrix = Matrix4::new(
-                    r0c0, r0c1, r0c2, r0c3,
-                    r1c0, r1c1, r1c2, r1c3,
-                    r2c0, r2c1, r2c2, r2c3,
-                    r3c0, r3c1, r3c2, r3c3,
-                );
+            #[rustfmt::skip]
+            let matrix = Matrix4::new(
+                r0c0, r0c1, r0c2, r0c3,
+                r1c0, r1c1, r1c2, r1c3,
+                r2c0, r2c1, r2c2, r2c3,
+                r3c0, r3c1, r3c2, r3c3,
+            );
             Self { matrix }
         }
 
@@ -101,13 +101,14 @@ pub mod collision {
             let r3c2 = self.matrix[(2, 3)].recip();
             let r3c3 = self.matrix[(2, 2)] / self.matrix[(2, 3)];
 
-            #[cfg_attr(rustfmt, rustfmt_skip)]
-            Matrix4::new(
+            #[rustfmt::skip]
+            let matrix = Matrix4::new(
                 r0c0, r0c1, r0c2, r0c3,
                 r1c0, r1c1, r1c2, r1c3,
                 r2c0, r2c1, r2c2, r2c3,
                 r3c0, r3c1, r3c2, r3c3,
-            )
+            );
+            matrix
         }
     }
 }

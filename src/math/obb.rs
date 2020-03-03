@@ -37,7 +37,7 @@ impl<S: RealField> Obb<S> {
     }
 
     pub fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
-        Self::new(global_from_query * &self.query_from_obb, self.half_extent)
+        Self::new(global_from_query * self.query_from_obb, self.half_extent)
     }
 }
 
@@ -46,7 +46,7 @@ where
     S: RealField,
 {
     fn contains(&self, p: &Point3<S>) -> bool {
-        let p = &self.obb_from_query * p;
+        let p = self.obb_from_query * p;
         p.x.abs() <= self.half_extent.x
             && p.y.abs() <= self.half_extent.y
             && p.z.abs() <= self.half_extent.z
@@ -58,7 +58,7 @@ where
     S: RealField,
 {
     fn compute_corners(&self) -> [Point3<S>; 8] {
-        let corner_from = |x, y, z| self.query_from_obb * &Point3::new(x, y, z);
+        let corner_from = |x, y, z| self.query_from_obb * Point3::new(x, y, z);
         [
             corner_from(
                 -self.half_extent.x,

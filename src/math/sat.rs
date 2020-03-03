@@ -218,7 +218,7 @@ mod tests {
             ArrayVec::from([Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()])
                 .into_iter()
                 .collect();
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         let cube_isec_1 = Intersector {
             corners: [
                 Point3::new(-1.0, -1.0, -1.0),
@@ -233,7 +233,7 @@ mod tests {
             edges: unit_vectors.clone(),
             face_normals: unit_vectors.clone(),
         };
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         let cube_isec_2 = Intersector {
             corners: [
                 Point3::new(-0.5, -0.5, -0.5),
@@ -248,7 +248,7 @@ mod tests {
             edges: unit_vectors.clone(),
             face_normals: unit_vectors.clone(),
         };
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         let cube_isec_3 = Intersector {
             corners: [
                 Point3::new(-0.9, -0.9, -0.9),
