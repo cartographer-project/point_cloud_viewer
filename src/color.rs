@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use num_traits::Float;
+use nalgebra::RealField;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div};
 
@@ -56,9 +56,9 @@ where
     }
 }
 
-impl<T: Add<Output = T>> Add for Color<T>
+impl<T> Add for Color<T>
 where
-    T: Float,
+    T: RealField,
 {
     type Output = Self;
 
@@ -74,7 +74,7 @@ where
 
 impl<T> AddAssign for Color<T>
 where
-    T: Float,
+    T: RealField,
 {
     fn add_assign(&mut self, other: Self) {
         *self = *self + other;
@@ -83,7 +83,7 @@ where
 
 impl<T> Sum<Color<T>> for Color<T>
 where
-    T: Float + Default,
+    T: RealField + Default,
 {
     fn sum<I>(iter: I) -> Self
     where
@@ -95,7 +95,7 @@ where
 
 impl<T> Div<T> for Color<T>
 where
-    T: Float,
+    T: RealField,
 {
     type Output = Self;
 

@@ -2641,7 +2641,6 @@ dependencies = [
  "lru",
  "nalgebra",
  "num-integer",
- "num-traits 0.2.11",
  "point_viewer",
  "point_viewer_grpc",
  "rand 0.7.3",

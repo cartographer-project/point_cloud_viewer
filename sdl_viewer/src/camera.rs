@@ -14,7 +14,6 @@
 
 use crate::opengl;
 use nalgebra::{Isometry3, Matrix4, Perspective3, UnitQuaternion, Vector3};
-use num_traits::One;
 
 use serde_derive::{Deserialize, Serialize};
 use std::f64;
@@ -96,7 +95,7 @@ impl Camera {
         height: i32,
         local_from_global: Option<Isometry3<f64>>,
     ) -> Self {
-        let local_from_global = local_from_global.unwrap_or_else(One::one);
+        let local_from_global = local_from_global.unwrap_or_else(nalgebra::one);
         let mut camera = Camera {
             movement_speed: 10.,
             moving_backward: false,
