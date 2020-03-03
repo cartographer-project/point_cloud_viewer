@@ -45,35 +45,46 @@ fn build_test_octree() -> Octree {
     .unwrap()
 }
 
-#[test]
-fn test_batch_iterator() {
-    let batch_size = 5000;
-    // define function
-    let mut callback_count: usize = 0;
-    let max_num_points = 13_000; // 2*batch size + 3000
-    let mut delivered_points = 0;
-    println!(
-        "batch_size= {} ,  num_points= {}",
-        batch_size, max_num_points
-    );
-    let callback_func = |points_batch: PointsBatch| -> Result<()> {
-        callback_count += 1;
-        delivered_points += points_batch.position.len();
+struct Consumer {
+    max_num_points: usize,
+    num_received_points: usize,
+    num_received_callbacks: usize,
+}
+
+impl Consumer {
+    fn new(max_num_points: usize) -> Self {
+        Self {
+            max_num_points,
+            num_received_points: 0,
+            num_received_callbacks: 0,
+        }
+    }
+
+    // Consumes points until it reaches max_num_points, then errors out
+    fn consume(&mut self, points_batch: PointsBatch) -> Result<()> {
+        self.num_received_callbacks += 1;
+        self.num_received_points += points_batch.position.len();
         println!(
-            "Callback_count {:}, delivered points {:}",
-            callback_count, delivered_points
+            "Callback_count {}, delivered points {}",
+            self.num_received_callbacks, self.num_received_points
         );
-        if delivered_points >= max_num_points {
+        if self.num_received_points >= self.max_num_points {
             println!("Callback: Max Points reached!");
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Interrupted,
-                format!("Maximum number of {} points reached.", max_num_points),
+                format!("Maximum number of {} points reached.", self.max_num_points),
             )
             .into());
         }
         Ok(())
-    };
+    }
+}
 
+#[test]
+fn test_batch_iterator() {
+    let batch_size = 5000;
+    let max_num_points = 13_000;
+    let mut c = Consumer::new(max_num_points);
     // octree and iterator
     let octree = build_test_octree();
     let location = PointQuery {
@@ -90,15 +101,14 @@ fn test_batch_iterator() {
     );
 
     parallel_iterator
-        .try_for_each_batch(callback_func)
+        .try_for_each_batch(|points_batch| c.consume(points_batch))
         .expect_err("Iterator did not error even though callback errored.");
 
-    // requiring and returning fewer points than the total
-    assert!(3 <= callback_count);
-    assert!(3 * batch_size <= delivered_points);
-    assert!(callback_count >= 3);
-    assert!((3 + 1) * batch_size >= delivered_points);
-    assert!(delivered_points as i32 - max_num_points as i32 >= 0);
+    assert!(c.num_received_points >= c.max_num_points);
+    // The number of points doesn't fit in two batches
+    assert_eq!(c.num_received_callbacks, 3);
+    // The callback received full batches
+    assert_eq!(c.num_received_points, 3 * batch_size);
 }
 
 #[test]
@@ -106,27 +116,9 @@ fn test_batch_iterator_more_points() {
     let batch_size = NUM_POINTS / 2;
     // This test asks for more points than exist in the octree.
     // Expected result: The number of points returned is equal to the number of points in the octree.
-    let mut callback_count = 0;
-    let mut delivered_points = 0;
     let max_num_points = NUM_POINTS + 30_000;
-    println!("batch_size= {}, num_points= {}", batch_size, max_num_points);
-    let callback_func = |points_batch: PointsBatch| -> Result<()> {
-        callback_count += 1;
-        delivered_points += points_batch.position.len();
-        println!(
-            "Callback_count {:}, delivered points {:}",
-            callback_count, delivered_points
-        );
-        if delivered_points >= max_num_points {
-            println!("Callback: Max Points reached!");
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Interrupted,
-                format!("Maximum number of {} points reached.", max_num_points),
-            )
-            .into());
-        }
-        Ok(())
-    };
+    let mut c = Consumer::new(max_num_points);
+
     // octree and iterator
     let octree = build_test_octree();
     let location = PointQuery {
@@ -138,7 +130,7 @@ fn test_batch_iterator_more_points() {
     let mut parallel_iterator = ParallelIterator::new(octree_slice, &location, batch_size, 2, 2);
 
     parallel_iterator
-        .try_for_each_batch(callback_func)
+        .try_for_each_batch(|points_batch| c.consume(points_batch))
         .expect("Iterator errored even though callback should not have errored.");
-    assert!(delivered_points == NUM_POINTS);
+    assert_eq!(c.num_received_points, NUM_POINTS);
 }
