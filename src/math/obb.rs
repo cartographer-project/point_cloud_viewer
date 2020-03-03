@@ -5,6 +5,7 @@ use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, RealField, Unit, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 
+/// An oriented bounding box.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Obb<S: RealField> {
     query_from_obb: Isometry3<S>,

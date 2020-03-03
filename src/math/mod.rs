@@ -67,6 +67,8 @@ impl From<std::num::ParseFloatError> for ParseClosedIntervalError {
     }
 }
 
+/// An interval, intended to be read from a command line argument
+/// and to be used in filtering the point cloud via an attribute.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct ClosedInterval<T> {
     lower_bound: T,

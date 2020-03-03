@@ -5,7 +5,7 @@ use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, RealField, Unit, Vector3};
 use serde::{Deserialize, Serialize};
 
-/// An Axis Aligned Bounding Box.
+/// An axis-aligned bounding box.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Aabb<S: RealField> {
     mins: Point3<S>,
