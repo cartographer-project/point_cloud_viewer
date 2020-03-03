@@ -26,7 +26,7 @@ use point_viewer::attributes::AttributeData;
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::*;
 use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
-use point_viewer::math::{collision::Perspective, Frustum, AABB};
+use point_viewer::math::{collision::Perspective, Aabb, Frustum};
 use point_viewer::octree::{NodeId, Octree};
 use point_viewer::PointsBatch;
 use protobuf::Message;
@@ -143,7 +143,7 @@ impl proto_grpc::Octree for OctreeService {
             let bounding_box = req.bounding_box.clone().unwrap();
             let min = bounding_box.min.unwrap();
             let max = bounding_box.max.unwrap();
-            AABB::new(
+            Aabb::new(
                 Point3::new(min.x, min.y, min.z),
                 Point3::new(max.x, max.y, max.z),
             )

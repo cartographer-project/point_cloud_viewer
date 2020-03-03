@@ -14,7 +14,7 @@ use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
 use point_viewer::color::{Color, TRANSPARENT};
 use point_viewer::iterator::{PointLocation, PointQuery};
-use point_viewer::math::{ClosedInterval, Obb, AABB};
+use point_viewer::math::{Aabb, ClosedInterval, Obb};
 use point_viewer::utils::create_syncable_progress_bar;
 use point_viewer::{match_1d_attr_data, PointsBatch};
 use protobuf::Message;
@@ -108,7 +108,7 @@ pub trait ColoringStrategy: Send {
     fn process_point_data(
         &mut self,
         points_batch: &PointsBatch,
-        bbox: &AABB<f64>,
+        bbox: &Aabb<f64>,
         image_size: Vector2<u32>,
     ) {
         let mut discretized_locations = Vec::with_capacity(points_batch.position.len());
@@ -474,7 +474,7 @@ pub struct XrayParameters {
 }
 
 pub fn xray_from_points(
-    bbox: &AABB<f64>,
+    bbox: &Aabb<f64>,
     png_file: &Path,
     image_size: Vector2<u32>,
     mut coloring_strategy: Box<dyn ColoringStrategy>,
@@ -526,7 +526,7 @@ pub fn xray_from_points(
     true
 }
 
-fn find_quadtree_bounding_rect_and_levels(bbox: &AABB<f64>, tile_size_m: f64) -> (Rect, u8) {
+fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb<f64>, tile_size_m: f64) -> (Rect, u8) {
     let mut levels = 0;
     let mut cur_size = tile_size_m;
     let dim = bbox.max() - bbox.min();
@@ -595,7 +595,7 @@ pub fn build_xray_quadtree(
                 let rect_max = node.bounding_rect.max();
                 let min = Point3::new(rect_min.x, rect_min.y, bbox.min().z);
                 let max = Point3::new(rect_max.x, rect_max.y, bbox.max().z);
-                let bbox = AABB::new(min, max);
+                let bbox = Aabb::new(min, max);
                 if xray_from_points(
                     &bbox,
                     &get_image_path(output_directory, node.id),

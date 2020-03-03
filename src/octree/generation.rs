@@ -14,7 +14,7 @@
 
 use crate::data_provider::OnDiskDataProvider;
 use crate::errors::*;
-use crate::math::{Cube, AABB};
+use crate::math::{Aabb, Cube};
 use crate::octree::{self, to_meta_proto, to_node_proto, ChildIndex, NodeId, OctreeMeta};
 use crate::proto;
 use crate::read_write::{
@@ -247,20 +247,20 @@ fn subsample_children_into(
 }
 
 /// Returns the bounding box containing all points
-fn find_bounding_box(filename: impl AsRef<Path>) -> AABB<f64> {
+fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb<f64> {
     let mut bounding_box = None;
     let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap();
     let mut progress_bar = create_progress_bar(stream.num_points(), "Determining bounding box");
 
     stream.for_each(|batch| {
         for pos in batch.position {
-            let b = bounding_box.get_or_insert(AABB::new(pos, pos));
+            let b = bounding_box.get_or_insert(Aabb::new(pos, pos));
             b.grow(pos);
             progress_bar.inc();
         }
     });
     progress_bar.finish();
-    bounding_box.unwrap_or_else(AABB::zero)
+    bounding_box.unwrap_or_else(Aabb::zero)
 }
 
 pub fn build_octree_from_file(
@@ -283,7 +283,7 @@ pub fn build_octree_from_file(
 pub fn build_octree(
     output_directory: impl AsRef<Path>,
     resolution: f64,
-    bounding_box: AABB<f64>,
+    bounding_box: Aabb<f64>,
     input: impl Iterator<Item = PointsBatch> + NumberOfPoints + Send,
     _attributes: &[&str],
 ) {

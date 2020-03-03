@@ -17,7 +17,7 @@ use crate::opengl;
 use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use nalgebra::Matrix4;
 use point_viewer::color;
-use point_viewer::math::AABB;
+use point_viewer::math::Aabb;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
@@ -164,7 +164,7 @@ impl BoxDrawer {
     // Then we use 'world_to_gl' to transform it into clip space.
     pub fn draw_outlines(
         &self,
-        cuboid: &AABB<f64>,
+        cuboid: &Aabb<f64>,
         world_to_gl: &Matrix4<f64>,
         color: &color::Color<f32>,
     ) {

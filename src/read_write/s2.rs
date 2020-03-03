@@ -1,4 +1,4 @@
-use crate::math::{FromPoint3, AABB, EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
+use crate::math::{Aabb, FromPoint3, EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
 use crate::read_write::{Encoding, NodeWriter, OpenMode};
 use crate::s2_cells::{S2CellMeta, S2Meta};
 use crate::{AttributeData, AttributeDataType, PointsBatch};
@@ -20,7 +20,7 @@ pub struct S2Splitter<W> {
     writers: LruCache<CellID, W>,
     already_opened_writers: HashSet<CellID>,
     cell_stats: FnvHashMap<CellID, S2CellMeta>,
-    bounding_box: Option<AABB<f64>>,
+    bounding_box: Option<Aabb<f64>>,
     attributes_seen: BTreeMap<String, AttributeDataType>,
     encoding: Encoding,
     open_mode: OpenMode,
@@ -70,7 +70,7 @@ where
                 return Err(Error::new(ErrorKind::InvalidInput, msg));
             }
             let p3 = *pos;
-            let b = self.bounding_box.get_or_insert(AABB::new(p3, p3));
+            let b = self.bounding_box.get_or_insert(Aabb::new(p3, p3));
             b.grow(p3);
             let s2_cell_id = CellID::from_point(pos).parent(self.split_level);
             self.cell_stats

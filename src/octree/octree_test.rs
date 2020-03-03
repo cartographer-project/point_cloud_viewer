@@ -3,7 +3,7 @@ mod tests {
     use crate::data_provider::OnDiskDataProvider;
     use crate::errors::Result;
     use crate::iterator::{ParallelIterator, PointQuery};
-    use crate::math::AABB;
+    use crate::math::Aabb;
     use crate::octree::{build_octree, Octree};
     use crate::{AttributeData, NumberOfPoints, PointsBatch};
     use nalgebra::{Point3, Vector3};
@@ -30,7 +30,7 @@ mod tests {
 
         batch.position[NUM_POINTS - 1] = Point3::new(-200., -40., 30.);
 
-        let bounding_box = AABB::new(batch.position[0], batch.position[NUM_POINTS - 1]);
+        let bounding_box = Aabb::new(batch.position[0], batch.position[NUM_POINTS - 1]);
 
         let tmp_dir = TempDir::new("octree").unwrap();
 

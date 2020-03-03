@@ -1,4 +1,4 @@
-use super::aabb::AABB;
+use super::aabb::Aabb;
 use super::base::PointCulling;
 use super::sat::ConvexPolyhedron;
 use arrayvec::ArrayVec;
@@ -12,8 +12,8 @@ pub struct Obb<S: RealField> {
     half_extent: Vector3<S>,
 }
 
-impl<S: RealField> From<&AABB<S>> for Obb<S> {
-    fn from(aabb: &AABB<S>) -> Self {
+impl<S: RealField> From<&Aabb<S>> for Obb<S> {
+    fn from(aabb: &Aabb<S>) -> Self {
         Obb::new(
             Isometry3::from_parts(aabb.center().coords.into(), UnitQuaternion::identity()),
             aabb.max() - aabb.center(),
@@ -21,8 +21,8 @@ impl<S: RealField> From<&AABB<S>> for Obb<S> {
     }
 }
 
-impl<S: RealField> From<AABB<S>> for Obb<S> {
-    fn from(aabb: AABB<S>) -> Self {
+impl<S: RealField> From<Aabb<S>> for Obb<S> {
+    fn from(aabb: Aabb<S>) -> Self {
         Self::from(&aabb)
     }
 }
@@ -107,12 +107,12 @@ mod tests {
         let translation = Vector3::new(0.0, 0.0, 0.0).into();
         let half_extent = Vector3::new(1.0, 2.0, 3.0).into();
         // Object to intersection-test against
-        let bbox = AABB::new(Point3::new(0.5, 1.0, -3.0), Point3::new(1.5, 3.0, 3.0));
+        let bbox = Aabb::new(Point3::new(0.5, 1.0, -3.0), Point3::new(1.5, 3.0, 3.0));
 
         let zero_obb = Obb::new(Isometry3::from_parts(translation, zero_rot), half_extent);
         let zero_obb_isec = zero_obb
             .intersector()
-            .cache_separating_axes(&AABB::axes(), &AABB::axes());
+            .cache_separating_axes(&Aabb::axes(), &Aabb::axes());
         assert_eq!(zero_obb_isec.axes.len(), 3);
         assert_eq!(
             zero_obb_isec.intersect(&bbox.compute_corners()),
@@ -125,7 +125,7 @@ mod tests {
         );
         let fourty_five_deg_obb_isec = fourty_five_deg_obb
             .intersector()
-            .cache_separating_axes(&AABB::axes(), &AABB::axes());
+            .cache_separating_axes(&Aabb::axes(), &Aabb::axes());
         assert_eq!(fourty_five_deg_obb_isec.axes.len(), 5);
         assert_eq!(
             fourty_five_deg_obb_isec.intersect(&bbox.compute_corners()),
@@ -138,7 +138,7 @@ mod tests {
         );
         let arbitrary_obb_isec = arbitrary_obb
             .intersector()
-            .cache_separating_axes(&AABB::axes(), &AABB::axes());
+            .cache_separating_axes(&Aabb::axes(), &Aabb::axes());
         assert_eq!(arbitrary_obb_isec.axes.len(), 15);
     }
 }

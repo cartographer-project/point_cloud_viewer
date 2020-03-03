@@ -5,7 +5,7 @@ use nalgebra::Point3;
 use point_cloud_client::PointCloudClientBuilder;
 use point_viewer::errors::{ErrorKind, Result};
 use point_viewer::iterator::{PointLocation, PointQuery};
-use point_viewer::math::AABB;
+use point_viewer::math::Aabb;
 use point_viewer::PointsBatch;
 use structopt::StructOpt;
 
@@ -71,7 +71,7 @@ fn main() {
 
     let point_location = PointQuery {
         attributes: vec!["color", "intensity"],
-        location: PointLocation::Aabb(AABB::new(args.min, args.max)),
+        location: PointLocation::Aabb(Aabb::new(args.min, args.max)),
         ..Default::default()
     };
     let mut point_count: usize = 0;

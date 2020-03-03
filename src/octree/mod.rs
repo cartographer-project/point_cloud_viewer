@@ -15,7 +15,7 @@ use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
 use crate::math::sat::{ConvexPolyhedron, Intersector};
-use crate::math::{cell_union_intersects_aabb, Cube, Frustum, Relation, AABB};
+use crate::math::{cell_union_intersects_aabb, Aabb, Cube, Frustum, Relation};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -41,7 +41,7 @@ mod octree_test;
 #[derive(Clone, Debug)]
 pub struct OctreeMeta {
     pub resolution: f64,
-    pub bounding_box: AABB<f64>,
+    pub bounding_box: Aabb<f64>,
     attribute_data_types: HashMap<String, AttributeDataType>,
 }
 
@@ -66,7 +66,7 @@ impl OctreeMeta {
         let attribute_data_types = HashMap::new();
         OctreeMeta {
             resolution: 0.0,
-            bounding_box: AABB::zero(),
+            bounding_box: Aabb::zero(),
             attribute_data_types,
         }
     }
@@ -108,7 +108,7 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f64>) -> f64 {
     // z is unused here.
     let min = bounding_cube.min();
     let max = bounding_cube.max();
-    let mut rv = AABB::new(
+    let mut rv = Aabb::new(
         clip_point_to_hemicube(&project(matrix, &min)),
         clip_point_to_hemicube(&project(matrix, &max)),
     );
@@ -158,7 +158,7 @@ impl Octree {
         .collect();
         let (bounding_box, meta, nodes_proto) = match meta_proto.version {
             9 | 10 | 11 => {
-                let bounding_box = AABB::from(meta_proto.get_bounding_box());
+                let bounding_box = Aabb::from(meta_proto.get_bounding_box());
                 (
                     bounding_box.clone(),
                     OctreeMeta {
@@ -174,7 +174,7 @@ impl Octree {
                     return Err(ErrorKind::InvalidInput("No octree meta found".to_string()).into());
                 }
                 let octree_meta = meta_proto.get_octree();
-                let bounding_box = AABB::from(if meta_proto.version == 12 {
+                let bounding_box = Aabb::from(if meta_proto.version == 12 {
                     octree_meta.get_deprecated_bounding_box()
                 } else {
                     meta_proto.get_bounding_box()
@@ -229,7 +229,7 @@ impl Octree {
             Frustum::from_matrix4(*projection_matrix).expect("Invalid projection matrix.");
         let frustum_isec = frustum
             .intersector()
-            .cache_separating_axes(&AABB::axes(), &AABB::axes());
+            .cache_separating_axes(&Aabb::axes(), &Aabb::axes());
         let mut open = BinaryHeap::new();
         maybe_push_node(
             &mut open,
@@ -316,20 +316,19 @@ impl PointCloud for Octree {
 
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
         let node_ids_for_intersector = |isec: Intersector<f64>| {
-            let cached_intersector = isec.cache_separating_axes(&AABB::axes(), &AABB::axes());
+            let cached_intersector = isec.cache_separating_axes(&Aabb::axes(), &Aabb::axes());
             NodeIdsIterator::new(&self, move |node_id, octree| {
                 let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
                 cached_intersector.intersect(&aabb.corners()) != Relation::Out
             })
             .collect()
         };
-        use PointLocation::*;
         match location {
-            AllPoints => NodeIdsIterator::new(&self, |_, _| true).collect(),
-            Aabb(aabb) => node_ids_for_intersector(aabb.intersector()),
-            Frustum(f) => node_ids_for_intersector(f.intersector()),
-            Obb(obb) => node_ids_for_intersector(obb.intersector()),
-            S2Cells(cu) => NodeIdsIterator::new(&self, |node_id, octree| {
+            PointLocation::AllPoints => NodeIdsIterator::new(&self, |_, _| true).collect(),
+            PointLocation::Aabb(aabb) => node_ids_for_intersector(aabb.intersector()),
+            PointLocation::Frustum(f) => node_ids_for_intersector(f.intersector()),
+            PointLocation::Obb(obb) => node_ids_for_intersector(obb.intersector()),
+            PointLocation::S2Cells(cu) => NodeIdsIterator::new(&self, |node_id, octree| {
                 let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
                 cell_union_intersects_aabb(cu, &aabb) != Relation::Out
             })
@@ -365,7 +364,7 @@ impl PointCloud for Octree {
     }
 
     /// return the bounding box saved in meta
-    fn bounding_box(&self) -> &AABB<f64> {
+    fn bounding_box(&self) -> &Aabb<f64> {
         &self.meta.bounding_box
     }
 }

@@ -9,17 +9,17 @@
 //! ```no_run
 //! use nalgebra::Vector3;
 //! use point_viewer::math::sat::ConvexPolyhedron;
-//! use point_viewer::math::{AABB, Obb, Frustum};
+//! use point_viewer::math::{Aabb, Obb, Frustum};
 //! // Use your imagination here
 //! let many_obbs: Vec<Obb<f64>> = unimplemented!();
-//! let many_aabbs: Vec<AABB<f64>> = unimplemented!();
+//! let many_aabbs: Vec<Aabb<f64>> = unimplemented!();
 //! let frustum: Frustum<f64> = unimplemented!();
 //! // For a generic intersection, you can reuse the intersector:
 //! let frustum_intersector = frustum.intersector();
 //! for obb in many_obbs {
 //!   let relation = frustum_intersector.intersect(&obb.intersector());
 //! }
-//! // For intersection with many AABBs, which can per definition only differ in
+//! // For intersection with many Aabbs, which can per definition only differ in
 //! // their corners, not their edges and face normals (which are both the axis vecs),
 //! // you can reuse not only the intersector, but also the separating axes:
 //! let unit_vecs = [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()];

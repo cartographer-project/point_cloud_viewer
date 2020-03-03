@@ -1,7 +1,7 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::{ConvexPolyhedron, FromPoint3, AABB};
+use crate::math::{Aabb, ConvexPolyhedron, FromPoint3};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -37,7 +37,7 @@ impl S2CellMeta {
 pub struct S2Meta {
     cells: FnvHashMap<CellID, S2CellMeta>,
     attribute_data_types: HashMap<String, AttributeDataType>,
-    bounding_box: AABB<f64>,
+    bounding_box: Aabb<f64>,
 }
 
 impl PointCloudMeta for S2Meta {
@@ -50,7 +50,7 @@ impl S2Meta {
     pub fn new(
         cells: FnvHashMap<CellID, S2CellMeta>,
         attribute_data_types: HashMap<String, AttributeDataType>,
-        bounding_box: AABB<f64>,
+        bounding_box: Aabb<f64>,
     ) -> Self {
         S2Meta {
             cells,
@@ -70,7 +70,7 @@ impl S2Meta {
         &self.cells
     }
 
-    pub fn bounding_box(&self) -> &AABB<f64> {
+    pub fn bounding_box(&self) -> &Aabb<f64> {
         &self.bounding_box
     }
 
@@ -121,7 +121,7 @@ impl S2Meta {
             .into());
         }
 
-        let bounding_box = AABB::from(meta_proto.get_bounding_box());
+        let bounding_box = Aabb::from(meta_proto.get_bounding_box());
         let s2_meta_proto = meta_proto.get_s2();
         // cells, num_points
         let mut cells = FnvHashMap::default();
@@ -195,7 +195,7 @@ impl PointCloud for S2Cells {
         })
     }
 
-    fn bounding_box(&self) -> &AABB<f64> {
+    fn bounding_box(&self) -> &Aabb<f64> {
         &self.meta.bounding_box
     }
 }

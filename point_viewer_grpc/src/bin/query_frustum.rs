@@ -19,7 +19,7 @@ use nalgebra::{Point3, Vector3};
 use num_integer::div_ceil;
 use point_viewer::attributes::AttributeData;
 use point_viewer::color::Color;
-use point_viewer::math::AABB;
+use point_viewer::math::Aabb;
 use point_viewer::octree::build_octree;
 use point_viewer::{NumberOfPoints, Point, PointsBatch, NUM_POINTS_PER_BATCH};
 pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
@@ -113,7 +113,7 @@ fn main() {
     request.set_z_near(0.1);
     request.set_z_far(10000.);
 
-    let mut bounding_box = AABB::zero();
+    let mut bounding_box = Aabb::zero();
 
     let replies = client.get_points_in_frustum(&request).expect("rpc");
     let mut points = Vec::new();

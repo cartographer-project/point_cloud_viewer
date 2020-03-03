@@ -1,7 +1,7 @@
 use fnv::FnvHashSet;
 use nalgebra::{Matrix4, Point2, Point3};
 use point_viewer::math::sat::ConvexPolyhedron;
-use point_viewer::math::{Frustum, Relation, AABB};
+use point_viewer::math::{Aabb, Frustum, Relation};
 use quadtree::{ChildIndex, Node};
 use quadtree::{NodeId, Rect};
 use serde_derive::Serialize;
@@ -114,12 +114,12 @@ impl Meta {
             Frustum::from_matrix4(matrix).ok_or("Unable to create frustum from matrix")?;
         let frustum_isec = frustum
             .intersector()
-            .cache_separating_axes(&AABB::axes(), &AABB::axes());
+            .cache_separating_axes(&Aabb::axes(), &Aabb::axes());
         let mut result = Vec::new();
         let mut open = vec![Node::root_with_bounding_rect(self.bounding_rect.clone())];
         while !open.is_empty() {
             let node = open.pop().unwrap();
-            let aabb = AABB::new(
+            let aabb = Aabb::new(
                 Point3::new(node.bounding_rect.min().x, node.bounding_rect.min().y, -0.1),
                 Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
             );

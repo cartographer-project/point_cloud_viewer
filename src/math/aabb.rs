@@ -7,14 +7,14 @@ use serde::{Deserialize, Serialize};
 
 /// An Axis Aligned Bounding Box.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct AABB<S: RealField> {
+pub struct Aabb<S: RealField> {
     mins: Point3<S>,
     maxs: Point3<S>,
 }
 
-impl<S: RealField> AABB<S> {
+impl<S: RealField> Aabb<S> {
     pub fn new(mins: Point3<S>, maxs: Point3<S>) -> Self {
-        AABB { mins, maxs }
+        Aabb { mins, maxs }
     }
 
     pub fn zero() -> Self {
@@ -58,7 +58,7 @@ impl<S: RealField> AABB<S> {
         nalgebra::center(&self.mins, &self.maxs)
     }
 
-    pub fn transform(&self, transform: &Isometry3<S>) -> AABB<S> {
+    pub fn transform(&self, transform: &Isometry3<S>) -> Aabb<S> {
         let corners = self.corners();
         let transformed_first = transform.transform_point(&corners[0]);
         let base = Self::new(transformed_first, transformed_first);
@@ -70,13 +70,13 @@ impl<S: RealField> AABB<S> {
 
     /// It's convenient to have this associated function for intersection testing.
     /// To be precise, it's nice if we can give this to cache_separating_axes() without
-    /// having to reference a specific AABB instance.
+    /// having to reference a specific Aabb instance.
     pub fn axes() -> [Unit<Vector3<S>>; 3] {
         [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()]
     }
 }
 
-impl From<&proto::AxisAlignedCuboid> for AABB<f64> {
+impl From<&proto::AxisAlignedCuboid> for Aabb<f64> {
     fn from(aac: &proto::AxisAlignedCuboid) -> Self {
         let aac_min = aac.min.clone().unwrap_or_else(|| {
             let deprecated_min = aac.deprecated_min.clone().unwrap(); // Version 9
@@ -86,15 +86,15 @@ impl From<&proto::AxisAlignedCuboid> for AABB<f64> {
             let deprecated_max = aac.deprecated_max.clone().unwrap(); // Version 9
             proto::Vector3d::from(deprecated_max)
         });
-        AABB::new(
+        Aabb::new(
             std::convert::From::from(&aac_min),
             std::convert::From::from(&aac_max),
         )
     }
 }
 
-impl From<&AABB<f64>> for proto::AxisAlignedCuboid {
-    fn from(bbox: &AABB<f64>) -> Self {
+impl From<&Aabb<f64>> for proto::AxisAlignedCuboid {
+    fn from(bbox: &Aabb<f64>) -> Self {
         let mut aac = proto::AxisAlignedCuboid::new();
         aac.set_min(proto::Vector3d::from(bbox.min()));
         aac.set_max(proto::Vector3d::from(bbox.max()));
@@ -102,7 +102,7 @@ impl From<&AABB<f64>> for proto::AxisAlignedCuboid {
     }
 }
 
-impl<S> PointCulling<S> for AABB<S>
+impl<S> PointCulling<S> for Aabb<S>
 where
     S: RealField + num_traits::Bounded,
 {
@@ -111,7 +111,7 @@ where
     }
 }
 
-impl<S> ConvexPolyhedron<S> for AABB<S>
+impl<S> ConvexPolyhedron<S> for Aabb<S>
 where
     S: RealField,
 {

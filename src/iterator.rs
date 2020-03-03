@@ -1,5 +1,5 @@
 use crate::errors::*;
-use crate::math::{AllPoints, ClosedInterval, Frustum, Obb, PointCulling, AABB};
+use crate::math::{Aabb, AllPoints, ClosedInterval, Frustum, Obb, PointCulling};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{match_1d_attr_data, AttributeData, PointsBatch};
 use crossbeam::deque::{Injector, Steal, Worker};
@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, HashMap};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PointLocation {
     AllPoints,
-    Aabb(AABB<f64>),
+    Aabb(Aabb<f64>),
     Frustum(Frustum<f64>),
     Obb(Obb<f64>),
     S2Cells(CellUnion),
@@ -155,7 +155,7 @@ pub trait PointCloud: Sync {
         node_id: Self::Id,
         batch_size: usize,
     ) -> Result<FilteredIterator<'a>>;
-    fn bounding_box(&self) -> &AABB<f64>;
+    fn bounding_box(&self) -> &Aabb<f64>;
 }
 
 /// Iterator on point batches

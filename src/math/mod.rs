@@ -154,7 +154,7 @@ pub struct Cube {
 }
 
 impl Cube {
-    pub fn bounding(aabb: &AABB<f64>) -> Self {
+    pub fn bounding(aabb: &Aabb<f64>) -> Self {
         let edge_length = (aabb.max().x - aabb.min().x)
             .max(aabb.max().y - aabb.min().y)
             .max(aabb.max().z - aabb.min().z);
@@ -164,8 +164,8 @@ impl Cube {
         }
     }
 
-    pub fn to_aabb(&self) -> AABB<f64> {
-        AABB::new(self.min(), self.max())
+    pub fn to_aabb(&self) -> Aabb<f64> {
+        Aabb::new(self.min(), self.max())
     }
 
     pub fn new(min: Point3<f64>, edge_length: f64) -> Self {
@@ -200,19 +200,19 @@ impl Cube {
     }
 }
 
-pub fn cell_union_intersects_aabb<S>(cell_union: &CellUnion, aabb: &AABB<S>) -> Relation
+pub fn cell_union_intersects_aabb<S>(cell_union: &CellUnion, aabb: &Aabb<S>) -> Relation
 where
     S: RealField,
     f64: From<S>,
 {
-    let point_cells = aabb
+    let aabb_corner_cells = aabb
         .corners()
         .iter()
         .map(|p| CellID::from_point(p))
         .collect();
-    let mut cell_union = CellUnion(point_cells);
-    cell_union.normalize();
-    let rect = cell_union.rect_bound();
+    let mut aabb_cell_union = CellUnion(aabb_corner_cells);
+    aabb_cell_union.normalize();
+    let rect = aabb_cell_union.rect_bound();
     let intersects = cell_union
         .0
         .iter()
@@ -282,7 +282,7 @@ mod tests {
         let frustum = Frustum::new(rot, perspective);
         let bbox_min = Point3::new(-0.5, 0.25, 1.5);
         let bbox_max = Point3::new(-0.25, 0.5, 3.5);
-        let bbox = AABB::new(bbox_min, bbox_max);
+        let bbox = Aabb::new(bbox_min, bbox_max);
         assert_eq!(
             frustum.intersector().intersect(&bbox.intersector()),
             Relation::In

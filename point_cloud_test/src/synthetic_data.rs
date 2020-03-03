@@ -1,7 +1,7 @@
 use nalgebra::{Isometry3, Point3, Vector3};
 use point_viewer::attributes::AttributeData;
 use point_viewer::color::Color;
-use point_viewer::math::{local_frame_from_lat_lng, AABB};
+use point_viewer::math::{local_frame_from_lat_lng, Aabb};
 use point_viewer::{NumberOfPoints, Point, PointsBatch};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -42,10 +42,10 @@ impl SyntheticData {
         self.ecef_from_local.transform_point(&pt_local)
     }
 
-    pub fn bbox(&self) -> AABB<f64> {
+    pub fn bbox(&self) -> Aabb<f64> {
         let local_min = Point3::new(-self.half_width, -self.half_width, -self.half_height);
         let local_max = Point3::new(self.half_width, self.half_width, self.half_height);
-        AABB::new(local_min, local_max).transform(&self.ecef_from_local)
+        Aabb::new(local_min, local_max).transform(&self.ecef_from_local)
     }
 
     pub fn ecef_from_local(&self) -> &Isometry3<f64> {
