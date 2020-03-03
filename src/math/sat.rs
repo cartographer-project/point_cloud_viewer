@@ -45,7 +45,6 @@ pub enum Relation {
     Out,
 }
 
-
 /// A trait for convex polyhedra that can perform intersection tests against other convex polyhedra.
 ///
 /// The possible separating axes between two convex polyhedra are:
@@ -95,19 +94,22 @@ impl<S: RealField + Bounded> Intersector<S> {
     ) -> impl Iterator<Item = Unit<Vector3<S>>> + 'a {
         let self_face_normals = self.face_normals.iter();
         let nested_iter = move |e1| other_edges.iter().map(move |e2| (e1, e2));
-        let edge_cross_products =
-            self.edges
-                .iter()
-                .flat_map(nested_iter)
-                .filter_map(|(e1, e2)| {
-                    let cross = Unit::new_normalize(e1.cross(e2));
-                    if cross[0].is_finite() && cross[1].is_finite() && cross[2].is_finite() {
-                        Some(cross)
-                    } else {
-                        None
-                    }
-                });
-        self_face_normals.chain(other_face_normals).cloned().chain(edge_cross_products)
+        let edge_cross_products = self
+            .edges
+            .iter()
+            .flat_map(nested_iter)
+            .filter_map(|(e1, e2)| {
+                let cross = Unit::new_normalize(e1.cross(e2));
+                if cross[0].is_finite() && cross[1].is_finite() && cross[2].is_finite() {
+                    Some(cross)
+                } else {
+                    None
+                }
+            });
+        self_face_normals
+            .chain(other_face_normals)
+            .cloned()
+            .chain(edge_cross_products)
     }
 
     /// If you know that the edges and normals of the other object do not change, precompute

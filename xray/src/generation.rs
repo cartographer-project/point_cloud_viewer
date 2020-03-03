@@ -3,18 +3,17 @@
 use crate::colormap::{Colormap, Jet, Monochrome, PURPLISH};
 use crate::proto;
 use crate::CURRENT_VERSION;
-use nalgebra::{Point2, Point3, Vector2, Vector3};
 use clap::arg_enum;
-use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage};
+use nalgebra::{Isometry3, Point2, Point3, Vector2};
 use num::clamp;
 use pbr::ProgressBar;
 use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
 use point_viewer::color::Color;
 use point_viewer::iterator::{PointLocation, PointQuery};
-use point_viewer::math::{ClosedInterval, Isometry3, Obb};
+use point_viewer::math::{ClosedInterval, Obb, AABB};
 use point_viewer::{match_1d_attr_data, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
@@ -108,7 +107,7 @@ pub trait ColoringStrategy: Send {
     fn process_point_data(
         &mut self,
         points_batch: &PointsBatch,
-        bbox: &Aabb3<f64>,
+        bbox: &AABB<f64>,
         image_size: Vector2<u32>,
     ) {
         let mut discretized_locations = Vec::with_capacity(points_batch.position.len());
@@ -117,10 +116,12 @@ pub trait ColoringStrategy: Send {
             // This means that the y-axis aligns too, but the origin of the image space must be at the
             // bottom left. Since images have their origin at the top left, we need actually have to
             // invert y and go from the bottom of the image.
-            let x = (((pos.x - bbox.min().x) / bbox.dim().x) * f64::from(image_size.x)) as u32;
-            let y =
-                ((1. - ((pos.y - bbox.min().y) / bbox.dim().y)) * f64::from(image_size.y)) as u32;
-            let z = (((pos.z - bbox.min().z) / bbox.dim().z) * NUM_Z_BUCKETS) as u32;
+            let x = (((pos.x - bbox.min().x) / (bbox.max().x - bbox.min().x))
+                * f64::from(image_size.x)) as u32;
+            let y = ((1. - ((pos.y - bbox.min().y) / (bbox.max().y - bbox.min().y)))
+                * f64::from(image_size.y)) as u32;
+            let z =
+                (((pos.z - bbox.min().z) / (bbox.max().z - bbox.min().z)) * NUM_Z_BUCKETS) as u32;
             discretized_locations.push(Point3::new(x, y, z));
         }
         self.process_discretized_point_data(points_batch, discretized_locations)
@@ -486,7 +487,7 @@ pub struct XrayParameters {
 }
 
 pub fn xray_from_points(
-    bbox: &Aabb3<f64>,
+    bbox: &AABB<f64>,
     png_file: &Path,
     image_size: Vector2<u32>,
     mut coloring_strategy: Box<dyn ColoringStrategy>,
@@ -498,7 +499,7 @@ pub fn xray_from_points(
             let global_from_query = query_from_global.inverse();
             PointLocation::Obb(Obb::from(bbox).transformed(&global_from_query))
         }
-        None => PointLocation::Aabb(*bbox),
+        None => PointLocation::Aabb(bbox.clone()),
     };
     let mut attributes = coloring_strategy.attributes();
     attributes.extend(parameters.filter_intervals.keys().cloned());
@@ -517,7 +518,7 @@ pub fn xray_from_points(
             seen_any_points = true;
             if let Some(query_from_global) = &parameters.query_from_global {
                 for p in &mut points_batch.position {
-                    *p = (query_from_global * &Point3::from_vec(*p)).to_vec();
+                    *p = query_from_global.transform_point(p);
                 }
             }
             coloring_strategy.process_point_data(&points_batch, bbox, image_size);
@@ -543,10 +544,11 @@ pub fn xray_from_points(
     true
 }
 
-fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb3<f64>, tile_size_m: f64) -> (Rect, u8) {
+fn find_quadtree_bounding_rect_and_levels(bbox: &AABB<f64>, tile_size_m: f64) -> (Rect, u8) {
     let mut levels = 0;
     let mut cur_size = tile_size_m;
-    while cur_size < bbox.dim().x || cur_size < bbox.dim().y {
+    let dim = bbox.max() - bbox.min();
+    while cur_size < dim.x || cur_size < dim.y {
         cur_size *= 2.;
         levels += 1;
     }
@@ -573,13 +575,11 @@ pub fn build_xray_quadtree(
     let _ = fs::create_dir(output_directory);
 
     let bounding_box = match &parameters.query_from_global {
-        Some(query_from_global) => {
-            parameters
-                .point_cloud_client
-                .bounding_box()
-                .transform(&query_from_global)
-        }
-        None => *parameters.point_cloud_client.bounding_box(),
+        Some(query_from_global) => parameters
+            .point_cloud_client
+            .bounding_box()
+            .transform(&query_from_global),
+        None => parameters.point_cloud_client.bounding_box().clone(),
     };
     let (bounding_rect, deepest_level) = find_quadtree_bounding_rect_and_levels(
         &bounding_box,
@@ -615,12 +615,13 @@ pub fn build_xray_quadtree(
             let all_nodes_tx_clone = all_nodes_tx.clone();
             let strategy: Box<dyn ColoringStrategy> = coloring_strategy_kind.new_strategy();
             let progress_bar = Arc::clone(&progress_bar);
+            let bbox = bounding_box.clone();
             scope.execute(move || {
                 let rect_min = node.bounding_rect.min();
                 let rect_max = node.bounding_rect.max();
-                let min = Point3::new(rect_min.x, rect_min.y, bounding_box.min().z);
-                let max = Point3::new(rect_max.x, rect_max.y, bounding_box.max().z);
-                let bbox = Aabb3::new(min, max);
+                let min = Point3::new(rect_min.x, rect_min.y, bbox.min().z);
+                let max = Point3::new(rect_max.x, rect_max.y, bbox.max().z);
+                let bbox = AABB::new(min, max);
                 if xray_from_points(
                     &bbox,
                     &get_image_path(output_directory, node.id),

@@ -1,5 +1,5 @@
+use nalgebra::Isometry3;
 use point_viewer::data_provider::DataProviderFactory;
-use point_viewer::math::Isometry3;
 use point_viewer_grpc::data_provider_from_grpc_address;
 use xray::build_quadtree::{run, Extension};
 

@@ -2141,7 +2141,7 @@ dependencies = [
 name = "quadtree"
 version = "0.1.0"
 dependencies = [
- "cgmath 0.17.0",
+ "nalgebra 0.19.0",
 ]
 
 [[package]]

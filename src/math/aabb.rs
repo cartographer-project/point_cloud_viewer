@@ -2,7 +2,7 @@ use super::base::PointCulling;
 use super::sat::ConvexPolyhedron;
 use crate::proto;
 use arrayvec::ArrayVec;
-use nalgebra::{Point3, RealField, Unit, Vector3};
+use nalgebra::{Isometry3, Point3, RealField, Unit, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// An Axis Aligned Bounding Box.
@@ -59,6 +59,16 @@ impl<S: RealField> AABB<S> {
 
     pub fn center(&self) -> Point3<S> {
         nalgebra::center(&self.mins, &self.maxs)
+    }
+
+    pub fn transform(&self, transform: &Isometry3<S>) -> AABB<S> {
+        let corners = self.corners();
+        let transformed_first = transform.transform_point(&corners[0]);
+        let base = Self::new(transformed_first, transformed_first);
+        corners[1..].iter().fold(base, |mut u, &corner| {
+            u.grow(transform.transform_point(&corner));
+            u
+        })
     }
 
     /// It's convenient to have this associated function for intersection testing.

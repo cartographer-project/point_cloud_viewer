@@ -30,7 +30,7 @@ impl PointCloudClient {
             .collect::<Result<Vec<Box<dyn DataProvider>>>>()?;
         let mut aabb: Option<AABB<f64>> = None;
         let unite = |bbox: &AABB<f64>, with: &mut Option<AABB<f64>>| {
-            let mut b = with.get_or_insert(bbox.clone());
+            let b = with.get_or_insert(bbox.clone());
             b.grow(*bbox.min());
             b.grow(*bbox.max());
         };

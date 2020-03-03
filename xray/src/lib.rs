@@ -1,6 +1,7 @@
-use nalgebra::{Matrix4, Point3, Point2};
-use point_viewer::math::{AABB, Frustum, Relation};
 use fnv::FnvHashSet;
+use nalgebra::{Matrix4, Point2, Point3};
+use point_viewer::math::sat::ConvexPolyhedron;
+use point_viewer::math::{Frustum, Relation, AABB};
 use quadtree::{ChildIndex, Node};
 use quadtree::{NodeId, Rect};
 use serde_derive::Serialize;
@@ -100,15 +101,20 @@ impl Meta {
 
         let matrix = {
             let e = &matrix_entries;
-            Matrix4::new(
-                e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10], e[11], e[12],
-                e[13], e[14], e[15],
-            )
-        }
-        .cast::<f64>()
-        .unwrap();
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            let mat = Matrix4::new(
+                e[0],  e[1],  e[2],  e[3],
+                e[4],  e[5],  e[6],  e[7],
+                e[8],  e[9],  e[10], e[11],
+                e[12], e[13], e[14], e[15],
+            );
+            nalgebra::convert(mat)
+        };
         let frustum =
             Frustum::from_matrix4(matrix).ok_or("Unable to create frustum from matrix")?;
+        let frustum_isec = frustum
+            .intersector()
+            .cache_separating_axes(&AABB::axes(), &AABB::axes());
         let mut result = Vec::new();
         let mut open = vec![Node::root_with_bounding_rect(self.bounding_rect.clone())];
         while !open.is_empty() {
@@ -118,7 +124,9 @@ impl Meta {
                 Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
             );
 
-            if frustum.contains(&aabb) == Relation::Out || !self.nodes.contains(&node.id) {
+            if frustum_isec.intersect(&aabb.corners()) == Relation::Out
+                || !self.nodes.contains(&node.id)
+            {
                 continue;
             }
 

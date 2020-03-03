@@ -2,11 +2,11 @@
 #![allow(clippy::redundant_closure)]
 
 use nalgebra::Point3;
-use point_viewer::math::AABB;
 use point_cloud_client::PointCloudClient;
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::{ErrorKind, Result};
 use point_viewer::iterator::{PointLocation, PointQuery};
+use point_viewer::math::AABB;
 use point_viewer::PointsBatch;
 use structopt::StructOpt;
 
