@@ -1,4 +1,3 @@
-
 use crate::data_provider::OnDiskDataProvider;
 use crate::errors::Result;
 use crate::iterator::{ParallelIterator, PointQuery};
