@@ -18,7 +18,7 @@ dependencies = [
  "log 0.4.8",
  "parking_lot",
  "pin-project",
- "smallvec 1.2.0",
+ "smallvec",
  "tokio",
  "tokio-util",
  "trust-dns-proto",
@@ -478,21 +478,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bit-set"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e84c238982c4b1e1ee668d136c510c67a13465279c0cb367ea6baf6310620a80"
-dependencies = [
- "bit-vec",
-]
-
-[[package]]
-name = "bit-vec"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f59bbe95d4e52a6398ec21238d31577f2b28a9d86807f06ca59d191d8440d0bb"
-
-[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -585,18 +570,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cgmath"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "283944cdecc44bf0b8dd010ec9af888d3b4f142844fdbe026c20ef68148d6fe7"
-dependencies = [
- "approx 0.3.2",
- "num-traits 0.2.11",
- "rand 0.6.5",
- "serde",
-]
-
-[[package]]
 name = "chrono"
 version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -638,20 +611,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81fb25b677f8bf1eb325017cb6bb8452f87969db0fedb4f757b297bee78a7c62"
 dependencies = [
  "cc",
-]
-
-[[package]]
-name = "collision"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6107f6be76c2269a9c8d89e707a66122bd3086f987fa508133a5f774e8ac4ced"
-dependencies = [
- "approx 0.3.2",
- "bit-set",
- "cgmath 0.17.0",
- "num 0.2.1",
- "rand 0.6.5",
- "smallvec 0.6.13",
 ]
 
 [[package]]
@@ -1683,7 +1642,6 @@ dependencies = [
  "autocfg 1.0.0",
  "num-integer",
  "num-traits 0.2.11",
- "serde",
 ]
 
 [[package]]
@@ -1739,7 +1697,6 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits 0.2.11",
- "serde",
 ]
 
 [[package]]
@@ -1824,7 +1781,7 @@ dependencies = [
  "cloudabi",
  "libc",
  "redox_syscall",
- "smallvec 1.2.0",
+ "smallvec",
  "winapi 0.3.8",
 ]
 
@@ -2034,7 +1991,6 @@ name = "point_viewer_grpc"
 version = "0.1.0"
 dependencies = [
  "clap",
- "collision",
  "crossbeam-channel",
  "ctrlc",
  "futures 0.1.29",
@@ -2065,8 +2021,6 @@ dependencies = [
 name = "point_viewer_proto_rust"
 version = "0.1.0"
 dependencies = [
- "cgmath 0.17.0",
- "collision",
  "nalgebra",
  "protobuf",
  "protobuf_provider",
@@ -2615,7 +2569,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da73b163bcaaf46522b80f8b2049437cc47f5665f061ac94727179de45b57e90"
 dependencies = [
  "bigdecimal",
- "cgmath 0.16.1",
+ "cgmath",
  "lazy_static",
  "libm 0.1.4",
  "rand 0.5.6",
@@ -2680,7 +2634,6 @@ name = "sdl_viewer"
 version = "0.1.0"
 dependencies = [
  "byteorder",
- "cgmath 0.17.0",
  "clap",
  "fnv",
  "gl_generator",
@@ -2785,15 +2738,6 @@ name = "slab"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
-
-[[package]]
-name = "smallvec"
-version = "0.6.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7b0758c52e15a8b5e3691eae6cc559f08eee9406e548a4477ba4e67770a82b6"
-dependencies = [
- "maybe-uninit",
-]
 
 [[package]]
 name = "smallvec"
@@ -3107,7 +3051,7 @@ dependencies = [
  "lazy_static",
  "log 0.4.8",
  "rand 0.7.3",
- "smallvec 1.2.0",
+ "smallvec",
  "socket2",
  "tokio",
  "url 2.1.1",
@@ -3127,7 +3071,7 @@ dependencies = [
  "log 0.4.8",
  "lru-cache",
  "resolv-conf",
- "smallvec 1.2.0",
+ "smallvec",
  "tokio",
  "trust-dns-proto",
 ]
@@ -3177,7 +3121,7 @@ version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5479532badd04e128284890390c1e876ef7a993d0570b3597ae43dfa1d59afa4"
 dependencies = [
- "smallvec 1.2.0",
+ "smallvec",
 ]
 
 [[package]]
