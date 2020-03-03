@@ -36,7 +36,7 @@ mod octree_iterator;
 pub use self::octree_iterator::NodeIdsIterator;
 
 #[cfg(test)]
-mod octree_test;
+mod tests;
 
 #[derive(Clone, Debug)]
 pub struct OctreeMeta {
