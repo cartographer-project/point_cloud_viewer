@@ -293,7 +293,7 @@ impl OctreeService {
                     octree_slice,
                     &point_query,
                     num_points_per_batch,
-                    num_cpus::get() - 1,
+                    std::cmp::max(1, num_cpus::get() - 1),
                     buffer_size,
                 );
                 // TODO(catevita): missing error handling for the thread

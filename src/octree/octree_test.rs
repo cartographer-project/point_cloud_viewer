@@ -32,11 +32,9 @@ mod tests {
 
         let bounding_box = AABB::new(batch.position[0], batch.position[NUM_POINTS - 1]);
 
-        let pool = scoped_pool::Pool::new(10);
         let tmp_dir = TempDir::new("octree").unwrap();
 
         build_octree(
-            &pool,
             &tmp_dir,
             1.0,
             bounding_box,

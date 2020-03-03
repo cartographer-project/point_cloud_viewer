@@ -21,18 +21,18 @@ use crate::read_write::{
     attempt_increasing_rlimit_to_max, Encoding, NodeIterator, NodeWriter, OpenMode, PlyIterator,
     PositionEncoding, RawNodeWriter,
 };
+use crate::utils::create_progress_bar;
 use crate::{AttributeDataType, NumberOfPoints, PointsBatch, NUM_POINTS_PER_BATCH};
 use fnv::{FnvHashMap, FnvHashSet};
 use pbr::ProgressBar;
 use protobuf::Message;
-use scoped_pool::{Pool, Scope};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::Scope;
 use std::cmp;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::Path;
-use std::sync::mpsc;
-use std::time::Duration;
 
 const MAX_POINTS_PER_NODE: i64 = 100_000;
 
@@ -150,14 +150,14 @@ fn split_node<'a, P>(
     attribute_data_types: &'a HashMap<String, AttributeDataType>,
     node_id: &octree::NodeId,
     stream: P,
-    leaf_nodes_sender: &mpsc::Sender<octree::NodeId>,
+    leaf_nodes_sender: &crossbeam::channel::Sender<octree::NodeId>,
 ) where
     P: Iterator<Item = PointsBatch>,
 {
     let (leaf_nodes, split_nodes) = split(octree_data_provider, octree_meta, node_id, stream);
     for child_id in split_nodes {
         let leaf_nodes_sender_clone = leaf_nodes_sender.clone();
-        scope.recurse(move |scope| {
+        scope.spawn(move |scope| {
             let stream = NodeIterator::from_data_provider(
                 octree_data_provider,
                 attribute_data_types,
@@ -191,7 +191,7 @@ fn subsample_children_into(
     octree_meta: &octree::OctreeMeta,
     attribute_data_types: &HashMap<String, AttributeDataType>,
     node_id: &octree::NodeId,
-    nodes_sender: &mpsc::Sender<(octree::NodeId, i64)>,
+    nodes_sender: &crossbeam::channel::Sender<(octree::NodeId, i64)>,
 ) -> Result<()> {
     let mut parent_writer =
         RawNodeWriter::from_data_provider(octree_data_provider, octree_meta, node_id);
@@ -250,9 +250,7 @@ fn subsample_children_into(
 fn find_bounding_box(filename: impl AsRef<Path>) -> AABB<f64> {
     let mut bounding_box = None;
     let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap();
-    let mut progress_bar = ProgressBar::new(stream.num_points() as u64);
-    progress_bar.set_max_refresh_rate(Some(Duration::from_secs(2)));
-    progress_bar.message("Determining bounding box: ");
+    let mut progress_bar = create_progress_bar(stream.num_points(), "Determining bounding box");
 
     stream.for_each(|batch| {
         for pos in batch.position {
@@ -266,7 +264,6 @@ fn find_bounding_box(filename: impl AsRef<Path>) -> AABB<f64> {
 }
 
 pub fn build_octree_from_file(
-    pool: &Pool,
     output_directory: impl AsRef<Path>,
     resolution: f64,
     filename: impl AsRef<Path>,
@@ -275,7 +272,6 @@ pub fn build_octree_from_file(
     let bounding_box = find_bounding_box(filename.as_ref());
     let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap();
     build_octree(
-        pool,
         output_directory,
         resolution,
         bounding_box,
@@ -285,11 +281,10 @@ pub fn build_octree_from_file(
 }
 
 pub fn build_octree(
-    pool: &Pool,
     output_directory: impl AsRef<Path>,
     resolution: f64,
     bounding_box: AABB<f64>,
-    input: impl Iterator<Item = PointsBatch> + NumberOfPoints,
+    input: impl Iterator<Item = PointsBatch> + NumberOfPoints + Send,
     _attributes: &[&str],
 ) {
     attempt_increasing_rlimit_to_max();
@@ -322,8 +317,8 @@ pub fn build_octree(
 
     println!("Creating octree structure.");
 
-    let (leaf_nodes_sender, leaf_nodes_receiver) = mpsc::channel();
-    pool.scoped(move |scope| {
+    let (leaf_nodes_sender, leaf_nodes_receiver) = crossbeam::channel::unbounded();
+    rayon::scope(move |scope| {
         let root_node = octree::Node::root_with_bounding_cube(Cube::bounding(&bounding_box));
         split_node(
             scope,
@@ -362,36 +357,32 @@ pub fn build_octree(
         let mut progress_bar = ProgressBar::new(parent_ids.len() as u64);
         progress_bar.message(&format!("Building level {}: ", current_level - 1));
 
-        let (finished_nodes_sender, finished_nodes_receiver) = mpsc::channel();
-        let (progress_tx, progress_rx) = mpsc::channel();
-        pool.scoped(|scope| {
-            scope.execute(|| {
+        let (finished_nodes_sender, finished_nodes_receiver) = crossbeam::channel::unbounded();
+        let (progress_tx, progress_rx) = crossbeam::channel::unbounded();
+        rayon::scope(|scope| {
+            scope.spawn(|_| {
                 for (id, num_points) in finished_nodes_receiver {
                     finished_nodes.insert(id, num_points);
                 }
             });
 
-            scope.execute(|| {
+            scope.spawn(|_| {
                 for _ in progress_rx {
                     progress_bar.inc();
                 }
             });
 
-            for id in &parent_ids {
-                let finished_nodes_sender_clone = finished_nodes_sender.clone();
-                let progress_tx_clone = progress_tx.clone();
-                scope.execute(move || {
-                    subsample_children_into(
-                        octree_data_provider,
-                        octree_meta,
-                        attribute_data_types,
-                        id,
-                        &finished_nodes_sender_clone,
-                    )
-                    .unwrap();
-                    progress_tx_clone.send(()).unwrap();
-                });
-            }
+            parent_ids.par_iter().for_each(|id| {
+                subsample_children_into(
+                    octree_data_provider,
+                    octree_meta,
+                    attribute_data_types,
+                    id,
+                    &finished_nodes_sender,
+                )
+                .unwrap();
+                progress_tx.send(()).unwrap();
+            });
             drop(finished_nodes_sender);
             drop(progress_tx);
         });

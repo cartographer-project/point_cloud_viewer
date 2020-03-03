@@ -4,13 +4,12 @@ use crate::generation::{
 };
 use clap::value_t;
 use nalgebra::Isometry3;
-use point_cloud_client::PointCloudClient;
+use point_cloud_client::PointCloudClientBuilder;
 use point_viewer::color::{TRANSPARENT, WHITE};
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::ClosedInterval;
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
 use point_viewer::utils::parse_key_val;
-use scoped_pool::Pool;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -102,6 +101,11 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                      weight than points temporally further away.")
                 .long("binning")
                 .takes_value(true),
+            clap::Arg::with_name("inpaint_distance_px")
+                .help("The inpainting distance in pixels to fill holes (in particular useful \
+                       for high resolutions).")
+                .long("inpaint-distance-px")
+                .default_value("0"),
         ]);
     app = T::pre_init(app);
     app.get_matches()
@@ -161,14 +165,21 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
 
     let output_directory = Path::new(args.value_of("output_directory").unwrap());
 
-    let pool = Pool::new(num_threads);
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build_global()
+        .expect("Could not create thread pool.");
 
     let point_cloud_locations = args
         .values_of("point_cloud_locations")
         .unwrap()
         .map(String::from)
         .collect::<Vec<_>>();
-    let point_cloud_client = PointCloudClient::new(&point_cloud_locations, data_provider_factory)
+    let point_cloud_client = PointCloudClientBuilder::new(&point_cloud_locations)
+        .data_provider_factory(data_provider_factory)
+        // We do threading outside
+        .num_threads(1)
+        .build()
         .expect("Could not create point cloud client.");
 
     let filter_intervals = args
@@ -176,14 +187,19 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         .unwrap_or_default()
         .map(|f| parse_key_val(f).unwrap())
         .collect::<HashMap<String, ClosedInterval<f64>>>();
+    let inpaint_distance_px = args
+        .value_of("inpaint_distance_px")
+        .unwrap()
+        .parse::<u8>()
+        .expect("inpaint_distance_px could not be parsed.");
     let parameters = XrayParameters {
         point_cloud_client,
         query_from_global: T::query_from_global(&args),
         filter_intervals,
         tile_background_color,
+        inpaint_distance_px,
     };
     build_xray_quadtree(
-        &pool,
         output_directory,
         &Tile {
             size_px: tile_size,
