@@ -6,7 +6,6 @@ use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
 use fnv::FnvHashMap;
-use nalgebra::Point3;
 use s2::cell::Cell;
 use s2::cellid::CellID;
 use s2::cellunion::CellUnion;
@@ -160,9 +159,9 @@ impl PointCloud for S2Cells {
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
         match location {
             PointLocation::AllPoints => self.cells.keys().cloned().collect(),
-            PointLocation::Aabb(aabb) => self.cells_in_cuboid(aabb),
-            PointLocation::Obb(obb) => self.cells_in_cuboid(obb),
-            PointLocation::Frustum(frustum) => self.cells_in_cuboid(frustum),
+            PointLocation::Aabb(aabb) => self.cells_in_convex_polyhedron(aabb),
+            PointLocation::Obb(obb) => self.cells_in_convex_polyhedron(obb),
+            PointLocation::Frustum(frustum) => self.cells_in_convex_polyhedron(frustum),
             PointLocation::S2Cells(cell_union) => self.cells_intersecting_region(cell_union),
         }
     }
@@ -220,21 +219,17 @@ impl S2Cells {
         self.meta.to_proto()
     }
 
-    /// Wrapper arround cells_in_convex_hull for Obbs
-    fn cells_in_cuboid<T>(&self, cuboid: &T) -> Vec<CellID>
+    /// Returns all cells that intersect this convex polyhedron
+    fn cells_in_convex_polyhedron<T>(&self, poly: &T) -> Vec<CellID>
     where
         T: ConvexPolyhedron<f64>,
     {
-        self.cells_in_convex_hull(cuboid.compute_corners().iter().cloned())
-    }
-
-    /// Returns all cells that intersect the convex hull of the given points
-    fn cells_in_convex_hull<IterPoint>(&self, points: IterPoint) -> Vec<CellID>
-    where
-        IterPoint: IntoIterator<Item = Point3<f64>>,
-    {
         // We could choose either a covering rect or a covering cap as a convex hull
-        let point_cells = points.into_iter().map(|p| CellID::from_point(&p)).collect();
+        let point_cells = poly
+            .compute_corners()
+            .iter()
+            .map(|p| CellID::from_point(&p))
+            .collect();
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();
         let rect = cell_union.rect_bound();

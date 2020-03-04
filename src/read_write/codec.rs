@@ -85,7 +85,8 @@ pub fn fixpoint_encode<T>(value: f64, min: f64, edge_length: f64) -> T
 where
     T: num_traits::PrimInt + num_traits::Bounded + alga::general::SubsetOf<f64>,
 {
-    let value = clamp((value - min) / edge_length, 0., 1.) * nalgebra::convert::<T, f64>(T::max_value());
+    let value =
+        clamp((value - min) / edge_length, 0., 1.) * nalgebra::convert::<T, f64>(T::max_value());
     nalgebra::try_convert(value).unwrap()
 }
 
