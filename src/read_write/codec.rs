@@ -73,6 +73,8 @@ impl PositionEncoding {
     }
 }
 
+/// The _encode and _decode functions are not methods of this type, because
+/// we are sometimes able to pull the match outside the inner loop.
 #[derive(Clone)]
 pub enum Encoding {
     Plain,
@@ -81,30 +83,19 @@ pub enum Encoding {
 
 pub fn fixpoint_encode<T>(value: f64, min: f64, edge_length: f64) -> T
 where
-    T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
+    T: num_traits::PrimInt + num_traits::Bounded + alga::general::SubsetOf<f64>,
 {
-    let value =
-        clamp((value - min) / edge_length, 0., 1.) * num::cast::<T, f64>(T::max_value()).unwrap();
-    num::cast(value).unwrap()
+    let value = clamp((value - min) / edge_length, 0., 1.) * nalgebra::convert::<T, f64>(T::max_value());
+    nalgebra::try_convert(value).unwrap()
 }
 
 pub fn encode<T>(value: f64, min: f64, edge_length: f64) -> T
 where
-    T: num_traits::NumCast,
+    T: alga::general::SubsetOf<f64>,
 {
-    num::cast(clamp((value - min) / edge_length, 0., 1.)).unwrap()
+    nalgebra::try_convert(clamp((value - min) / edge_length, 0., 1.)).unwrap()
 }
 
-// Careful: num's (or nalgebra's) clamp accepts Vector3 too, but does not work elementwise like this
-fn clamp_elementwise_to_unit(value: Vector3<f64>) -> Vector3<f64> {
-    Vector3::new(
-        clamp(value.x, 0.0, 1.0),
-        clamp(value.y, 0.0, 1.0),
-        clamp(value.z, 0.0, 1.0),
-    )
-}
-
-// TODO(nnmm): Revisit
 pub fn vec3_fixpoint_encode<T>(
     value: &Point3<f64>,
     min: &Point3<f64>,
@@ -113,22 +104,22 @@ pub fn vec3_fixpoint_encode<T>(
 where
     T: Scalar + num_traits::PrimInt + num_traits::Bounded + alga::general::SubsetOf<f64>,
 {
-    let value = clamp_elementwise_to_unit((value - min) / edge_length)
-        * num::cast::<T, f64>(T::max_value()).unwrap();
-    nalgebra::try_convert(value).unwrap()
+    let scale: f64 = nalgebra::convert(T::max_value());
+    let value = clamp_elementwise(scale * (value - min) / edge_length, 0.0, 1.0);
+    nalgebra::try_convert(scale * value).unwrap()
 }
 
 pub fn vec3_encode<T>(value: &Point3<f64>, min: &Point3<f64>, edge_length: f64) -> Vector3<T>
 where
     T: Scalar + alga::general::SubsetOf<f64>,
 {
-    let clamped = clamp_elementwise_to_unit((value - min) / edge_length);
-    nalgebra::try_convert(clamped).unwrap()
+    let value = clamp_elementwise((value - min) / edge_length, 0.0, 1.0);
+    nalgebra::try_convert(value).unwrap()
 }
 
 pub fn fixpoint_decode<T>(value: T, min: f64, edge_length: f64) -> f64
 where
-    T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
+    T: num_traits::PrimInt + num_traits::Bounded + alga::general::SubsetOf<f64>,
 {
     let max: f64 = num::cast(T::max_value()).unwrap();
     let v: f64 = num::cast(value).unwrap();
@@ -137,9 +128,16 @@ where
 
 pub fn decode<T>(value: T, min: f64, edge_length: f64) -> f64
 where
-    T: num_traits::NumCast,
+    T: alga::general::SubsetOf<f64>,
 {
-    num::cast::<T, f64>(value)
-        .unwrap()
-        .mul_add(edge_length, min)
+    nalgebra::convert::<T, f64>(value).mul_add(edge_length, min)
+}
+
+// Careful: num's (or nalgebra's) clamp accepts Vector3 too, but does not work elementwise like this
+fn clamp_elementwise(value: Vector3<f64>, lower: f64, upper: f64) -> Vector3<f64> {
+    Vector3::new(
+        clamp(value.x, lower, upper),
+        clamp(value.y, lower, upper),
+        clamp(value.z, lower, upper),
+    )
 }

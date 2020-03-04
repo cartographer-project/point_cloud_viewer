@@ -60,7 +60,6 @@ where
         self.check_attributes(points_batch)?;
         let mut batches_by_s2_cell = HashMap::new();
         for (i, pos) in points_batch.position.iter().enumerate() {
-            // TODO(nnmm): Squared norm?
             let radius = pos.coords.norm();
             if radius > EARTH_RADIUS_MAX_M || radius < EARTH_RADIUS_MIN_M {
                 let msg = format!(
