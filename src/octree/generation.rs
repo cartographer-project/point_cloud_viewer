@@ -22,7 +22,7 @@ use crate::read_write::{
     PositionEncoding, RawNodeWriter,
 };
 use crate::utils::create_progress_bar;
-use crate::{AttributeDataType, NumberOfPoints, PointsBatch, NUM_POINTS_PER_BATCH};
+use crate::{AttributeDataType, NumberOfPoints, PointCloudMeta, PointsBatch, NUM_POINTS_PER_BATCH};
 use fnv::{FnvHashMap, FnvHashSet};
 use pbr::ProgressBar;
 use protobuf::Message;
@@ -62,11 +62,17 @@ fn split<P>(
     stream: P,
 ) -> (Vec<octree::NodeId>, Vec<octree::NodeId>)
 where
-    P: Iterator<Item = PointsBatch>,
+    P: Iterator<Item = PointsBatch> + NumberOfPoints,
 {
     let mut children: Vec<Option<RawNodeWriter>> =
         vec![None, None, None, None, None, None, None, None];
-    println!("Splitting node {}.", node_id);
+    let size = stream.num_points();
+    println!(   
+        "Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",   
+        node_id,    
+        size,   
+        size as f64 / MAX_POINTS_PER_NODE as f64    
+    );
 
     let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
     stream.for_each(|batch| {
@@ -152,7 +158,7 @@ fn split_node<'a, P>(
     stream: P,
     leaf_nodes_sender: &crossbeam::channel::Sender<octree::NodeId>,
 ) where
-    P: Iterator<Item = PointsBatch>,
+    P: Iterator<Item = PointsBatch> + NumberOfPoints,
 {
     let (leaf_nodes, split_nodes) = split(octree_data_provider, octree_meta, node_id, stream);
     for child_id in split_nodes {
@@ -285,7 +291,7 @@ pub fn build_octree(
     resolution: f64,
     bounding_box: Aabb<f64>,
     input: impl Iterator<Item = PointsBatch> + NumberOfPoints + Send,
-    _attributes: &[&str],
+    attributes: &[&str],
 ) {
     attempt_increasing_rlimit_to_max();
 
@@ -294,19 +300,8 @@ pub fn build_octree(
         resolution,
         ..octree::OctreeMeta::dummy()
     };
-    let mut input = input.peekable();
 
-    let attribute_data_types: &HashMap<String, AttributeDataType> = &match input.peek() {
-        Some(batch) => batch
-            .attributes
-            .iter()
-            .map(|(name, attr)| (name.to_owned(), attr.data_type()))
-            .collect(),
-        None => {
-            println!("Input is empty, no octree is being built.");
-            return;
-        }
-    };
+    let attribute_data_types = &octree_meta.attribute_data_types_for(attributes).unwrap();
     let octree_data_provider = OnDiskDataProvider {
         directory: output_directory.as_ref().to_path_buf(),
     };

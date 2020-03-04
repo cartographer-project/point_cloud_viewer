@@ -22,10 +22,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
-mod aabb;
-mod base;
-mod frustum;
-mod obb;
+pub mod aabb;
+pub mod base;
+pub mod frustum;
+pub mod obb;
 pub mod sat;
 pub use aabb::*;
 pub use base::*;
