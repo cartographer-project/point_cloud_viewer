@@ -67,11 +67,11 @@ where
     let mut children: Vec<Option<RawNodeWriter>> =
         vec![None, None, None, None, None, None, None, None];
     let size = stream.num_points();
-    println!(   
-        "Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",   
-        node_id,    
-        size,   
-        size as f64 / MAX_POINTS_PER_NODE as f64    
+    println!(
+        "Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",
+        node_id,
+        size,
+        size as f64 / MAX_POINTS_PER_NODE as f64
     );
 
     let bounding_cube = node_id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
