@@ -36,7 +36,7 @@ mod octree_iterator;
 pub use self::octree_iterator::NodeIdsIterator;
 
 #[cfg(test)]
-mod octree_test;
+mod tests;
 
 #[derive(Clone, Debug)]
 pub struct OctreeMeta {
@@ -60,15 +60,6 @@ impl OctreeMeta {
             bounding_cube.edge_length(),
             position_encoding,
         )
-    }
-
-    pub fn dummy() -> Self {
-        let attribute_data_types = HashMap::new();
-        OctreeMeta {
-            resolution: 0.0,
-            bounding_box: Aabb::zero(),
-            attribute_data_types,
-        }
     }
 }
 

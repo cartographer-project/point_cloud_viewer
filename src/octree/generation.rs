@@ -295,10 +295,16 @@ pub fn build_octree(
 ) {
     attempt_increasing_rlimit_to_max();
 
+    let attribute_data_types = vec![
+        ("color".to_string(), AttributeDataType::U8Vec3),
+        ("intensity".to_string(), AttributeDataType::F32),
+    ]
+    .into_iter()
+    .collect();
     let octree_meta = &octree::OctreeMeta {
         bounding_box: bounding_box.clone(),
         resolution,
-        ..octree::OctreeMeta::dummy()
+        attribute_data_types,
     };
 
     let attribute_data_types = &octree_meta.attribute_data_types_for(attributes).unwrap();
