@@ -1,7 +1,7 @@
 use fnv::FnvHashSet;
 use nalgebra::{Matrix4, Point2, Point3};
-use point_viewer::math::sat::ConvexPolyhedron;
-use point_viewer::math::{Aabb, Frustum, Relation};
+use point_viewer::geometry::{Aabb, Frustum};
+use point_viewer::math::sat::{ConvexPolyhedron, Relation};
 use quadtree::{ChildIndex, Node};
 use quadtree::{NodeId, Rect};
 use serde_derive::Serialize;

@@ -1,4 +1,5 @@
-use crate::math::{Aabb, FromPoint3, EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
+use crate::geometry::Aabb;
+use crate::math::{FromPoint3, EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
 use crate::read_write::{Encoding, NodeWriter, OpenMode};
 use crate::s2_cells::{S2CellMeta, S2Meta};
 use crate::{AttributeData, AttributeDataType, PointsBatch};

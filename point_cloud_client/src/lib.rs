@@ -1,7 +1,7 @@
 use point_viewer::data_provider::{DataProvider, DataProviderFactory};
 use point_viewer::errors::*;
+use point_viewer::geometry::Aabb;
 use point_viewer::iterator::{ParallelIterator, PointCloud, PointQuery};
-use point_viewer::math::Aabb;
 use point_viewer::octree::Octree;
 use point_viewer::s2_cells::S2Cells;
 use point_viewer::{PointsBatch, NUM_POINTS_PER_BATCH};

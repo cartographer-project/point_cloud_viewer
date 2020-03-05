@@ -17,7 +17,7 @@ use crate::opengl;
 use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
 use nalgebra::Matrix4;
 use point_viewer::color;
-use point_viewer::math::Aabb;
+use point_viewer::geometry::Aabb;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;

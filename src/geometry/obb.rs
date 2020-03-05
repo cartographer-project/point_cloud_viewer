@@ -1,8 +1,8 @@
 //! A bounding box with an arbitrary 3D pose.
 
 use super::aabb::Aabb;
-use super::base::PointCulling;
-use super::sat::ConvexPolyhedron;
+use crate::math::sat::ConvexPolyhedron;
+use crate::math::PointCulling;
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, RealField, Unit, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};

@@ -1,7 +1,7 @@
-//! An asymetric frustum with an arbitrary 3D pose.
+//! An asymmetric frustum with an arbitrary 3D pose.
 
-use super::base::PointCulling;
-use super::sat::{ConvexPolyhedron, Intersector};
+use crate::math::sat::{ConvexPolyhedron, Intersector};
+use crate::math::PointCulling;
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Matrix4, Point3, RealField, Unit, Vector3};
 use serde::{Deserialize, Serialize};

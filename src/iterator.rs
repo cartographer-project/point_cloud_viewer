@@ -1,5 +1,6 @@
 use crate::errors::*;
-use crate::math::{Aabb, AllPoints, ClosedInterval, Frustum, Obb, PointCulling};
+use crate::geometry::{Aabb, Frustum, Obb};
+use crate::math::{AllPoints, ClosedInterval, PointCulling};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{match_1d_attr_data, AttributeData, PointsBatch};
 use crossbeam::deque::{Injector, Steal, Worker};

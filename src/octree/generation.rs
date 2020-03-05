@@ -14,7 +14,7 @@
 
 use crate::data_provider::OnDiskDataProvider;
 use crate::errors::*;
-use crate::math::{Aabb, Cube};
+use crate::geometry::{Aabb, Cube};
 use crate::octree::{self, to_meta_proto, to_node_proto, ChildIndex, NodeId, OctreeMeta};
 use crate::proto;
 use crate::read_write::{

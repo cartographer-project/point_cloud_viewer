@@ -19,7 +19,7 @@ use nalgebra::{Point3, Vector3};
 use num_integer::div_ceil;
 use point_viewer::attributes::AttributeData;
 use point_viewer::color::Color;
-use point_viewer::math::Aabb;
+use point_viewer::geometry::Aabb;
 use point_viewer::octree::build_octree;
 use point_viewer::{NumberOfPoints, Point, PointsBatch, NUM_POINTS_PER_BATCH};
 pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;

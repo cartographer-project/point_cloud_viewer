@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::Cube;
+use crate::geometry::Cube;
 use crate::proto;
 use nalgebra::{Point3, Scalar, Vector3};
 use num::clamp;

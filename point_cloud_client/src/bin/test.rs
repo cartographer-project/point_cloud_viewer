@@ -4,8 +4,8 @@
 use nalgebra::Point3;
 use point_cloud_client::PointCloudClientBuilder;
 use point_viewer::errors::{ErrorKind, Result};
+use point_viewer::geometry::Aabb;
 use point_viewer::iterator::{PointLocation, PointQuery};
-use point_viewer::math::Aabb;
 use point_viewer::PointsBatch;
 use structopt::StructOpt;
 

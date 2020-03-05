@@ -2,8 +2,9 @@
 use crate::synthetic_data::SyntheticData;
 use crate::S2_LEVEL;
 use nalgebra::{Point3, Vector3};
+use point_viewer::geometry::{collision::Perspective, Frustum, Obb};
 use point_viewer::iterator::PointLocation;
-use point_viewer::math::{collision::Perspective, FromPoint3, Frustum, Obb};
+use point_viewer::math::FromPoint3;
 use s2::cellid::CellID;
 
 pub fn get_abb_query(data: SyntheticData) -> PointLocation {

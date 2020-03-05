@@ -19,7 +19,7 @@ use nalgebra::Point3;
 use point_viewer::color::Color;
 use point_viewer::data_provider::{DataProvider, DataProviderFactoryResult};
 use point_viewer::errors::*;
-use point_viewer::math::Aabb;
+use point_viewer::geometry::Aabb;
 use point_viewer::proto::Meta;
 use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto;

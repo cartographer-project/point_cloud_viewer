@@ -13,9 +13,10 @@
 // limitations under the License.
 use crate::data_provider::DataProvider;
 use crate::errors::*;
+use crate::geometry::{Aabb, Cube, Frustum};
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
 use crate::math::sat::{ConvexPolyhedron, Intersector};
-use crate::math::{cell_union_intersects_aabb, Aabb, Cube, Frustum, Relation};
+use crate::math::{cell_union_intersects_aabb, Relation};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};

@@ -1,7 +1,7 @@
 use crate::data_provider::OnDiskDataProvider;
 use crate::errors::Result;
+use crate::geometry::Aabb;
 use crate::iterator::{ParallelIterator, PointQuery};
-use crate::math::Aabb;
 use crate::octree::{build_octree, Octree};
 use crate::{AttributeData, NumberOfPoints, PointsBatch};
 use nalgebra::{Point3, Vector3};

@@ -1,7 +1,8 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
+use crate::geometry::Aabb;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::{Aabb, ConvexPolyhedron, FromPoint3};
+use crate::math::{ConvexPolyhedron, FromPoint3};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};

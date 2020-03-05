@@ -1,7 +1,8 @@
 use nalgebra::{Isometry3, Point3, Vector3};
 use point_viewer::attributes::AttributeData;
 use point_viewer::color::Color;
-use point_viewer::math::{local_frame_from_lat_lng, Aabb};
+use point_viewer::geometry::Aabb;
+use point_viewer::math::local_frame_from_lat_lng;
 use point_viewer::{NumberOfPoints, Point, PointsBatch};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};

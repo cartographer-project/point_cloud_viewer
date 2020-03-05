@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::math::Cube;
+use crate::geometry::Cube;
 use crate::proto;
 use crate::read_write::PositionEncoding;
 use nalgebra::Point3;
