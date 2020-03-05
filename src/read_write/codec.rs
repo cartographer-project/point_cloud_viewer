@@ -14,7 +14,7 @@
 
 use crate::errors::*;
 use crate::geometry::Cube;
-use crate::math::{self};
+use crate::math;
 use crate::proto;
 use cgmath::{BaseFloat, Vector3, Zero};
 use num::clamp;
