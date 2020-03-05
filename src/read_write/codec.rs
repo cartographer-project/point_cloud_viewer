@@ -153,8 +153,9 @@ mod tests {
 
         let value_f32 = _encode::<f32>(value, min, edge_length);
         let value_f32_decoded = decode(value_f32, min, edge_length);
+        // We could use the approx crate here and elsewhere
         assert!(
-            (value_f32_decoded - value).abs() < 0.0000001,
+            (value_f32_decoded - value).abs() < 1e-7,
             "Reconstructed from f32: {}, original: {}",
             value_f32_decoded,
             value
@@ -163,7 +164,7 @@ mod tests {
         let value_f64 = _encode::<f64>(value, min, edge_length);
         let value_f64_decoded = decode(value_f64, min, edge_length);
         assert!(
-            (value_f64_decoded - value).abs() < 0.00000000000001,
+            (value_f64_decoded - value).abs() < 1e-14,
             "Reconstructed from f64: {}, original: {}",
             value_f64_decoded,
             value
@@ -179,7 +180,7 @@ mod tests {
         let value_u8 = fixpoint_encode::<u8>(value, min, edge_length);
         let value_u8_decoded = fixpoint_decode(value_u8, min, edge_length);
         assert!(
-            (value_u8_decoded - value).abs() < 0.01,
+            (value_u8_decoded - value).abs() < 1e-2,
             "Reconstructed from u8: {}, original: {}",
             value_u8_decoded,
             value
@@ -188,7 +189,7 @@ mod tests {
         let value_u16 = fixpoint_encode::<u16>(value, min, edge_length);
         let value_u16_decoded = fixpoint_decode(value_u16, min, edge_length);
         assert!(
-            (value_u16_decoded - value).abs() < 0.0001,
+            (value_u16_decoded - value).abs() < 1e-4,
             "Reconstructed from u16: {}, original: {}",
             value_u16_decoded,
             value
@@ -197,7 +198,7 @@ mod tests {
         let value_u32 = fixpoint_encode::<u32>(value, min, edge_length);
         let value_u32_decoded = fixpoint_decode(value_u32, min, edge_length);
         assert!(
-            (value_u32_decoded - value).abs() < 0.0000001,
+            (value_u32_decoded - value).abs() < 1e-7,
             "Reconstructed from u32: {}, original: {}",
             value_u32_decoded,
             value
