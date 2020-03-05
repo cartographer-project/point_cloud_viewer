@@ -31,19 +31,8 @@
 
 use arrayvec::ArrayVec;
 use cgmath::{Array, BaseFloat, EuclideanSpace, InnerSpace, Point3, Vector3};
+pub use collision::Relation;
 use num_traits::Bounded;
-
-/// Spatial relation between two objects.
-/// Modeled after the collision crate.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
-pub enum Relation {
-    /// Completely inside.
-    In,
-    /// Crosses the boundary.
-    Cross,
-    /// Completely outside.
-    Out,
-}
 
 /// A trait for convex polyhedra that can perform intersection tests against other convex polyhedra.
 ///
@@ -210,12 +199,12 @@ where
 mod tests {
     use super::*;
     use arrayvec::ArrayVec;
-    use nalgebra::{Point3, Vector3};
+    use cgmath::{Point3, Vector3};
 
     #[test]
     fn test_cube_with_cube() {
         let unit_vectors: ArrayVec<_> =
-            ArrayVec::from([Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()])
+            ArrayVec::from([Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()])
                 .into_iter()
                 .collect();
         #[rustfmt::skip]

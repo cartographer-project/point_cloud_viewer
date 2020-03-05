@@ -202,7 +202,7 @@ where
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AllPoints {}
 
-struct AlwaysIntersects {}
+pub struct AlwaysIntersects {}
 
 impl<S: BaseFloat> IntersectAabb<S> for AlwaysIntersects {
     fn intersect_aabb(&self, _aabb: &Aabb3<S>) -> bool {
@@ -318,7 +318,7 @@ impl<S: BaseFloat> Isometry3<S> {
     }
 }
 
-struct CellUnionAabbIntersector {
+pub struct CellUnionAabbIntersector {
     cell_union: CellUnion,
 }
 
@@ -406,9 +406,12 @@ mod tests {
         let arbitrary_obb = Obb::new(Isometry3::new(arbitrary_rot, translation), half_extent);
         let bbox = Aabb3::new(Point3::new(0.5, 1.0, -3.0), Point3::new(1.5, 3.0, 3.0));
         assert_eq!(zero_obb.separating_axes.len(), 3);
-        assert_eq!(zero_obb.intersects_aabb3(&bbox), true);
+        assert_eq!(zero_obb.aabb_intersector().intersect_aabb(&bbox), true);
         assert_eq!(fourty_five_deg_obb.separating_axes.len(), 5);
-        assert_eq!(fourty_five_deg_obb.intersects_aabb3(&bbox), false);
+        assert_eq!(
+            fourty_five_deg_obb.aabb_intersector().intersect_aabb(&bbox),
+            false
+        );
         assert_eq!(arbitrary_obb.separating_axes.len(), 15);
     }
 
@@ -430,7 +433,7 @@ mod tests {
         let bbox_min = Point3::new(-0.5, 0.25, 1.5);
         let bbox_max = Point3::new(-0.25, 0.5, 3.5);
         let bbox = Aabb3::new(bbox_min, bbox_max);
-        assert!(frustum.intersects_aabb3(&bbox));
+        assert!(frustum.aabb_intersector().intersect_aabb(&bbox));
         assert!(frustum.contains(&bbox_min));
         assert!(frustum.contains(&bbox_max));
     }

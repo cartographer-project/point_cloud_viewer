@@ -15,10 +15,12 @@ use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::geometry::Cube;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
+use crate::math::sat::{ConvexPolyhedron, Intersector};
+use crate::math::{IntersectAabb, PointCulling};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
-use cgmath::{EuclideanSpace, Matrix4, Point3};
+use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3};
 use collision::{Aabb, Aabb3, Bound, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
@@ -309,39 +311,62 @@ impl PointCloud for Octree {
     type Id = NodeId;
 
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
-        let culling = location.get_point_culling();
-        let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
-            let current = &octree.nodes[&node_id];
-            culling.intersects_aabb3(&current.bounding_cube.to_aabb3())
-        };
-        NodeIdsIterator::new(&self, filter_func).collect()
+        match location {
+            PointLocation::AllPoints => NodeIdsIterator::new(&self, |_, _| true).collect(),
+            PointLocation::Aabb(aabb) => {
+                let isec = aabb.aabb_intersector();
+                NodeIdsIterator::new(&self, move |node_id, octree| {
+                    let aabb = octree.nodes[&node_id].bounding_cube.to_aabb3();
+                    isec.intersect_aabb(&aabb)
+                })
+                .collect()
+            }
+            PointLocation::Frustum(f) => {
+                let isec = f.aabb_intersector();
+                NodeIdsIterator::new(&self, move |node_id, octree| {
+                    let aabb = octree.nodes[&node_id].bounding_cube.to_aabb3();
+                    isec.intersect_aabb(&aabb)
+                })
+                .collect()
+            }
+            PointLocation::Obb(obb) => {
+                let isec = obb.aabb_intersector();
+                NodeIdsIterator::new(&self, move |node_id, octree| {
+                    let aabb = octree.nodes[&node_id].bounding_cube.to_aabb3();
+                    isec.intersect_aabb(&aabb)
+                })
+                .collect()
+            }
+            PointLocation::S2Cells(cu) => {
+                let isec = <s2::cellunion::CellUnion as PointCulling<f64>>::aabb_intersector(&cu);
+                NodeIdsIterator::new(&self, move |node_id, octree| {
+                    let aabb = octree.nodes[&node_id].bounding_cube.to_aabb3();
+                    isec.intersect_aabb(&aabb)
+                })
+                .collect()
+            }
+        }
     }
 
     fn encoding_for_node(&self, id: Self::Id) -> Encoding {
         self.meta.encoding_for_node(id)
     }
 
-    fn points_in_node<'a, C>(
-        &'a self,
-        query: &'a PointQuery,
+    fn points_in_node(
+        &self,
+        attributes: &[&str],
         node_id: NodeId,
         batch_size: usize,
-    ) -> Result<FilteredIterator<'a, C>> {
-        let culling = query.location.get_point_culling();
-        let filter_intervals = &query.filter_intervals;
+    ) -> Result<NodeIterator> {
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
-            &self.meta.attribute_data_types_for(&query.attributes)?,
+            &self.meta.attribute_data_types_for(&attributes)?,
             self.meta.encoding_for_node(node_id),
             &node_id,
             self.nodes[&node_id].num_points as usize,
             batch_size,
         )?;
-        Ok(FilteredIterator {
-            culling,
-            filter_intervals,
-            node_iterator,
-        })
+        Ok(node_iterator)
     }
 
     /// return the bounding box saved in meta
