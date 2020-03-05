@@ -1,3 +1,4 @@
+//! Contains geometric primitives, e.g. for defining queries against the point cloud.
 mod cube;
 mod frustum;
 mod obb;
