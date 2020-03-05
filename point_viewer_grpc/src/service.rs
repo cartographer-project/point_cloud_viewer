@@ -26,8 +26,9 @@ use grpcio::{
 use point_viewer::attributes::AttributeData;
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::*;
+use point_viewer::geometry::Frustum;
 use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
-use point_viewer::math::{Frustum, Isometry3};
+use point_viewer::math::Isometry3;
 use point_viewer::octree::{NodeId, Octree};
 use point_viewer::PointsBatch;
 use protobuf::Message;

@@ -1,6 +1,6 @@
 use crate::errors::*;
-use crate::math::PointCulling;
-use crate::math::{AllPoints, ClosedInterval, Frustum, Obb};
+use crate::geometry::{Frustum, Obb};
+use crate::math::{AllPoints, ClosedInterval, PointCulling};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{match_1d_attr_data, AttributeData, PointsBatch};
 use cgmath::Point3;

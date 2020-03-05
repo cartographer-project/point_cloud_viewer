@@ -13,8 +13,8 @@
 // limitations under the License.
 use crate::data_provider::DataProvider;
 use crate::errors::*;
+use crate::geometry::Cube;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::Cube;
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
