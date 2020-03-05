@@ -342,7 +342,8 @@ pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cgmath::{Rad, Rotation3, Zero};
+    use crate::geometry::{Frustum, Obb};
+    use cgmath::{Perspective, Rad, Rotation3, Zero};
 
     #[test]
     fn test_obb_intersects_aabb3() {
