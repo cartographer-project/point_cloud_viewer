@@ -6,9 +6,9 @@ use crate::math::{
 use cgmath::{BaseFloat, EuclideanSpace, InnerSpace, Point3, Quaternion, Vector3};
 use collision::{Aabb, Aabb3};
 use num_traits::identities::One;
-use num_traits::Bounded;
+use num_traits::{Bounded, Float};
 use serde::{Deserialize, Serialize};
-
+use arrayvec::ArrayVec;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Obb<S> {
     query_from_obb: Isometry3<S>,
@@ -100,6 +100,38 @@ impl<S: BaseFloat> Obb<S> {
     }
 }
 
+impl<S: BaseFloat> ConvexPolyhedron<S> for Obb<S> {
+    fn compute_corners(&self) -> [Point3<S>; 8] {
+        let corner_from = |x, y, z| &self.query_from_obb * &Point3::new(x, y, z);
+        [
+            corner_from(
+                -self.half_extent.x,
+                -self.half_extent.y,
+                -self.half_extent.z,
+            ),
+            corner_from(self.half_extent.x, -self.half_extent.y, -self.half_extent.z),
+            corner_from(-self.half_extent.x, self.half_extent.y, -self.half_extent.z),
+            corner_from(self.half_extent.x, self.half_extent.y, -self.half_extent.z),
+            corner_from(-self.half_extent.x, -self.half_extent.y, self.half_extent.z),
+            corner_from(self.half_extent.x, -self.half_extent.y, self.half_extent.z),
+            corner_from(-self.half_extent.x, self.half_extent.y, self.half_extent.z),
+            corner_from(self.half_extent.x, self.half_extent.y, self.half_extent.z),
+        ]
+    }
+    fn compute_edges(&self) -> ArrayVec<[Vector3<S>; 6]> {
+        let mut edges = ArrayVec::new();
+        edges.push((self.query_from_obb.rotation * Vector3::unit_x()).normalize());
+        edges.push((self.query_from_obb.rotation * Vector3::unit_y()).normalize());
+        edges.push((self.query_from_obb.rotation * Vector3::unit_z()).normalize());
+        edges
+    }
+
+    fn compute_face_normals(&self) -> ArrayVec<[Vector3<S>; 6]> {
+        self.compute_edges()
+    }
+}
+
+
 impl<S> PointCulling<S> for Obb<S>
 where
     S: 'static + BaseFloat + Sync + Send + Bounded,
@@ -112,8 +144,10 @@ where
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
     }
+
     fn aabb_intersector(&self) -> CachedAxesIntersector<S> {
-        unimplemented!()
+        let unit_axes = [Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
+        self.intersector().cache_separating_axes(&unit_axes, &unit_axes)
     }
 }
 
