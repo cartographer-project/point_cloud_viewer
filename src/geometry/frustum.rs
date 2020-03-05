@@ -1,3 +1,5 @@
+//! An asymmetric frustum with an arbitrary 3D pose.
+
 use crate::math::{Cuboid, Isometry3, PointCulling};
 use cgmath::{BaseFloat, Decomposed, Matrix4, Perspective, Point3, Quaternion, Transform, Vector3};
 use collision::{Aabb3, Relation};

@@ -1,3 +1,5 @@
+//! Intersection checking by means of the separating axis theorem (SAT).
+
 use cgmath::{BaseFloat, EuclideanSpace, Point3, Vector3};
 use collision::Aabb3;
 use num_traits::Float;

@@ -1,3 +1,5 @@
+//! A bounding box with an arbitrary 3D pose.
+
 use crate::math::{intersects_aabb3, Cuboid, Isometry3, PointCulling};
 use cgmath::{BaseFloat, EuclideanSpace, InnerSpace, Point3, Quaternion, Vector3};
 use collision::{Aabb, Aabb3};
