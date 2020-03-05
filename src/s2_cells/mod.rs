@@ -172,12 +172,12 @@ impl PointCloud for S2Cells {
         Encoding::Plain
     }
 
-    fn points_in_node<'a>(
+    fn points_in_node<'a, C>(
         &'a self,
         query: &'a PointQuery,
         node_id: Self::Id,
         batch_size: usize,
-    ) -> Result<FilteredIterator<'a>> {
+    ) -> Result<FilteredIterator<'a, C>> {
         let culling = query.location.get_point_culling();
         let filter_intervals = &query.filter_intervals;
         let num_points = self.meta.cells[&node_id].num_points as usize;

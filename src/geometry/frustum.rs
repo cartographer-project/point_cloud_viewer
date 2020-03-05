@@ -1,6 +1,6 @@
 //! An asymmetric frustum with an arbitrary 3D pose.
 
-use crate::math::{Cuboid, Isometry3, PointCulling};
+use crate::math::{Cuboid, IntersectAabb, Isometry3, PointCulling};
 use cgmath::{BaseFloat, Decomposed, Matrix4, Perspective, Point3, Quaternion, Transform, Vector3};
 use collision::{Aabb3, Relation};
 use serde::{Deserialize, Serialize};
@@ -38,10 +38,22 @@ impl<S: BaseFloat> Frustum<S> {
     }
 }
 
+impl<S: BaseFloat> IntersectAabb<S> for collision::Frustum<S> {
+    fn intersect_aabb(&self, aabb: &Aabb3<S>) -> bool {
+        match self.contains(aabb) {
+            Relation::Cross => true,
+            Relation::In => true,
+            Relation::Out => false,
+        }
+    }
+}
+
 impl<S> PointCulling<S> for Frustum<S>
 where
     S: 'static + BaseFloat + Sync + Send,
 {
+    type AabbIsec = collision::Frustum<S>;
+
     fn contains(&self, point: &Point3<S>) -> bool {
         match self.frustum.contains(point) {
             Relation::Cross => true,
@@ -49,12 +61,9 @@ where
             Relation::Out => false,
         }
     }
-    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
-        match self.frustum.contains(aabb) {
-            Relation::Cross => true,
-            Relation::In => true,
-            Relation::Out => false,
-        }
+
+    fn aabb_intersector(&self) -> collision::Frustum<S> {
+        self.frustum.clone()
     }
 }
 

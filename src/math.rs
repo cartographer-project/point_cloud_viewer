@@ -19,7 +19,7 @@ use cgmath::{
 use collision::{Aabb3, Contains};
 use nav_types::{ECEF, WGS84};
 use num_traits::identities::One;
-
+use num_traits::Bounded;
 use s2::cell::Cell;
 use s2::cellid::CellID;
 use s2::cellunion::CellUnion;
@@ -148,13 +148,24 @@ where
     }
 }
 
+pub trait IntersectAabb<S: BaseFloat> {
+    // TODO(nnmm): return Relation
+    fn intersect_aabb(&self, aabb: &Aabb3<S>) -> bool;
+}
+
+impl<S: BaseFloat + Bounded> IntersectAabb<S> for CachedAxesIntersector<S> {
+    fn intersect_aabb(&self, aabb: &Aabb3<S>) -> bool {
+        self.intersect(&aabb.to_corners()) != Relation::Out
+    }
+}
+
 pub trait PointCulling<S>: fmt::Debug + Sync + Send
 where
     S: BaseFloat + Sync + Send,
 {
+    type AabbIsec: IntersectAabb<S>;
     fn contains(&self, point: &Point3<S>) -> bool;
-    // TODO(catevita): return Relation
-    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
+    fn aabb_intersector(&self) -> Self::AabbIsec;
 }
 
 pub trait Cuboid<S> {
@@ -163,14 +174,18 @@ pub trait Cuboid<S> {
 
 impl<S> PointCulling<S> for Aabb3<S>
 where
-    S: 'static + BaseFloat + Sync + Send,
+    S: 'static + BaseFloat + Sync + Send + Bounded,
 {
+    type AabbIsec = CachedAxesIntersector<S>;
     fn contains(&self, p: &Point3<S>) -> bool {
         Contains::contains(self, p)
     }
-    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
-        let separating_axes = &[Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
-        intersects_aabb3(&self.to_corners(), separating_axes, aabb)
+
+    fn aabb_intersector(&self) -> CachedAxesIntersector<S> {
+        CachedAxesIntersector {
+            axes: vec![Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()],
+            corners: self.to_corners(),
+        }
     }
 }
 
@@ -187,15 +202,24 @@ where
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AllPoints {}
 
+struct AlwaysIntersects {}
+
+impl<S: BaseFloat> IntersectAabb<S> for AlwaysIntersects {
+    fn intersect_aabb(&self, _aabb: &Aabb3<S>) -> bool {
+        true
+    }
+}
+
 impl<S> PointCulling<S> for AllPoints
 where
     S: BaseFloat + Sync + Send,
 {
+    type AabbIsec = AlwaysIntersects;
     fn contains(&self, _p: &Point3<S>) -> bool {
         true
     }
-    fn intersects_aabb3(&self, _aabb: &Aabb3<S>) -> bool {
-        true
+    fn aabb_intersector(&self) -> AlwaysIntersects {
+        AlwaysIntersects {}
     }
 }
 
@@ -294,15 +318,16 @@ impl<S: BaseFloat> Isometry3<S> {
     }
 }
 
-impl<S> PointCulling<S> for CellUnion
+struct CellUnionAabbIntersector {
+    cell_union: CellUnion,
+}
+
+impl<S> IntersectAabb<S> for CellUnionAabbIntersector
 where
-    S: BaseFloat + Sync + Send,
+    S: BaseFloat,
     f64: From<S>,
 {
-    fn contains(&self, p: &Point3<S>) -> bool {
-        self.contains_cellid(&CellID::from(S2Point::from(p)))
-    }
-    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
+    fn intersect_aabb(&self, aabb: &Aabb3<S>) -> bool {
         let point_cells = aabb
             .to_corners()
             .iter()
@@ -311,9 +336,28 @@ where
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();
         let rect = cell_union.rect_bound();
-        self.0
+        self.cell_union
+            .0
             .iter()
             .any(|cell_id| rect.intersects_cell(&Cell::from(cell_id)))
+    }
+}
+
+impl<S> PointCulling<S> for CellUnion
+where
+    S: BaseFloat + Sync + Send,
+    f64: std::convert::From<S>,
+{
+    type AabbIsec = CellUnionAabbIntersector;
+
+    fn contains(&self, p: &Point3<S>) -> bool {
+        self.contains_cellid(&CellID::from(S2Point::from(p)))
+    }
+    fn aabb_intersector(&self) -> CellUnionAabbIntersector {
+        // We could avoid this clone if we gave the PointCulling trait a lifetime parameter
+        CellUnionAabbIntersector {
+            cell_union: self.clone(),
+        }
     }
 }
 

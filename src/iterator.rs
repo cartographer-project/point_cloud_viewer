@@ -27,18 +27,6 @@ impl Default for PointLocation {
     }
 }
 
-impl PointLocation {
-    pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
-        match &self {
-            PointLocation::AllPoints => Box::new(AllPoints {}),
-            PointLocation::Aabb(aabb) => Box::new(*aabb),
-            PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
-            PointLocation::Obb(obb) => Box::new(obb.clone()),
-            PointLocation::S2Cells(cell_union) => Box::new(cell_union.clone()),
-        }
-    }
-}
-
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PointQuery<'a> {
     #[serde(borrow)]
@@ -50,8 +38,8 @@ pub struct PointQuery<'a> {
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
 /// Essentially a specialized version of the Filter iterator adapter
-pub struct FilteredIterator<'a> {
-    pub culling: Box<dyn PointCulling<f64>>,
+pub struct FilteredIterator<'a, C> {
+    pub culling: C,
     pub filter_intervals: &'a HashMap<&'a str, ClosedInterval<f64>>,
     pub node_iterator: NodeIterator,
 }
@@ -67,7 +55,10 @@ where
     }
 }
 
-impl<'a> Iterator for FilteredIterator<'a> {
+impl<'a, C> Iterator for FilteredIterator<'a, C>
+where
+    C: PointCulling<f64>,
+{
     type Item = PointsBatch;
 
     fn next(&mut self) -> Option<PointsBatch> {
@@ -154,12 +145,12 @@ pub trait PointCloud: Sync {
     type Id: ToString + Send + Copy;
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id>;
     fn encoding_for_node(&self, id: Self::Id) -> Encoding;
-    fn points_in_node<'a>(
+    fn points_in_node<'a, C>(
         &'a self,
         query: &'a PointQuery,
         node_id: Self::Id,
         batch_size: usize,
-    ) -> Result<FilteredIterator<'a>>;
+    ) -> Result<FilteredIterator<'a, C>>;
     fn bounding_box(&self) -> &Aabb3<f64>;
 }
 

@@ -1,9 +1,12 @@
 //! A bounding box with an arbitrary 3D pose.
 
-use crate::math::{intersects_aabb3, Cuboid, Isometry3, PointCulling};
+use crate::math::{
+    CachedAxesIntersector, ConvexPolyhedron, Cuboid, IntersectAabb, Isometry3, PointCulling,
+};
 use cgmath::{BaseFloat, EuclideanSpace, InnerSpace, Point3, Quaternion, Vector3};
 use collision::{Aabb, Aabb3};
 use num_traits::identities::One;
+use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,16 +102,18 @@ impl<S: BaseFloat> Obb<S> {
 
 impl<S> PointCulling<S> for Obb<S>
 where
-    S: 'static + BaseFloat + Sync + Send,
+    S: 'static + BaseFloat + Sync + Send + Bounded,
 {
+    type AabbIsec = CachedAxesIntersector<S>;
+
     fn contains(&self, p: &Point3<S>) -> bool {
         let Point3 { x, y, z } = &self.obb_from_query * p;
         x.abs() <= self.half_extent.x
             && y.abs() <= self.half_extent.y
             && z.abs() <= self.half_extent.z
     }
-    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
-        intersects_aabb3(&self.corners, &self.separating_axes, aabb)
+    fn aabb_intersector(&self) -> CachedAxesIntersector<S> {
+        unimplemented!()
     }
 }
 

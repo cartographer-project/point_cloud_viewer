@@ -321,12 +321,12 @@ impl PointCloud for Octree {
         self.meta.encoding_for_node(id)
     }
 
-    fn points_in_node<'a>(
+    fn points_in_node<'a, C>(
         &'a self,
         query: &'a PointQuery,
         node_id: NodeId,
         batch_size: usize,
-    ) -> Result<FilteredIterator<'a>> {
+    ) -> Result<FilteredIterator<'a, C>> {
         let culling = query.location.get_point_culling();
         let filter_intervals = &query.filter_intervals;
         let node_iterator = NodeIterator::from_data_provider(
