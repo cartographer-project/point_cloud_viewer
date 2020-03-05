@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use crate::errors::*;
-use crate::math::{self, Cube};
+use crate::geometry::Cube;
+use crate::math::{self};
 use crate::proto;
 use cgmath::{BaseFloat, Vector3, Zero};
 use num::clamp;
