@@ -1,3 +1,5 @@
+//! An asymetric frustum with an arbitrary 3D pose.
+
 use super::base::PointCulling;
 use super::sat::{ConvexPolyhedron, Intersector};
 use arrayvec::ArrayVec;
@@ -113,11 +115,6 @@ pub mod collision {
     }
 }
 
-fn contains_point<S: RealField>(matrix: &Matrix4<S>, point: &Point3<S>) -> bool {
-    let p_clip = matrix.transform_point(point);
-    p_clip.coords.min() > nalgebra::convert(-1.0) && p_clip.coords.max() < nalgebra::convert(1.0)
-}
-
 /// A frustum is defined in eye coordinates, where x points right, y points up,
 /// and z points against the viewing direction. This is not how e.g. OpenCV
 /// defines a camera coordinate system. To get from OpenCV camera coordinates
@@ -154,7 +151,9 @@ where
     S: RealField,
 {
     fn contains(&self, point: &Point3<S>) -> bool {
-        contains_point(&self.clip_from_query, point)
+        let p_clip = self.clip_from_query.transform_point(point);
+        p_clip.coords.min() > nalgebra::convert(-1.0)
+            && p_clip.coords.max() < nalgebra::convert(1.0)
     }
 }
 

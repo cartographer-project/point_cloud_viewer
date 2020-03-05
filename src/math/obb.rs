@@ -1,3 +1,5 @@
+//! A bounding box with an arbitrary 3D pose.
+
 use super::aabb::Aabb;
 use super::base::PointCulling;
 use super::sat::ConvexPolyhedron;
