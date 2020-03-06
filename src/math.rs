@@ -16,10 +16,10 @@ use cgmath::{
     BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, Matrix3, Point3, Quaternion, Rotation,
     Vector3, Zero,
 };
-use collision::{Aabb3, Contains};
+use collision::Aabb3;
 use nav_types::{ECEF, WGS84};
 use num_traits::identities::One;
-use num_traits::{Bounded, Float};
+use num_traits::Bounded;
 use s2::cell::Cell;
 use s2::cellid::CellID;
 use s2::cellunion::CellUnion;

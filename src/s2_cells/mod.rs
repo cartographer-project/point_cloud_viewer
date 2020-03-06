@@ -1,6 +1,6 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
-use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
+use crate::iterator::{PointCloud, PointLocation};
 use crate::math::sat::ConvexPolyhedron;
 use crate::math::S2Point;
 use crate::proto;

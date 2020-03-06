@@ -42,16 +42,6 @@ impl<S: BaseFloat> Frustum<S> {
     }
 }
 
-impl<S: BaseFloat> IntersectAabb<S> for collision::Frustum<S> {
-    fn intersect_aabb(&self, aabb: &Aabb3<S>) -> bool {
-        match self.contains(aabb) {
-            Relation::Cross => true,
-            Relation::In => true,
-            Relation::Out => false,
-        }
-    }
-}
-
 impl<S> ConvexPolyhedron<S> for Frustum<S>
 where
     S: BaseFloat,

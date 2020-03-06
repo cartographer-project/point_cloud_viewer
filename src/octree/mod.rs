@@ -14,13 +14,12 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::geometry::Cube;
-use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::sat::{ConvexPolyhedron, Intersector};
-use crate::math::{HasAabbIntersector, IntersectAabb, PointCulling};
+use crate::iterator::{PointCloud, PointLocation};
+use crate::math::{HasAabbIntersector, IntersectAabb};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
-use cgmath::{EuclideanSpace, Matrix4, Point3, Vector3};
+use cgmath::{EuclideanSpace, Matrix4, Point3};
 use collision::{Aabb, Aabb3, Bound, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
