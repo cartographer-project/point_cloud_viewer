@@ -148,6 +148,13 @@ where
     }
 }
 
+pub trait PointCulling<S>: fmt::Debug + Sync + Send
+    where
+        S: BaseFloat + Sync + Send,
+{
+    fn contains(&self, point: &Point3<S>) -> bool;
+}
+
 /// Something that can perform an intersection test with an AABB.
 pub trait IntersectAabb<S: BaseFloat> {
     // TODO(nnmm): return Relation
@@ -172,13 +179,6 @@ impl<S: BaseFloat + Bounded> IntersectAabb<S> for CachedAxesIntersector<S> {
     fn intersect_aabb(&self, aabb: &Aabb3<S>) -> bool {
         self.intersect(&aabb.to_corners()) != Relation::Out
     }
-}
-
-pub trait PointCulling<S>: fmt::Debug + Sync + Send
-where
-    S: BaseFloat + Sync + Send,
-{
-    fn contains(&self, point: &Point3<S>) -> bool;
 }
 
 /// Implementation of PointCulling to return all points

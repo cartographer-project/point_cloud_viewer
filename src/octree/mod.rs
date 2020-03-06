@@ -355,11 +355,7 @@ impl PointCloud for Octree {
     fn points_in_node(
         &self,
         attributes: &[&str],
-<<<<<<< HEAD
-        node_id: NodeId,
-=======
         node_id: Self::Id,
->>>>>>> master
         batch_size: usize,
     ) -> Result<NodeIterator> {
         let node_iterator = NodeIterator::from_data_provider(

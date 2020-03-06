@@ -1,6 +1,6 @@
 use crate::errors::*;
 use crate::geometry::{Frustum, Obb};
-use crate::math::{ClosedInterval, PointCulling};
+use crate::math::{AllPoints, ClosedInterval, PointCulling};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{match_1d_attr_data, AttributeData, PointsBatch};
 use cgmath::Point3;
@@ -27,6 +27,18 @@ impl Default for PointLocation {
     }
 }
 
+impl PointLocation {
+    pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
+        match &self {
+            PointLocation::AllPoints => Box::new(AllPoints {}),
+            PointLocation::Aabb(aabb) => Box::new(*aabb),
+            PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
+            PointLocation::Obb(obb) => Box::new(obb.clone()),
+            PointLocation::S2Cells(cell_union) => Box::new(cell_union.clone()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PointQuery<'a> {
     #[serde(borrow)]
@@ -38,8 +50,8 @@ pub struct PointQuery<'a> {
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
 /// Essentially a specialized version of the Filter iterator adapter
-pub struct FilteredIterator<'a, C> {
-    pub culling: C,
+pub struct FilteredIterator<'a> {
+    pub culling: Box<dyn PointCulling<f64>>,
     pub filter_intervals: &'a HashMap<&'a str, ClosedInterval<f64>>,
     pub node_iterator: NodeIterator,
 }
@@ -55,10 +67,7 @@ where
     }
 }
 
-impl<'a, C> Iterator for FilteredIterator<'a, C>
-where
-    C: PointCulling<f64>,
-{
+impl<'a> Iterator for FilteredIterator<'a> {
     type Item = PointsBatch;
 
     fn next(&mut self) -> Option<PointsBatch> {

@@ -78,7 +78,7 @@ impl<S: BaseFloat> ConvexPolyhedron<S> for Obb<S> {
 
 impl<S> PointCulling<S> for Obb<S>
 where
-    S: 'static + BaseFloat + Sync + Send + Bounded,
+    S: 'static + BaseFloat + Sync + Send,
 {
     fn contains(&self, p: &Point3<S>) -> bool {
         let Point3 { x, y, z } = &self.obb_from_query * p;
@@ -88,6 +88,7 @@ where
     }
 }
 
+// HasAabbIntersector by virtue of ConvexPolyhedron
 impl<'a, S: 'static + BaseFloat + Bounded> HasAabbIntersector<'a, S> for Obb<S> {
     type Intersector = CachedAxesIntersector<S>;
     fn aabb_intersector(&self) -> Self::Intersector {
