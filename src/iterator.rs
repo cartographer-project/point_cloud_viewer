@@ -135,37 +135,12 @@ where
         (self.func)(res)
     }
 
-    fn push_points_and_callback<I>(&mut self, node_iterator: I) -> Result<()>
-    where
-        I: Iterator<Item = PointsBatch>,
-    {
-        for mut batch in node_iterator {
-            self.buf.append(&mut batch)?;
-            while self.buf.position.len() >= self.batch_size {
-                self.callback()?;
-            }
+    fn push_points_and_callback(&mut self, mut batch: PointsBatch) -> Result<()> {
+        self.buf.append(&mut batch)?;
+        while self.buf.position.len() >= self.batch_size {
+            self.callback()?;
         }
         Ok(())
-    }
-
-    /// Why only a single node? Because the nodes are distributed to several `PointStream`s working
-    /// in parallel by the `ParallelIterator`.
-    fn stream_points_for_query_in_node<P: PointCloud>(
-        &mut self,
-        point_cloud: &P,
-        query: &'a PointQuery,
-        node_id: P::Id,
-        batch_size: usize,
-    ) -> Result<()> {
-        let culling = query.location.get_point_culling();
-        let filter_intervals = &query.filter_intervals;
-        let node_iterator = point_cloud.points_in_node(&query.attributes, node_id, batch_size)?;
-        let filtered_iterator = FilteredIterator {
-            culling,
-            filter_intervals,
-            node_iterator,
-        };
-        self.push_points_and_callback(filtered_iterator)
     }
 }
 
@@ -182,7 +157,10 @@ pub trait PointCloud: Sync {
         batch_size: usize,
     ) -> Result<NodeIterator>;
     fn bounding_box(&self) -> &Aabb3<f64>;
+
     /// Return the points matching the query in the selected node.
+    /// Why only a single node? Because the nodes are distributed to several `PointStream`s working
+    /// in parallel by the `ParallelIterator`.
     fn stream_points_for_query_in_node<F>(
         &self,
         query: &PointQuery,
@@ -244,11 +222,12 @@ where
         let mut number_of_jobs = 0;
         self.point_clouds
             .iter()
-            .flat_map(|octree| {
-                std::iter::repeat(octree).zip(octree.nodes_in_location(&self.point_query.location))
+            .flat_map(|point_cloud| {
+                std::iter::repeat(point_cloud)
+                    .zip(point_cloud.nodes_in_location(&self.point_query.location))
             })
-            .for_each(|(node_id, octree)| {
-                jobs.push((node_id, octree));
+            .for_each(|(node_id, point_cloud)| {
+                jobs.push((node_id, point_cloud));
                 number_of_jobs += 1;
             });
 
@@ -272,20 +251,20 @@ where
                         .into()),
                     };
 
-                    // one pointstream per thread vs one per node allows to send more full point batches
+                    // One `PointStream` per thread vs one per node allows to send more full point batches
                     let mut point_stream = PointStream::new(batch_size, &send_func);
 
-                    while let Some((octree, node_id)) = worker.pop().or_else(|| {
+                    while let Some((point_cloud, node_id)) = worker.pop().or_else(|| {
                         std::iter::repeat_with(|| jobs.steal_batch_and_pop(&worker))
                             .find(|task| !task.is_retry())
                             .and_then(Steal::success)
                     }) {
                         // executing on the available next task if the function still requires it
-                        match point_stream.stream_points_for_query_in_node(
-                            octree,
+                        match point_cloud.stream_points_for_query_in_node(
                             &point_query,
                             node_id,
                             batch_size,
+                            |batch| point_stream.push_points_and_callback(batch),
                         ) {
                             Ok(_) => continue,
                             Err(ref e) => {
