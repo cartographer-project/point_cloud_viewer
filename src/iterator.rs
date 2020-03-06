@@ -147,6 +147,26 @@ where
         }
         Ok(())
     }
+
+    /// Why only a single node? Because the nodes are distributed to several `PointStream`s working
+    /// in parallel by the `ParallelIterator`.
+    fn stream_points_for_query_in_node<P: PointCloud>(
+        &mut self,
+        point_cloud: &P,
+        query: &'a PointQuery,
+        node_id: P::Id,
+        batch_size: usize,
+    ) -> Result<()> {
+        let culling = query.location.get_point_culling();
+        let filter_intervals = &query.filter_intervals;
+        let node_iterator = point_cloud.points_in_node(&query.attributes, node_id, batch_size)?;
+        let filtered_iterator = FilteredIterator {
+            culling,
+            filter_intervals,
+            node_iterator,
+        };
+        self.push_points_and_callback(filtered_iterator)
+    }
 }
 
 // TODO(nnmm): Move this somewhere else
@@ -154,6 +174,7 @@ pub trait PointCloud: Sync {
     type Id: ToString + Send + Copy;
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id>;
     fn encoding_for_node(&self, id: Self::Id) -> Encoding;
+    /// Return all points in the selected node.
     fn points_in_node(
         &self,
         attributes: &[&str],
@@ -161,21 +182,26 @@ pub trait PointCloud: Sync {
         batch_size: usize,
     ) -> Result<NodeIterator>;
     fn bounding_box(&self) -> &Aabb3<f64>;
-
-    fn points_for_query_in_node<'a>(
-        &'a self,
-        query: &'a PointQuery,
+    /// Return the points matching the query in the selected node.
+    fn stream_points_for_query_in_node<F>(
+        &self,
+        query: &PointQuery,
         node_id: Self::Id,
         batch_size: usize,
-    ) -> Result<FilteredIterator<'a>> {
+        callback: F,
+    ) -> Result<()>
+    where
+        F: FnMut(PointsBatch) -> Result<()>,
+    {
         let culling = query.location.get_point_culling();
         let filter_intervals = &query.filter_intervals;
         let node_iterator = self.points_in_node(&query.attributes, node_id, batch_size)?;
-        Ok(FilteredIterator {
+        let mut filtered_iterator = FilteredIterator {
             culling,
             filter_intervals,
             node_iterator,
-        })
+        };
+        filtered_iterator.try_for_each(callback)
     }
 }
 
@@ -254,12 +280,13 @@ where
                             .find(|task| !task.is_retry())
                             .and_then(Steal::success)
                     }) {
-                        // TODO(nnmm): This crashes on error. We should bubble up an error.
-                        let node_iterator = octree
-                            .points_for_query_in_node(&point_query, node_id, batch_size)
-                            .expect("Could not read node points");
                         // executing on the available next task if the function still requires it
-                        match point_stream.push_points_and_callback(node_iterator) {
+                        match point_stream.stream_points_for_query_in_node(
+                            octree,
+                            &point_query,
+                            node_id,
+                            batch_size,
+                        ) {
                             Ok(_) => continue,
                             Err(ref e) => {
                                 match e.kind() {
