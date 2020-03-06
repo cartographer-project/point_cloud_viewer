@@ -15,6 +15,7 @@ use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::geometry::Cube;
 use crate::iterator::{PointCloud, PointLocation};
+use crate::math::PointCulling;
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -303,18 +304,21 @@ impl Octree {
             meta: self.nodes[node_id].clone(),
         })
     }
+
+    fn get_nodes<Culling: PointCulling<f64>>(&self, culling: Culling) -> Vec<NodeId> {
+        let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
+            let current = &octree.nodes[&node_id];
+            culling.intersects_aabb3(&current.bounding_cube.to_aabb3())
+        };
+        NodeIdsIterator::new(&self, filter_func).collect()
+    }
 }
 
 impl PointCloud for Octree {
     type Id = NodeId;
 
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
-        let culling = location.get_point_culling();
-        let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
-            let current = &octree.nodes[&node_id];
-            culling.intersects_aabb3(&current.bounding_cube.to_aabb3())
-        };
-        NodeIdsIterator::new(&self, filter_func).collect()
+        with_point_culling!(location, (|culling| { self.get_nodes(culling) }))
     }
 
     fn encoding_for_node(&self, id: Self::Id) -> Encoding {

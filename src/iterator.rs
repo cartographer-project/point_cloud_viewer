@@ -27,16 +27,17 @@ impl Default for PointLocation {
     }
 }
 
-impl PointLocation {
-    pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
-        match &self {
-            PointLocation::AllPoints => Box::new(AllPoints {}),
-            PointLocation::Aabb(aabb) => Box::new(*aabb),
-            PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
-            PointLocation::Obb(obb) => Box::new(obb.clone()),
-            PointLocation::S2Cells(cell_union) => Box::new(cell_union.clone()),
+macro_rules! with_point_culling {
+    ($point_location:expr, $closure:tt) => {
+        #[allow(clippy::redundant_closure_call)]
+        match &$point_location {
+            PointLocation::AllPoints => $closure(crate::math::AllPoints {}),
+            PointLocation::Aabb(aabb) => $closure(aabb.clone()),
+            PointLocation::Frustum(frustum) => $closure(frustum.clone()),
+            PointLocation::Obb(obb) => $closure(obb.clone()),
+            PointLocation::S2Cells(cell_union) => $closure(cell_union.clone()),
         }
-    }
+    };
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -50,8 +51,8 @@ pub struct PointQuery<'a> {
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
 /// Essentially a specialized version of the Filter iterator adapter
-pub struct FilteredIterator<'a> {
-    pub culling: Box<dyn PointCulling<f64>>,
+pub struct FilteredIterator<'a, Culling: PointCulling<f64>> {
+    pub culling: Culling,
     pub filter_intervals: &'a HashMap<&'a str, ClosedInterval<f64>>,
     pub node_iterator: NodeIterator,
 }
@@ -67,7 +68,7 @@ where
     }
 }
 
-impl<'a> Iterator for FilteredIterator<'a> {
+impl<'a, Culling: PointCulling<f64>> Iterator for FilteredIterator<'a, Culling> {
     type Item = PointsBatch;
 
     fn next(&mut self) -> Option<PointsBatch> {
@@ -171,15 +172,19 @@ pub trait PointCloud: Sync {
     where
         F: FnMut(PointsBatch) -> Result<()>,
     {
-        let culling = query.location.get_point_culling();
         let filter_intervals = &query.filter_intervals;
         let node_iterator = self.points_in_node(&query.attributes, node_id, batch_size)?;
-        let mut filtered_iterator = FilteredIterator {
-            culling,
-            filter_intervals,
-            node_iterator,
-        };
-        filtered_iterator.try_for_each(callback)
+        with_point_culling!(
+            query.location,
+            (|culling| {
+                let mut filtered_iterator = FilteredIterator {
+                    culling,
+                    filter_intervals,
+                    node_iterator,
+                };
+                filtered_iterator.try_for_each(callback)
+            })
+        )
     }
 }
 
