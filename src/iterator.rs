@@ -27,6 +27,18 @@ impl Default for PointLocation {
     }
 }
 
+impl PointLocation {
+    pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
+        match &self {
+            PointLocation::AllPoints => Box::new(AllPoints {}),
+            PointLocation::Aabb(aabb) => Box::new(*aabb),
+            PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
+            PointLocation::Obb(obb) => Box::new(obb.clone()),
+            PointLocation::S2Cells(cell_union) => Box::new(cell_union.clone()),
+        }
+    }
+}
+
 macro_rules! with_point_culling {
     ($point_location:expr, $closure:tt) => {
         #[allow(clippy::redundant_closure_call)]
