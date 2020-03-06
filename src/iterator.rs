@@ -160,8 +160,8 @@ pub trait PointCloud: Sync {
     fn bounding_box(&self) -> &Aabb3<f64>;
 
     /// Return the points matching the query in the selected node.
-    /// Why only a single node? Because the nodes are distributed to several `PointStream`s working
-    /// in parallel by the `ParallelIterator`.
+    /// Why only a single node? Because the nodes are distributed to several `PointStream` instances
+    /// working in parallel by the `ParallelIterator`.
     fn stream_points_for_query_in_node<F>(
         &self,
         query: &PointQuery,
