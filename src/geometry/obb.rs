@@ -3,12 +3,12 @@
 use crate::math::{
     CachedAxesIntersector, ConvexPolyhedron, Cuboid, IntersectAabb, Isometry3, PointCulling,
 };
+use arrayvec::ArrayVec;
 use cgmath::{BaseFloat, EuclideanSpace, InnerSpace, Point3, Quaternion, Vector3};
 use collision::{Aabb, Aabb3};
 use num_traits::identities::One;
 use num_traits::{Bounded, Float};
 use serde::{Deserialize, Serialize};
-use arrayvec::ArrayVec;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Obb<S> {
     query_from_obb: Isometry3<S>,
@@ -131,7 +131,6 @@ impl<S: BaseFloat> ConvexPolyhedron<S> for Obb<S> {
     }
 }
 
-
 impl<S> PointCulling<S> for Obb<S>
 where
     S: 'static + BaseFloat + Sync + Send + Bounded,
@@ -147,7 +146,8 @@ where
 
     fn aabb_intersector(&self) -> CachedAxesIntersector<S> {
         let unit_axes = [Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
-        self.intersector().cache_separating_axes(&unit_axes, &unit_axes)
+        self.intersector()
+            .cache_separating_axes(&unit_axes, &unit_axes)
     }
 }
 
