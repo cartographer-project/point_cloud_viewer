@@ -9,7 +9,7 @@
 //! ```no_run
 //! use nalgebra::Vector3;
 //! use point_viewer::math::sat::ConvexPolyhedron;
-//! use point_viewer::math::{Aabb, Obb, Frustum};
+//! use point_viewer::geometry::{Aabb, Obb, Frustum};
 //! // Use your imagination here
 //! let many_obbs: Vec<Obb<f64>> = unimplemented!();
 //! let many_aabbs: Vec<Aabb<f64>> = unimplemented!();

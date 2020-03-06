@@ -1,7 +1,8 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
-use crate::math::{Cuboid, S2Point};
+use crate::math::sat::ConvexPolyhedron;
+use crate::math::S2Point;
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -161,9 +162,9 @@ impl PointCloud for S2Cells {
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
         match location {
             PointLocation::AllPoints => self.cells.keys().cloned().collect(),
-            PointLocation::Aabb(aabb) => self.cells_in_cuboid(aabb),
-            PointLocation::Obb(obb) => self.cells_in_cuboid(obb),
-            PointLocation::Frustum(frustum) => self.cells_in_cuboid(frustum),
+            PointLocation::Aabb(aabb) => self.cells_in_convex_polyhedron(aabb),
+            PointLocation::Obb(obb) => self.cells_in_convex_polyhedron(obb),
+            PointLocation::Frustum(frustum) => self.cells_in_convex_polyhedron(frustum),
             PointLocation::S2Cells(cell_union) => self.cells_intersecting_region(cell_union),
         }
     }
@@ -215,12 +216,12 @@ impl S2Cells {
         self.meta.to_proto()
     }
 
-    /// Wrapper arround cells_in_convex_hull for Obbs
-    fn cells_in_cuboid<T>(&self, cuboid: &T) -> Vec<CellID>
+    /// Wrapper around cells_in_convex_hull for Obbs
+    fn cells_in_convex_polyhedron<T>(&self, poly: &T) -> Vec<CellID>
     where
-        T: Cuboid<f64>,
+        T: ConvexPolyhedron<f64>,
     {
-        self.cells_in_convex_hull(cuboid.corners().iter().cloned())
+        self.cells_in_convex_hull(poly.compute_corners().iter().cloned())
     }
 
     /// Returns all cells that intersect the convex hull of the given points

@@ -19,7 +19,7 @@ use cgmath::{
 use collision::{Aabb3, Contains};
 use nav_types::{ECEF, WGS84};
 use num_traits::identities::One;
-use num_traits::Bounded;
+use num_traits::{Bounded, Float};
 use s2::cell::Cell;
 use s2::cellid::CellID;
 use s2::cellunion::CellUnion;
@@ -148,9 +148,24 @@ where
     }
 }
 
+/// Something that can perform an intersection test with an AABB.
 pub trait IntersectAabb<S: BaseFloat> {
     // TODO(nnmm): return Relation
     fn intersect_aabb(&self, aabb: &Aabb3<S>) -> bool;
+}
+
+/// We use this trait to allow an indirection: The geometry itself does not need to be able to
+/// efficiently do intersection tests with AABBs, because the geometry (e.g. an OBB) should not need
+/// to store data to support intersection tests (like separating axes).
+/// The trait has a lifetime to support the intersector borrowing from self, or being identical to
+/// &Self.
+///
+/// Having `impl<'a, T: IntersectAabb<S>, S> HasAabbIntersector<'a, S> for T` and
+/// `impl<'a, S, T: ConvexPolyhedron<S>> HasAabbIntersector<'a, S> for T` would be nice, but results
+/// in conflicts.
+pub trait HasAabbIntersector<'a, S: BaseFloat> {
+    type Intersector: IntersectAabb<S> + 'a;
+    fn aabb_intersector(&'a self) -> Self::Intersector;
 }
 
 impl<S: BaseFloat + Bounded> IntersectAabb<S> for CachedAxesIntersector<S> {
@@ -163,50 +178,24 @@ pub trait PointCulling<S>: fmt::Debug + Sync + Send
 where
     S: BaseFloat + Sync + Send,
 {
-    type AabbIsec: IntersectAabb<S>;
     fn contains(&self, point: &Point3<S>) -> bool;
-    fn aabb_intersector(&self) -> Self::AabbIsec;
-}
-
-pub trait Cuboid<S> {
-    fn corners(&self) -> [Point3<S>; 8];
-}
-
-impl<S> PointCulling<S> for Aabb3<S>
-where
-    S: 'static + BaseFloat + Sync + Send + Bounded,
-{
-    type AabbIsec = CachedAxesIntersector<S>;
-    fn contains(&self, p: &Point3<S>) -> bool {
-        Contains::contains(self, p)
-    }
-
-    fn aabb_intersector(&self) -> CachedAxesIntersector<S> {
-        CachedAxesIntersector {
-            axes: vec![Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()],
-            corners: self.to_corners(),
-        }
-    }
-}
-
-impl<S> Cuboid<S> for Aabb3<S>
-where
-    S: BaseFloat,
-{
-    fn corners(&self) -> [Point3<S>; 8] {
-        self.to_corners()
-    }
 }
 
 /// Implementation of PointCulling to return all points
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct AllPoints {}
 
-pub struct AlwaysIntersects {}
-
-impl<S: BaseFloat> IntersectAabb<S> for AlwaysIntersects {
+impl<S: BaseFloat> IntersectAabb<S> for AllPoints {
     fn intersect_aabb(&self, _aabb: &Aabb3<S>) -> bool {
         true
+    }
+}
+
+impl<'a, S: BaseFloat> HasAabbIntersector<'a, S> for AllPoints {
+    type Intersector = Self;
+
+    fn aabb_intersector(&'a self) -> Self::Intersector {
+        *self
     }
 }
 
@@ -214,12 +203,8 @@ impl<S> PointCulling<S> for AllPoints
 where
     S: BaseFloat + Sync + Send,
 {
-    type AabbIsec = AlwaysIntersects;
     fn contains(&self, _p: &Point3<S>) -> bool {
         true
-    }
-    fn aabb_intersector(&self) -> AlwaysIntersects {
-        AlwaysIntersects {}
     }
 }
 
@@ -318,11 +303,7 @@ impl<S: BaseFloat> Isometry3<S> {
     }
 }
 
-pub struct CellUnionAabbIntersector {
-    cell_union: CellUnion,
-}
-
-impl<S> IntersectAabb<S> for CellUnionAabbIntersector
+impl<S> IntersectAabb<S> for &CellUnion
 where
     S: BaseFloat,
     f64: From<S>,
@@ -336,10 +317,20 @@ where
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();
         let rect = cell_union.rect_bound();
-        self.cell_union
-            .0
+        self.0
             .iter()
             .any(|cell_id| rect.intersects_cell(&Cell::from(cell_id)))
+    }
+}
+
+impl<'a, S> HasAabbIntersector<'a, S> for CellUnion
+where
+    S: BaseFloat,
+    f64: From<S>,
+{
+    type Intersector = &'a Self;
+    fn aabb_intersector(&'a self) -> Self::Intersector {
+        self
     }
 }
 
@@ -348,16 +339,8 @@ where
     S: BaseFloat + Sync + Send,
     f64: std::convert::From<S>,
 {
-    type AabbIsec = CellUnionAabbIntersector;
-
     fn contains(&self, p: &Point3<S>) -> bool {
         self.contains_cellid(&CellID::from(S2Point::from(p)))
-    }
-    fn aabb_intersector(&self) -> CellUnionAabbIntersector {
-        // We could avoid this clone if we gave the PointCulling trait a lifetime parameter
-        CellUnionAabbIntersector {
-            cell_union: self.clone(),
-        }
     }
 }
 
