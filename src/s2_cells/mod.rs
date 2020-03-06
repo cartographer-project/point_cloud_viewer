@@ -1,6 +1,6 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
-use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
+use crate::iterator::{PointCloud, PointLocation};
 use crate::math::{Cuboid, S2Point};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
@@ -172,28 +172,22 @@ impl PointCloud for S2Cells {
         Encoding::Plain
     }
 
-    fn points_in_node<'a>(
-        &'a self,
-        query: &'a PointQuery,
+    fn points_in_node(
+        &self,
+        attributes: &[&str],
         node_id: Self::Id,
         batch_size: usize,
-    ) -> Result<FilteredIterator<'a>> {
-        let culling = query.location.get_point_culling();
-        let filter_intervals = &query.filter_intervals;
+    ) -> Result<NodeIterator> {
         let num_points = self.meta.cells[&node_id].num_points as usize;
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
-            &self.meta.attribute_data_types_for(&query.attributes)?,
+            &self.meta.attribute_data_types_for(&attributes)?,
             self.encoding_for_node(node_id),
             &node_id,
             num_points,
             batch_size,
         )?;
-        Ok(FilteredIterator {
-            culling,
-            filter_intervals,
-            node_iterator,
-        })
+        Ok(node_iterator)
     }
 
     fn bounding_box(&self) -> &Aabb3<f64> {
