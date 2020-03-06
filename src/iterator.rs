@@ -154,13 +154,29 @@ pub trait PointCloud: Sync {
     type Id: ToString + Send + Copy;
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id>;
     fn encoding_for_node(&self, id: Self::Id) -> Encoding;
-    fn points_in_node<'a>(
+    fn points_in_node(
+        &self,
+        attributes: &[&str],
+        node_id: Self::Id,
+        batch_size: usize,
+    ) -> Result<NodeIterator>;
+    fn bounding_box(&self) -> &Aabb3<f64>;
+
+    fn points_for_query_in_node<'a>(
         &'a self,
         query: &'a PointQuery,
         node_id: Self::Id,
         batch_size: usize,
-    ) -> Result<FilteredIterator<'a>>;
-    fn bounding_box(&self) -> &Aabb3<f64>;
+    ) -> Result<FilteredIterator<'a>> {
+        let culling = query.location.get_point_culling();
+        let filter_intervals = &query.filter_intervals;
+        let node_iterator = self.points_in_node(&query.attributes, node_id, batch_size)?;
+        Ok(FilteredIterator {
+            culling,
+            filter_intervals,
+            node_iterator,
+        })
+    }
 }
 
 /// Iterator on point batches
@@ -240,7 +256,7 @@ where
                     }) {
                         // TODO(nnmm): This crashes on error. We should bubble up an error.
                         let node_iterator = octree
-                            .points_in_node(&point_query, node_id, batch_size)
+                            .points_for_query_in_node(&point_query, node_id, batch_size)
                             .expect("Could not read node points");
                         // executing on the available next task if the function still requires it
                         match point_stream.push_points_and_callback(node_iterator) {
