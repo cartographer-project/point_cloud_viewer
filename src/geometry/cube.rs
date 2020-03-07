@@ -1,7 +1,51 @@
 //! An axis-aligned cube.
 
-use cgmath::{Point3, Vector3};
-use collision::{Aabb, Aabb3};
+use crate::math::sat::{self, ConvexPolyhedron, Relation};
+use crate::math::PointCulling;
+use arrayvec::ArrayVec;
+use cgmath::{BaseFloat, Point3, Vector3};
+use collision::{Aabb, Contains};
+use num_traits::Bounded;
+
+pub use collision::Aabb3;
+
+impl<S> PointCulling<S> for Aabb3<S>
+where
+    S: 'static + BaseFloat + Sync + Send + Bounded,
+{
+    fn contains(&self, p: &Point3<S>) -> bool {
+        Contains::contains(self, p)
+    }
+
+    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
+        sat::sat(
+            ArrayVec::from([Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()]),
+            &self.to_corners(),
+            &aabb.to_corners(),
+        ) != Relation::Out
+    }
+}
+
+impl<S> ConvexPolyhedron<S> for Aabb3<S>
+where
+    S: BaseFloat,
+{
+    fn compute_corners(&self) -> [Point3<S>; 8] {
+        self.to_corners()
+    }
+
+    fn compute_edges(&self) -> ArrayVec<[Vector3<S>; 6]> {
+        let mut edges = ArrayVec::new();
+        edges.push(Vector3::unit_x());
+        edges.push(Vector3::unit_y());
+        edges.push(Vector3::unit_z());
+        edges
+    }
+
+    fn compute_face_normals(&self) -> ArrayVec<[Vector3<S>; 6]> {
+        self.compute_edges()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Cube {

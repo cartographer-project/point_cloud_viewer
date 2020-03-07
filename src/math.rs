@@ -16,7 +16,7 @@ use cgmath::{
     BaseFloat, BaseNum, Decomposed, Deg, EuclideanSpace, Matrix3, Point3, Quaternion, Rotation,
     Vector3, Zero,
 };
-use collision::{Aabb3, Contains};
+use collision::Aabb3;
 use nav_types::{ECEF, WGS84};
 use num_traits::identities::One;
 
@@ -148,39 +148,13 @@ where
     }
 }
 
-pub trait PointCulling<S>: fmt::Debug + Sync + Send
+pub trait PointCulling<S>: Sync + Send
 where
     S: BaseFloat + Sync + Send,
 {
     fn contains(&self, point: &Point3<S>) -> bool;
     // TODO(catevita): return Relation
     fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool;
-}
-
-pub trait Cuboid<S> {
-    fn corners(&self) -> [Point3<S>; 8];
-}
-
-impl<S> PointCulling<S> for Aabb3<S>
-where
-    S: 'static + BaseFloat + Sync + Send,
-{
-    fn contains(&self, p: &Point3<S>) -> bool {
-        Contains::contains(self, p)
-    }
-    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
-        let separating_axes = &[Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()];
-        intersects_aabb3(&self.to_corners(), separating_axes, aabb)
-    }
-}
-
-impl<S> Cuboid<S> for Aabb3<S>
-where
-    S: BaseFloat,
-{
-    fn corners(&self) -> [Point3<S>; 8] {
-        self.to_corners()
-    }
 }
 
 /// Implementation of PointCulling to return all points
@@ -342,7 +316,7 @@ pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geometry::{Frustum, Obb};
+    use crate::geometry::{CachedAxesObb, Frustum, Obb};
     use cgmath::{Perspective, Rad, Rotation3, Zero};
 
     #[test]
@@ -354,18 +328,22 @@ mod tests {
             Rotation3::from_axis_angle(Vector3::new(0.2, 0.5, -0.7), Rad(0.123));
         let translation = Vector3::new(0.0, 0.0, 0.0);
         let half_extent = Vector3::new(1.0, 2.0, 3.0);
-        let zero_obb = Obb::new(Isometry3::new(zero_rot, translation), half_extent);
-        let fourty_five_deg_obb = Obb::new(
+        let zero_obb =
+            CachedAxesObb::new(Obb::new(Isometry3::new(zero_rot, translation), half_extent));
+        let fourty_five_deg_obb = CachedAxesObb::new(Obb::new(
             Isometry3::new(fourty_five_deg_rot, translation),
             half_extent,
-        );
-        let arbitrary_obb = Obb::new(Isometry3::new(arbitrary_rot, translation), half_extent);
+        ));
+        let arbitrary_obb = CachedAxesObb::new(Obb::new(
+            Isometry3::new(arbitrary_rot, translation),
+            half_extent,
+        ));
         let bbox = Aabb3::new(Point3::new(0.5, 1.0, -3.0), Point3::new(1.5, 3.0, 3.0));
-        assert_eq!(zero_obb.separating_axes.len(), 3);
+        assert_eq!(zero_obb.separating_axes.axes.len(), 3);
         assert_eq!(zero_obb.intersects_aabb3(&bbox), true);
-        assert_eq!(fourty_five_deg_obb.separating_axes.len(), 5);
+        assert_eq!(fourty_five_deg_obb.separating_axes.axes.len(), 5);
         assert_eq!(fourty_five_deg_obb.intersects_aabb3(&bbox), false);
-        assert_eq!(arbitrary_obb.separating_axes.len(), 15);
+        assert_eq!(arbitrary_obb.separating_axes.axes.len(), 15);
     }
 
     #[test]
