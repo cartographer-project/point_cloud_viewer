@@ -213,7 +213,7 @@ where
         face_normals.push(Unit::new_normalize(edges[0].cross(&edges[2]))); // Lower side
         face_normals.push(Unit::new_normalize(edges[0].cross(&edges[3]))); // Upper side
         face_normals.push(Unit::new_normalize(edges[1].cross(&edges[2]))); // Left side
-        face_normals.push(Unit::new_normalize(edges[1].cross(&edges[4]))); // right side
+        face_normals.push(Unit::new_normalize(edges[1].cross(&edges[4]))); // Right side
 
         Intersector {
             corners,

@@ -517,6 +517,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bytemuck"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37fa13df2292ecb479ec23aa06f4507928bef07839be9ef15281411076629431"
+
+[[package]]
 name = "byteorder"
 version = "1.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -765,6 +771,16 @@ name = "deflate"
 version = "0.7.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "707b6a7b384888a70c8d2e8650b3e60170dfc6a67bb4aa67b6dfca57af4bedb4"
+dependencies = [
+ "adler32",
+ "byteorder",
+]
+
+[[package]]
+name = "deflate"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "050ef6de42a33903b30a7497b76b40d3d58691d4d3eec355348c122444a388f0"
 dependencies = [
  "adler32",
  "byteorder",
@@ -1207,9 +1223,27 @@ dependencies = [
  "num-iter",
  "num-rational",
  "num-traits 0.2.11",
- "png",
+ "png 0.15.3",
  "scoped_threadpool",
- "tiff",
+ "tiff 0.3.1",
+]
+
+[[package]]
+name = "image"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "403f0c29211dc50a78eb53eeeae87945d44cb63071881834212f36677fccb2b4"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "gif",
+ "jpeg-decoder",
+ "num-iter",
+ "num-rational",
+ "num-traits 0.2.11",
+ "png 0.16.1",
+ "scoped_threadpool",
+ "tiff 0.4.0",
 ]
 
 [[package]]
@@ -1219,7 +1253,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffdef455351067edb3a0b94b7b3f27f82621d413e5cb5883581e9582dfd1d909"
 dependencies = [
  "conv",
- "image",
+ "image 0.22.5",
  "itertools 0.7.11",
  "num 0.2.1",
  "rand 0.6.5",
@@ -1297,6 +1331,15 @@ name = "itertools"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f56a2d0bc861f9165be4eb3442afd3c236d8a98afd426f65d92324ae1091a484"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
 dependencies = [
  "either",
 ]
@@ -1937,7 +1980,19 @@ checksum = "ef859a23054bbfee7811284275ae522f0434a3c8e7f4b74bd4a35ae7e1c4a283"
 dependencies = [
  "bitflags",
  "crc32fast",
- "deflate",
+ "deflate 0.7.20",
+ "inflate",
+]
+
+[[package]]
+name = "png"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46060468187c21c00ffa2a920690b29997d7fd543f5a4d400461e4a7d4fccde8"
+dependencies = [
+ "bitflags",
+ "crc32fast",
+ "deflate 0.8.3",
  "inflate",
 ]
 
@@ -1981,7 +2036,7 @@ dependencies = [
  "crossbeam",
  "error-chain",
  "fnv",
- "image",
+ "image 0.22.5",
  "lazy_static",
  "libc",
  "lru",
@@ -2132,7 +2187,7 @@ name = "protobuf_provider"
 version = "0.1.0"
 dependencies = [
  "cmake",
- "itertools 0.8.2",
+ "itertools 0.9.0",
 ]
 
 [[package]]
@@ -2655,7 +2710,7 @@ dependencies = [
  "clap",
  "fnv",
  "gl_generator",
- "image",
+ "image 0.23.1",
  "lru",
  "nalgebra 0.20.0",
  "num-integer",
@@ -2922,7 +2977,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1d4b758a07955c7f9c105f4d9441c57cbafbf4103de357b792d856c1cd5d62e"
 dependencies = [
  "crossbeam-utils 0.6.6",
- "image",
+ "image 0.22.5",
  "num_cpus",
  "rand 0.7.3",
  "rand_pcg 0.2.1",
@@ -2966,6 +3021,17 @@ dependencies = [
  "lzw",
  "num-derive",
  "num-traits 0.2.11",
+]
+
+[[package]]
+name = "tiff"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "002351e428db1eb1d8656d4ca61947c3519ac3191e1c804d4600cd32093b77ad"
+dependencies = [
+ "byteorder",
+ "lzw",
+ "miniz_oxide",
 ]
 
 [[package]]
@@ -3359,7 +3425,7 @@ dependencies = [
  "clap",
  "crossbeam",
  "fnv",
- "image",
+ "image 0.22.5",
  "imageproc",
  "iron",
  "nalgebra 0.20.0",

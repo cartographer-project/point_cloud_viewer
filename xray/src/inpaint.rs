@@ -92,8 +92,7 @@ impl<'a> SpatialNodeInpainter<'a> {
             let w = current.width() / 2;
             let h = current.height() / 2;
             let mut image = RgbaImage::from_pixel(4 * w, 4 * h, Rgba::from(TRANSPARENT.to_u8()));
-            // TODO(feuerste): Once we use image >= 0.23, add the ? operator
-            image.copy_from(&current, w, h);
+            image.copy_from(&current, w, h)?;
             let mut copy_subimage = |direction: Direction,
                                      from_x: u32,
                                      from_y: u32,
@@ -103,8 +102,7 @@ impl<'a> SpatialNodeInpainter<'a> {
                                      to_y: u32|
              -> ImageResult<()> {
                 if let Some(neighbor) = self.image_from(direction)? {
-                    // TODO(feuerste): Once we use image >= 0.23, add the ? operator
-                    image.copy_from(&neighbor.view(from_x, from_y, width, height), to_x, to_y);
+                    image.copy_from(&neighbor.view(from_x, from_y, width, height), to_x, to_y)?;
                 }
                 Ok(())
             };
