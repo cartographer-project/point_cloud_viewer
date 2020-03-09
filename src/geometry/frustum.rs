@@ -113,7 +113,7 @@ where
         face_normals.push((edges[0].cross(edges[2])).normalize()); // Lower side
         face_normals.push((edges[0].cross(edges[3])).normalize()); // Upper side
         face_normals.push((edges[1].cross(edges[2])).normalize()); // Left side
-        face_normals.push((edges[1].cross(edges[2])).normalize()); // right side
+        face_normals.push((edges[1].cross(edges[4])).normalize()); // right side
 
         Intersector {
             corners,

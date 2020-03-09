@@ -17,7 +17,7 @@ pub struct Obb<S> {
     half_extent: Vector3<S>,
 }
 
-/// Will be removed in the next PR.
+/// TODO(nnmm): Remove
 pub struct CachedAxesObb<S: BaseFloat> {
     pub obb: Obb<S>,
     pub separating_axes: CachedAxesIntersector<S>,
