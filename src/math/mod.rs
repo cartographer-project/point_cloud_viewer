@@ -123,9 +123,9 @@ where
 {
     fn from_point(p: &Point3<S>) -> Self {
         s2::cellid::CellID::from(s2::point::Point::from_coords(
-            f64::from(p.x),
-            f64::from(p.y),
-            f64::from(p.z),
+            f64::from(p.x.clone()),
+            f64::from(p.y.clone()),
+            f64::from(p.z.clone()),
         ))
     }
 }
