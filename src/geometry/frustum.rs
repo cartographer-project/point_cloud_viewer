@@ -125,6 +125,7 @@ pub struct Frustum<S: RealField> {
     clip_from_world: Matrix4<S>,
 }
 
+/// TODO(nnmm): Remove
 pub struct CachedAxesFrustum<S: RealField> {
     frustum: Frustum<S>,
     separating_axes: CachedAxesIntersector<S>,
