@@ -101,7 +101,9 @@ where
                         len_x as u32,
                         len_y as u32,
                     );
-                    output_buffer.copy_from(&roi, x_off_dst as u32, y_off_dst as u32);
+                    output_buffer
+                        .copy_from(&roi, x_off_dst as u32, y_off_dst as u32)
+                        .unwrap();
                 }
             }
         }

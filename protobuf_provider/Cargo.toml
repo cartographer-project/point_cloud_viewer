@@ -15,10 +15,16 @@
 [package]
 name = "protobuf_provider"
 version = "0.1.0"
+authors = [
+   "Holger Rapp <hrapp@lyft.com>",
+   "Marco Feuerstein <mfeuerstein@lyft.com>",
+   "Nikolai Morin <nmorin@lyft.com>",
+   "Caterina Vitadello <cvitadello@lyft.com>"
+]
 edition = "2018"
 
 [build-dependencies]
 cmake = "0.1.42"
 
 [dependencies]
-itertools = "0.8.2"
+itertools = "0.9.0"
