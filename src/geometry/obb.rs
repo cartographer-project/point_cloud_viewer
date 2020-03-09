@@ -44,18 +44,6 @@ impl<S: RealField> Obb<S> {
     }
 }
 
-impl<S> PointCulling<S> for Obb<S>
-where
-    S: RealField,
-{
-    fn contains(&self, p: &Point3<S>) -> bool {
-        let p = self.obb_from_query * p;
-        p.x.abs() <= self.half_extent.x
-            && p.y.abs() <= self.half_extent.y
-            && p.z.abs() <= self.half_extent.z
-    }
-}
-
 impl<S> ConvexPolyhedron<S> for Obb<S>
 where
     S: RealField,
@@ -88,6 +76,18 @@ where
 
     fn compute_face_normals(&self) -> ArrayVec<[Unit<Vector3<S>>; 6]> {
         self.compute_edges()
+    }
+}
+
+impl<S> PointCulling<S> for Obb<S>
+where
+    S: RealField,
+{
+    fn contains(&self, p: &Point3<S>) -> bool {
+        let p = self.obb_from_query * p;
+        p.x.abs() <= self.half_extent.x
+            && p.y.abs() <= self.half_extent.y
+            && p.z.abs() <= self.half_extent.z
     }
 }
 
