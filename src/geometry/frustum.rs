@@ -80,22 +80,6 @@ where
         ]
     }
 
-    fn compute_edges(&self) -> ArrayVec<[Vector3<S>; 6]> {
-        // To compute the edges, we need the points, so it's more efficient to implement
-        // intersector() directly and compute the points only once. We still provide this
-        // function, but it will not be used since intersection testing only needs
-        // intersector().
-        self.intersector().edges
-    }
-
-    fn compute_face_normals(&self) -> ArrayVec<[Vector3<S>; 6]> {
-        // To compute the face normals, we need the edges, so it's more efficient to
-        // implement intersector() directly and compute the points and edges only once.
-        // We still provide this function, but it will not be used since intersection
-        // testing only needs intersector().
-        self.intersector().face_normals
-    }
-
     fn intersector(&self) -> Intersector<S> {
         let corners = self.compute_corners();
 

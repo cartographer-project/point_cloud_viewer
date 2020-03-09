@@ -1,6 +1,6 @@
 //! A bounding box with an arbitrary 3D pose.
 
-use crate::math::{CachedAxesIntersector, ConvexPolyhedron, Relation};
+use crate::math::{CachedAxesIntersector, ConvexPolyhedron, Intersector, Relation};
 use crate::math::{Isometry3, PointCulling};
 use arrayvec::ArrayVec;
 use cgmath::{BaseFloat, EuclideanSpace, InnerSpace, Point3, Quaternion, Vector3};
@@ -63,6 +63,14 @@ impl<S: BaseFloat> Obb<S> {
     pub fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
         Self::new(global_from_query * &self.query_from_obb, self.half_extent)
     }
+
+    fn compute_edges(&self) -> ArrayVec<[Vector3<S>; 6]> {
+        let mut edges = ArrayVec::new();
+        edges.push((self.query_from_obb.rotation * Vector3::unit_x()).normalize());
+        edges.push((self.query_from_obb.rotation * Vector3::unit_y()).normalize());
+        edges.push((self.query_from_obb.rotation * Vector3::unit_z()).normalize());
+        edges
+    }
 }
 
 impl<S: BaseFloat> ConvexPolyhedron<S> for Obb<S> {
@@ -83,16 +91,15 @@ impl<S: BaseFloat> ConvexPolyhedron<S> for Obb<S> {
             corner_from(self.half_extent.x, self.half_extent.y, self.half_extent.z),
         ]
     }
-    fn compute_edges(&self) -> ArrayVec<[Vector3<S>; 6]> {
-        let mut edges = ArrayVec::new();
-        edges.push((self.query_from_obb.rotation * Vector3::unit_x()).normalize());
-        edges.push((self.query_from_obb.rotation * Vector3::unit_y()).normalize());
-        edges.push((self.query_from_obb.rotation * Vector3::unit_z()).normalize());
-        edges
-    }
 
-    fn compute_face_normals(&self) -> ArrayVec<[Vector3<S>; 6]> {
-        self.compute_edges()
+    fn intersector(&self) -> Intersector<S> {
+        let corners = self.compute_corners();
+        let edges = self.compute_edges();
+        Intersector {
+            corners,
+            edges: edges.clone(),
+            face_normals: edges,
+        }
     }
 }
 

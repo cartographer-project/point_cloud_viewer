@@ -1,6 +1,6 @@
 //! An axis-aligned cube.
 
-use crate::math::sat::{self, ConvexPolyhedron, Relation};
+use crate::math::sat::{self, ConvexPolyhedron, Intersector, Relation};
 use crate::math::PointCulling;
 use arrayvec::ArrayVec;
 use cgmath::{BaseFloat, Point3, Vector3};
@@ -34,16 +34,17 @@ where
         self.to_corners()
     }
 
-    fn compute_edges(&self) -> ArrayVec<[Vector3<S>; 6]> {
-        let mut edges = ArrayVec::new();
-        edges.push(Vector3::unit_x());
-        edges.push(Vector3::unit_y());
-        edges.push(Vector3::unit_z());
-        edges
-    }
-
-    fn compute_face_normals(&self) -> ArrayVec<[Vector3<S>; 6]> {
-        self.compute_edges()
+    fn intersector(&self) -> Intersector<S> {
+        let mut unit_axes = ArrayVec::new();
+        unit_axes.push(Vector3::unit_x());
+        unit_axes.push(Vector3::unit_y());
+        unit_axes.push(Vector3::unit_z());
+        let corners = self.compute_corners();
+        Intersector {
+            corners,
+            edges: unit_axes.clone(),
+            face_normals: unit_axes,
+        }
     }
 }
 

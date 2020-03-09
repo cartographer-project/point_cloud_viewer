@@ -47,29 +47,20 @@ pub trait ConvexPolyhedron<S: BaseFloat> {
     /// Using arrays should be cheaper than allocating a vector.
     /// We could also parametrize this trait by type-level numbers like nalgebra.
     fn compute_corners(&self) -> [Point3<S>; 8];
-    /// Compute the minimum number of edges. There should be no parallel/antiparallel
-    /// edges in the result.
-    fn compute_edges(&self) -> ArrayVec<[Vector3<S>; 6]>;
-    /// Like edges, only unique (up to sign) face normals are needed.
-    fn compute_face_normals(&self) -> ArrayVec<[Vector3<S>; 6]>;
-    /// Basically, collects the corners, edges and face normals.
-    fn intersector(&self) -> Intersector<S> {
-        let corners = self.compute_corners();
-        let edges = self.compute_edges();
-        let face_normals = self.compute_face_normals();
-        Intersector {
-            corners,
-            edges,
-            face_normals,
-        }
-    }
+    /// An intersector contains corners, edges and face normals. Edges and face normals should be
+    /// unique to get the best performance (antiparallel vectors are the same for this purpose).
+    fn intersector(&self) -> Intersector<S>;
 }
 
 /// When you have one object that is intersection tested against many others,
 /// compute this once (with the [`intersector`](trait.ConvexPolyhedron.html#method.intersector) method) and reuse it.
 pub struct Intersector<S: BaseFloat> {
+    /// The corners of the polyhedron.
     pub corners: [Point3<S>; 8],
+    /// The unique edges of the polyhedron.
+    /// This is hardcoded to 6 for now because we don't need more. Increase as needed.
     pub edges: ArrayVec<[Vector3<S>; 6]>,
+    /// The unique face normals of the polyhedron.
     pub face_normals: ArrayVec<[Vector3<S>; 6]>,
 }
 
