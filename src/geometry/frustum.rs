@@ -12,29 +12,21 @@ use serde::{Deserialize, Serialize};
 /// creating the perspective projection, see also the frustum unit test below.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Frustum<S: BaseFloat> {
-    query_from_eye: Isometry3<S>,
-    clip_from_eye: Perspective<S>,
-    query_from_clip: Matrix4<S>,
+    world_from_clip: Matrix4<S>,
     frustum: collision::Frustum<S>,
 }
 
 impl<S: BaseFloat> Frustum<S> {
-    pub fn new(query_from_eye: Isometry3<S>, clip_from_eye: Perspective<S>) -> Self {
-        let eye_from_query: Decomposed<Vector3<S>, Quaternion<S>> = query_from_eye.inverse().into();
-        let clip_from_query =
-            Matrix4::<S>::from(clip_from_eye) * Matrix4::<S>::from(eye_from_query);
-        let query_from_clip = clip_from_query.inverse_transform().unwrap();
-        let frustum = collision::Frustum::from_matrix4(clip_from_query).unwrap();
+    pub fn new(world_from_eye: Isometry3<S>, clip_from_eye: Perspective<S>) -> Self {
+        let eye_from_world: Decomposed<Vector3<S>, Quaternion<S>> = world_from_eye.inverse().into();
+        let clip_from_world =
+            Matrix4::<S>::from(clip_from_eye) * Matrix4::<S>::from(eye_from_world);
+        let world_from_clip = clip_from_world.inverse_transform().unwrap();
+        let frustum = collision::Frustum::from_matrix4(clip_from_world).unwrap();
         Frustum {
-            query_from_eye,
-            clip_from_eye,
-            query_from_clip,
+            world_from_clip,
             frustum,
         }
-    }
-
-    pub fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
-        Self::new(global_from_query * &self.query_from_eye, self.clip_from_eye)
     }
 }
 
@@ -63,7 +55,7 @@ where
     S: BaseFloat,
 {
     fn corners(&self) -> [Point3<S>; 8] {
-        let corner_from = |x, y, z| self.query_from_clip.transform_point(Point3::new(x, y, z));
+        let corner_from = |x, y, z| self.world_from_clip.transform_point(Point3::new(x, y, z));
         [
             corner_from(-S::one(), -S::one(), -S::one()),
             corner_from(-S::one(), -S::one(), S::one()),
