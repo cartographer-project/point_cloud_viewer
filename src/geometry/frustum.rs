@@ -13,6 +13,7 @@ pub struct Perspective<S: RealField> {
 }
 
 impl<S: RealField> Perspective<S> {
+    /// Left, right, bottom, and top are in radians.
     pub fn new(left: S, right: S, bottom: S, top: S, near: S, far: S) -> Self {
         assert!(
             left <= right,
@@ -118,26 +119,26 @@ impl<S: RealField> Perspective<S> {
 /// creating the perspective projection, see also the frustum unit test below.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Frustum<S: RealField> {
-    query_from_clip: Matrix4<S>,
-    clip_from_query: Matrix4<S>,
+    world_from_clip: Matrix4<S>,
+    clip_from_world: Matrix4<S>,
 }
 
 impl<S: RealField> Frustum<S> {
-    pub fn new(query_from_eye: Isometry3<S>, clip_from_eye: Perspective<S>) -> Self {
-        let clip_from_query = clip_from_eye.as_matrix() * query_from_eye.inverse().to_homogeneous();
-        let query_from_clip = query_from_eye.to_homogeneous() * clip_from_eye.inverse();
+    pub fn new(world_from_eye: Isometry3<S>, clip_from_eye: Perspective<S>) -> Self {
+        let clip_from_world = clip_from_eye.as_matrix() * world_from_eye.inverse().to_homogeneous();
+        let world_from_clip = world_from_eye.to_homogeneous() * clip_from_eye.inverse();
         Frustum {
-            query_from_clip,
-            clip_from_query,
+            world_from_clip,
+            clip_from_world,
         }
     }
 
     /// Fails if the matrix is not invertible.
-    pub fn from_matrix4(clip_from_query: Matrix4<S>) -> Option<Self> {
-        let query_from_clip = clip_from_query.try_inverse()?;
+    pub fn from_matrix4(clip_from_world: Matrix4<S>) -> Option<Self> {
+        let world_from_clip = clip_from_world.try_inverse()?;
         Some(Self {
-            query_from_clip,
-            clip_from_query,
+            world_from_clip,
+            clip_from_world,
         })
     }
 }
@@ -147,7 +148,7 @@ where
     S: RealField,
 {
     fn contains(&self, point: &Point3<S>) -> bool {
-        let p_clip = self.clip_from_query.transform_point(point);
+        let p_clip = self.clip_from_world.transform_point(point);
         p_clip.coords.min() > nalgebra::convert(-1.0)
             && p_clip.coords.max() < nalgebra::convert(1.0)
     }
@@ -158,7 +159,7 @@ where
     S: RealField,
 {
     fn compute_corners(&self) -> [Point3<S>; 8] {
-        let corner_from = |x, y, z| self.query_from_clip.transform_point(&Point3::new(x, y, z));
+        let corner_from = |x, y, z| self.world_from_clip.transform_point(&Point3::new(x, y, z));
         [
             corner_from(-S::one(), -S::one(), -S::one()),
             corner_from(-S::one(), -S::one(), S::one()),
