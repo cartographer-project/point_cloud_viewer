@@ -180,7 +180,7 @@ pub trait PointCloud: Sync {
         node_id: Self::Id,
         batch_size: usize,
     ) -> Result<NodeIterator>;
-    fn bounding_box(&self) -> &Aabb3<f64>;
+    fn bounding_box(&self) -> &Aabb<f64>;
 
     /// Return the points matching the query in the selected node.
     /// Why only a single node? Because the nodes are distributed to several `PointStream` instances
@@ -250,11 +250,12 @@ where
         let mut number_of_jobs = 0;
         self.point_clouds
             .iter()
-            .flat_map(|octree| {
-                std::iter::repeat(octree).zip(octree.nodes_in_location(&self.point_query.location))
+            .flat_map(|point_cloud| {
+                std::iter::repeat(point_cloud)
+                    .zip(point_cloud.nodes_in_location(&self.point_query.location))
             })
-            .for_each(|(node_id, octree)| {
-                jobs.push((node_id, octree));
+            .for_each(|(node_id, point_cloud)| {
+                jobs.push((node_id, point_cloud));
                 number_of_jobs += 1;
             });
 
@@ -278,20 +279,21 @@ where
                         .into()),
                     };
 
-                    // one pointstream per thread vs one per node allows to send more full point batches
+                    // One `PointStream` per thread vs one per node allows to send more full point batches
                     let mut point_stream = PointStream::new(batch_size, &send_func);
 
-                    while let Some((octree, node_id)) = worker.pop().or_else(|| {
+                    while let Some((point_cloud, node_id)) = worker.pop().or_else(|| {
                         std::iter::repeat_with(|| jobs.steal_batch_and_pop(&worker))
                             .find(|task| !task.is_retry())
                             .and_then(Steal::success)
                     }) {
-                        // TODO(nnmm): This crashes on error. We should bubble up an error.
-                        let node_iterator = octree
-                            .points_in_node(&point_query, node_id, batch_size)
-                            .expect("Could not read node points");
                         // executing on the available next task if the function still requires it
-                        match point_stream.push_points_and_callback(node_iterator) {
+                        match point_cloud.stream_points_for_query_in_node(
+                            &point_query,
+                            node_id,
+                            batch_size,
+                            |batch| point_stream.push_points_and_callback(batch),
+                        ) {
                             Ok(_) => continue,
                             Err(ref e) => {
                                 match e.kind() {

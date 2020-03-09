@@ -14,7 +14,7 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::geometry::{Aabb, Cube, Frustum};
-use crate::iterator::{FilteredIterator, PointCloud, PointLocation, PointQuery};
+use crate::iterator::{PointCloud, PointLocation};
 use crate::math::sat::{ConvexPolyhedron, Intersector};
 use crate::math::{cell_union_intersects_aabb, Relation};
 use crate::proto;
@@ -332,27 +332,21 @@ impl PointCloud for Octree {
         self.meta.encoding_for_node(id)
     }
 
-    fn points_in_node<'a>(
-        &'a self,
-        query: &'a PointQuery,
-        node_id: NodeId,
+    fn points_in_node(
+        &self,
+        attributes: &[&str],
+        node_id: Self::Id,
         batch_size: usize,
-    ) -> Result<FilteredIterator<'a>> {
-        let culling = query.location.get_point_culling();
-        let filter_intervals = &query.filter_intervals;
+    ) -> Result<NodeIterator> {
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
-            &self.meta.attribute_data_types_for(&query.attributes)?,
+            &self.meta.attribute_data_types_for(&attributes)?,
             self.meta.encoding_for_node(node_id),
             &node_id,
             self.nodes[&node_id].num_points as usize,
             batch_size,
         )?;
-        Ok(FilteredIterator {
-            culling,
-            filter_intervals,
-            node_iterator,
-        })
+        Ok(node_iterator)
     }
 
     /// return the bounding box saved in meta
