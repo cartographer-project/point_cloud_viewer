@@ -1,8 +1,8 @@
 //! Contains geometric primitives, e.g. for defining queries against the point cloud.
-mod cube;
+mod aabb;
 mod frustum;
 mod obb;
 
-pub use cube::*;
+pub use aabb::*;
 pub use frustum::*;
 pub use obb::*;
