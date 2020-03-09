@@ -1,10 +1,11 @@
 //! A bounding box with an arbitrary 3D pose.
 
 use super::aabb::Aabb;
-use crate::math::sat::ConvexPolyhedron;
+use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector, Relation};
 use crate::math::PointCulling;
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, RealField, Unit, UnitQuaternion, Vector3};
+use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
 /// An oriented bounding box.
@@ -13,6 +14,25 @@ pub struct Obb<S: RealField> {
     query_from_obb: Isometry3<S>,
     obb_from_query: Isometry3<S>,
     half_extent: Vector3<S>,
+}
+
+/// TODO(nnmm): Remove
+pub struct CachedAxesObb<S: RealField> {
+    pub obb: Obb<S>,
+    pub separating_axes: CachedAxesIntersector<S>,
+}
+
+impl<S: RealField + Bounded> CachedAxesObb<S> {
+    pub fn new(obb: Obb<S>) -> Self {
+        let unit_axes = [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()];
+        let separating_axes = obb
+            .intersector()
+            .cache_separating_axes(&unit_axes, &unit_axes);
+        Self {
+            obb,
+            separating_axes,
+        }
+    }
 }
 
 impl<S: RealField> From<&Aabb<S>> for Obb<S> {
@@ -66,28 +86,32 @@ where
         ]
     }
 
-    fn compute_edges(&self) -> ArrayVec<[Unit<Vector3<S>>; 6]> {
+    fn intersector(&self) -> Intersector<S> {
         let mut edges = ArrayVec::new();
         edges.push(Unit::new_normalize(self.query_from_obb * Vector3::x()));
         edges.push(Unit::new_normalize(self.query_from_obb * Vector3::y()));
         edges.push(Unit::new_normalize(self.query_from_obb * Vector3::z()));
-        edges
-    }
-
-    fn compute_face_normals(&self) -> ArrayVec<[Unit<Vector3<S>>; 6]> {
-        self.compute_edges()
+        Intersector {
+            corners: self.compute_corners(),
+            edges: edges.clone(),
+            face_normals: edges,
+        }
     }
 }
 
-impl<S> PointCulling<S> for Obb<S>
+impl<S> PointCulling<S> for CachedAxesObb<S>
 where
     S: RealField,
 {
     fn contains(&self, p: &Point3<S>) -> bool {
-        let p = self.obb_from_query * p;
-        p.x.abs() <= self.half_extent.x
-            && p.y.abs() <= self.half_extent.y
-            && p.z.abs() <= self.half_extent.z
+        let p = self.obb.obb_from_query * p;
+        p.x.abs() <= self.obb.half_extent.x
+            && p.y.abs() <= self.obb.half_extent.y
+            && p.z.abs() <= self.obb.half_extent.z
+    }
+
+    fn intersects_aabb(&self, aabb: &Aabb<S>) -> bool {
+        self.separating_axes.intersect(&aabb.compute_corners()) != Relation::Out
     }
 }
 

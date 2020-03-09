@@ -311,7 +311,7 @@ impl PointCloud for Octree {
             let cached_intersector = isec.cache_separating_axes(&Aabb::axes(), &Aabb::axes());
             NodeIdsIterator::new(&self, move |node_id, octree| {
                 let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
-                cached_intersector.intersect(&aabb.corners()) != Relation::Out
+                cached_intersector.intersect(&aabb.compute_corners()) != Relation::Out
             })
             .collect()
         };

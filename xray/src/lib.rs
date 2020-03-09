@@ -124,7 +124,7 @@ impl Meta {
                 Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
             );
 
-            if frustum_isec.intersect(&aabb.corners()) == Relation::Out
+            if frustum_isec.intersect(&aabb.compute_corners()) == Relation::Out
                 || !self.nodes.contains(&node.id)
             {
                 continue;

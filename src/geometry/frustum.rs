@@ -1,9 +1,11 @@
 //! An asymmetric frustum with an arbitrary 3D pose.
 
-use crate::math::sat::{ConvexPolyhedron, Intersector};
+use crate::geometry::Aabb;
+use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector, Relation};
 use crate::math::PointCulling;
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Matrix4, Point3, RealField, Unit, Vector3};
+use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
 /// A perspective projection matrix analogous to cgmath::Perspective.
@@ -123,6 +125,24 @@ pub struct Frustum<S: RealField> {
     clip_from_world: Matrix4<S>,
 }
 
+pub struct CachedAxesFrustum<S: RealField> {
+    frustum: Frustum<S>,
+    separating_axes: CachedAxesIntersector<S>,
+}
+
+impl<S: RealField + Bounded> CachedAxesFrustum<S> {
+    pub fn new(frustum: Frustum<S>) -> Self {
+        let unit_axes = [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()];
+        let separating_axes = frustum
+            .intersector()
+            .cache_separating_axes(&unit_axes, &unit_axes);
+        Self {
+            frustum,
+            separating_axes,
+        }
+    }
+}
+
 impl<S: RealField> Frustum<S> {
     pub fn new(world_from_eye: Isometry3<S>, clip_from_eye: Perspective<S>) -> Self {
         let clip_from_world = clip_from_eye.as_matrix() * world_from_eye.inverse().to_homogeneous();
@@ -143,14 +163,18 @@ impl<S: RealField> Frustum<S> {
     }
 }
 
-impl<S> PointCulling<S> for Frustum<S>
+impl<S> PointCulling<S> for CachedAxesFrustum<S>
 where
     S: RealField,
 {
     fn contains(&self, point: &Point3<S>) -> bool {
-        let p_clip = self.clip_from_world.transform_point(point);
+        let p_clip = self.frustum.clip_from_world.transform_point(point);
         p_clip.coords.min() > nalgebra::convert(-1.0)
             && p_clip.coords.max() < nalgebra::convert(1.0)
+    }
+
+    fn intersects_aabb(&self, aabb: &Aabb<S>) -> bool {
+        self.separating_axes.intersect(&aabb.compute_corners()) != Relation::Out
     }
 }
 
@@ -172,22 +196,6 @@ where
         ]
     }
 
-    fn compute_edges(&self) -> ArrayVec<[Unit<Vector3<S>>; 6]> {
-        // To compute the edges, we need the points, so it's more efficient to implement
-        // intersector() directly and compute the points only once. We still provide this
-        // function, but it will not be used since intersection testing only needs
-        // intersector().
-        self.intersector().edges
-    }
-
-    fn compute_face_normals(&self) -> ArrayVec<[Unit<Vector3<S>>; 6]> {
-        // To compute the face normals, we need the edges, so it's more efficient to
-        // implement intersector() directly and compute the points and edges only once.
-        // We still provide this function, but it will not be used since intersection
-        // testing only needs intersector().
-        self.intersector().face_normals
-    }
-
     fn intersector(&self) -> Intersector<S> {
         let corners = self.compute_corners();
 
@@ -205,7 +213,7 @@ where
         face_normals.push(Unit::new_normalize(edges[0].cross(&edges[2]))); // Lower side
         face_normals.push(Unit::new_normalize(edges[0].cross(&edges[3]))); // Upper side
         face_normals.push(Unit::new_normalize(edges[1].cross(&edges[2]))); // Left side
-        face_normals.push(Unit::new_normalize(edges[1].cross(&edges[2]))); // right side
+        face_normals.push(Unit::new_normalize(edges[1].cross(&edges[4]))); // right side
 
         Intersector {
             corners,

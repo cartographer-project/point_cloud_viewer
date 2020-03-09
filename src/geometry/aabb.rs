@@ -1,6 +1,6 @@
 //! Axis-aligned box and cube.
 
-use crate::math::sat::ConvexPolyhedron;
+use crate::math::sat::{self, ConvexPolyhedron, Intersector, Relation};
 use crate::math::PointCulling;
 use crate::proto;
 use arrayvec::ArrayVec;
@@ -39,19 +39,6 @@ impl<S: RealField> Aabb<S> {
         self.maxs = nalgebra::sup(&self.maxs, &p);
     }
 
-    pub fn corners(&self) -> [Point3<S>; 8] {
-        [
-            self.mins,
-            Point3::new(self.maxs.x, self.mins.y, self.mins.z),
-            Point3::new(self.mins.x, self.maxs.y, self.mins.z),
-            Point3::new(self.maxs.x, self.maxs.y, self.mins.z),
-            Point3::new(self.mins.x, self.mins.y, self.maxs.z),
-            Point3::new(self.maxs.x, self.mins.y, self.maxs.z),
-            Point3::new(self.mins.x, self.maxs.y, self.maxs.z),
-            self.maxs,
-        ]
-    }
-
     pub fn contains(&self, p: &Point3<S>) -> bool {
         nalgebra::partial_le(&self.mins, p) && nalgebra::partial_le(p, &self.maxs)
     }
@@ -61,7 +48,7 @@ impl<S: RealField> Aabb<S> {
     }
 
     pub fn transform(&self, transform: &Isometry3<S>) -> Aabb<S> {
-        let corners = self.corners();
+        let corners = self.compute_corners();
         let transformed_first = transform.transform_point(&corners[0]);
         let base = Self::new(transformed_first, transformed_first);
         corners[1..].iter().fold(base, |mut u, &corner| {
@@ -111,6 +98,14 @@ where
     fn contains(&self, p: &Point3<S>) -> bool {
         self.contains(p)
     }
+
+    fn intersects_aabb(&self, aabb: &Aabb<S>) -> bool {
+        sat::sat(
+            ArrayVec::from([Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()]),
+            &self.compute_corners(),
+            &aabb.compute_corners(),
+        ) != Relation::Out
+    }
 }
 
 impl<S> ConvexPolyhedron<S> for Aabb<S>
@@ -118,19 +113,28 @@ where
     S: RealField,
 {
     fn compute_corners(&self) -> [Point3<S>; 8] {
-        self.corners()
+        [
+            self.mins,
+            Point3::new(self.maxs.x, self.mins.y, self.mins.z),
+            Point3::new(self.mins.x, self.maxs.y, self.mins.z),
+            Point3::new(self.maxs.x, self.maxs.y, self.mins.z),
+            Point3::new(self.mins.x, self.mins.y, self.maxs.z),
+            Point3::new(self.maxs.x, self.mins.y, self.maxs.z),
+            Point3::new(self.mins.x, self.maxs.y, self.maxs.z),
+            self.maxs,
+        ]
     }
 
-    fn compute_edges(&self) -> ArrayVec<[Unit<Vector3<S>>; 6]> {
-        let mut edges = ArrayVec::new();
-        edges.push(Vector3::x_axis());
-        edges.push(Vector3::y_axis());
-        edges.push(Vector3::z_axis());
-        edges
-    }
-
-    fn compute_face_normals(&self) -> ArrayVec<[Unit<Vector3<S>>; 6]> {
-        self.compute_edges()
+    fn intersector(&self) -> Intersector<S> {
+        let mut unit_axes = ArrayVec::new();
+        unit_axes.push(Vector3::x_axis());
+        unit_axes.push(Vector3::y_axis());
+        unit_axes.push(Vector3::z_axis());
+        Intersector {
+            corners: self.compute_corners(),
+            edges: unit_axes.clone(),
+            face_normals: unit_axes,
+        }
     }
 }
 

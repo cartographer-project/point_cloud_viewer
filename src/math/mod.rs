@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::geometry::Aabb;
 use nalgebra::{Isometry3, Point3, RealField, Scalar, UnitQuaternion, Vector3};
 use nav_types::{ECEF, WGS84};
 use s2::cell::Cell;
@@ -141,6 +142,10 @@ where
     fn contains(&self, _p: &Point3<S>) -> bool {
         true
     }
+
+    fn intersects_aabb(&self, _aabb: &Aabb<S>) -> bool {
+        true
+    }
 }
 
 pub fn cell_union_intersects_aabb<S>(
@@ -152,7 +157,7 @@ where
     f64: From<S>,
 {
     let aabb_corner_cells = aabb
-        .corners()
+        .compute_corners()
         .iter()
         .map(|p| CellID::from_point(p))
         .collect();
@@ -177,6 +182,10 @@ where
 {
     fn contains(&self, p: &Point3<S>) -> bool {
         self.contains_cellid(&CellID::from_point(p))
+    }
+
+    fn intersects_aabb(&self, aabb: &Aabb<S>) -> bool {
+        cell_union_intersects_aabb(self, aabb) != Relation::Out
     }
 }
 
@@ -204,7 +213,7 @@ pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geometry::{Aabb, Frustum, Perspective};
+    use crate::geometry::{Aabb, CachedAxesFrustum, Frustum, Perspective};
     use nalgebra::{UnitQuaternion, Vector3};
 
     #[test]
@@ -234,7 +243,8 @@ mod tests {
             frustum.intersector().intersect(&bbox.intersector()),
             Relation::In
         );
-        assert!(frustum.contains(&bbox_min));
-        assert!(frustum.contains(&bbox_max));
+        let frustum_aabb_intersector = CachedAxesFrustum::new(frustum);
+        assert!(frustum_aabb_intersector.contains(&bbox_min));
+        assert!(frustum_aabb_intersector.contains(&bbox_max));
     }
 }

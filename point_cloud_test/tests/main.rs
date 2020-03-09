@@ -80,21 +80,18 @@ where
 {
     let mut points = Vec::new();
     for node_id in point_cloud.nodes_in_location(&query.location).into_iter() {
-        let points_iter = point_cloud
-            .points_in_node(query, node_id, batch_size)
-            .unwrap();
-        points.extend(points_iter.flat_map(|batch| {
-            let color: &Vec<Vector3<u8>> = batch.get_attribute_vec("color").unwrap();
-            color
-                .iter()
-                .zip(batch.position.iter())
-                .map(|(c, p)| {
+        point_cloud
+            .stream_points_for_query_in_node(query, node_id, batch_size, |batch| {
+                let color: &Vec<Vector3<u8>> = batch.get_attribute_vec("color")?;
+                let indexed_point_iter = color.iter().zip(batch.position.iter()).map(|(c, p)| {
                     // Decode the index we encoded in the color
                     let idx = ((c.x as usize) << 16) + ((c.y as usize) << 8) + c.z as usize;
                     IndexedPoint { idx, pos: *p }
-                })
-                .collect::<Vec<IndexedPoint>>()
-        }));
+                });
+                points.extend(indexed_point_iter);
+                Ok(())
+            })
+            .unwrap();
     }
     points.sort_unstable_by(|p1, p2| p1.idx.cmp(&p2.idx));
     assert!(!points.is_empty());
