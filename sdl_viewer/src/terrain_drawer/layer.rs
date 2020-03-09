@@ -222,6 +222,14 @@ impl GridCoordinateFrame {
         let local_pos = self.terrain_from_world * world_pos;
         let x = ((local_pos.x - self.u_origin.value.x) / self.u_resolution_m.value).floor();
         let y = ((local_pos.y - self.u_origin.value.y) / self.u_resolution_m.value).floor();
+        assert!(
+            x <= std::i64::MAX as f64 && x >= std::i64::MIN as f64,
+            "Terrain location not representable."
+        );
+        assert!(
+            y <= std::i64::MAX as f64 && y >= std::i64::MIN as f64,
+            "Terrain location not representable."
+        );
         Vector2::new(x as i64, y as i64) - self.texture_half_extent
     }
 

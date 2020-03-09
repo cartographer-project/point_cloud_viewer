@@ -204,12 +204,12 @@ pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geometry::{collision, Aabb, Frustum};
+    use crate::geometry::{Aabb, Frustum, Perspective};
     use nalgebra::{UnitQuaternion, Vector3};
 
     #[test]
     fn test_inverse() {
-        let persp = collision::Perspective::new(-0.123, 0.45, 0.04, 0.75, 1.0, 4.0);
+        let persp = Perspective::new(-0.123, 0.45, 0.04, 0.75, 1.0, 4.0);
         let reference_inverse = persp.as_matrix().try_inverse().unwrap();
         let inverse = persp.inverse();
         let diff = (reference_inverse - inverse).abs();
@@ -222,7 +222,7 @@ mod tests {
             &Vector3::x_axis(),
             std::f64::consts::PI,
         ));
-        let perspective = collision::Perspective::new(
+        let perspective = Perspective::new(
             /* left */ -0.5, /* right */ 0.0, /* bottom */ -0.5, /* top */ 0.0,
             /* near */ 1.0, /* far */ 4.0,
         );
