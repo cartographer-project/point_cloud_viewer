@@ -16,9 +16,9 @@ use serde::{Deserialize, Serialize};
 /// creating the perspective projection, see also the frustum unit test below.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Frustum<S: BaseFloat> {
-    query_from_eye: Isometry3<S>,
-    clip_from_eye: Perspective<S>,
+    /// The "query" coordinates are basically our world coordinates.
     query_from_clip: Matrix4<S>,
+    /// The inverse of the above matrix, suitable for intersection tests.
     frustum: collision::Frustum<S>,
 }
 
@@ -30,15 +30,9 @@ impl<S: BaseFloat> Frustum<S> {
         let query_from_clip = clip_from_query.inverse_transform().unwrap();
         let frustum = collision::Frustum::from_matrix4(clip_from_query).unwrap();
         Frustum {
-            query_from_eye,
-            clip_from_eye,
             query_from_clip,
             frustum,
         }
-    }
-
-    pub fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
-        Self::new(global_from_query * &self.query_from_eye, self.clip_from_eye)
     }
 }
 
