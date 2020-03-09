@@ -39,6 +39,34 @@ impl PointLocation {
     }
 }
 
+/// This macro is an alternative to `get_point_culling()`, to be used where
+/// performance is important (i.e. in an inner loop). This can make a difference
+/// of 5-10 % in queries measuered by the point_cloud_test crate.
+/// It receives a function (closure) that accepts a _specific_ PointCulling
+/// object. Besides the object not being boxed, this way we can be sure that
+/// there is no overhead from matching against the PointLocation inside the
+/// function as well, as you might get with the `enum_dispatch` crate.
+///
+/// Drawbacks: It's a little duck-typed (the closure accepts any object that
+/// has methods with the same name as those in PointCulling), which is
+/// necessary – you cannot write this as a function with a signature like
+/// `fn with_point_culling<F, Culling, R>(pl: PointLocation, func: F) -> R
+/// where F: FnMut(Culling) -> R`.
+/// Another drawback: Trying to use this in another module makes Rust ask for
+/// an annotation of the argument type of the closure, which ruins this trick.
+macro_rules! with_point_culling {
+    ($point_location:expr, $closure:tt) => {
+        #[allow(clippy::redundant_closure_call)]
+        match &$point_location {
+            PointLocation::AllPoints => $closure(crate::math::AllPoints {}),
+            PointLocation::Aabb(aabb) => $closure(aabb.clone()),
+            PointLocation::Frustum(frustum) => $closure(frustum.clone()),
+            PointLocation::Obb(obb) => $closure(obb.clone()),
+            PointLocation::S2Cells(cell_union) => $closure(cell_union.clone()),
+        }
+    };
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PointQuery<'a> {
     #[serde(borrow)]
@@ -50,8 +78,8 @@ pub struct PointQuery<'a> {
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
 /// Essentially a specialized version of the Filter iterator adapter
-pub struct FilteredIterator<'a> {
-    pub culling: Box<dyn PointCulling<f64>>,
+pub struct FilteredIterator<'a, Culling: PointCulling<f64>> {
+    pub culling: Culling,
     pub filter_intervals: &'a HashMap<&'a str, ClosedInterval<f64>>,
     pub node_iterator: NodeIterator,
 }
@@ -67,7 +95,7 @@ where
     }
 }
 
-impl<'a> Iterator for FilteredIterator<'a> {
+impl<'a, Culling: PointCulling<f64>> Iterator for FilteredIterator<'a, Culling> {
     type Item = PointsBatch;
 
     fn next(&mut self) -> Option<PointsBatch> {
@@ -171,15 +199,19 @@ pub trait PointCloud: Sync {
     where
         F: FnMut(PointsBatch) -> Result<()>,
     {
-        let culling = query.location.get_point_culling();
         let filter_intervals = &query.filter_intervals;
         let node_iterator = self.points_in_node(&query.attributes, node_id, batch_size)?;
-        let mut filtered_iterator = FilteredIterator {
-            culling,
-            filter_intervals,
-            node_iterator,
-        };
-        filtered_iterator.try_for_each(callback)
+        with_point_culling!(
+            query.location,
+            (|culling| {
+                let mut filtered_iterator = FilteredIterator {
+                    culling,
+                    filter_intervals,
+                    node_iterator,
+                };
+                filtered_iterator.try_for_each(callback)
+            })
+        )
     }
 }
 
