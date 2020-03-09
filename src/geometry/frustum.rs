@@ -6,112 +6,108 @@ use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Matrix4, Point3, RealField, Unit, Vector3};
 use serde::{Deserialize, Serialize};
 
-pub mod collision {
-    use nalgebra::{Matrix4, RealField};
-    use serde::{Deserialize, Serialize};
+/// A perspective projection matrix analogous to cgmath::Perspective.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Perspective<S: RealField> {
+    matrix: Matrix4<S>,
+}
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct Perspective<S: RealField> {
-        matrix: Matrix4<S>,
+impl<S: RealField> Perspective<S> {
+    pub fn new(left: S, right: S, bottom: S, top: S, near: S, far: S) -> Self {
+        assert!(
+            left <= right,
+            "`left` cannot be greater than `right`, found: left: {:?} right: {:?}",
+            left,
+            right
+        );
+        assert!(
+            bottom <= top,
+            "`bottom` cannot be greater than `top`, found: bottom: {:?} top: {:?}",
+            bottom,
+            top
+        );
+        assert!(
+            near <= far,
+            "`near` cannot be greater than `far`, found: near: {:?} far: {:?}",
+            near,
+            far
+        );
+
+        let two: S = nalgebra::convert(2.0);
+
+        let r0c0 = (two * near) / (right - left);
+        let r0c1 = nalgebra::zero();
+        let r0c2 = (right + left) / (right - left);
+        let r0c3 = nalgebra::zero();
+
+        let r1c0 = nalgebra::zero();
+        let r1c1 = (two * near) / (top - bottom);
+        let r1c2 = (top + bottom) / (top - bottom);
+        let r1c3 = nalgebra::zero();
+
+        let r2c0 = nalgebra::zero();
+        let r2c1 = nalgebra::zero();
+        let r2c2 = -(far + near) / (far - near);
+        let r2c3 = -(two * far * near) / (far - near);
+
+        let r3c0 = nalgebra::zero();
+        let r3c1 = nalgebra::zero();
+        let r3c2 = -S::one();
+        let r3c3 = nalgebra::zero();
+
+        #[rustfmt::skip]
+        let matrix = Matrix4::new(
+            r0c0, r0c1, r0c2, r0c3,
+            r1c0, r1c1, r1c2, r1c3,
+            r2c0, r2c1, r2c2, r2c3,
+            r3c0, r3c1, r3c2, r3c3,
+        );
+        Self { matrix }
     }
 
-    impl<S: RealField> Perspective<S> {
-        pub fn new(left: S, right: S, bottom: S, top: S, near: S, far: S) -> Self {
-            assert!(
-                left <= right,
-                "`left` cannot be greater than `right`, found: left: {:?} right: {:?}",
-                left,
-                right
-            );
-            assert!(
-                bottom <= top,
-                "`bottom` cannot be greater than `top`, found: bottom: {:?} top: {:?}",
-                bottom,
-                top
-            );
-            assert!(
-                near <= far,
-                "`near` cannot be greater than `far`, found: near: {:?} far: {:?}",
-                near,
-                far
-            );
+    // This emulates cgmath::PerspectiveFov, which is more restricted
+    // and corresponds to nalgebra::Perspective.
+    pub fn new_fov(fovy: S, aspect: S, near: S, far: S) -> Self {
+        let angle = nalgebra::convert::<f64, S>(0.5) * fovy;
+        let ymax = near * angle.tan();
+        let xmax = ymax * aspect;
 
-            let two: S = nalgebra::convert(2.0);
+        Self::new(-xmax, xmax, -ymax, ymax, near, far)
+    }
 
-            let r0c0 = (two * near) / (right - left);
-            let r0c1 = nalgebra::zero();
-            let r0c2 = (right + left) / (right - left);
-            let r0c3 = nalgebra::zero();
+    pub fn as_matrix(&self) -> &Matrix4<S> {
+        &self.matrix
+    }
 
-            let r1c0 = nalgebra::zero();
-            let r1c1 = (two * near) / (top - bottom);
-            let r1c2 = (top + bottom) / (top - bottom);
-            let r1c3 = nalgebra::zero();
+    pub fn inverse(&self) -> Matrix4<S> {
+        let r0c0 = self.matrix[(0, 0)].recip();
+        let r0c1 = nalgebra::zero();
+        let r0c2 = nalgebra::zero();
+        let r0c3 = self.matrix[(0, 2)] / self.matrix[(0, 0)];
 
-            let r2c0 = nalgebra::zero();
-            let r2c1 = nalgebra::zero();
-            let r2c2 = -(far + near) / (far - near);
-            let r2c3 = -(two * far * near) / (far - near);
+        let r1c0 = nalgebra::zero();
+        let r1c1 = self.matrix[(1, 1)].recip();
+        let r1c2 = nalgebra::zero();
+        let r1c3 = self.matrix[(1, 2)] / self.matrix[(1, 1)];
 
-            let r3c0 = nalgebra::zero();
-            let r3c1 = nalgebra::zero();
-            let r3c2 = -S::one();
-            let r3c3 = nalgebra::zero();
+        let r2c0 = nalgebra::zero();
+        let r2c1 = nalgebra::zero();
+        let r2c2 = nalgebra::zero();
+        let r2c3 = -S::one();
 
-            #[rustfmt::skip]
-            let matrix = Matrix4::new(
-                r0c0, r0c1, r0c2, r0c3,
-                r1c0, r1c1, r1c2, r1c3,
-                r2c0, r2c1, r2c2, r2c3,
-                r3c0, r3c1, r3c2, r3c3,
-            );
-            Self { matrix }
-        }
+        let r3c0 = nalgebra::zero();
+        let r3c1 = nalgebra::zero();
+        let r3c2 = self.matrix[(2, 3)].recip();
+        let r3c3 = self.matrix[(2, 2)] / self.matrix[(2, 3)];
 
-        // This emulates cgmath::PerspectiveFov, which more restricted
-        // and corresponds to nalgebra::Perspective.
-        pub fn new_fov(fovy: S, aspect: S, near: S, far: S) -> Self {
-            let angle = nalgebra::convert::<f64, S>(0.5) * fovy;
-            let ymax = near * angle.tan();
-            let xmax = ymax * aspect;
-
-            Self::new(-xmax, xmax, -ymax, ymax, near, far)
-        }
-
-        pub fn as_matrix(&self) -> &Matrix4<S> {
-            &self.matrix
-        }
-
-        pub fn inverse(&self) -> Matrix4<S> {
-            let r0c0 = self.matrix[(0, 0)].recip();
-            let r0c1 = nalgebra::zero();
-            let r0c2 = nalgebra::zero();
-            let r0c3 = self.matrix[(0, 2)] / self.matrix[(0, 0)];
-
-            let r1c0 = nalgebra::zero();
-            let r1c1 = self.matrix[(1, 1)].recip();
-            let r1c2 = nalgebra::zero();
-            let r1c3 = self.matrix[(1, 2)] / self.matrix[(1, 1)];
-
-            let r2c0 = nalgebra::zero();
-            let r2c1 = nalgebra::zero();
-            let r2c2 = nalgebra::zero();
-            let r2c3 = -S::one();
-
-            let r3c0 = nalgebra::zero();
-            let r3c1 = nalgebra::zero();
-            let r3c2 = self.matrix[(2, 3)].recip();
-            let r3c3 = self.matrix[(2, 2)] / self.matrix[(2, 3)];
-
-            #[rustfmt::skip]
-            let matrix = Matrix4::new(
-                r0c0, r0c1, r0c2, r0c3,
-                r1c0, r1c1, r1c2, r1c3,
-                r2c0, r2c1, r2c2, r2c3,
-                r3c0, r3c1, r3c2, r3c3,
-            );
-            matrix
-        }
+        #[rustfmt::skip]
+        let matrix = Matrix4::new(
+            r0c0, r0c1, r0c2, r0c3,
+            r1c0, r1c1, r1c2, r1c3,
+            r2c0, r2c1, r2c2, r2c3,
+            r3c0, r3c1, r3c2, r3c3,
+        );
+        matrix
     }
 }
 
@@ -127,7 +123,7 @@ pub struct Frustum<S: RealField> {
 }
 
 impl<S: RealField> Frustum<S> {
-    pub fn new(query_from_eye: Isometry3<S>, clip_from_eye: collision::Perspective<S>) -> Self {
+    pub fn new(query_from_eye: Isometry3<S>, clip_from_eye: Perspective<S>) -> Self {
         let clip_from_query = clip_from_eye.as_matrix() * query_from_eye.inverse().to_homogeneous();
         let query_from_clip = query_from_eye.to_homogeneous() * clip_from_eye.inverse();
         Frustum {
