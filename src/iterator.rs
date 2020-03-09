@@ -39,6 +39,21 @@ impl PointLocation {
     }
 }
 
+/// This macro is an alternative to `get_point_culling()`, to be used where
+/// performance is important (i.e. in an inner loop). This can make a difference
+/// of 5-10 % in queries measuered by the point_cloud_test crate.
+/// It receives a function (closure) that accepts a _specific_ PointCulling
+/// object. Besides the object not being boxed, this way we can be sure that
+/// there is no overhead from matching against the PointLocation inside the
+/// function as well, as you might get with the `enum_dispatch` crate.
+///
+/// Drawbacks: It's a little duck-typed (the closure accepts any object that
+/// has methods with the same name as those in PointCulling), which is
+/// necessary – you cannot write this as a function with a signature like
+/// `fn with_point_culling<F, Culling, R>(pl: PointLocation, func: F) -> R
+/// where F: FnMut(Culling) -> R`.
+/// Another drawback: Trying to use this in another module makes Rust ask for
+/// an annotation of the argument type of the closure, which ruins this trick.
 macro_rules! with_point_culling {
     ($point_location:expr, $closure:tt) => {
         #[allow(clippy::redundant_closure_call)]
