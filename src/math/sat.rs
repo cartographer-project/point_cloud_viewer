@@ -160,21 +160,10 @@ where
     let mut rel = Relation::In;
     for sep_axis in separating_axes {
         // Project corners of A onto that axis
-        let mut a_min_proj: S = Bounded::max_value();
-        let mut a_max_proj: S = Bounded::min_value();
-        for corner in corners_a {
-            let corner_proj = corner.to_vec().dot(sep_axis);
-            a_min_proj = a_min_proj.min(corner_proj);
-            a_max_proj = a_max_proj.max(corner_proj);
-        }
+        let (a_min_proj, a_max_proj) = project_on_axis(corners_a, sep_axis);
         // Project corners of B onto that axis
-        let mut b_min_proj: S = Bounded::max_value();
-        let mut b_max_proj: S = Bounded::min_value();
-        for corner in corners_b {
-            let corner_proj = corner.to_vec().dot(sep_axis);
-            b_min_proj = b_min_proj.min(corner_proj);
-            b_max_proj = b_max_proj.max(corner_proj);
-        }
+        let (b_min_proj, b_max_proj) = project_on_axis(corners_b, sep_axis);
+
         if b_min_proj > a_max_proj || b_max_proj < a_min_proj {
             return Relation::Out;
         }
@@ -184,6 +173,20 @@ where
         }
     }
     rel
+}
+
+fn project_on_axis<S>(corners: &[Point3<S>], sep_axis: Vector3<S>) -> (S, S)
+where
+    S: BaseFloat + Bounded,
+{
+    let mut min_proj: S = Bounded::max_value();
+    let mut max_proj: S = Bounded::min_value();
+    for corner in corners {
+        let corner_proj = corner.to_vec().dot(sep_axis);
+        min_proj = min_proj.min(corner_proj);
+        max_proj = max_proj.max(corner_proj);
+    }
+    (min_proj, max_proj)
 }
 
 #[cfg(test)]
