@@ -59,7 +59,7 @@ macro_rules! with_point_culling {
             PointLocation::AllPoints => $closure(crate::math::AllPoints {}),
             PointLocation::Aabb(aabb) => $closure(aabb.clone()),
             PointLocation::Frustum(frustum) => $closure(frustum.clone()),
-            PointLocation::Obb(obb) => $closure(obb.clone()),
+            PointLocation::Obb(obb) => $closure(CachedAxesObb::new(obb.clone())),
             PointLocation::S2Cells(cell_union) => $closure(cell_union.clone()),
         }
     };
