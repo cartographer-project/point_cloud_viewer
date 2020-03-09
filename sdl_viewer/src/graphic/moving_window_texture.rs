@@ -371,7 +371,7 @@ mod tests {
 
         let mut dest = ImageBuffer::from_pixel(16, 16, Rgba::<u8>([0, 0, 0, 0]));
         for r in &regions {
-            dest.copy_from(&r.pixels, r.x as u32, r.y as u32);
+            dest.copy_from(&r.pixels, r.x as u32, r.y as u32).unwrap();
         }
         let reference = ImageBuffer::from_fn(16, 16, |x, y| {
             Rgba::<u8>([(x + 16 - 4) as u8 % 16, (y + 16 - 7) as u8 % 16, 0, 255])
