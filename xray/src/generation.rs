@@ -455,7 +455,7 @@ pub fn build_parent(children: &[Option<RgbaImage>], tile_background_color: Color
         (2, child_size_px, child_size_px),
     ] {
         if let Some(ref img) = children[id] {
-            large_image.copy_from(img, xoffs, yoffs);
+            large_image.copy_from(img, xoffs, yoffs).unwrap();
         }
     }
     large_image
@@ -674,7 +674,7 @@ pub fn build_xray_quadtree(
                 let image = image::DynamicImage::ImageRgba8(large_image).resize(
                     tile.size_px,
                     tile.size_px,
-                    image::FilterType::Lanczos3,
+                    image::imageops::FilterType::Lanczos3,
                 );
                 image
                     .as_rgba8()

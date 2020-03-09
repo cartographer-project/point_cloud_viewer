@@ -15,6 +15,12 @@
 [package]
 name = "point_cloud_test_lib"
 version = "0.1.0"
+authors = [
+   "Holger Rapp <hrapp@lyft.com>",
+   "Marco Feuerstein <mfeuerstein@lyft.com>",
+   "Nikolai Morin <nmorin@lyft.com>",
+   "Caterina Vitadello <cvitadello@lyft.com>"
+]
 edition = "2018"
 
 [dependencies]
@@ -22,9 +28,9 @@ bencher = "0.1.5"
 lazy_static = "1.4.0"
 nalgebra = "0.20.0"
 num-integer = "0.1.42"
-point_cloud_client = { path = "../point_cloud_client" }
 point_viewer = { path = ".." }
-protobuf = "2.10.1"
+point_cloud_client = { path = "../point_cloud_client" }
+protobuf = "2.10.2"
 rand = "0.7.3"
 rayon = "1.3.0"
 s2 = { version = "0.0.10", features = ["serde"] }

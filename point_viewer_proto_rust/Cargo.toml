@@ -15,13 +15,18 @@
 [package]
 name = "point_viewer_proto_rust"
 version = "0.1.0"
-authors = ["Holger Rapp <hrapp@lyft.com>"]
+authors = [
+   "Holger Rapp <hrapp@lyft.com>",
+   "Marco Feuerstein <mfeuerstein@lyft.com>",
+   "Nikolai Morin <nmorin@lyft.com>",
+   "Caterina Vitadello <cvitadello@lyft.com>"
+]
 edition = "2018"
 
 [build-dependencies]
 protobuf_provider = { path = "../protobuf_provider" }
-protoc-rust = "2.10.1"
+protoc-rust = "2.10.2"
 
 [dependencies]
 nalgebra = "0.20.0"
-protobuf = "2.10.1"
+protobuf = "2.10.2"
