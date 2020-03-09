@@ -89,11 +89,14 @@ where
                     .attributes
                     .entry(key)
                     .and_modify(|out_data| match (in_data, out_data) {
-                        // TODO(nnmm): Adapt variants here
-                        // ADAPT_ATTR_VARIANTS
                         (U8(in_vec), U8(out_vec)) => out_vec.push(in_vec[i]),
-                        (I64(in_vec), I64(out_vec)) => out_vec.push(in_vec[i]),
+                        (U16(in_vec), U16(out_vec)) => out_vec.push(in_vec[i]),
+                        (U32(in_vec), U32(out_vec)) => out_vec.push(in_vec[i]),
                         (U64(in_vec), U64(out_vec)) => out_vec.push(in_vec[i]),
+                        (I8(in_vec), I8(out_vec)) => out_vec.push(in_vec[i]),
+                        (I16(in_vec), I16(out_vec)) => out_vec.push(in_vec[i]),
+                        (I32(in_vec), I32(out_vec)) => out_vec.push(in_vec[i]),
+                        (I64(in_vec), I64(out_vec)) => out_vec.push(in_vec[i]),
                         (F32(in_vec), F32(out_vec)) => out_vec.push(in_vec[i]),
                         (F64(in_vec), F64(out_vec)) => out_vec.push(in_vec[i]),
                         (U8Vec3(in_vec), U8Vec3(out_vec)) => out_vec.push(in_vec[i]),
