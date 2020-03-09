@@ -1,5 +1,5 @@
 use crate::errors::*;
-use crate::geometry::{Frustum, Obb};
+use crate::geometry::{CachedAxesObb, Frustum, Obb};
 use crate::math::{AllPoints, ClosedInterval, PointCulling};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{match_1d_attr_data, AttributeData, PointsBatch};
@@ -33,7 +33,7 @@ impl PointLocation {
             PointLocation::AllPoints => Box::new(AllPoints {}),
             PointLocation::Aabb(aabb) => Box::new(*aabb),
             PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
-            PointLocation::Obb(obb) => Box::new(obb.clone()),
+            PointLocation::Obb(obb) => Box::new(CachedAxesObb::new(obb.clone())),
             PointLocation::S2Cells(cell_union) => Box::new(cell_union.clone()),
         }
     }
@@ -61,7 +61,7 @@ macro_rules! with_point_culling {
             PointLocation::AllPoints => $closure(crate::math::AllPoints {}),
             PointLocation::Aabb(aabb) => $closure(aabb.clone()),
             PointLocation::Frustum(frustum) => $closure(frustum.clone()),
-            PointLocation::Obb(obb) => $closure(obb.clone()),
+            PointLocation::Obb(obb) => $closure(CachedAxesObb::new(obb.clone())),
             PointLocation::S2Cells(cell_union) => $closure(cell_union.clone()),
         }
     };

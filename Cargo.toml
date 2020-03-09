@@ -24,6 +24,7 @@ authors = [
 edition = "2018"
 
 [dependencies]
+arrayvec = "0.5.1"
 byteorder = "1.3.4"
 cgmath = { version = "0.17.0", features = ["serde"] }
 collision = { version = "0.20.1", features = ["serde"] }

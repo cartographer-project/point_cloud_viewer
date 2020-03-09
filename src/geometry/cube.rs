@@ -1,7 +1,52 @@
 //! An axis-aligned cube.
 
-use cgmath::{Point3, Vector3};
-use collision::{Aabb, Aabb3};
+use crate::math::sat::{self, ConvexPolyhedron, Intersector, Relation};
+use crate::math::PointCulling;
+use arrayvec::ArrayVec;
+use cgmath::{BaseFloat, Point3, Vector3};
+use collision::{Aabb, Contains};
+use num_traits::Bounded;
+
+pub use collision::Aabb3;
+
+impl<S> PointCulling<S> for Aabb3<S>
+where
+    S: 'static + BaseFloat + Sync + Send + Bounded,
+{
+    fn contains(&self, p: &Point3<S>) -> bool {
+        Contains::contains(self, p)
+    }
+
+    fn intersects_aabb3(&self, aabb: &Aabb3<S>) -> bool {
+        sat::sat(
+            ArrayVec::from([Vector3::unit_x(), Vector3::unit_y(), Vector3::unit_z()]),
+            &self.to_corners(),
+            &aabb.to_corners(),
+        ) != Relation::Out
+    }
+}
+
+impl<S> ConvexPolyhedron<S> for Aabb3<S>
+where
+    S: BaseFloat,
+{
+    fn compute_corners(&self) -> [Point3<S>; 8] {
+        self.to_corners()
+    }
+
+    fn intersector(&self) -> Intersector<S> {
+        let mut unit_axes = ArrayVec::new();
+        unit_axes.push(Vector3::unit_x());
+        unit_axes.push(Vector3::unit_y());
+        unit_axes.push(Vector3::unit_z());
+        let corners = self.compute_corners();
+        Intersector {
+            corners,
+            edges: unit_axes.clone(),
+            face_normals: unit_axes,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Cube {
