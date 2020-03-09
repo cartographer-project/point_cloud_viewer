@@ -28,7 +28,7 @@ fnv = "1.0.6"
 image = "0.22.5"
 libc = "0.2.67"
 lru = "0.4.3"
-nalgebra = { version = "0.19.0", features = ["serde-serialize"] }
+nalgebra = { version = "0.20.0", features = ["serde-serialize"] }
 nav-types = "0.4.3"
 num = "0.2.1"
 num_cpus = "1.12.0"

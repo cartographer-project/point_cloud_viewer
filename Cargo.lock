@@ -1570,6 +1570,24 @@ dependencies = [
  "num-traits 0.2.11",
  "rand 0.7.3",
  "rand_distr",
+ "typenum",
+]
+
+[[package]]
+name = "nalgebra"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6511777ed3da44b6a11e732a66a7d6274dfbbcd68ad968e64b778dcb829d94a"
+dependencies = [
+ "alga",
+ "approx 0.3.2",
+ "generic-array",
+ "matrixmultiply 0.2.3",
+ "num-complex",
+ "num-rational",
+ "num-traits 0.2.11",
+ "rand 0.7.3",
+ "rand_distr",
  "serde",
  "serde_derive",
  "typenum",
@@ -1581,7 +1599,7 @@ version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18fca71170e9c6bea562ddf5a24bfed1fa4cb0f3bd2c9811bb1914bce413e1f7"
 dependencies = [
- "nalgebra",
+ "nalgebra 0.19.0",
 ]
 
 [[package]]
@@ -1744,7 +1762,7 @@ dependencies = [
  "crossbeam-utils 0.7.2",
  "failure",
  "json",
- "nalgebra",
+ "nalgebra 0.20.0",
  "point_viewer",
  "serde",
  "serde_derive",
@@ -1928,7 +1946,7 @@ name = "point_cloud_client"
 version = "0.1.0"
 dependencies = [
  "fnv",
- "nalgebra",
+ "nalgebra 0.20.0",
  "num_cpus",
  "point_viewer",
  "point_viewer_grpc",
@@ -1942,7 +1960,7 @@ version = "0.1.0"
 dependencies = [
  "bencher",
  "lazy_static",
- "nalgebra",
+ "nalgebra 0.20.0",
  "num-integer",
  "point_cloud_client",
  "point_viewer",
@@ -1967,7 +1985,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "lru",
- "nalgebra",
+ "nalgebra 0.20.0",
  "nav-types",
  "num 0.2.1",
  "num-integer",
@@ -1995,7 +2013,7 @@ dependencies = [
  "ctrlc",
  "futures 0.1.29",
  "grpcio",
- "nalgebra",
+ "nalgebra 0.20.0",
  "num-integer",
  "num_cpus",
  "point_viewer",
@@ -2021,7 +2039,7 @@ dependencies = [
 name = "point_viewer_proto_rust"
 version = "0.1.0"
 dependencies = [
- "nalgebra",
+ "nalgebra 0.20.0",
  "protobuf",
  "protobuf_provider",
  "protoc-rust",
@@ -2156,7 +2174,7 @@ dependencies = [
 name = "quadtree"
 version = "0.1.0"
 dependencies = [
- "nalgebra",
+ "nalgebra 0.20.0",
 ]
 
 [[package]]
@@ -2639,7 +2657,7 @@ dependencies = [
  "gl_generator",
  "image",
  "lru",
- "nalgebra",
+ "nalgebra 0.20.0",
  "num-integer",
  "point_viewer",
  "point_viewer_grpc",
@@ -3344,7 +3362,7 @@ dependencies = [
  "image",
  "imageproc",
  "iron",
- "nalgebra",
+ "nalgebra 0.20.0",
  "num 0.2.1",
  "pbr",
  "point_cloud_client",

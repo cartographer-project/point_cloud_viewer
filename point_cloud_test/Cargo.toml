@@ -20,7 +20,7 @@ edition = "2018"
 [dependencies]
 bencher = "0.1.5"
 lazy_static = "1.4.0"
-nalgebra = "0.19.0"
+nalgebra = "0.20.0"
 num-integer = "0.1.42"
 point_cloud_client = { path = "../point_cloud_client" }
 point_viewer = { path = ".." }
