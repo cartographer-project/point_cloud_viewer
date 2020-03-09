@@ -8,6 +8,11 @@
     "format": "prettier --write **/*.ts **/*.js"
   },
   "author": "Holger Rapp <hrapp@lyft.com>",
+  "contributors": [
+    "Marco Feuerstein <mfeuerstein@lyft.com>",
+    "Nikolai Morin <nmorin@lyft.com>",
+    "Caterina Vitadello <cvitadello@lyft.com>"
+  ],
   "license": "Apache-2.0",
   "devDependencies": {
     "prettier": "^1.10.2",

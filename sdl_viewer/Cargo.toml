@@ -13,9 +13,14 @@
 # limitations under the License.
 
 [package]
-authors = ["Holger Rapp <hrapp@google.com>"]
 name = "sdl_viewer"
 version = "0.1.0"
+authors = [
+   "Holger Rapp <hrapp@lyft.com>",
+   "Marco Feuerstein <mfeuerstein@lyft.com>",
+   "Nikolai Morin <nmorin@lyft.com>",
+   "Caterina Vitadello <cvitadello@lyft.com>"
+]
 edition = "2018"
 
 [build-dependencies]
@@ -28,7 +33,7 @@ cgmath = "0.17.0"
 clap = "2.33.0"
 collision = "0.20.1"
 fnv = "1.0.6"
-image = "0.22.5"
+image = "0.23.1"
 lru = "0.4.3"
 num-integer = "0.1.42"
 rand = "0.7.3"
