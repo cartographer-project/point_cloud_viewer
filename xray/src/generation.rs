@@ -23,7 +23,7 @@ use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use stats::OnlineStats;
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::BufWriter;
@@ -180,16 +180,8 @@ impl ColoringStrategy for XRayColoringStrategy {
         discretized_locations: Vec<Point3<u32>>,
     ) {
         for d_loc in discretized_locations {
-            match self.z_buckets.entry((d_loc.x, d_loc.y)) {
-                Entry::Occupied(mut e) => {
-                    e.get_mut().insert(d_loc.z);
-                }
-                Entry::Vacant(v) => {
-                    let mut set = FnvHashSet::default();
-                    set.insert(d_loc.z);
-                    v.insert(set);
-                }
-            }
+            let z_buckets = self.z_buckets.entry((d_loc.x, d_loc.y)).or_default();
+            z_buckets.insert(d_loc.z);
         }
     }
 
