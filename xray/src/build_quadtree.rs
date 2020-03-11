@@ -142,7 +142,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
             xray => ColoringStrategyKind::XRay,
             colored => ColoringStrategyKind::Colored(binning),
             colored_with_intensity => ColoringStrategyKind::ColoredWithIntensity(
-                value_t!(args, "min_intensity", f32).unwrap_or(1.),
+                value_t!(args, "min_intensity", f32).unwrap_or(0.),
                 value_t!(args, "max_intensity", f32).unwrap_or(1.),
                 binning,
             ),
