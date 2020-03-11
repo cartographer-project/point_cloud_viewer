@@ -60,7 +60,7 @@ impl RawNodeWriter {
     }
 }
 
-// Return a list a leaf nodes and a list of nodes to be splitted further.
+// Return a list of leaf nodes and a list of nodes to be split further.
 fn split<P>(
     octree_data_provider: &OnDiskDataProvider,
     octree_meta: &octree::OctreeMeta,
@@ -302,11 +302,16 @@ pub fn build_octree(
 ) {
     attempt_increasing_rlimit_to_max();
 
-    // TODO(ksavinash9): This function should return a Result.
+    let attribute_data_types = vec![
+                ("color".to_string(), AttributeDataType::U8Vec3),
+                ("intensity".to_string(), AttributeDataType::F32),
+            ]
+            .into_iter()
+            .collect();
     let octree_meta = &octree::OctreeMeta {
         bounding_box,
         resolution,
-        ..Default::default()
+        attribute_data_types,
     };
     let attribute_data_types = &octree_meta.attribute_data_types_for(attributes).unwrap();
     let octree_data_provider = OnDiskDataProvider {

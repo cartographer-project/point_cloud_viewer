@@ -19,7 +19,7 @@ use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
 use cgmath::{EuclideanSpace, Matrix4, Point3};
-use collision::{Aabb, Aabb3, Bound, Relation};
+use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
 use std::cmp::Ordering;
@@ -48,21 +48,6 @@ pub struct OctreeMeta {
 impl PointCloudMeta for OctreeMeta {
     fn attribute_data_types(&self) -> &HashMap<String, AttributeDataType> {
         &self.attribute_data_types
-    }
-}
-
-impl Default for OctreeMeta {
-    fn default() -> Self {
-        Self {
-            resolution: 0.0,
-            bounding_box: Aabb3::empty(),
-            attribute_data_types: vec![
-                ("color".to_string(), AttributeDataType::U8Vec3),
-                ("intensity".to_string(), AttributeDataType::F32),
-            ]
-            .into_iter()
-            .collect(),
-        }
     }
 }
 
@@ -155,6 +140,14 @@ impl Octree {
                 meta_proto.version, CURRENT_VERSION
             );
         }
+        // An octree currently does not store its data types, instead,
+        // color and intensity are implied.
+        let attribute_data_types = vec![
+                ("color".to_string(), AttributeDataType::U8Vec3),
+                ("intensity".to_string(), AttributeDataType::F32),
+            ]
+            .into_iter()
+            .collect();
         let (bounding_box, meta, nodes_proto) = match meta_proto.version {
             9 | 10 | 11 => {
                 let bounding_box = Aabb3::from(meta_proto.get_bounding_box());
@@ -163,7 +156,7 @@ impl Octree {
                     OctreeMeta {
                         resolution: meta_proto.deprecated_resolution,
                         bounding_box,
-                        ..Default::default()
+                        attribute_data_types,
                     },
                     meta_proto.get_deprecated_nodes(),
                 )
@@ -183,7 +176,7 @@ impl Octree {
                     OctreeMeta {
                         resolution: octree_meta.resolution,
                         bounding_box,
-                        ..Default::default()
+                        attribute_data_types,
                     },
                     octree_meta.get_nodes(),
                 )
