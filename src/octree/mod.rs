@@ -55,8 +55,8 @@ impl OctreeMeta {
     /// An octree currently does not store its data types, instead, color and
     /// intensity are implied. We already do have attributes as part of the
     /// meta data structure, but not its serialized form. So the data structure
-    /// is initialized with color and intensity hardcoded until it is in the
-    /// meta proto.
+    /// is initialized with color and intensity hardcoded until attributes are
+    /// in the meta proto.
     pub fn new_with_standard_attributes(resolution: f64, bounding_box: Aabb3<f64>) -> Self {
         let attribute_data_types = vec![
                         ("color".to_string(), AttributeDataType::U8Vec3),
