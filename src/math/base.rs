@@ -1,7 +1,7 @@
 use crate::geometry::Aabb;
 use nalgebra::{Point3, RealField};
 
-pub trait PointCulling<S>: Sync + Send
+pub trait PointCulling<S>
 where
     S: RealField,
 {
