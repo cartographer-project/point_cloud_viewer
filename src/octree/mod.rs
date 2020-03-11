@@ -19,7 +19,7 @@ use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
 use cgmath::{EuclideanSpace, Matrix4, Point3};
-use collision::{Aabb, Aabb3, Bound, Relation};
+use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
 use num::clamp;
 use std::cmp::Ordering;
@@ -51,22 +51,26 @@ impl PointCloudMeta for OctreeMeta {
     }
 }
 
-impl Default for OctreeMeta {
-    fn default() -> Self {
+impl OctreeMeta {
+    /// An octree currently does not store its data types, instead, color and
+    /// intensity are implied. We already do have attributes as part of the
+    /// meta data structure, but not its serialized form. So the data structure
+    /// is initialized with color and intensity hardcoded until attributes are
+    /// in the meta proto.
+    pub fn new_with_standard_attributes(resolution: f64, bounding_box: Aabb3<f64>) -> Self {
+        let attribute_data_types = vec![
+            ("color".to_string(), AttributeDataType::U8Vec3),
+            ("intensity".to_string(), AttributeDataType::F32),
+        ]
+        .into_iter()
+        .collect();
         Self {
-            resolution: 0.0,
-            bounding_box: Aabb3::empty(),
-            attribute_data_types: vec![
-                ("color".to_string(), AttributeDataType::U8Vec3),
-                ("intensity".to_string(), AttributeDataType::F32),
-            ]
-            .into_iter()
-            .collect(),
+            resolution,
+            bounding_box,
+            attribute_data_types,
         }
     }
-}
 
-impl OctreeMeta {
     pub fn encoding_for_node(&self, id: NodeId) -> Encoding {
         let bounding_cube = id.find_bounding_cube(&Cube::bounding(&self.bounding_box));
         let position_encoding = PositionEncoding::new(&bounding_cube, self.resolution);
@@ -160,11 +164,10 @@ impl Octree {
                 let bounding_box = Aabb3::from(meta_proto.get_bounding_box());
                 (
                     bounding_box,
-                    OctreeMeta {
-                        resolution: meta_proto.deprecated_resolution,
+                    OctreeMeta::new_with_standard_attributes(
+                        meta_proto.deprecated_resolution,
                         bounding_box,
-                        ..Default::default()
-                    },
+                    ),
                     meta_proto.get_deprecated_nodes(),
                 )
             }
@@ -180,11 +183,7 @@ impl Octree {
                 });
                 (
                     bounding_box,
-                    OctreeMeta {
-                        resolution: octree_meta.resolution,
-                        bounding_box,
-                        ..Default::default()
-                    },
+                    OctreeMeta::new_with_standard_attributes(octree_meta.resolution, bounding_box),
                     octree_meta.get_nodes(),
                 )
             }

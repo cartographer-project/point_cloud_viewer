@@ -60,7 +60,7 @@ impl RawNodeWriter {
     }
 }
 
-// Return a list a leaf nodes and a list of nodes to be splitted further.
+// Return a list of leaf nodes and a list of nodes to be split further.
 fn split<P>(
     octree_data_provider: &OnDiskDataProvider,
     octree_meta: &octree::OctreeMeta,
@@ -302,12 +302,7 @@ pub fn build_octree(
 ) {
     attempt_increasing_rlimit_to_max();
 
-    // TODO(ksavinash9): This function should return a Result.
-    let octree_meta = &octree::OctreeMeta {
-        bounding_box,
-        resolution,
-        ..Default::default()
-    };
+    let octree_meta = &octree::OctreeMeta::new_with_standard_attributes(resolution, bounding_box);
     let attribute_data_types = &octree_meta.attribute_data_types_for(attributes).unwrap();
     let octree_data_provider = OnDiskDataProvider {
         directory: output_directory.as_ref().to_path_buf(),
