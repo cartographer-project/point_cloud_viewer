@@ -180,8 +180,8 @@ impl ColoringStrategy for XRayColoringStrategy {
         discretized_locations: Vec<Point3<u32>>,
     ) {
         for d_loc in discretized_locations {
-            let z_bucket = self.z_buckets.entry((d_loc.x, d_loc.y)).or_default();
-            z_bucket.insert(d_loc.z);
+            let z_buckets = self.z_buckets.entry((d_loc.x, d_loc.y)).or_default();
+            z_buckets.insert(d_loc.z);
         }
     }
 
