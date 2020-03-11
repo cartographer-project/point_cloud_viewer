@@ -70,7 +70,7 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .required_if("coloring_strategy", "colored_with_height_stddev"),
             clap::Arg::with_name("max_intensity")
                 .help(
-                    "Minimum intensity of all points for color scaling. \
+                    "Maximum intensity of all points for color scaling. \
                      Only used for 'colored_with_intensity'.",
                 )
                 .long("max-intensity")
