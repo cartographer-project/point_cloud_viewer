@@ -59,11 +59,11 @@ impl OctreeMeta {
     /// in the meta proto.
     pub fn new_with_standard_attributes(resolution: f64, bounding_box: Aabb3<f64>) -> Self {
         let attribute_data_types = vec![
-                        ("color".to_string(), AttributeDataType::U8Vec3),
-                        ("intensity".to_string(), AttributeDataType::F32),
-                    ]
-                    .into_iter()
-                    .collect();
+            ("color".to_string(), AttributeDataType::U8Vec3),
+            ("intensity".to_string(), AttributeDataType::F32),
+        ]
+        .into_iter()
+        .collect();
         Self {
             resolution,
             bounding_box,
@@ -166,7 +166,8 @@ impl Octree {
                     bounding_box,
                     OctreeMeta::new_with_standard_attributes(
                         meta_proto.deprecated_resolution,
-                        bounding_box),
+                        bounding_box,
+                    ),
                     meta_proto.get_deprecated_nodes(),
                 )
             }
@@ -182,9 +183,7 @@ impl Octree {
                 });
                 (
                     bounding_box,
-                    OctreeMeta::new_with_standard_attributes(
-                        octree_meta.resolution,
-                        bounding_box),
+                    OctreeMeta::new_with_standard_attributes(octree_meta.resolution, bounding_box),
                     octree_meta.get_nodes(),
                 )
             }

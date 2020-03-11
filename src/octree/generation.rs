@@ -302,10 +302,7 @@ pub fn build_octree(
 ) {
     attempt_increasing_rlimit_to_max();
 
-    let octree_meta = &octree::OctreeMeta::new_with_standard_attributes(
-        resolution,
-        bounding_box,
-        );
+    let octree_meta = &octree::OctreeMeta::new_with_standard_attributes(resolution, bounding_box);
     let attribute_data_types = &octree_meta.attribute_data_types_for(attributes).unwrap();
     let octree_data_provider = OnDiskDataProvider {
         directory: output_directory.as_ref().to_path_buf(),
