@@ -114,14 +114,14 @@ where
 {
     fn compute_corners(&self) -> [Point3<S>; 8] {
         [
-            self.mins,
+            Point3::new(self.mins.x, self.mins.y, self.mins.z),
             Point3::new(self.maxs.x, self.mins.y, self.mins.z),
             Point3::new(self.mins.x, self.maxs.y, self.mins.z),
             Point3::new(self.maxs.x, self.maxs.y, self.mins.z),
             Point3::new(self.mins.x, self.mins.y, self.maxs.z),
             Point3::new(self.maxs.x, self.mins.y, self.maxs.z),
             Point3::new(self.mins.x, self.maxs.y, self.maxs.z),
-            self.maxs,
+            Point3::new(self.maxs.x, self.maxs.y, self.maxs.z),
         ]
     }
 

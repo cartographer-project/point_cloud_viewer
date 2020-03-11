@@ -30,8 +30,8 @@ impl<S: RealField> Perspective<S> {
             top
         );
         assert!(
-            near < far,
-            "`near` cannot be greater than `far`, found: near: {:?} far: {:?}",
+            near > S::zero() && near < far,
+            "`near` must be greater than 0 and cannot be greater than `far`, found: near: {:?} far: {:?}",
             near,
             far
         );
@@ -60,8 +60,16 @@ impl<S: RealField> Perspective<S> {
     // This emulates cgmath::PerspectiveFov, which is more restricted
     // and corresponds to nalgebra::Perspective.
     pub fn new_fov(fovy: S, aspect: S, near: S, far: S) -> Self {
-        assert!(fovy > S::zero() && fovy < S::pi(), "`fovy` must be a number between 0 and π, found: {:?}", fovy);
-        assert!(aspect > S::zero(), "`aspect` must be a positive number, found: {:?}", aspect);
+        assert!(
+            fovy > S::zero() && fovy < S::pi(),
+            "`fovy` must be a number between 0 and π, found: {:?}",
+            fovy
+        );
+        assert!(
+            aspect > S::zero(),
+            "`aspect` must be a positive number, found: {:?}",
+            aspect
+        );
         let angle = nalgebra::convert::<f64, S>(0.5) * fovy;
         let ymax = near * angle.tan();
         let xmax = ymax * aspect;
