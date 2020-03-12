@@ -113,7 +113,7 @@ pub trait ColoringStrategy: Send {
         image_size: Vector2<u32>,
     ) {
         let mut discretized_locations = Vec::with_capacity(points_batch.position.len());
-        // We're pulling a few things the loop. This is a combined scaling from coordinates
+        // We're pulling a few things outside the loop. This is a combined scaling from coordinates
         // between 0 and the bbox size to [0, 1]³ and from [0, 1]³ to the image size.
         let old_scale = bbox.diag();
         let new_scale = Vector3::new(
