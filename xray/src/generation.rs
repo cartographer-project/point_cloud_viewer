@@ -8,7 +8,7 @@ use clap::arg_enum;
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage, Rgba, RgbaImage};
 use imageproc::map::map_colors;
-use nalgebra::{Isometry3, Point2, Point3, Vector2};
+use nalgebra::{Isometry3, Point2, Point3, Vector2, Vector3};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
@@ -113,18 +113,28 @@ pub trait ColoringStrategy: Send {
         image_size: Vector2<u32>,
     ) {
         let mut discretized_locations = Vec::with_capacity(points_batch.position.len());
+        // We're pulling a few things the loop. This is a combined scaling from coordinates
+        // between 0 and the bbox size to [0, 1]³ and from [0, 1]³ to the image size.
+        let old_scale = bbox.diag();
+        let new_scale = Vector3::new(
+            f64::from(image_size.x),
+            f64::from(image_size.y),
+            NUM_Z_BUCKETS,
+        );
+        let rescale = new_scale.component_div(&old_scale);
+
         for pos in &points_batch.position {
+            let pos_img = (pos - bbox.min()).component_mul(&rescale);
             // We want a right handed coordinate system with the x-axis of world and images aligning.
             // This means that the y-axis aligns too, but the origin of the image space must be at the
             // bottom left. Since images have their origin at the top left, we need actually have to
             // invert y and go from the bottom of the image.
-            let x = (((pos.x - bbox.min().x) / (bbox.max().x - bbox.min().x))
-                * f64::from(image_size.x)) as u32;
-            let y = ((1. - ((pos.y - bbox.min().y) / (bbox.max().y - bbox.min().y)))
-                * f64::from(image_size.y)) as u32;
-            let z =
-                (((pos.z - bbox.min().z) / (bbox.max().z - bbox.min().z)) * NUM_Z_BUCKETS) as u32;
-            discretized_locations.push(Point3::new(x, y, z));
+            let pos_discrete = Point3::new(
+                pos_img.x as u32,
+                image_size.y - pos_img.y as u32,
+                pos_img.z as u32,
+            );
+            discretized_locations.push(pos_discrete);
         }
         self.process_discretized_point_data(points_batch, discretized_locations)
     }
@@ -530,8 +540,8 @@ pub fn xray_from_points(
 fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb<f64>, tile_size_m: f64) -> (Rect, u8) {
     let mut levels = 0;
     let mut cur_size = tile_size_m;
-    let dim = bbox.max() - bbox.min();
-    while cur_size < dim.x || cur_size < dim.y {
+    let diag = bbox.diag();
+    while cur_size < diag.x || cur_size < diag.y {
         cur_size *= 2.;
         levels += 1;
     }

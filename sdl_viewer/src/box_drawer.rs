@@ -168,7 +168,7 @@ impl BoxDrawer {
         world_to_gl: &Matrix4<f64>,
         color: &color::Color<f32>,
     ) {
-        let dim = cuboid.max() - cuboid.center();
+        let dim = cuboid.diag() / 2.0;
         let scale_matrix = Matrix4::new_nonuniform_scaling(&dim);
         let translation_matrix = Matrix4::new_translation(&cuboid.center().coords);
         let transformation_matrix = world_to_gl * translation_matrix * scale_matrix;

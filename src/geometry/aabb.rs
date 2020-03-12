@@ -16,7 +16,10 @@ pub struct Aabb<S: RealField> {
 
 impl<S: RealField> Aabb<S> {
     pub fn new(mins: Point3<S>, maxs: Point3<S>) -> Self {
-        Aabb { mins, maxs }
+        Aabb {
+            mins: nalgebra::inf(&mins, &maxs),
+            maxs: nalgebra::sup(&mins, &maxs),
+        }
     }
 
     pub fn zero() -> Self {
@@ -40,11 +43,15 @@ impl<S: RealField> Aabb<S> {
     }
 
     pub fn contains(&self, p: &Point3<S>) -> bool {
-        nalgebra::partial_le(&self.mins, p) && nalgebra::partial_le(p, &self.maxs)
+        nalgebra::partial_le(&self.mins, p) && nalgebra::partial_lt(p, &self.maxs)
     }
 
     pub fn center(&self) -> Point3<S> {
         nalgebra::center(&self.mins, &self.maxs)
+    }
+
+    pub fn diag(&self) -> Vector3<S> {
+        self.maxs - self.mins
     }
 
     pub fn transform(&self, transform: &Isometry3<S>) -> Aabb<S> {
