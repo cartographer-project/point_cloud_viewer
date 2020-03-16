@@ -21,7 +21,7 @@ use point_viewer::utils::create_syncable_progress_bar;
 use point_viewer::{match_1d_attr_data, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use stats::OnlineStats;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
@@ -630,15 +630,18 @@ pub fn build_xray_quadtree(
     });
     progress_bar.lock().unwrap().finish_println("");
 
-    generate_levels(
-        output_directory,
-        tile,
-        deepest_level,
-        &created_leaf_node_ids,
-        all_nodes_tx,
-        parameters,
-        ExistingStrategy::Panic,
-    );
+    let mut previous_level_nodes = created_leaf_node_ids;
+    for current_level in (0..deepest_level).rev() {
+        previous_level_nodes = generate_level(
+            output_directory,
+            tile,
+            current_level,
+            &previous_level_nodes,
+            &all_nodes_tx,
+            parameters,
+            ExistingStrategy::Panic,
+        );
+    }
 
     let meta = {
         let mut meta = proto::Meta::new();
@@ -679,82 +682,74 @@ enum ExistingStrategy {
     Panic,
 }
 
-fn generate_levels(
+fn generate_level(
     output_directory: &Path,
     tile: &Tile,
-    deepest_level: u8,
-    leaves: &FnvHashSet<NodeId>,
-    all_nodes_tx: crossbeam::channel::Sender<NodeId>,
+    current_level: u8,
+    lower_level: &FnvHashSet<NodeId>,
+    all_nodes_tx: &crossbeam::channel::Sender<NodeId>,
     parameters: &XrayParameters,
     existing_strategy: ExistingStrategy,
-) {
-    let mut nodes_to_create: FnvHashSet<NodeId> =
-        leaves.iter().filter_map(|leaf| leaf.parent_id()).collect();
-    for current_level in (0..deepest_level).rev() {
-        //let nodes_to_create: FnvHashSet<NodeId> = parents_to_create_rx.into_iter().collect();
-        let progress_bar = create_syncable_progress_bar(
-            nodes_to_create.len(),
-            &format!("Building level {}", current_level),
-        );
-        let (parents_to_create_tx, parents_to_create_rx) = crossbeam::channel::unbounded();
-        nodes_to_create.into_par_iter().for_each(|node_id| {
-            let image_path = get_image_path(output_directory, node_id);
-            if image_path.exists() {
-                match existing_strategy {
-                    ExistingStrategy::Panic => {
-                        panic!("{:?} already exists.", image_path);
-                    }
-                    ExistingStrategy::Skip => {
-                        if let Some(id) = node_id.parent_id() {
-                            parents_to_create_tx.send(id).unwrap()
-                        }
-                        all_nodes_tx.send(node_id).unwrap();
-                        return ();
-                    }
-                    ExistingStrategy::Replace => {
-                        std::fs::remove_file(image_path.clone())
-                            .expect(&format!("Cannot remove file: {:?}.", image_path));
-                    }
+) -> FnvHashSet<NodeId> {
+    let nodes_to_create: FnvHashSet<NodeId> = lower_level
+        .iter()
+        .filter_map(|node| node.parent_id())
+        .collect();
+    let progress_bar = create_syncable_progress_bar(
+        nodes_to_create.len(),
+        &format!("Building level {}", current_level),
+    );
+    let create_node = |&node_id| {
+        let image_path = get_image_path(output_directory, node_id);
+        if image_path.exists() {
+            match existing_strategy {
+                ExistingStrategy::Panic => {
+                    panic!("{:?} already exists.", image_path);
+                }
+                ExistingStrategy::Skip => {
+                    all_nodes_tx.send(node_id).unwrap();
+                    return ();
+                }
+                ExistingStrategy::Replace => {
+                    std::fs::remove_file(image_path.clone())
+                        .expect(&format!("Cannot remove file: {:?}.", image_path));
                 }
             }
-            all_nodes_tx.send(node_id).unwrap();
+        }
+        all_nodes_tx.send(node_id).unwrap();
 
-            let mut children = [None, None, None, None];
+        let mut children = [None, None, None, None];
 
-            // We a right handed coordinate system with the x-axis of world and images
-            // aligning. This means that the y-axis aligns too, but the origin of the image
-            // space must be at the bottom left. Since images have their origin at the top
-            // left, we need actually have to invert y and go from the bottom of the image.
-            for id in 0..4 {
-                let png = get_image_path(
-                    output_directory,
-                    node_id.get_child_id(&ChildIndex::from_u8(id)),
-                );
-                if !png.exists() {
-                    continue;
-                }
-                children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
+        // We a right handed coordinate system with the x-axis of world and images
+        // aligning. This means that the y-axis aligns too, but the origin of the image
+        // space must be at the bottom left. Since images have their origin at the top
+        // left, we need actually have to invert y and go from the bottom of the image.
+        for id in 0..4 {
+            let png = get_image_path(
+                output_directory,
+                node_id.get_child_id(&ChildIndex::from_u8(id)),
+            );
+            if !png.exists() {
+                continue;
             }
-            if children.iter().any(|child| child.is_some()) {
-                let large_image = build_parent(&children, parameters.tile_background_color);
-                let image = image::DynamicImage::ImageRgba8(large_image).resize(
-                    tile.size_px,
-                    tile.size_px,
-                    image::imageops::FilterType::Lanczos3,
-                );
-                image
-                    .as_rgba8()
-                    .unwrap()
-                    .save(&get_image_path(output_directory, node_id))
-                    .unwrap();
-                if let Some(id) = node_id.parent_id() {
-                    parents_to_create_tx.send(id).unwrap()
-                }
-            }
-            progress_bar.lock().unwrap().inc();
-        });
-        progress_bar.lock().unwrap().finish_println("");
-        drop(parents_to_create_tx);
-        nodes_to_create = parents_to_create_rx.into_iter().collect();
-    }
+            children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
+        }
+        if children.iter().any(|child| child.is_some()) {
+            let large_image = build_parent(&children, parameters.tile_background_color);
+            let image = image::DynamicImage::ImageRgba8(large_image).resize(
+                tile.size_px,
+                tile.size_px,
+                image::imageops::FilterType::Lanczos3,
+            );
+            image
+                .as_rgba8()
+                .unwrap()
+                .save(&get_image_path(output_directory, node_id))
+                .unwrap();
+        }
+        progress_bar.lock().unwrap().inc();
+    };
+    nodes_to_create.par_iter().for_each(create_node);
+    progress_bar.lock().unwrap().finish_println("");
+    nodes_to_create
 }
