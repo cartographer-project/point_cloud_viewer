@@ -630,7 +630,15 @@ pub fn build_xray_quadtree(
     });
     progress_bar.lock().unwrap().finish_println("");
 
-    generate_levels(output_directory, tile, deepest_level, &created_leaf_node_ids, all_nodes_tx, parameters, ExistingStrategy::Panic);
+    generate_levels(
+        output_directory,
+        tile,
+        deepest_level,
+        &created_leaf_node_ids,
+        all_nodes_tx,
+        parameters,
+        ExistingStrategy::Panic,
+    );
 
     let meta = {
         let mut meta = proto::Meta::new();
@@ -672,10 +680,16 @@ enum ExistingStrategy {
 }
 
 fn generate_levels(
-    output_directory: &Path, 
-    tile: &Tile, deepest_level: u8, leaves: &FnvHashSet<NodeId>, all_nodes_tx: crossbeam::channel::Sender<NodeId>, 
-    parameters: &XrayParameters, existing_strategy: ExistingStrategy) {
-    let mut nodes_to_create : FnvHashSet<NodeId> = leaves.iter().filter_map(|leaf| leaf.parent_id()).collect();
+    output_directory: &Path,
+    tile: &Tile,
+    deepest_level: u8,
+    leaves: &FnvHashSet<NodeId>,
+    all_nodes_tx: crossbeam::channel::Sender<NodeId>,
+    parameters: &XrayParameters,
+    existing_strategy: ExistingStrategy,
+) {
+    let mut nodes_to_create: FnvHashSet<NodeId> =
+        leaves.iter().filter_map(|leaf| leaf.parent_id()).collect();
     for current_level in (0..deepest_level).rev() {
         //let nodes_to_create: FnvHashSet<NodeId> = parents_to_create_rx.into_iter().collect();
         let progress_bar = create_syncable_progress_bar(
@@ -687,7 +701,9 @@ fn generate_levels(
             let image_path = get_image_path(output_directory, node_id);
             if image_path.exists() {
                 match existing_strategy {
-                    ExistingStrategy::Panic => {panic!("{:?} already exists.", image_path);}
+                    ExistingStrategy::Panic => {
+                        panic!("{:?} already exists.", image_path);
+                    }
                     ExistingStrategy::Skip => {
                         if let Some(id) = node_id.parent_id() {
                             parents_to_create_tx.send(id).unwrap()
@@ -695,7 +711,10 @@ fn generate_levels(
                         all_nodes_tx.send(node_id).unwrap();
                         return ();
                     }
-                    ExistingStrategy::Replace => {std::fs::remove_file(image_path.clone()).expect(&format!("Cannot remove file: {:?}.", image_path));}
+                    ExistingStrategy::Replace => {
+                        std::fs::remove_file(image_path.clone())
+                            .expect(&format!("Cannot remove file: {:?}.", image_path));
+                    }
                 }
             }
             all_nodes_tx.send(node_id).unwrap();
