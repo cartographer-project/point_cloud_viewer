@@ -21,7 +21,7 @@ use point_viewer::utils::create_syncable_progress_bar;
 use point_viewer::{match_1d_attr_data, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use stats::OnlineStats;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
@@ -557,7 +557,7 @@ pub fn build_xray_quadtree(
     );
 
     // Create the deepest level of the quadtree.
-    let (parents_to_create_tx, mut parents_to_create_rx) = crossbeam::channel::unbounded();
+    //let (parents_to_create_tx, mut parents_to_create_rx) = crossbeam::channel::unbounded();
     let (all_nodes_tx, all_nodes_rx) = crossbeam::channel::unbounded();
     let (created_leaf_node_ids_tx, created_leaf_node_ids_rx) = crossbeam::channel::unbounded();
 
@@ -579,7 +579,6 @@ pub fn build_xray_quadtree(
     );
     rayon::scope(|scope| {
         while let Some(node) = leaf_nodes.pop() {
-            let parents_to_create_tx_clone = parents_to_create_tx.clone();
             let all_nodes_tx_clone = all_nodes_tx.clone();
             let created_leaf_node_ids_tx_clone = created_leaf_node_ids_tx.clone();
             let strategy: Box<dyn ColoringStrategy> = coloring_strategy_kind.new_strategy();
@@ -599,16 +598,12 @@ pub fn build_xray_quadtree(
                 ) {
                     all_nodes_tx_clone.send(node.id).unwrap();
                     created_leaf_node_ids_tx_clone.send(node.id).unwrap();
-                    if let Some(id) = node.id.parent_id() {
-                        parents_to_create_tx_clone.send(id).unwrap()
-                    }
                 }
                 progress_bar.lock().unwrap().inc();
             });
         }
     });
     progress_bar.lock().unwrap().finish_println("");
-    drop(parents_to_create_tx);
     drop(created_leaf_node_ids_tx);
     let created_leaf_node_ids: FnvHashSet<NodeId> = created_leaf_node_ids_rx.into_iter().collect();
 
@@ -622,8 +617,8 @@ pub fn build_xray_quadtree(
     let progress_bar =
         create_syncable_progress_bar(created_leaf_node_ids.len(), "Assigning background color");
     let background_color = Rgba::from(parameters.tile_background_color);
-    created_leaf_node_ids.into_par_iter().for_each(|node_id| {
-        let image_path = get_image_path(output_directory, node_id);
+    created_leaf_node_ids.par_iter().for_each(|node_id| {
+        let image_path = get_image_path(output_directory, *node_id);
         let mut image = image::open(&image_path).unwrap().to_rgba();
         // Depending on the implementation of the inpainting function above we may get pixels
         // that are not fully opaque or fully transparent. This is why we choose a threshold
@@ -635,15 +630,74 @@ pub fn build_xray_quadtree(
     });
     progress_bar.lock().unwrap().finish_println("");
 
+    generate_levels(output_directory, tile, deepest_level, &created_leaf_node_ids, all_nodes_tx, parameters, ExistingStrategy::Panic);
+
+    let meta = {
+        let mut meta = proto::Meta::new();
+        meta.mut_bounding_rect()
+            .mut_min()
+            .set_x(bounding_rect.min().x);
+        meta.mut_bounding_rect()
+            .mut_min()
+            .set_y(bounding_rect.min().y);
+        meta.mut_bounding_rect()
+            .set_edge_length(bounding_rect.edge_length());
+        meta.set_deepest_level(u32::from(deepest_level));
+        meta.set_tile_size(tile.size_px);
+        meta.set_version(CURRENT_VERSION);
+
+        for node_id in all_nodes_rx {
+            let mut proto = proto::NodeId::new();
+            proto.set_index(node_id.index());
+            proto.set_level(u32::from(node_id.level()));
+            meta.mut_nodes().push(proto);
+        }
+        meta
+    };
+
+    let mut buf_writer = BufWriter::new(File::create(output_directory.join("meta.pb")).unwrap());
+    meta.write_to_writer(&mut buf_writer).unwrap();
+
+    progress_bar.lock().unwrap().finish();
+
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug)]
+enum ExistingStrategy {
+    Skip,
+    Replace,
+    // TODO(kpopielarz): replace this by ErrorOut or something similar.
+    Panic,
+}
+
+fn generate_levels(
+    output_directory: &Path, 
+    tile: &Tile, deepest_level: u8, leaves: &FnvHashSet<NodeId>, all_nodes_tx: crossbeam::channel::Sender<NodeId>, 
+    parameters: &XrayParameters, existing_strategy: ExistingStrategy) {
+    let mut nodes_to_create : FnvHashSet<NodeId> = leaves.iter().filter_map(|leaf| leaf.parent_id()).collect();
     for current_level in (0..deepest_level).rev() {
-        let nodes_to_create: FnvHashSet<NodeId> = parents_to_create_rx.into_iter().collect();
+        //let nodes_to_create: FnvHashSet<NodeId> = parents_to_create_rx.into_iter().collect();
         let progress_bar = create_syncable_progress_bar(
             nodes_to_create.len(),
             &format!("Building level {}", current_level),
         );
-        let (parents_to_create_tx, new_rx) = crossbeam::channel::unbounded();
-        parents_to_create_rx = new_rx;
+        let (parents_to_create_tx, parents_to_create_rx) = crossbeam::channel::unbounded();
         nodes_to_create.into_par_iter().for_each(|node_id| {
+            let image_path = get_image_path(output_directory, node_id);
+            if image_path.exists() {
+                match existing_strategy {
+                    ExistingStrategy::Panic => {panic!("{:?} already exists.", image_path);}
+                    ExistingStrategy::Skip => {
+                        if let Some(id) = node_id.parent_id() {
+                            parents_to_create_tx.send(id).unwrap()
+                        }
+                        all_nodes_tx.send(node_id).unwrap();
+                        return ();
+                    }
+                    ExistingStrategy::Replace => {std::fs::remove_file(image_path.clone()).expect(&format!("Cannot remove file: {:?}.", image_path));}
+                }
+            }
             all_nodes_tx.send(node_id).unwrap();
 
             let mut children = [None, None, None, None];
@@ -682,36 +736,6 @@ pub fn build_xray_quadtree(
         });
         progress_bar.lock().unwrap().finish_println("");
         drop(parents_to_create_tx);
+        nodes_to_create = parents_to_create_rx.into_iter().collect();
     }
-    drop(all_nodes_tx);
-
-    let meta = {
-        let mut meta = proto::Meta::new();
-        meta.mut_bounding_rect()
-            .mut_min()
-            .set_x(bounding_rect.min().x);
-        meta.mut_bounding_rect()
-            .mut_min()
-            .set_y(bounding_rect.min().y);
-        meta.mut_bounding_rect()
-            .set_edge_length(bounding_rect.edge_length());
-        meta.set_deepest_level(u32::from(deepest_level));
-        meta.set_tile_size(tile.size_px);
-        meta.set_version(CURRENT_VERSION);
-
-        for node_id in all_nodes_rx {
-            let mut proto = proto::NodeId::new();
-            proto.set_index(node_id.index());
-            proto.set_level(u32::from(node_id.level()));
-            meta.mut_nodes().push(proto);
-        }
-        meta
-    };
-
-    let mut buf_writer = BufWriter::new(File::create(output_directory.join("meta.pb")).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
-
-    progress_bar.lock().unwrap().finish();
-
-    Ok(())
 }
