@@ -557,8 +557,7 @@ pub fn build_xray_quadtree(
     );
 
     // Create the deepest level of the quadtree.
-    //let (parents_to_create_tx, mut parents_to_create_rx) = crossbeam::channel::unbounded();
-    let (all_nodes_tx, all_nodes_rx) = crossbeam::channel::unbounded();
+    let mut all_nodes = FnvHashSet::default();
     let (created_leaf_node_ids_tx, created_leaf_node_ids_rx) = crossbeam::channel::unbounded();
 
     let mut leaf_nodes = Vec::with_capacity(4usize.pow(deepest_level.into()));
@@ -579,7 +578,6 @@ pub fn build_xray_quadtree(
     );
     rayon::scope(|scope| {
         while let Some(node) = leaf_nodes.pop() {
-            let all_nodes_tx_clone = all_nodes_tx.clone();
             let created_leaf_node_ids_tx_clone = created_leaf_node_ids_tx.clone();
             let strategy: Box<dyn ColoringStrategy> = coloring_strategy_kind.new_strategy();
             let progress_bar = Arc::clone(&progress_bar);
@@ -596,7 +594,6 @@ pub fn build_xray_quadtree(
                     strategy,
                     parameters,
                 ) {
-                    all_nodes_tx_clone.send(node.id).unwrap();
                     created_leaf_node_ids_tx_clone.send(node.id).unwrap();
                 }
                 progress_bar.lock().unwrap().inc();
@@ -631,16 +628,21 @@ pub fn build_xray_quadtree(
     progress_bar.lock().unwrap().finish_println("");
 
     let mut previous_level_nodes = created_leaf_node_ids;
+    for node in &previous_level_nodes {
+        all_nodes.insert(*node);
+    }
     for current_level in (0..deepest_level).rev() {
         previous_level_nodes = generate_level(
             output_directory,
             tile,
             current_level,
             &previous_level_nodes,
-            &all_nodes_tx,
             parameters,
             ExistingStrategy::Panic,
         );
+        for node in &previous_level_nodes {
+            all_nodes.insert(*node);
+        }
     }
 
     let meta = {
@@ -657,7 +659,7 @@ pub fn build_xray_quadtree(
         meta.set_tile_size(tile.size_px);
         meta.set_version(CURRENT_VERSION);
 
-        for node_id in all_nodes_rx {
+        for node_id in all_nodes {
             let mut proto = proto::NodeId::new();
             proto.set_index(node_id.index());
             proto.set_level(u32::from(node_id.level()));
@@ -687,7 +689,6 @@ fn generate_level(
     tile: &Tile,
     current_level: u8,
     lower_level: &FnvHashSet<NodeId>,
-    all_nodes_tx: &crossbeam::channel::Sender<NodeId>,
     parameters: &XrayParameters,
     existing_strategy: ExistingStrategy,
 ) -> FnvHashSet<NodeId> {
@@ -707,7 +708,6 @@ fn generate_level(
                     panic!("{:?} already exists.", image_path);
                 }
                 ExistingStrategy::Skip => {
-                    all_nodes_tx.send(node_id).unwrap();
                     return ();
                 }
                 ExistingStrategy::Replace => {
@@ -716,7 +716,6 @@ fn generate_level(
                 }
             }
         }
-        all_nodes_tx.send(node_id).unwrap();
 
         let mut children = [None, None, None, None];
 
