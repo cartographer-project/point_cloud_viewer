@@ -679,10 +679,10 @@ fn build_level(
     output_directory: &Path,
     tile: &Tile,
     current_level: u8,
-    previous_level_nods: &FnvHashSet<NodeId>,
+    previous_level_nodes: &FnvHashSet<NodeId>,
     parameters: &XrayParameters,
 ) -> FnvHashSet<NodeId> {
-    let current_level_nodes: FnvHashSet<NodeId> = previous_level_nods
+    let current_level_nodes: FnvHashSet<NodeId> = previous_level_nodes
         .iter()
         .filter_map(|node| node.parent_id())
         .collect();
