@@ -638,7 +638,6 @@ pub fn build_xray_quadtree(
             current_level,
             &previous_level_nodes,
             parameters,
-            ExistingStrategy::Panic,
         );
         for node in &previous_level_nodes {
             all_nodes.insert(*node);
@@ -676,21 +675,12 @@ pub fn build_xray_quadtree(
     Ok(())
 }
 
-// What to do if the node already exists in the directory.
-#[derive(Clone, Copy, Debug)]
-enum ExistingStrategy {
-    Skip,
-    // TODO(kpopielarz): replace this by ErrorOut or something similar.
-    Panic,
-}
-
 fn build_level(
     output_directory: &Path,
     tile: &Tile,
     current_level: u8,
     previous_level_nods: &FnvHashSet<NodeId>,
     parameters: &XrayParameters,
-    existing_strategy: ExistingStrategy,
 ) -> FnvHashSet<NodeId> {
     let current_level_nodes: FnvHashSet<NodeId> = previous_level_nods
         .iter()
@@ -701,32 +691,14 @@ fn build_level(
         &format!("Building level {}", current_level),
     );
     current_level_nodes.par_iter().for_each(|node| {
-        build_node(output_directory, *node, tile, parameters, existing_strategy);
+        build_node(output_directory, *node, tile, parameters);
         progress_bar.lock().unwrap().inc();
     });
     progress_bar.lock().unwrap().finish_println("");
     current_level_nodes
 }
 
-fn build_node(
-    output_directory: &Path,
-    node_id: NodeId,
-    tile: &Tile,
-    parameters: &XrayParameters,
-    existing_strategy: ExistingStrategy,
-) {
-    let image_path = get_image_path(output_directory, node_id);
-    if image_path.exists() {
-        match existing_strategy {
-            ExistingStrategy::Panic => {
-                panic!("{:?} already exists.", image_path);
-            }
-            ExistingStrategy::Skip => {
-                return ();
-            }
-        }
-    }
-
+fn build_node(output_directory: &Path, node_id: NodeId, tile: &Tile, parameters: &XrayParameters) {
     let mut children = [None, None, None, None];
     // We a right handed coordinate system with the x-axis of world and images
     // aligning. This means that the y-axis aligns too, but the origin of the image
@@ -748,6 +720,10 @@ fn build_node(
             tile.size_px,
             image::imageops::FilterType::Lanczos3,
         );
-        image.as_rgba8().unwrap().save(&image_path).unwrap();
+        image
+            .as_rgba8()
+            .unwrap()
+            .save(&get_image_path(output_directory, node_id))
+            .unwrap();
     }
 }
