@@ -676,6 +676,7 @@ pub fn build_xray_quadtree(
     Ok(())
 }
 
+// What to do if the node already exists in the directory.
 #[derive(Clone, Copy, Debug)]
 enum ExistingStrategy {
     Skip,
@@ -700,55 +701,63 @@ fn generate_level(
         nodes_to_create.len(),
         &format!("Building level {}", current_level),
     );
-    let create_node = |&node_id| {
-        let image_path = get_image_path(output_directory, node_id);
-        if image_path.exists() {
-            match existing_strategy {
-                ExistingStrategy::Panic => {
-                    panic!("{:?} already exists.", image_path);
-                }
-                ExistingStrategy::Skip => {
-                    return ();
-                }
-                ExistingStrategy::Replace => {
-                    std::fs::remove_file(image_path.clone())
-                        .expect(&format!("Cannot remove file: {:?}.", image_path));
-                }
-            }
-        }
-
-        let mut children = [None, None, None, None];
-
-        // We a right handed coordinate system with the x-axis of world and images
-        // aligning. This means that the y-axis aligns too, but the origin of the image
-        // space must be at the bottom left. Since images have their origin at the top
-        // left, we need actually have to invert y and go from the bottom of the image.
-        for id in 0..4 {
-            let png = get_image_path(
-                output_directory,
-                node_id.get_child_id(&ChildIndex::from_u8(id)),
-            );
-            if !png.exists() {
-                continue;
-            }
-            children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
-        }
-        if children.iter().any(|child| child.is_some()) {
-            let large_image = build_parent(&children, parameters.tile_background_color);
-            let image = image::DynamicImage::ImageRgba8(large_image).resize(
-                tile.size_px,
-                tile.size_px,
-                image::imageops::FilterType::Lanczos3,
-            );
-            image
-                .as_rgba8()
-                .unwrap()
-                .save(&get_image_path(output_directory, node_id))
-                .unwrap();
-        }
+    nodes_to_create.par_iter().for_each(|node| {
+        generate_node(output_directory, *node, tile, parameters, existing_strategy);
         progress_bar.lock().unwrap().inc();
-    };
-    nodes_to_create.par_iter().for_each(create_node);
+    });
     progress_bar.lock().unwrap().finish_println("");
     nodes_to_create
+}
+
+fn generate_node(
+    output_directory: &Path,
+    node_id: NodeId,
+    tile: &Tile,
+    parameters: &XrayParameters,
+    existing_strategy: ExistingStrategy,
+) {
+    let image_path = get_image_path(output_directory, node_id);
+    if image_path.exists() {
+        match existing_strategy {
+            ExistingStrategy::Panic => {
+                panic!("{:?} already exists.", image_path);
+            }
+            ExistingStrategy::Skip => {
+                return ();
+            }
+            ExistingStrategy::Replace => {
+                std::fs::remove_file(image_path.clone())
+                    .expect(&format!("Cannot remove file: {:?}.", image_path));
+            }
+        }
+    }
+
+    let mut children = [None, None, None, None];
+
+    // We a right handed coordinate system with the x-axis of world and images
+    // aligning. This means that the y-axis aligns too, but the origin of the image
+    // space must be at the bottom left. Since images have their origin at the top
+    // left, we need actually have to invert y and go from the bottom of the image.
+    for id in 0..4 {
+        let png = get_image_path(
+            output_directory,
+            node_id.get_child_id(&ChildIndex::from_u8(id)),
+        );
+        if png.exists() {
+            children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
+        }
+    }
+    if children.iter().any(|child| child.is_some()) {
+        let large_image = build_parent(&children, parameters.tile_background_color);
+        let image = image::DynamicImage::ImageRgba8(large_image).resize(
+            tile.size_px,
+            tile.size_px,
+            image::imageops::FilterType::Lanczos3,
+        );
+        image
+            .as_rgba8()
+            .unwrap()
+            .save(&get_image_path(output_directory, node_id))
+            .unwrap();
+    }
 }
