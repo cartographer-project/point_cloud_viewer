@@ -62,6 +62,21 @@ impl Node {
         }
     }
 
+    pub fn from_node_id_and_root_bounding_rect(id: NodeId, rect: Rect) -> Self {
+        let mut ids = vec![id];
+        while let Some(parent_id) = ids.last().and_then(|last| last.parent_id()) {
+            ids.push(parent_id);
+        }
+        let mut node = Self {
+            id: ids.pop().unwrap(),
+            bounding_rect: rect,
+        };
+        while let Some(child_id) = ids.pop().and_then(|id| id.child_index()) {
+            node = node.get_child(&child_id);
+        }
+        node
+    }
+
     pub fn get_child(&self, child_index: &ChildIndex) -> Node {
         let child_bounding_rect = {
             let half_edge_length = self.bounding_rect.edge_length() / 2.;

@@ -463,6 +463,7 @@ pub struct XrayParameters {
     pub filter_intervals: HashMap<String, ClosedInterval<f64>>,
     pub tile_background_color: Color<u8>,
     pub inpaint_distance_px: u8,
+    pub root_node_id: NodeId,
 }
 
 pub fn xray_from_points(
@@ -561,7 +562,10 @@ pub fn build_xray_quadtree(
 
     let mut leaf_nodes = Vec::with_capacity(4usize.pow(deepest_level.into()));
     let mut nodes_to_traverse = Vec::with_capacity((4 * leaf_nodes.capacity() - 1) / 3);
-    nodes_to_traverse.push(Node::root_with_bounding_rect(bounding_rect.clone()));
+    nodes_to_traverse.push(Node::from_node_id_and_root_bounding_rect(
+        parameters.root_node_id,
+        bounding_rect.clone(),
+    ));
     while let Some(node) = nodes_to_traverse.pop() {
         if node.level() == deepest_level {
             leaf_nodes.push(node);
