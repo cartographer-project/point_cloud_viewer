@@ -557,7 +557,6 @@ pub fn build_xray_quadtree(
     );
 
     // Create the deepest level of the quadtree.
-    let mut all_nodes = FnvHashSet::default();
     let (created_leaf_node_ids_tx, created_leaf_node_ids_rx) = crossbeam::channel::unbounded();
 
     let mut leaf_nodes = Vec::with_capacity(4usize.pow(deepest_level.into()));
@@ -627,6 +626,7 @@ pub fn build_xray_quadtree(
     });
     progress_bar.lock().unwrap().finish_println("");
 
+    let mut all_nodes = FnvHashSet::default();
     let mut previous_level_nodes = created_leaf_node_ids;
     for node in &previous_level_nodes {
         all_nodes.insert(*node);
