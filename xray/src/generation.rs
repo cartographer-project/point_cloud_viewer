@@ -671,7 +671,7 @@ pub fn build_xray_quadtree(
         meta
     };
 
-    let meta_pb_name = format!("{}.pb", root_node_id.to_string().replace("r", "meta"));
+    let meta_pb_name = format!("{}.pb", root_node_id).replace("r", "meta");
     let mut buf_writer = BufWriter::new(File::create(output_directory.join(meta_pb_name)).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
 
