@@ -626,11 +626,11 @@ pub fn build_xray_quadtree(
     });
     progress_bar.lock().unwrap().finish_println("");
 
-    let mut previous_level_nodes = created_leaf_node_ids;
-    let mut all_nodes = previous_level_nodes.clone();
+    let mut current_level_nodes = created_leaf_node_ids;
+    let mut all_nodes = current_level_nodes.clone();
 
     for current_level in (0..deepest_level).rev() {
-        let current_level_nodes: FnvHashSet<NodeId> = previous_level_nodes
+        current_level_nodes = current_level_nodes
             .iter()
             .filter_map(|node| node.parent_id())
             .collect();
@@ -642,7 +642,6 @@ pub fn build_xray_quadtree(
             parameters,
         );
         all_nodes.extend(&current_level_nodes);
-        previous_level_nodes = current_level_nodes;
     }
 
     let meta = {
