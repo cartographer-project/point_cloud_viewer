@@ -688,24 +688,24 @@ fn build_level(
     output_directory: &Path,
     tile: &Tile,
     current_level: u8,
-    lower_level: &FnvHashSet<NodeId>,
+    previous_level_nods: &FnvHashSet<NodeId>,
     parameters: &XrayParameters,
     existing_strategy: ExistingStrategy,
 ) -> FnvHashSet<NodeId> {
-    let nodes_to_create: FnvHashSet<NodeId> = lower_level
+    let current_level_nodes: FnvHashSet<NodeId> = previous_level_nods
         .iter()
         .filter_map(|node| node.parent_id())
         .collect();
     let progress_bar = create_syncable_progress_bar(
-        nodes_to_create.len(),
+        current_level_nodes.len(),
         &format!("Building level {}", current_level),
     );
-    nodes_to_create.par_iter().for_each(|node| {
+    current_level_nodes.par_iter().for_each(|node| {
         build_node(output_directory, *node, tile, parameters, existing_strategy);
         progress_bar.lock().unwrap().inc();
     });
     progress_bar.lock().unwrap().finish_println("");
-    nodes_to_create
+    current_level_nodes
 }
 
 fn build_node(
@@ -748,10 +748,6 @@ fn build_node(
             tile.size_px,
             image::imageops::FilterType::Lanczos3,
         );
-        image
-            .as_rgba8()
-            .unwrap()
-            .save(&image_path)
-            .unwrap();
+        image.as_rgba8().unwrap().save(&image_path).unwrap();
     }
 }
