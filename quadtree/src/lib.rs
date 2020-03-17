@@ -55,13 +55,6 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn root_with_bounding_rect(rect: Rect) -> Self {
-        Node {
-            id: NodeId::root(),
-            bounding_rect: rect,
-        }
-    }
-
     pub fn from_node_id_and_root_bounding_rect(id: NodeId, rect: Rect) -> Self {
         let mut ids = vec![id];
         while let Some(parent_id) = ids.last().and_then(|last| last.parent_id()) {
