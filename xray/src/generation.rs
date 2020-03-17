@@ -632,7 +632,7 @@ pub fn build_xray_quadtree(
         all_nodes.insert(*node);
     }
     for current_level in (0..deepest_level).rev() {
-        previous_level_nodes = generate_level(
+        previous_level_nodes = build_level(
             output_directory,
             tile,
             current_level,
@@ -685,7 +685,7 @@ enum ExistingStrategy {
     Panic,
 }
 
-fn generate_level(
+fn build_level(
     output_directory: &Path,
     tile: &Tile,
     current_level: u8,
@@ -702,14 +702,14 @@ fn generate_level(
         &format!("Building level {}", current_level),
     );
     nodes_to_create.par_iter().for_each(|node| {
-        generate_node(output_directory, *node, tile, parameters, existing_strategy);
+        build_node(output_directory, *node, tile, parameters, existing_strategy);
         progress_bar.lock().unwrap().inc();
     });
     progress_bar.lock().unwrap().finish_println("");
     nodes_to_create
 }
 
-fn generate_node(
+fn build_node(
     output_directory: &Path,
     node_id: NodeId,
     tile: &Tile,
@@ -733,7 +733,6 @@ fn generate_node(
     }
 
     let mut children = [None, None, None, None];
-
     // We a right handed coordinate system with the x-axis of world and images
     // aligning. This means that the y-axis aligns too, but the origin of the image
     // space must be at the bottom left. Since images have their origin at the top
@@ -757,7 +756,7 @@ fn generate_node(
         image
             .as_rgba8()
             .unwrap()
-            .save(&get_image_path(output_directory, node_id))
+            .save(&image_path)
             .unwrap();
     }
 }
