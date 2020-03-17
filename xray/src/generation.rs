@@ -562,6 +562,10 @@ pub fn build_xray_quadtree(
 
     let root_node_id = parameters.root_node_id;
     let root_level = root_node_id.level();
+    assert!(
+        root_level <= deepest_level,
+        "Specified root node id is outside quadtree."
+    );
     let root_node = Node::from_node_id_and_root_bounding_rect(root_node_id, bounding_rect.clone());
     let mut leaf_nodes = Vec::with_capacity(4usize.pow((deepest_level - root_level).into()));
     let mut nodes_to_traverse = Vec::with_capacity((4 * leaf_nodes.capacity() - 1) / 3);
