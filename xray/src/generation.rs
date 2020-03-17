@@ -626,22 +626,23 @@ pub fn build_xray_quadtree(
     });
     progress_bar.lock().unwrap().finish_println("");
 
-    let mut all_nodes = FnvHashSet::default();
     let mut previous_level_nodes = created_leaf_node_ids;
-    for node in &previous_level_nodes {
-        all_nodes.insert(*node);
-    }
+    let mut all_nodes = previous_level_nodes.clone();
+
     for current_level in (0..deepest_level).rev() {
-        previous_level_nodes = build_level(
+        let current_level_nodes: FnvHashSet<NodeId> = previous_level_nodes
+            .iter()
+            .filter_map(|node| node.parent_id())
+            .collect();
+        build_level(
             output_directory,
             tile,
             current_level,
-            &previous_level_nodes,
+            &current_level_nodes,
             parameters,
         );
-        for node in &previous_level_nodes {
-            all_nodes.insert(*node);
-        }
+        all_nodes.extend(&current_level_nodes);
+        previous_level_nodes = current_level_nodes;
     }
 
     let meta = {
@@ -679,23 +680,16 @@ fn build_level(
     output_directory: &Path,
     tile: &Tile,
     current_level: u8,
-    previous_level_nodes: &FnvHashSet<NodeId>,
+    nodes: &FnvHashSet<NodeId>,
     parameters: &XrayParameters,
-) -> FnvHashSet<NodeId> {
-    let current_level_nodes: FnvHashSet<NodeId> = previous_level_nodes
-        .iter()
-        .filter_map(|node| node.parent_id())
-        .collect();
-    let progress_bar = create_syncable_progress_bar(
-        current_level_nodes.len(),
-        &format!("Building level {}", current_level),
-    );
-    current_level_nodes.par_iter().for_each(|node| {
+) {
+    let progress_bar =
+        create_syncable_progress_bar(nodes.len(), &format!("Building level {}", current_level));
+    nodes.par_iter().for_each(|node| {
         build_node(output_directory, *node, tile, parameters);
         progress_bar.lock().unwrap().inc();
     });
     progress_bar.lock().unwrap().finish_println("");
-    current_level_nodes
 }
 
 fn build_node(output_directory: &Path, node_id: NodeId, tile: &Tile, parameters: &XrayParameters) {
