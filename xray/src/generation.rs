@@ -680,7 +680,6 @@ pub fn build_xray_quadtree(
 #[derive(Clone, Copy, Debug)]
 enum ExistingStrategy {
     Skip,
-    Replace,
     // TODO(kpopielarz): replace this by ErrorOut or something similar.
     Panic,
 }
@@ -724,10 +723,6 @@ fn build_node(
             }
             ExistingStrategy::Skip => {
                 return ();
-            }
-            ExistingStrategy::Replace => {
-                std::fs::remove_file(image_path.clone())
-                    .expect(&format!("Cannot remove file: {:?}.", image_path));
             }
         }
     }
