@@ -61,7 +61,7 @@ struct Metadata {
     root_nodes: FnvHashSet<NodeId>,
     level: u8,
     deepest_level: u8,
-    tile: 
+    tile_size: u32,
 }
 
 fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
@@ -74,11 +74,14 @@ fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
     );
     let level = root_nodes.iter().next().unwrap().level(); // Safe by the assertions above.
     assert!(root_nodes.iter().all(|node| node.level() == level), "Note all roots have the same level.");
+    let tile_size = metadata[0].get_tile_size(); // Safe by the assertions above.
+    assert!(metadata.iter().all(|meta| meta.get_tile_size() == tile_size), "Note all roots have the same level.");
     
     Metadata {
         root_nodes,
         level,
         deepest_level: metadata[0].get_deepest_level() as u8, //Safe
+        tile_size,
     }
 }
 
