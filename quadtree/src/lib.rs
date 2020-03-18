@@ -16,6 +16,7 @@ use cgmath::{Point2, Vector2};
 use std::fmt::{self, Write};
 use std::num::ParseIntError;
 use std::str::FromStr;
+use xray_proto_rust::proto;
 
 #[derive(Debug, Clone)]
 pub struct Rect {
@@ -322,6 +323,12 @@ impl From<SpatialNodeId> for NodeId {
             }
         }
         Self::new(level, index)
+    }
+}
+
+impl From<&proto::NodeId> for NodeId {
+    fn from(proto: &proto::NodeId) -> Self {
+        Self::new(proto.get_level() as u8, proto.get_index())
     }
 }
 
