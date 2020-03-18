@@ -64,8 +64,8 @@ impl Node {
             id: ids.pop().unwrap(),
             bounding_rect: rect,
         };
-        while let Some(child_id) = ids.pop().and_then(|id| id.child_index()) {
-            node = node.get_child(&child_id);
+        while let Some(child_index) = ids.pop().and_then(|id| id.child_index()) {
+            node = node.get_child(&child_index);
         }
         node
     }

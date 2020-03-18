@@ -115,8 +115,7 @@ impl Meta {
             NodeId::root(),
             self.bounding_rect.clone(),
         )];
-        while !open.is_empty() {
-            let node = open.pop().unwrap();
+        while let Some(node) = open.pop() {
             let aabb = Aabb3::new(
                 Point3::new(node.bounding_rect.min().x, node.bounding_rect.min().y, -0.1),
                 Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
