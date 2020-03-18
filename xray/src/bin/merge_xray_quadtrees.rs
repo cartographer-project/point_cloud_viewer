@@ -40,7 +40,11 @@ fn copy_images(input_directory: &Path, output_directory: &Path) {
     .into_iter()
     .filter_map(Result::ok)
     .for_each(|dir_entry| {
-        std::fs::copy(dir_entry.path(), output_directory).expect("Failed to copy the file.");
+        std::fs::copy(
+            dir_entry.path(),
+            output_directory.join(dir_entry.file_name()),
+        )
+        .expect("Failed to copy the file.");
     })
 }
 
