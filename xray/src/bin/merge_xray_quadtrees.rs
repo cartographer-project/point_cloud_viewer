@@ -1,4 +1,5 @@
 use fnv::FnvHashSet;
+use point_viewer::color::Color;
 use quadtree::NodeId;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
@@ -96,11 +97,7 @@ fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
     }
 }
 
-fn merge(
-    metadata: Metadata,
-    output_directory: &Path,
-    tile_background_color: generation::TileBackgroundColorArgument,
-) {
+fn merge(metadata: Metadata, output_directory: &Path, tile_background_color: Color<u8>) {
     let mut current_level_nodes = metadata.root_nodes;
     for current_level in (metadata.level..metadata.deepest_level).rev() {
         current_level_nodes = current_level_nodes
@@ -112,7 +109,7 @@ fn merge(
             metadata.tile_size,
             current_level,
             &current_level_nodes,
-            tile_background_color.to_color(),
+            tile_background_color,
         );
         //all_nodes.extend(&current_level_nodes);
     }
@@ -122,6 +119,10 @@ fn main() {
     let args = CommandlineArguments::from_args();
     let metadata = read_metadata_from_directories(&args.input_directories);
     let metadata = validate_metadata(&metadata);
-    merge(metadata, &args.output_directory, args.tile_background_color);
+    merge(
+        metadata,
+        &args.output_directory,
+        args.tile_background_color.to_color(),
+    );
     unimplemented!();
 }
