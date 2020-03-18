@@ -1,10 +1,10 @@
-use quadtree::NodeId;
 use fnv::FnvHashSet;
+use quadtree::NodeId;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
-use xray_proto_rust::proto;
 use xray::generation;
+use xray_proto_rust::proto;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "merge_xray_quadtrees")]
@@ -53,7 +53,7 @@ fn get_root_node(meta: &proto::Meta) -> Option<NodeId> {
         .iter()
         .map(NodeId::from)
         .min_by_key(|node| node.level())
-        //.find(|node| node.parent_id().is_none())
+    //.find(|node| node.parent_id().is_none())
 }
 
 fn get_root_nodes(meta: &Vec<proto::Meta>) -> Option<FnvHashSet<NodeId>> {
@@ -76,10 +76,18 @@ fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
         "Not all roots are unique."
     );
     let level = root_nodes.iter().next().unwrap().level(); // Safe by the assertions above.
-    assert!(root_nodes.iter().all(|node| node.level() == level), "Note all roots have the same level.");
+    assert!(
+        root_nodes.iter().all(|node| node.level() == level),
+        "Note all roots have the same level."
+    );
     let tile_size = metadata[0].get_tile_size(); // Safe by the assertions above.
-    assert!(metadata.iter().all(|meta| meta.get_tile_size() == tile_size), "Note all roots have the same level.");
-    
+    assert!(
+        metadata
+            .iter()
+            .all(|meta| meta.get_tile_size() == tile_size),
+        "Note all roots have the same level."
+    );
+
     Metadata {
         root_nodes,
         level,
@@ -88,7 +96,11 @@ fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
     }
 }
 
-fn merge(metadata: Metadata, output_directory: &Path, tile_background_color: generation::TileBackgroundColorArgument) {
+fn merge(
+    metadata: Metadata,
+    output_directory: &Path,
+    tile_background_color: generation::TileBackgroundColorArgument,
+) {
     let mut current_level_nodes = metadata.root_nodes;
     for current_level in (metadata.level..metadata.deepest_level).rev() {
         current_level_nodes = current_level_nodes

@@ -163,7 +163,8 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         }
     };
 
-    let tile_background_color = value_t!(args, "tile_background_color", TileBackgroundColorArgument)
+    let tile_background_color =
+        value_t!(args, "tile_background_color", TileBackgroundColorArgument)
             .expect("tile_background_color is invalid")
             .to_color();
 

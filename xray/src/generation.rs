@@ -13,7 +13,7 @@ use imageproc::map::map_colors;
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
-use point_viewer::color::{Color, WHITE, TRANSPARENT};
+use point_viewer::color::{Color, TRANSPARENT, WHITE};
 use point_viewer::geometry::Obb;
 use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::math::{ClosedInterval, Isometry3};
@@ -57,10 +57,10 @@ arg_enum! {
 
 impl TileBackgroundColorArgument {
     pub fn to_color(&self) -> Color<u8> {
-            match self {
-                TileBackgroundColorArgument::white => WHITE.to_u8(),
-                TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
-            }
+        match self {
+            TileBackgroundColorArgument::white => WHITE.to_u8(),
+            TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
+        }
     }
 }
 
@@ -677,8 +677,8 @@ pub fn build_xray_quadtree(
 
         for node_id in all_nodes {
             let mut proto = proto::NodeId::new();
-                proto.set_index(node_id.index());
-                proto.set_level(u32::from(node_id.level()));
+            proto.set_index(node_id.index());
+            proto.set_level(u32::from(node_id.level()));
             meta.mut_nodes().push(proto);
         }
         meta
