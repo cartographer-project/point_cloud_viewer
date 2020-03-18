@@ -97,6 +97,9 @@ struct Metadata {
 
 fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
     assert!(!metadata.is_empty());
+    assert!(metadata
+        .iter()
+        .all(|meta| meta.get_version() == xray::CURRENT_VERSION));
     let root_nodes = get_root_nodes(metadata).expect("One of the quadtrees is empty.");
     assert_eq!(
         metadata.len(),
@@ -121,6 +124,7 @@ fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
     for meta in metadata {
         nodes.extend(meta.get_nodes().iter().map(|proto| NodeId::from(proto)));
     }
+
     Metadata {
         root_nodes,
         level,
