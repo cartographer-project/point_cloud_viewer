@@ -15,9 +15,6 @@ struct CommandlineArguments {
     /// Tile background color.
     #[structopt(default_value = "white", long)]
     tile_background_color: generation::TileBackgroundColorArgument,
-    /// Tile size.
-    #[structopt(default_value = "256", long)]
-    tile_size: u32,
     /// Directories with, possibly multiple, partial xray quadtrees.
     #[structopt(parse(from_os_str))]
     input_directories: Vec<PathBuf>,
