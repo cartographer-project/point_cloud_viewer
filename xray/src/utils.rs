@@ -3,7 +3,9 @@ use quadtree::NodeId;
 use std::path::{Path, PathBuf};
 
 pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
-    directory.join(id.to_string()).with_extension("png")
+    directory
+        .join(id.to_string())
+        .with_extension(crate::IMAGE_FILE_EXTENSION)
 }
 
 pub fn image_from_path(image_path: &Path) -> Option<ImageResult<RgbaImage>> {

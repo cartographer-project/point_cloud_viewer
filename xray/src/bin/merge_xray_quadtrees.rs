@@ -1,7 +1,9 @@
 use fnv::FnvHashSet;
 use point_viewer::color::Color;
+use protobuf::Message;
 use quadtree::NodeId;
-use std::io::Cursor;
+use std::fs::File;
+use std::io::{BufWriter, Cursor};
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 use xray::generation;
@@ -23,6 +25,23 @@ struct CommandlineArguments {
     /// Directories with, possibly multiple, partial xray quadtrees.
     #[structopt(parse(from_os_str))]
     input_directories: Vec<PathBuf>,
+}
+
+fn copy_images(input_directory: &Path, output_directory: &Path) {
+    if input_directory == output_directory {
+        return;
+    }
+    globwalk::GlobWalkerBuilder::from_patterns(
+        input_directory,
+        &[&format!("*.{}", xray::IMAGE_FILE_EXTENSION)],
+    )
+    .build()
+    .expect("Failed to build GlobWalker")
+    .into_iter()
+    .filter_map(Result::ok)
+    .for_each(|dir_entry| {
+        std::fs::copy(dir_entry.path(), output_directory).expect("Failed to copy the file.");
+    })
 }
 
 fn read_metadata(path: &Path) -> proto::Meta {
@@ -66,6 +85,7 @@ struct Metadata {
     level: u8,
     deepest_level: u8,
     tile_size: u32,
+    bounding_rect: proto::Rect,
 }
 
 fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
@@ -88,13 +108,34 @@ fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
             .all(|meta| meta.get_tile_size() == tile_size),
         "Note all roots have the same level."
     );
+    let bounding_rect = metadata[0].get_bounding_rect().clone();
 
     Metadata {
         root_nodes,
         level,
         deepest_level: metadata[0].get_deepest_level() as u8, //Safe
         tile_size,
+        bounding_rect,
     }
+}
+
+fn write_metadata(metadata: Metadata, output_directory: &Path) {
+    let mut meta = proto::Meta::new();
+    meta.set_bounding_rect(metadata.bounding_rect);
+    meta.set_deepest_level(u32::from(metadata.deepest_level));
+    meta.set_tile_size(metadata.tile_size);
+    meta.set_version(xray::CURRENT_VERSION);
+
+    // for node_id in all_nodes {
+    //     let mut proto = proto::NodeId::new();
+    //     proto.set_index(node_id.index());
+    //     proto.set_level(u32::from(node_id.level()));
+    //     meta.mut_nodes().push(proto);
+    // }
+
+    let mut buf_writer = BufWriter::new(File::create(output_directory.join("meta.pb")).unwrap());
+    meta.write_to_writer(&mut buf_writer)
+        .expect("Failed to write meta.pb.");
 }
 
 fn merge(metadata: Metadata, output_directory: &Path, tile_background_color: Color<u8>) {

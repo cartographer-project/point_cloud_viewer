@@ -11,6 +11,7 @@ use std::path::Path;
 // Version 2 -> 3: Change in Rect proto from Vector2f to Vector2d min and float to double edge_length.
 // We are able to convert the proto on read, so the tools can still read version 2.
 pub const CURRENT_VERSION: i32 = 3;
+pub const IMAGE_FILE_EXTENSION: &str = "png";
 
 #[derive(Debug, Clone)]
 pub struct Meta {
