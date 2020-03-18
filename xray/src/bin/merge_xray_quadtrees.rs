@@ -3,7 +3,7 @@ use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "merge_xray_quadtrees")]
-/// Merge partial xray octrees. We assume that the root
+/// Merge partial xray quadtrees. We assume that the root
 /// of each quadtree belongs to the same level of the final
 /// quadtree.
 struct CommandlineArguments {
