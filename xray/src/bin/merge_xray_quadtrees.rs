@@ -165,5 +165,4 @@ fn main() {
         &args.output_directory,
         args.tile_background_color.to_color(),
     );
-    unimplemented!();
 }
