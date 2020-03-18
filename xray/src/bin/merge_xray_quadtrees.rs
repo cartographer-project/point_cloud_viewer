@@ -10,11 +10,14 @@ use xray::generation;
 struct CommandlineArguments {
     /// Directory where to write the merged quadtree. Does *not*
     /// have to be disjoint from input_directories.
-    #[structopt(parse(from_os_str), long = "output_directory")]
+    #[structopt(parse(from_os_str), long)]
     output_directory: PathBuf,
-    #[structopt(parse(from_os_str), default_value = "white")]
-    /// ...
+    /// Tile background color.
+    #[structopt(default_value = "white", long)]
     tile_background_color: generation::TileBackgroundColorArgument,
+    /// Tile size.
+    #[structopt(default_value = "256", long)]
+    tile_size: u32,
     /// Directories with, possibly multiple, partial xray quadtrees.
     #[structopt(parse(from_os_str))]
     input_directories: Vec<PathBuf>,
