@@ -660,8 +660,8 @@ pub fn build_xray_quadtree(
 
         for node_id in all_nodes {
             let mut proto = proto::NodeId::new();
-            proto.set_index(node_id.index());
-            proto.set_level(u32::from(node_id.level()));
+                proto.set_index(node_id.index());
+                proto.set_level(u32::from(node_id.level()));
             meta.mut_nodes().push(proto);
         }
         meta
@@ -675,7 +675,7 @@ pub fn build_xray_quadtree(
     Ok(())
 }
 
-fn build_level(
+pub fn build_level(
     output_directory: &Path,
     tile: &Tile,
     current_level: u8,

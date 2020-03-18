@@ -1,9 +1,10 @@
 use quadtree::NodeId;
-use std::collections::HashSet;
+use fnv::FnvHashSet;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 use xray_proto_rust::proto;
+use xray::generation;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "merge_xray_quadtrees")]
@@ -48,33 +49,61 @@ fn get_root_node(meta: &proto::Meta) -> Option<NodeId> {
     meta.get_nodes()
         .iter()
         .map(NodeId::from)
-        .find(|node| node.parent_id().is_none())
+        .min_by_key(|node| node.level())
+        //.find(|node| node.parent_id().is_none())
 }
 
-fn get_root_nodes(meta: &Vec<proto::Meta>) -> Option<Vec<NodeId>> {
+fn get_root_nodes(meta: &Vec<proto::Meta>) -> Option<FnvHashSet<NodeId>> {
     meta.iter().map(get_root_node).collect()
 }
 
-fn validate_metadata(metadata: &Vec<proto::Meta>) -> Vec<NodeId> {
+struct Metadata {
+    root_nodes: FnvHashSet<NodeId>,
+    level: u8,
+    deepest_level: u8,
+    tile: 
+}
+
+fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
+    assert!(!metadata.is_empty());
     let root_nodes = get_root_nodes(metadata).expect("One of the quadtrees is empty.");
-    let mut levels = HashSet::new();
-    let mut indices = HashSet::new();
-    for root_node in &root_nodes {
-        levels.insert(root_node.level());
-        indices.insert(root_node.index());
-    }
-    assert_eq!(levels.len(), 1, "Not all roots have the same levels.");
     assert_eq!(
-        indices.len(),
+        metadata.len(),
         root_nodes.len(),
-        "Not all roots have unique indices."
+        "Not all roots are unique."
     );
-    root_nodes
+    let level = root_nodes.iter().next().unwrap().level(); // Safe by the assertions above.
+    assert!(root_nodes.iter().all(|node| node.level() == level), "Note all roots have the same level.");
+    
+    Metadata {
+        root_nodes,
+        level,
+        deepest_level: metadata[0].get_deepest_level() as u8, //Safe
+    }
+}
+
+fn merge(metadata: Metadata, output_directory: &Path) {
+    let mut current_level_nodes = metadata.root_nodes;
+    for current_level in (metadata.level..metadata.deepest_level).rev() {
+        current_level_nodes = current_level_nodes
+            .iter()
+            .filter_map(|node| node.parent_id())
+            .collect();
+        generation::build_level(
+            output_directory,
+            tile,
+            current_level,
+            &current_level_nodes,
+            parameters,
+        );
+        //all_nodes.extend(&current_level_nodes);
+    }
 }
 
 fn main() {
     let args = CommandlineArguments::from_args();
     let metadata = read_metadata_from_directories(&args.input_directories);
-    let root_nodes = validate_metadata(&metadata);
+    let metadata = validate_metadata(&metadata);
+    merge(metadata, &args.output_directory);
     unimplemented!();
 }
