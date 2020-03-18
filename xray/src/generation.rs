@@ -13,7 +13,7 @@ use imageproc::map::map_colors;
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
-use point_viewer::color::{Color, TRANSPARENT};
+use point_viewer::color::{Color, WHITE, TRANSPARENT};
 use point_viewer::geometry::Obb;
 use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::math::{ClosedInterval, Isometry3};
@@ -52,6 +52,15 @@ arg_enum! {
     pub enum TileBackgroundColorArgument {
         white,
         transparent,
+    }
+}
+
+impl TileBackgroundColorArgument {
+    pub fn to_color(&self) -> Color<u8> {
+            match self {
+                TileBackgroundColorArgument::white => WHITE.to_u8(),
+                TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
+            }
     }
 }
 

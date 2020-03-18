@@ -14,8 +14,11 @@ use xray::generation;
 struct CommandlineArguments {
     /// Directory where to write the merged quadtree. Does *not*
     /// have to be disjoint from input_directories.
-    #[structopt(parse(from_os_str), long = "output_directory")]
+    #[structopt(parse(from_os_str), long)]
     output_directory: PathBuf,
+    /// Tile background color.
+    #[structopt(default_value = "white", long)]
+    tile_background_color: generation::TileBackgroundColorArgument,
     /// Directories with, possibly multiple, partial xray quadtrees.
     #[structopt(parse(from_os_str))]
     input_directories: Vec<PathBuf>,
@@ -85,7 +88,7 @@ fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
     }
 }
 
-fn merge(metadata: Metadata, output_directory: &Path) {
+fn merge(metadata: Metadata, output_directory: &Path, tile_background_color: generation::TileBackgroundColorArgument) {
     let mut current_level_nodes = metadata.root_nodes;
     for current_level in (metadata.level..metadata.deepest_level).rev() {
         current_level_nodes = current_level_nodes
@@ -94,10 +97,10 @@ fn merge(metadata: Metadata, output_directory: &Path) {
             .collect();
         generation::build_level(
             output_directory,
-            tile,
+            metadata.tile_size,
             current_level,
             &current_level_nodes,
-            parameters,
+            tile_background_color.to_color(),
         );
         //all_nodes.extend(&current_level_nodes);
     }
@@ -107,6 +110,6 @@ fn main() {
     let args = CommandlineArguments::from_args();
     let metadata = read_metadata_from_directories(&args.input_directories);
     let metadata = validate_metadata(&metadata);
-    merge(metadata, &args.output_directory);
+    merge(metadata, &args.output_directory, args.tile_background_color);
     unimplemented!();
 }
