@@ -9,6 +9,7 @@ use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::{ClosedInterval, Isometry3};
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
 use point_viewer::utils::parse_key_val;
+use quadtree::NodeId;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -110,6 +111,11 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .long("inpaint-distance-px")
                 .takes_value(true)
                 .default_value("0"),
+            clap::Arg::with_name("root_node_id")
+                .help("The root node id to start building with.")
+                .long("root-node-id")
+                .takes_value(true)
+                .default_value("r"),
         ]);
     app = T::pre_init(app);
     app.get_matches()
@@ -196,12 +202,18 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         .unwrap()
         .parse::<u8>()
         .expect("inpaint_distance_px could not be parsed.");
+    let root_node_id = args
+        .value_of("root_node_id")
+        .unwrap()
+        .parse::<NodeId>()
+        .expect("root_node_id could not be parsed.");
     let parameters = XrayParameters {
         point_cloud_client,
         query_from_global: T::query_from_global(&args),
         filter_intervals,
         tile_background_color,
         inpaint_distance_px,
+        root_node_id,
     };
     build_xray_quadtree(
         output_directory,
