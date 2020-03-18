@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use structopt::StructOpt;
+use xray::generation;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "merge_xray_quadtrees")]
@@ -11,6 +12,9 @@ struct CommandlineArguments {
     /// have to be disjoint from input_directories.
     #[structopt(parse(from_os_str), long = "output_directory")]
     output_directory: PathBuf,
+    #[structopt(parse(from_os_str), default_value = "white")]
+    /// ...
+    tile_background_color: generation::TileBackgroundColorArgument,
     /// Directories with, possibly multiple, partial xray quadtrees.
     #[structopt(parse(from_os_str))]
     input_directories: Vec<PathBuf>,
