@@ -463,6 +463,7 @@ pub struct XrayParameters {
     pub filter_intervals: HashMap<String, ClosedInterval<f64>>,
     pub tile_background_color: Color<u8>,
     pub inpaint_distance_px: u8,
+    pub root_node_id: NodeId,
 }
 
 pub fn xray_from_points(
@@ -559,9 +560,16 @@ pub fn build_xray_quadtree(
     // Create the deepest level of the quadtree.
     let (created_leaf_node_ids_tx, created_leaf_node_ids_rx) = crossbeam::channel::unbounded();
 
-    let mut leaf_nodes = Vec::with_capacity(4usize.pow(deepest_level.into()));
+    let root_node_id = parameters.root_node_id;
+    let root_level = root_node_id.level();
+    assert!(
+        root_level <= deepest_level,
+        "Specified root node id is outside quadtree."
+    );
+    let root_node = Node::from_node_id_and_root_bounding_rect(root_node_id, bounding_rect.clone());
+    let mut leaf_nodes = Vec::with_capacity(4usize.pow((deepest_level - root_level).into()));
     let mut nodes_to_traverse = Vec::with_capacity((4 * leaf_nodes.capacity() - 1) / 3);
-    nodes_to_traverse.push(Node::root_with_bounding_rect(bounding_rect.clone()));
+    nodes_to_traverse.push(root_node);
     while let Some(node) = nodes_to_traverse.pop() {
         if node.level() == deepest_level {
             leaf_nodes.push(node);
@@ -629,7 +637,7 @@ pub fn build_xray_quadtree(
     let mut current_level_nodes = created_leaf_node_ids;
     let mut all_nodes = current_level_nodes.clone();
 
-    for current_level in (0..deepest_level).rev() {
+    for current_level in (root_level..deepest_level).rev() {
         current_level_nodes = current_level_nodes
             .iter()
             .filter_map(|node| node.parent_id())
@@ -667,7 +675,8 @@ pub fn build_xray_quadtree(
         meta
     };
 
-    let mut buf_writer = BufWriter::new(File::create(output_directory.join("meta.pb")).unwrap());
+    let meta_pb_name = format!("{}.pb", root_node_id).replace("r", "meta");
+    let mut buf_writer = BufWriter::new(File::create(output_directory.join(meta_pb_name)).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
 
     progress_bar.lock().unwrap().finish();
