@@ -44,6 +44,12 @@ fn copy_images(input_directory: &Path, output_directory: &Path) {
     })
 }
 
+fn copy_all_images(input_directories: &Vec<PathBuf>, output_directory: &Path) {
+    for input_directory in input_directories {
+        copy_images(input_directory, output_directory);
+    }
+}
+
 fn read_metadata(path: &Path) -> proto::Meta {
     let data = std::fs::read(&path).expect("Cannot open file");
     protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
@@ -82,6 +88,7 @@ fn get_root_nodes(meta: &Vec<proto::Meta>) -> Option<FnvHashSet<NodeId>> {
 
 struct Metadata {
     root_nodes: FnvHashSet<NodeId>,
+    nodes: FnvHashSet<NodeId>,
     level: u8,
     deepest_level: u8,
     tile_size: u32,
@@ -110,12 +117,17 @@ fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
     );
     let bounding_rect = metadata[0].get_bounding_rect().clone();
 
+    let mut nodes = FnvHashSet::default();
+    for meta in metadata {
+        nodes.extend(meta.get_nodes().iter().map(|proto| NodeId::from(proto)));
+    }
     Metadata {
         root_nodes,
         level,
         deepest_level: metadata[0].get_deepest_level() as u8, //Safe
         tile_size,
         bounding_rect,
+        nodes,
     }
 }
 
@@ -126,20 +138,20 @@ fn write_metadata(metadata: Metadata, output_directory: &Path) {
     meta.set_tile_size(metadata.tile_size);
     meta.set_version(xray::CURRENT_VERSION);
 
-    // for node_id in all_nodes {
-    //     let mut proto = proto::NodeId::new();
-    //     proto.set_index(node_id.index());
-    //     proto.set_level(u32::from(node_id.level()));
-    //     meta.mut_nodes().push(proto);
-    // }
+    for node_id in metadata.nodes {
+        let mut proto = proto::NodeId::new();
+        proto.set_index(node_id.index());
+        proto.set_level(u32::from(node_id.level()));
+        meta.mut_nodes().push(proto);
+    }
 
     let mut buf_writer = BufWriter::new(File::create(output_directory.join("meta.pb")).unwrap());
     meta.write_to_writer(&mut buf_writer)
         .expect("Failed to write meta.pb.");
 }
 
-fn merge(metadata: Metadata, output_directory: &Path, tile_background_color: Color<u8>) {
-    let mut current_level_nodes = metadata.root_nodes;
+fn merge(mut metadata: Metadata, output_directory: &Path, tile_background_color: Color<u8>) {
+    let mut current_level_nodes = metadata.root_nodes.clone();
     for current_level in (metadata.level..metadata.deepest_level).rev() {
         current_level_nodes = current_level_nodes
             .iter()
@@ -152,14 +164,16 @@ fn merge(metadata: Metadata, output_directory: &Path, tile_background_color: Col
             &current_level_nodes,
             tile_background_color,
         );
-        //all_nodes.extend(&current_level_nodes);
+        metadata.nodes.extend(&current_level_nodes);
     }
+    write_metadata(metadata, output_directory);
 }
 
 fn main() {
     let args = CommandlineArguments::from_args();
     let metadata = read_metadata_from_directories(&args.input_directories);
     let metadata = validate_metadata(&metadata);
+    copy_all_images(&args.input_directories, &args.output_directory);
     merge(
         metadata,
         &args.output_directory,
