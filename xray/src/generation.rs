@@ -644,10 +644,10 @@ pub fn build_xray_quadtree(
             .collect();
         build_level(
             output_directory,
-            tile,
+            tile.size_px,
             current_level,
             &current_level_nodes,
-            parameters,
+            parameters.tile_background_color,
         );
         all_nodes.extend(&current_level_nodes);
     }
@@ -684,23 +684,28 @@ pub fn build_xray_quadtree(
     Ok(())
 }
 
-fn build_level(
+pub fn build_level(
     output_directory: &Path,
-    tile: &Tile,
+    tile_size_px: u32,
     current_level: u8,
     nodes: &FnvHashSet<NodeId>,
-    parameters: &XrayParameters,
+    tile_background_color: Color<u8>,
 ) {
     let progress_bar =
         create_syncable_progress_bar(nodes.len(), &format!("Building level {}", current_level));
     nodes.par_iter().for_each(|node| {
-        build_node(output_directory, *node, tile, parameters);
+        build_node(output_directory, *node, tile_size_px, tile_background_color);
         progress_bar.lock().unwrap().inc();
     });
     progress_bar.lock().unwrap().finish_println("");
 }
 
-fn build_node(output_directory: &Path, node_id: NodeId, tile: &Tile, parameters: &XrayParameters) {
+fn build_node(
+    output_directory: &Path,
+    node_id: NodeId,
+    tile_size_px: u32,
+    tile_background_color: Color<u8>,
+) {
     let mut children = [None, None, None, None];
     // We a right handed coordinate system with the x-axis of world and images
     // aligning. This means that the y-axis aligns too, but the origin of the image
@@ -716,10 +721,10 @@ fn build_node(output_directory: &Path, node_id: NodeId, tile: &Tile, parameters:
         }
     }
     if children.iter().any(|child| child.is_some()) {
-        let large_image = build_parent(&children, parameters.tile_background_color);
+        let large_image = build_parent(&children, tile_background_color);
         let image = image::DynamicImage::ImageRgba8(large_image).resize(
-            tile.size_px,
-            tile.size_px,
+            tile_size_px,
+            tile_size_px,
             image::imageops::FilterType::Lanczos3,
         );
         image
