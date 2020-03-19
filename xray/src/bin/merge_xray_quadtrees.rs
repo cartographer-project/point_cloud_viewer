@@ -166,7 +166,7 @@ fn write_metadata(metadata: Metadata, output_directory: &Path) {
 
 fn merge(mut metadata: Metadata, output_directory: &Path, tile_background_color: Color<u8>) {
     let mut current_level_nodes = metadata.root_nodes.clone();
-    for current_level in (metadata.level..metadata.deepest_level).rev() {
+    for current_level in (0..metadata.level).rev() {
         current_level_nodes = current_level_nodes
             .iter()
             .filter_map(|node| node.parent_id())
