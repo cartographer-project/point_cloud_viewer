@@ -31,9 +31,9 @@ fn copy_images(input_directory: &Path, output_directory: &Path) {
     if input_directory == output_directory {
         return;
     }
-    globwalk::GlobWalkerBuilder::from_patterns(
+    globwalk::GlobWalkerBuilder::new(
         input_directory,
-        &[&format!("*.{}", xray::IMAGE_FILE_EXTENSION)],
+        &format!("*.{}", xray::IMAGE_FILE_EXTENSION),
     )
     .build()
     .expect("Failed to build GlobWalker")
@@ -61,7 +61,7 @@ fn read_metadata(path: &Path) -> proto::Meta {
 }
 
 fn read_metadata_from_directory(directory: &Path) -> Vec<proto::Meta> {
-    globwalk::GlobWalkerBuilder::from_patterns(directory, &["meta*.pb"])
+    globwalk::GlobWalkerBuilder::new(directory, "meta*.pb")
         .build()
         .expect("Failed to build GlobWalker")
         .into_iter()
