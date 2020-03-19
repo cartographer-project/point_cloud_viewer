@@ -37,7 +37,6 @@ fn copy_images(input_directory: &Path, output_directory: &Path) {
     )
     .build()
     .expect("Failed to build GlobWalker")
-    .into_iter()
     .filter_map(Result::ok)
     .for_each(|dir_entry| {
         std::fs::copy(
@@ -64,7 +63,6 @@ fn read_metadata_from_directory(directory: &Path) -> Vec<proto::Meta> {
     globwalk::GlobWalkerBuilder::new(directory, "meta*.pb")
         .build()
         .expect("Failed to build GlobWalker")
-        .into_iter()
         .filter_map(Result::ok)
         .map(|dir_entry| read_metadata(dir_entry.path()))
         .collect()
