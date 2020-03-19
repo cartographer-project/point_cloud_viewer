@@ -61,9 +61,9 @@ impl Iterator for SyntheticData {
         if self.count == self.size {
             return None;
         }
-        let pos = self.next_pos();
+        let position = self.next_pos();
         let point = Point {
-            position: pos,
+            position,
             // Encode index in color, which is preserved in octrees.
             color: Color::<u8> {
                 red: (self.count >> 16) as u8,

@@ -120,11 +120,11 @@ fn main() {
     replies
         .for_each(|reply| {
             let last_num_points = points.len();
-            for (position, color) in reply.positions.iter().zip(reply.colors.iter()) {
-                let p = Point3::new(position.x, position.y, position.z);
-                bounding_box.grow(p);
+            for (p, color) in reply.positions.iter().zip(reply.colors.iter()) {
+                let position = Point3::from(p);
+                bounding_box.grow(position);
                 points.push(Point {
-                    position: p,
+                    position,
                     color: Color {
                         red: color.red,
                         green: color.green,

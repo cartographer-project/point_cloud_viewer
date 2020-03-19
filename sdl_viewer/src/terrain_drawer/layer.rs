@@ -48,7 +48,7 @@ impl TerrainLayer {
         // Initial terrain pos
         let terrain_pos: Vector2<i64> =
             grid_coordinates.terrain_pos_for_camera_pos(Point3::new(0.0, 0.0, 0.0));
-        let float_terrain_pos: Vector2<f64> = Self::convert_terrain_pos(terrain_pos);
+        let float_terrain_pos = Self::convert_terrain_pos_to_float(terrain_pos);
         let u_terrain_pos = GlUniform::new(&program, "terrain_pos", float_terrain_pos);
 
         let height_initial = height_tiles.load(
@@ -149,7 +149,7 @@ impl TerrainLayer {
         );
 
         self.terrain_pos = cur_pos;
-        self.u_terrain_pos.value = Self::convert_terrain_pos(cur_pos)
+        self.u_terrain_pos.value = Self::convert_terrain_pos_to_float(cur_pos)
     }
 
     pub fn terrain_from_world(&self) -> &Isometry3<f64> {
@@ -171,7 +171,7 @@ impl TerrainLayer {
     }
 
     // Helper function because OpenGL doesn't like i64
-    fn convert_terrain_pos(v: Vector2<i64>) -> Vector2<f64> {
+    fn convert_terrain_pos_to_float(v: Vector2<i64>) -> Vector2<f64> {
         assert!(
             v.x < F64_MAX_SAFE_INT && v.x > F64_MIN_SAFE_INT,
             "Terrain location not representable."
