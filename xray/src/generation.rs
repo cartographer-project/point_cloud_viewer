@@ -3,7 +3,7 @@
 use crate::colormap::{Colormap, Jet, Monochrome, PURPLISH};
 use crate::inpaint::perform_inpainting;
 use crate::utils::get_image_path;
-use crate::{proto, CURRENT_VERSION};
+use crate::Meta;
 use cgmath::{Decomposed, EuclideanSpace, Point2, Point3, Quaternion, Vector2, Vector3};
 use clap::arg_enum;
 use collision::{Aabb, Aabb3};
@@ -19,14 +19,12 @@ use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::math::{ClosedInterval, Isometry3};
 use point_viewer::utils::create_syncable_progress_bar;
 use point_viewer::{match_1d_attr_data, PointsBatch};
-use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use stats::OnlineStats;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
-use std::fs::{self, File};
-use std::io::BufWriter;
+use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -661,35 +659,16 @@ pub fn build_xray_quadtree(
         all_nodes.extend(&current_level_nodes);
     }
 
-    let meta = {
-        let mut meta = proto::Meta::new();
-        meta.mut_bounding_rect()
-            .mut_min()
-            .set_x(bounding_rect.min().x);
-        meta.mut_bounding_rect()
-            .mut_min()
-            .set_y(bounding_rect.min().y);
-        meta.mut_bounding_rect()
-            .set_edge_length(bounding_rect.edge_length());
-        meta.set_deepest_level(u32::from(deepest_level));
-        meta.set_tile_size(tile.size_px);
-        meta.set_version(CURRENT_VERSION);
-
-        for node_id in all_nodes {
-            let mut proto = proto::NodeId::new();
-            proto.set_index(node_id.index());
-            proto.set_level(u32::from(node_id.level()));
-            meta.mut_nodes().push(proto);
-        }
-        meta
+    let meta = Meta {
+        nodes: all_nodes,
+        bounding_rect,
+        tile_size: tile.size_px,
+        deepest_level,
     };
-
     let meta_pb_name = format!("{}.pb", root_node_id).replace("r", "meta");
-    let mut buf_writer = BufWriter::new(File::create(output_directory.join(meta_pb_name)).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
-
+    meta.to_disk(output_directory.join(meta_pb_name))
+        .expect("Filed to write meta file to disk.");
     progress_bar.lock().unwrap().finish();
-
     Ok(())
 }
 
