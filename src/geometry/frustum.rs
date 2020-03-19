@@ -19,19 +19,19 @@ impl<S: RealField> Perspective<S> {
     pub fn new(left: S, right: S, bottom: S, top: S, near: S, far: S) -> Self {
         assert!(
             left < right,
-            "`left` cannot be greater than `right`, found: left: {:?} right: {:?}",
+            "`left` must be smaller than `right`, found: left: {:?} right: {:?}",
             left,
             right
         );
         assert!(
             bottom < top,
-            "`bottom` cannot be greater than `top`, found: bottom: {:?} top: {:?}",
+            "`bottom` must be smaller than `top`, found: bottom: {:?} top: {:?}",
             bottom,
             top
         );
         assert!(
             near > S::zero() && near < far,
-            "`near` must be greater than 0 and cannot be greater than `far`, found: near: {:?} far: {:?}",
+            "`near` must be greater than 0 and must be smaller than `far`, found: near: {:?} far: {:?}",
             near,
             far
         );

@@ -133,7 +133,8 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f64>) -> f64 {
     ] {
         rv.grow(clip_point_to_hemicube(&project(matrix, p)));
     }
-    (rv.max().x - rv.min().x) * (rv.max().y - rv.min().y)
+    let diag = rv.diag();
+    diag.x * diag.y
 }
 
 pub struct Octree {
