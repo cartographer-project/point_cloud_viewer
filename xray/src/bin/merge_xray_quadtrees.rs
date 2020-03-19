@@ -96,29 +96,38 @@ struct Metadata {
     bounding_rect: proto::Rect,
 }
 
+// There must be at least one element in the iterator.
+fn check_all_the_same<I, V>(mut iterator: I) -> Option<V>
+where
+    I: Iterator<Item = V>,
+    V: std::cmp::PartialEq,
+{
+    let first = iterator.next().expect("Empty iterator");
+    if iterator.all(|element| element == first) {
+        Some(first)
+    } else {
+        None
+    }
+}
+
 fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
-    assert!(!metadata.is_empty());
-    assert!(metadata
-        .iter()
-        .all(|meta| meta.get_version() == xray::CURRENT_VERSION));
+    assert!(!metadata.is_empty(), "No meta.pb files found.");
     let root_nodes = get_root_nodes(metadata).expect("One of the quadtrees is empty.");
     assert_eq!(
         metadata.len(),
         root_nodes.len(),
         "Not all roots are unique."
     );
-    let level = root_nodes.iter().next().unwrap().level(); // Safe by the assertions above.
-    assert!(
-        root_nodes.iter().all(|node| node.level() == level),
-        "Note all roots have the same level."
-    );
-    let tile_size = metadata[0].get_tile_size(); // Safe by the assertions above.
-    assert!(
-        metadata
-            .iter()
-            .all(|meta| meta.get_tile_size() == tile_size),
-        "Note all roots have the same level."
-    );
+    let version = check_all_the_same(metadata.iter().map(|meta| meta.get_version()))
+        .expect("Not all meta files have the same version.");
+    assert_eq!(version, xray::CURRENT_VERSION);
+    let level = check_all_the_same(root_nodes.iter().map(|node| node.level()))
+        .expect("Not all roots have the same level.");
+    let deepest_level = check_all_the_same(metadata.iter().map(|meta| meta.get_deepest_level()))
+        .expect("Not all meta files have the same deepest level.") as u8;
+    let tile_size = check_all_the_same(metadata.iter().map(|meta| meta.get_tile_size()))
+        .expect("Not all meta files have the same tile size.");
+    // TODO: check whether all root nodes have the same bound_rect.
     let bounding_rect = metadata[0].get_bounding_rect().clone();
 
     let mut nodes = FnvHashSet::default();
@@ -129,7 +138,7 @@ fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
     Metadata {
         root_nodes,
         level,
-        deepest_level: metadata[0].get_deepest_level() as u8, //Safe
+        deepest_level,
         tile_size,
         bounding_rect,
         nodes,
