@@ -102,7 +102,7 @@ where
     I: Iterator<Item = V>,
     V: std::cmp::PartialEq,
 {
-    let first = iterator.next().expect("Empty iterator");
+    let first = iterator.next().expect("Iterator cannot be empty");
     if iterator.all(|element| element == first) {
         Some(first)
     } else {
