@@ -134,6 +134,15 @@ impl<S: RealField + Bounded> Intersector<S> {
         }
     }
 
+    /// A specialized version of [`cache_separating_axes`](#method.cache_separating_axes) for
+    /// the case where the other object is an AABB.
+    pub fn cache_separating_axes_for_aabb(self) -> CachedAxesIntersector<S> {
+        // An AABB is by definition axis-aligned, so the edges and face normals are exactly the
+        // x, y, z unit vectors.
+        let unit_axes = [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()];
+        self.cache_separating_axes(&unit_axes, &unit_axes)
+    }
+
     /// Perform an intersection test. The resulting Relation expresses how the other object is spatially
     /// related to the self object – e.g. if `Relation::In` is returned, the other object is completely
     /// inside the self object.

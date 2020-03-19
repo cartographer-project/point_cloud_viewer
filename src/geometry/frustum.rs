@@ -4,7 +4,7 @@ use crate::geometry::Aabb;
 use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector, Relation};
 use crate::math::PointCulling;
 use arrayvec::ArrayVec;
-use nalgebra::{Isometry3, Matrix4, Point3, RealField, Unit, Vector3};
+use nalgebra::{Isometry3, Matrix4, Point3, RealField, Unit};
 use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
@@ -121,10 +121,7 @@ pub struct CachedAxesFrustum<S: RealField> {
 
 impl<S: RealField + Bounded> CachedAxesFrustum<S> {
     pub fn new(frustum: Frustum<S>) -> Self {
-        let unit_axes = [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()];
-        let separating_axes = frustum
-            .intersector()
-            .cache_separating_axes(&unit_axes, &unit_axes);
+        let separating_axes = frustum.intersector().cache_separating_axes_for_aabb();
         Self {
             frustum,
             separating_axes,

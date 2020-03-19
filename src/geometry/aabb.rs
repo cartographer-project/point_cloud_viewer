@@ -4,7 +4,7 @@ use crate::math::sat::{self, ConvexPolyhedron, Intersector, Relation};
 use crate::math::PointCulling;
 use crate::proto;
 use arrayvec::ArrayVec;
-use nalgebra::{Isometry3, Point3, RealField, Unit, Vector3};
+use nalgebra::{Isometry3, Point3, RealField, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// An axis-aligned bounding box.
@@ -62,13 +62,6 @@ impl<S: RealField> Aabb<S> {
             u.grow(transform.transform_point(&corner));
             u
         })
-    }
-
-    /// It's convenient to have this associated function for intersection testing.
-    /// To be precise, it's nice if we can give this to cache_separating_axes() without
-    /// having to reference a specific Aabb instance.
-    pub fn axes() -> [Unit<Vector3<S>>; 3] {
-        [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()]
     }
 }
 

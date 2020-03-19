@@ -112,9 +112,7 @@ impl Meta {
         };
         let frustum =
             Frustum::from_matrix4(matrix).ok_or("Unable to create frustum from matrix")?;
-        let frustum_isec = frustum
-            .intersector()
-            .cache_separating_axes(&Aabb::axes(), &Aabb::axes());
+        let frustum_isec = frustum.intersector().cache_separating_axes_for_aabb();
         let mut result = Vec::new();
         let mut open = vec![Node::from_node_id_and_root_bounding_rect(
             NodeId::root(),

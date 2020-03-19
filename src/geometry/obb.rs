@@ -24,10 +24,7 @@ pub struct CachedAxesObb<S: RealField> {
 
 impl<S: RealField + Bounded> CachedAxesObb<S> {
     pub fn new(obb: Obb<S>) -> Self {
-        let unit_axes = [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()];
-        let separating_axes = obb
-            .intersector()
-            .cache_separating_axes(&unit_axes, &unit_axes);
+        let separating_axes = obb.intersector().cache_separating_axes_for_aabb();
         Self {
             obb,
             separating_axes,

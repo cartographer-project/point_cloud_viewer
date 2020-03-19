@@ -227,9 +227,7 @@ impl Octree {
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
         let frustum =
             Frustum::from_matrix4(*projection_matrix).expect("Invalid projection matrix.");
-        let frustum_isec = frustum
-            .intersector()
-            .cache_separating_axes(&Aabb::axes(), &Aabb::axes());
+        let frustum_isec = frustum.intersector().cache_separating_axes_for_aabb();
         let mut open = BinaryHeap::new();
         maybe_push_node(
             &mut open,
@@ -316,7 +314,7 @@ impl PointCloud for Octree {
 
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
         let node_ids_for_intersector = |isec: Intersector<f64>| {
-            let cached_intersector = isec.cache_separating_axes(&Aabb::axes(), &Aabb::axes());
+            let cached_intersector = isec.cache_separating_axes_for_aabb();
             NodeIdsIterator::new(&self, move |node_id, octree| {
                 let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
                 cached_intersector.intersect(&aabb.compute_corners()) != Relation::Out
