@@ -83,9 +83,8 @@ fn get_root_node(meta: &proto::Meta) -> Option<NodeId> {
         .min_by_key(|node| node.level())
 }
 
-fn get_root_nodes(meta: &Vec<proto::Meta>) -> FnvHashSet<NodeId> {
-    // This will filter out empty quad trees.
-    meta.iter().map(get_root_node).filter_map(|node| node).collect()
+fn get_root_nodes(meta: &Vec<proto::Meta>) -> Vec<Option<NodeId>> {
+    meta.iter().map(get_root_node).collect()
 }
 
 struct Metadata {
@@ -97,6 +96,7 @@ struct Metadata {
     bounding_rect: proto::Rect,
 }
 
+// Checks wheter all the elements in the iterator have the same value and returns it.
 // There must be at least one element in the iterator.
 fn check_all_the_same<I, V>(mut iterator: I) -> Option<V>
 where
@@ -113,12 +113,20 @@ where
 
 fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
     assert!(!metadata.is_empty(), "No meta.pb files found.");
-    let root_nodes = get_root_nodes(metadata);//.expect("One of the quadtrees is empty.");
-    assert_eq!(
-        metadata.len(),
-        root_nodes.len(),
-        "Not all roots are unique."
-    );
+    let (somes, nones): (Vec<Option<NodeId>>, Vec<Option<NodeId>>) = get_root_nodes(metadata)
+        .iter()
+        .partition(|res| res.is_some());
+    assert!(!somes.is_empty(), "All quadtrees are empty.");
+    if !nones.is_empty() {
+        println!(
+            "{} out of {} quadtrees are empty.",
+            nones.len(),
+            metadata.len()
+        );
+    }
+    // The unwrap below is is safe.
+    let root_nodes: FnvHashSet<NodeId> = somes.iter().map(|node_id| node_id.unwrap()).collect();
+    assert_eq!(root_nodes.len(), somes.len(), "Not all roots are unique.");
     let level = check_all_the_same(root_nodes.iter().map(|node| node.level()))
         .expect("Not all roots have the same level.");
     let version = check_all_the_same(metadata.iter().map(|meta| meta.get_version()))
