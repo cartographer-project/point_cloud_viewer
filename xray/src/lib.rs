@@ -99,7 +99,11 @@ impl Meta {
 
     pub fn to_proto(&self) -> proto::Meta {
         let mut meta = proto::Meta::new();
-        //meta.set_bounding_rect(metadata.bounding_rect);
+        let bounding_rect = meta.mut_bounding_rect();
+        bounding_rect.set_edge_length(self.bounding_rect.edge_length());
+        let min = bounding_rect.mut_min();
+        min.set_x(self.bounding_rect.min().x);
+        min.set_y(self.bounding_rect.min().y);
         meta.set_deepest_level(u32::from(self.deepest_level));
         meta.set_tile_size(self.tile_size);
         meta.set_version(CURRENT_VERSION);

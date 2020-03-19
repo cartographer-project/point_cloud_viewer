@@ -40,7 +40,11 @@ fn copy_images(input_directory: &Path, output_directory: &Path) {
             dir_entry.path(),
             output_directory.join(dir_entry.file_name()),
         )
-        .expect("Failed to copy the file.");
+        .expect(&format!(
+            "Failed to copy {:?} to {:?}.",
+            dir_entry.path(),
+            output_directory
+        ));
     })
 }
 
@@ -156,7 +160,7 @@ fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_
     }
     metadata
         .merged_meta
-        .to_disk(output_directory)
+        .to_disk(output_directory.join("meta.pb"))
         .expect("Failed to write meta.pb");
 }
 
