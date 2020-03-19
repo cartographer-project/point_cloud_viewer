@@ -222,7 +222,7 @@ mod tests {
         let reference_inverse = persp.as_matrix().try_inverse().unwrap();
         let inverse = persp.inverse();
         let diff = (reference_inverse - inverse).abs();
-        assert!(diff.max() < 0.000001, "diff.max() is {}", diff.max());
+        assert!(diff.max() < 1e-6, "diff.max() is {}", diff.max());
     }
 
     #[test]

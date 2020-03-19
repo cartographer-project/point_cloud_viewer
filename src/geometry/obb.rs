@@ -39,7 +39,7 @@ impl<S: RealField> From<&Aabb<S>> for Obb<S> {
     fn from(aabb: &Aabb<S>) -> Self {
         Obb::new(
             Isometry3::from_parts(aabb.center().coords.into(), UnitQuaternion::identity()),
-            aabb.max() - aabb.center(),
+            aabb.diag() * nalgebra::convert::<f64, S>(0.5),
         )
     }
 }
