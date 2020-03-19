@@ -1,4 +1,5 @@
 use fnv::FnvHashSet;
+use itertools::Itertools;
 use point_viewer::color::Color;
 use quadtree::NodeId;
 use std::path::{Path, PathBuf};
@@ -71,8 +72,15 @@ fn get_root_node(meta: &Meta) -> Option<NodeId> {
     meta.nodes.iter().copied().min_by_key(|node| node.level())
 }
 
-fn get_root_nodes(meta: &[Meta]) -> Vec<Option<NodeId>> {
-    meta.iter().map(get_root_node).collect()
+fn get_root_nodes(meta: &[Meta]) -> Vec<NodeId> {
+    let root_nodes: Vec<NodeId> = meta.iter().filter_map(get_root_node).collect();
+    if root_nodes.len() != meta.len() {
+        println!(
+            "Skipped {} empty subquadtrees.",
+            meta.len() - root_nodes.len()
+        );
+    }
+    root_nodes
 }
 
 struct MergedMetadata {
@@ -85,33 +93,25 @@ struct MergedMetadata {
 // There must be at least one element in the iterator.
 fn check_all_the_same<I, V>(mut iterator: I) -> Option<V>
 where
-    I: Iterator<Item = V>,
+    I: Iterator<Item = V> + Clone,
     V: std::cmp::PartialEq,
 {
-    let first = iterator.next().expect("Iterator cannot be empty");
-    if iterator.all(|element| element == first) {
-        Some(first)
+    if iterator.clone().all_equal() {
+        Some(iterator.next().expect("Iterator cannot be empty."))
     } else {
         None
     }
 }
 
-fn validate_metadata(metadata: &[Meta]) -> MergedMetadata {
-    assert!(!metadata.is_empty(), "No meta.pb files found.");
-    let (somes, nones): (Vec<Option<NodeId>>, Vec<Option<NodeId>>) = get_root_nodes(metadata)
-        .iter()
-        .partition(|res| res.is_some());
-    assert!(!somes.is_empty(), "All quadtrees are empty.");
-    if !nones.is_empty() {
-        println!(
-            "{} out of {} quadtrees are empty.",
-            nones.len(),
-            metadata.len()
-        );
-    }
-    // The unwrap below is is safe.
-    let root_nodes: FnvHashSet<NodeId> = somes.iter().map(|node_id| node_id.unwrap()).collect();
-    assert_eq!(root_nodes.len(), somes.len(), "Not all roots are unique.");
+fn validate_and_merge_metadata(metadata: &[Meta]) -> MergedMetadata {
+    assert!(!metadata.is_empty(), "No subquadtrees meta files found.");
+    let root_nodes_vec = get_root_nodes(metadata);
+    let root_nodes: FnvHashSet<NodeId> = root_nodes_vec.iter().copied().collect();
+    assert_eq!(
+        root_nodes.len(),
+        root_nodes_vec.len(),
+        "Not all roots are unique."
+    );
     let level = check_all_the_same(root_nodes.iter().map(|node| node.level()))
         .expect("Not all roots have the same level.");
     let deepest_level = check_all_the_same(metadata.iter().map(|meta| meta.deepest_level))
@@ -163,7 +163,7 @@ fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_
 fn main() {
     let args = CommandlineArguments::from_args();
     let metadata = read_metadata_from_directories(&args.input_directories);
-    let merged_metadata = validate_metadata(&metadata);
+    let merged_metadata = validate_and_merge_metadata(&metadata);
     copy_all_images(&args.input_directories, &args.output_directory);
     merge(
         merged_metadata,
