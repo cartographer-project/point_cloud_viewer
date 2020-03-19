@@ -584,6 +584,12 @@ pub fn build_xray_quadtree(
         &created_leaf_node_ids,
     )?;
 
+    assign_background_color(
+        &parameters.output_directory,
+        parameters.tile_background_color,
+        &created_leaf_node_ids,
+    )?;
+
     let all_node_ids =
         create_non_leaf_nodes(created_leaf_node_ids, deepest_level, root_level, parameters)?;
 
@@ -662,25 +668,6 @@ pub fn create_non_leaf_nodes(
     root_level: u8,
     parameters: &XrayParameters,
 ) -> ImageResult<FnvHashSet<NodeId>> {
-    let progress_bar =
-        create_syncable_progress_bar(created_leaf_node_ids.len(), "Assigning background color");
-    let background_color = Rgba::from(parameters.tile_background_color);
-    created_leaf_node_ids
-        .par_iter()
-        .try_for_each(|node_id| -> ImageResult<()> {
-            let image_path = get_image_path(&parameters.output_directory, *node_id);
-            let mut image = image::open(&image_path)?.to_rgba();
-            // Depending on the implementation of the inpainting function above we may get pixels
-            // that are not fully opaque or fully transparent. This is why we choose a threshold
-            // in the middle to consider pixels as background or foreground and could be reevaluated
-            // in the future.
-            image = map_colors(&image, |p| if p[3] < 128 { background_color } else { p });
-            image.save(&image_path)?;
-            progress_bar.lock().unwrap().inc();
-            Ok(())
-        })?;
-    progress_bar.lock().unwrap().finish_println("");
-
     let mut current_level_nodes = created_leaf_node_ids;
     let mut all_nodes = current_level_nodes.clone();
 
@@ -698,8 +685,33 @@ pub fn create_non_leaf_nodes(
         );
         all_nodes.extend(&current_level_nodes);
     }
-    progress_bar.lock().unwrap().finish();
     Ok(all_nodes)
+}
+
+pub fn assign_background_color(
+    output_directory: &Path,
+    tile_background_color: Color<u8>,
+    created_leaf_node_ids: &FnvHashSet<NodeId>,
+) -> ImageResult<()> {
+    let progress_bar =
+        create_syncable_progress_bar(created_leaf_node_ids.len(), "Assigning background color");
+    let background_color = Rgba::from(tile_background_color);
+    created_leaf_node_ids
+        .par_iter()
+        .try_for_each(|node_id| -> ImageResult<()> {
+            let image_path = get_image_path(output_directory, *node_id);
+            let mut image = image::open(&image_path)?.to_rgba();
+            // Depending on the implementation of the inpainting function above we may get pixels
+            // that are not fully opaque or fully transparent. This is why we choose a threshold
+            // in the middle to consider pixels as background or foreground and could be reevaluated
+            // in the future.
+            image = map_colors(&image, |p| if p[3] < 128 { background_color } else { p });
+            image.save(&image_path)?;
+            progress_bar.lock().unwrap().inc();
+            Ok(())
+        })?;
+    progress_bar.lock().unwrap().finish_println("");
+    Ok(())
 }
 
 pub fn build_level(

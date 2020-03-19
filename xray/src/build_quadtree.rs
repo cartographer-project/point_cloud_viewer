@@ -218,5 +218,6 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         inpaint_distance_px,
         root_node_id,
     };
-    build_xray_quadtree(&coloring_strategy_kind, &parameters).unwrap();
+    build_xray_quadtree(&coloring_strategy_kind, &parameters)
+        .expect("Failed to build xray quadtree.");
 }
