@@ -47,7 +47,7 @@ fn copy_images(input_directory: &Path, output_directory: &Path) {
     })
 }
 
-fn copy_all_images(input_directories: &Vec<PathBuf>, output_directory: &Path) {
+fn copy_all_images(input_directories: &[PathBuf], output_directory: &Path) {
     for input_directory in input_directories {
         copy_images(input_directory, output_directory);
     }
@@ -68,7 +68,7 @@ fn read_metadata_from_directory(directory: &Path) -> Vec<proto::Meta> {
         .collect()
 }
 
-fn read_metadata_from_directories(directories: &Vec<PathBuf>) -> Vec<proto::Meta> {
+fn read_metadata_from_directories(directories: &[PathBuf]) -> Vec<proto::Meta> {
     directories
         .iter()
         .map(|directory| read_metadata_from_directory(&directory))
@@ -83,7 +83,7 @@ fn get_root_node(meta: &proto::Meta) -> Option<NodeId> {
         .min_by_key(|node| node.level())
 }
 
-fn get_root_nodes(meta: &Vec<proto::Meta>) -> Vec<Option<NodeId>> {
+fn get_root_nodes(meta: &[proto::Meta]) -> Vec<Option<NodeId>> {
     meta.iter().map(get_root_node).collect()
 }
 
@@ -111,7 +111,7 @@ where
     }
 }
 
-fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
+fn validate_metadata(metadata: &[proto::Meta]) -> Metadata {
     assert!(!metadata.is_empty(), "No meta.pb files found.");
     let (somes, nones): (Vec<Option<NodeId>>, Vec<Option<NodeId>>) = get_root_nodes(metadata)
         .iter()
@@ -141,7 +141,7 @@ fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
 
     let mut nodes = FnvHashSet::default();
     for meta in metadata {
-        nodes.extend(meta.get_nodes().iter().map(|proto| NodeId::from(proto)));
+        nodes.extend(meta.get_nodes().iter().map(NodeId::from));
     }
 
     Metadata {
