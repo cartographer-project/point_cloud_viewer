@@ -458,7 +458,7 @@ pub struct XrayParameters {
     pub filter_intervals: HashMap<String, ClosedInterval<f64>>,
     pub tile_background_color: Color<u8>,
     pub tile_size_px: u32,
-    pub pixel_resolution: f64,
+    pub pixel_size_m: f64,
     pub inpaint_distance_px: u8,
     pub root_node_id: NodeId,
 }
@@ -547,7 +547,7 @@ pub fn build_xray_quadtree(
     };
     let (bounding_rect, deepest_level) = find_quadtree_bounding_rect_and_levels(
         &bounding_box,
-        f64::from(parameters.tile_size_px) * parameters.pixel_resolution,
+        f64::from(parameters.tile_size_px) * parameters.pixel_size_m,
     );
 
     let root_node_id = parameters.root_node_id;

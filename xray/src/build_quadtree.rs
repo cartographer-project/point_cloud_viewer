@@ -125,7 +125,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     attempt_increasing_rlimit_to_max();
 
     let args = parse_arguments::<T>();
-    let pixel_resolution = args
+    let pixel_size_m = args
         .value_of("resolution")
         .unwrap()
         .parse::<f64>()
@@ -214,7 +214,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         filter_intervals,
         tile_background_color,
         tile_size_px,
-        pixel_resolution,
+        pixel_size_m,
         inpaint_distance_px,
         root_node_id,
     };
