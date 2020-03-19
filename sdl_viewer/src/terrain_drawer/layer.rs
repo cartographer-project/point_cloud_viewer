@@ -46,9 +46,10 @@ impl TerrainLayer {
         let grid_coordinates = GridCoordinateFrame::new(program, metadata, texture_size);
 
         // Initial terrain pos
+        // TODO(nnmm): Do not hardcode 0, 0, 0
         let terrain_pos: Vector2<i64> =
-            grid_coordinates.terrain_pos_for_camera_pos(Point3::new(0.0, 0.0, 0.0));
-        let float_terrain_pos = Self::convert_terrain_pos_to_float(terrain_pos);
+            grid_coordinates.terrain_pos_for_camera_pos(&Point3::new(0.0, 0.0, 0.0));
+        let float_terrain_pos = Self::convert_terrain_pos_to_float(&terrain_pos);
         let u_terrain_pos = GlUniform::new(&program, "terrain_pos", float_terrain_pos);
 
         let height_initial = height_tiles.load(
@@ -101,7 +102,7 @@ impl TerrainLayer {
     pub fn update(&mut self, cur_world_pos: Point3<f64>) {
         let cur_pos = self
             .grid_coordinates
-            .terrain_pos_for_camera_pos(cur_world_pos);
+            .terrain_pos_for_camera_pos(&cur_world_pos);
         let moved = cur_pos - self.terrain_pos;
 
         let hori_strip = if moved.y > 0 {
@@ -149,7 +150,7 @@ impl TerrainLayer {
         );
 
         self.terrain_pos = cur_pos;
-        self.u_terrain_pos.value = Self::convert_terrain_pos_to_float(cur_pos)
+        self.u_terrain_pos.value = Self::convert_terrain_pos_to_float(&cur_pos)
     }
 
     pub fn terrain_from_world(&self) -> &Isometry3<f64> {
@@ -171,7 +172,7 @@ impl TerrainLayer {
     }
 
     // Helper function because OpenGL doesn't like i64
-    fn convert_terrain_pos_to_float(v: Vector2<i64>) -> Vector2<f64> {
+    fn convert_terrain_pos_to_float(v: &Vector2<i64>) -> Vector2<f64> {
         assert!(
             v.x < F64_MAX_SAFE_INT && v.x > F64_MIN_SAFE_INT,
             "Terrain location not representable."
@@ -218,7 +219,7 @@ impl GridCoordinateFrame {
 
     /// Returns the terrain pos (i.e. the coordinate of the lower corner of the terrain) for
     /// a given camera position (in the world coordinate system).
-    fn terrain_pos_for_camera_pos(&self, world_pos: Point3<f64>) -> Vector2<i64> {
+    fn terrain_pos_for_camera_pos(&self, world_pos: &Point3<f64>) -> Vector2<i64> {
         let local_pos = self.terrain_from_world * world_pos;
         let x = ((local_pos.x - self.u_origin.value.x) / self.u_resolution_m.value).floor();
         let y = ((local_pos.y - self.u_origin.value.y) / self.u_resolution_m.value).floor();
