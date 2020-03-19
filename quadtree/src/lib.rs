@@ -16,6 +16,7 @@ use nalgebra::{Point2, Vector2};
 use std::fmt::{self, Write};
 use std::num::ParseIntError;
 use std::str::FromStr;
+use xray_proto_rust::proto;
 
 #[derive(Debug, Clone)]
 pub struct Rect {
@@ -55,11 +56,25 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn root_with_bounding_rect(rect: Rect) -> Self {
-        Node {
-            id: NodeId::root(),
-            bounding_rect: rect,
+    /// Returns the node corresponding to a specific node id within the quadtree
+    /// and the bounding rect covering the whole quadtree
+    pub fn from_node_id_and_root_bounding_rect(id: NodeId, rect: Rect) -> Self {
+        let mut ids = vec![id];
+        // Find all nodes on the way from the sub root node to the root node
+        while let Some(parent_id) = ids.last().and_then(|last| last.parent_id()) {
+            ids.push(parent_id);
         }
+        // Create the root node
+        let mut node = Self {
+            id: ids.pop().unwrap(),
+            bounding_rect: rect,
+        };
+        // Traverse from the root node to the sub root node to find the actual bounding
+        // rect of the sub root node
+        while let Some(child_index) = ids.pop().and_then(|id| id.child_index()) {
+            node = node.get_child(&child_index);
+        }
+        node
     }
 
     pub fn get_child(&self, child_index: &ChildIndex) -> Node {
@@ -308,6 +323,12 @@ impl From<SpatialNodeId> for NodeId {
             }
         }
         Self::new(level, index)
+    }
+}
+
+impl From<&proto::NodeId> for NodeId {
+    fn from(proto: &proto::NodeId) -> Self {
+        Self::new(proto.get_level() as u8, proto.get_index())
     }
 }
 

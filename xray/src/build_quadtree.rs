@@ -10,6 +10,7 @@ use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::ClosedInterval;
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
 use point_viewer::utils::parse_key_val;
+use quadtree::NodeId;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -46,12 +47,6 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .takes_value(true)
                 .possible_values(&ColoringStrategyArgument::variants())
                 .default_value("xray"),
-            clap::Arg::with_name("colormap")
-                .help("How values are mapped to colors")
-                .long("colormap")
-                .takes_value(true)
-                .possible_values(&ColormapArgument::variants())
-                .default_value("jet"),
             clap::Arg::with_name("min_intensity")
                 .help(
                     "Minimum intensity of all points for color scaling. \
@@ -59,7 +54,24 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 )
                 .long("min-intensity")
                 .takes_value(true)
+                .default_value("0")
                 .required_if("coloring_strategy", "colored_with_intensity"),
+            clap::Arg::with_name("max_intensity")
+                .help(
+                    "Maximum intensity of all points for color scaling. \
+                     Only used for 'colored_with_intensity'.",
+                )
+                .long("max-intensity")
+                .takes_value(true)
+                .default_value("1")
+                .required_if("coloring_strategy", "colored_with_intensity"),
+            clap::Arg::with_name("colormap")
+                .help("How values are mapped to colors")
+                .long("colormap")
+                .takes_value(true)
+                .possible_values(&ColormapArgument::variants())
+                .default_value("jet")
+                .required_if("coloring_strategy", "colored_with_height_stddev"),
             clap::Arg::with_name("max_stddev")
                 .help(
                     "Maximum standard deviation for colored_with_height_stddev. Every stddev above this \
@@ -68,15 +80,8 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 )
                 .long("max-stddev")
                 .takes_value(true)
+                .default_value("1")
                 .required_if("coloring_strategy", "colored_with_height_stddev"),
-            clap::Arg::with_name("max_intensity")
-                .help(
-                    "Minimum intensity of all points for color scaling. \
-                     Only used for 'colored_with_intensity'.",
-                )
-                .long("max-intensity")
-                .takes_value(true)
-                .required_if("coloring_strategy", "colored_with_intensity"),
             clap::Arg::with_name("point_cloud_locations")
                 .help("Point cloud locations to turn into xrays.")
                 .index(1)
@@ -105,7 +110,13 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .help("The inpainting distance in pixels to fill holes (in particular useful \
                        for high resolutions).")
                 .long("inpaint-distance-px")
+                .takes_value(true)
                 .default_value("0"),
+            clap::Arg::with_name("root_node_id")
+                .help("The root node id to start building with.")
+                .long("root-node-id")
+                .takes_value(true)
+                .default_value("r"),
         ]);
     app = T::pre_init(app);
     app.get_matches()
@@ -143,12 +154,12 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
             xray => ColoringStrategyKind::XRay,
             colored => ColoringStrategyKind::Colored(binning),
             colored_with_intensity => ColoringStrategyKind::ColoredWithIntensity(
-                value_t!(args, "min_intensity", f32).unwrap_or(1.),
-                value_t!(args, "max_intensity", f32).unwrap_or(1.),
+                value_t!(args, "min_intensity", f32).expect("min_intensity is invalid"),
+                value_t!(args, "max_intensity", f32).expect("max_intensity is invalid"),
                 binning,
             ),
             colored_with_height_stddev => ColoringStrategyKind::ColoredWithHeightStddev(
-                value_t!(args, "max_stddev", f32).unwrap_or(1.),
+                value_t!(args, "max_stddev", f32).expect("max_stddev is invalid"),
                 value_t!(args, "colormap", ColormapArgument).expect("colormap is invalid"),
             ),
         }
@@ -192,12 +203,18 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         .unwrap()
         .parse::<u8>()
         .expect("inpaint_distance_px could not be parsed.");
+    let root_node_id = args
+        .value_of("root_node_id")
+        .unwrap()
+        .parse::<NodeId>()
+        .expect("root_node_id could not be parsed.");
     let parameters = XrayParameters {
         point_cloud_client,
         query_from_global: T::query_from_global(&args),
         filter_intervals,
         tile_background_color,
         inpaint_distance_px,
+        root_node_id,
     };
     build_xray_quadtree(
         output_directory,

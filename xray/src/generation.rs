@@ -20,9 +20,9 @@ use point_viewer::utils::create_syncable_progress_bar;
 use point_viewer::{match_1d_attr_data, PointsBatch};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use stats::OnlineStats;
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::BufWriter;
@@ -191,16 +191,8 @@ impl ColoringStrategy for XRayColoringStrategy {
         discretized_locations: Vec<Point3<u32>>,
     ) {
         for d_loc in discretized_locations {
-            match self.z_buckets.entry((d_loc.x, d_loc.y)) {
-                Entry::Occupied(mut e) => {
-                    e.get_mut().insert(d_loc.z);
-                }
-                Entry::Vacant(v) => {
-                    let mut set = FnvHashSet::default();
-                    set.insert(d_loc.z);
-                    v.insert(set);
-                }
-            }
+            let z_buckets = self.z_buckets.entry((d_loc.x, d_loc.y)).or_default();
+            z_buckets.insert(d_loc.z);
         }
     }
 
@@ -482,6 +474,7 @@ pub struct XrayParameters {
     pub filter_intervals: HashMap<String, ClosedInterval<f64>>,
     pub tile_background_color: Color<u8>,
     pub inpaint_distance_px: u8,
+    pub root_node_id: NodeId,
 }
 
 pub fn xray_from_points(
@@ -573,13 +566,18 @@ pub fn build_xray_quadtree(
     );
 
     // Create the deepest level of the quadtree.
-    let (parents_to_create_tx, mut parents_to_create_rx) = crossbeam::channel::unbounded();
-    let (all_nodes_tx, all_nodes_rx) = crossbeam::channel::unbounded();
     let (created_leaf_node_ids_tx, created_leaf_node_ids_rx) = crossbeam::channel::unbounded();
 
-    let mut leaf_nodes = Vec::with_capacity(4usize.pow(deepest_level.into()));
+    let root_node_id = parameters.root_node_id;
+    let root_level = root_node_id.level();
+    assert!(
+        root_level <= deepest_level,
+        "Specified root node id is outside quadtree."
+    );
+    let root_node = Node::from_node_id_and_root_bounding_rect(root_node_id, bounding_rect.clone());
+    let mut leaf_nodes = Vec::with_capacity(4usize.pow((deepest_level - root_level).into()));
     let mut nodes_to_traverse = Vec::with_capacity((4 * leaf_nodes.capacity() - 1) / 3);
-    nodes_to_traverse.push(Node::root_with_bounding_rect(bounding_rect.clone()));
+    nodes_to_traverse.push(root_node);
     while let Some(node) = nodes_to_traverse.pop() {
         if node.level() == deepest_level {
             leaf_nodes.push(node);
@@ -595,8 +593,6 @@ pub fn build_xray_quadtree(
     );
     rayon::scope(|scope| {
         while let Some(node) = leaf_nodes.pop() {
-            let parents_to_create_tx_clone = parents_to_create_tx.clone();
-            let all_nodes_tx_clone = all_nodes_tx.clone();
             let created_leaf_node_ids_tx_clone = created_leaf_node_ids_tx.clone();
             let strategy: Box<dyn ColoringStrategy> = coloring_strategy_kind.new_strategy();
             let progress_bar = Arc::clone(&progress_bar);
@@ -614,18 +610,13 @@ pub fn build_xray_quadtree(
                     strategy,
                     parameters,
                 ) {
-                    all_nodes_tx_clone.send(node.id).unwrap();
                     created_leaf_node_ids_tx_clone.send(node.id).unwrap();
-                    if let Some(id) = node.id.parent_id() {
-                        parents_to_create_tx_clone.send(id).unwrap()
-                    }
                 }
                 progress_bar.lock().unwrap().inc();
             });
         }
     });
     progress_bar.lock().unwrap().finish_println("");
-    drop(parents_to_create_tx);
     drop(created_leaf_node_ids_tx);
     let created_leaf_node_ids: FnvHashSet<NodeId> = created_leaf_node_ids_rx.into_iter().collect();
 
@@ -639,8 +630,8 @@ pub fn build_xray_quadtree(
     let progress_bar =
         create_syncable_progress_bar(created_leaf_node_ids.len(), "Assigning background color");
     let background_color = Rgba::from(parameters.tile_background_color);
-    created_leaf_node_ids.into_par_iter().for_each(|node_id| {
-        let image_path = get_image_path(output_directory, node_id);
+    created_leaf_node_ids.par_iter().for_each(|node_id| {
+        let image_path = get_image_path(output_directory, *node_id);
         let mut image = image::open(&image_path).unwrap().to_rgba();
         // Depending on the implementation of the inpainting function above we may get pixels
         // that are not fully opaque or fully transparent. This is why we choose a threshold
@@ -652,55 +643,23 @@ pub fn build_xray_quadtree(
     });
     progress_bar.lock().unwrap().finish_println("");
 
-    for current_level in (0..deepest_level).rev() {
-        let nodes_to_create: FnvHashSet<NodeId> = parents_to_create_rx.into_iter().collect();
-        let progress_bar = create_syncable_progress_bar(
-            nodes_to_create.len(),
-            &format!("Building level {}", current_level),
+    let mut current_level_nodes = created_leaf_node_ids;
+    let mut all_nodes = current_level_nodes.clone();
+
+    for current_level in (root_level..deepest_level).rev() {
+        current_level_nodes = current_level_nodes
+            .iter()
+            .filter_map(|node| node.parent_id())
+            .collect();
+        build_level(
+            output_directory,
+            tile.size_px,
+            current_level,
+            &current_level_nodes,
+            parameters.tile_background_color,
         );
-        let (parents_to_create_tx, new_rx) = crossbeam::channel::unbounded();
-        parents_to_create_rx = new_rx;
-        nodes_to_create.into_par_iter().for_each(|node_id| {
-            all_nodes_tx.send(node_id).unwrap();
-
-            let mut children = [None, None, None, None];
-
-            // We a right handed coordinate system with the x-axis of world and images
-            // aligning. This means that the y-axis aligns too, but the origin of the image
-            // space must be at the bottom left. Since images have their origin at the top
-            // left, we need actually have to invert y and go from the bottom of the image.
-            for id in 0..4 {
-                let png = get_image_path(
-                    output_directory,
-                    node_id.get_child_id(&ChildIndex::from_u8(id)),
-                );
-                if !png.exists() {
-                    continue;
-                }
-                children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
-            }
-            if children.iter().any(|child| child.is_some()) {
-                let large_image = build_parent(&children, parameters.tile_background_color);
-                let image = image::DynamicImage::ImageRgba8(large_image).resize(
-                    tile.size_px,
-                    tile.size_px,
-                    image::imageops::FilterType::Lanczos3,
-                );
-                image
-                    .as_rgba8()
-                    .unwrap()
-                    .save(&get_image_path(output_directory, node_id))
-                    .unwrap();
-                if let Some(id) = node_id.parent_id() {
-                    parents_to_create_tx.send(id).unwrap()
-                }
-            }
-            progress_bar.lock().unwrap().inc();
-        });
-        progress_bar.lock().unwrap().finish_println("");
-        drop(parents_to_create_tx);
+        all_nodes.extend(&current_level_nodes);
     }
-    drop(all_nodes_tx);
 
     let meta = {
         let mut meta = proto::Meta::new();
@@ -716,7 +675,7 @@ pub fn build_xray_quadtree(
         meta.set_tile_size(tile.size_px);
         meta.set_version(CURRENT_VERSION);
 
-        for node_id in all_nodes_rx {
+        for node_id in all_nodes {
             let mut proto = proto::NodeId::new();
             proto.set_index(node_id.index());
             proto.set_level(u32::from(node_id.level()));
@@ -725,10 +684,62 @@ pub fn build_xray_quadtree(
         meta
     };
 
-    let mut buf_writer = BufWriter::new(File::create(output_directory.join("meta.pb")).unwrap());
+    let meta_pb_name = format!("{}.pb", root_node_id).replace("r", "meta");
+    let mut buf_writer = BufWriter::new(File::create(output_directory.join(meta_pb_name)).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
 
     progress_bar.lock().unwrap().finish();
 
     Ok(())
+}
+
+pub fn build_level(
+    output_directory: &Path,
+    tile_size_px: u32,
+    current_level: u8,
+    nodes: &FnvHashSet<NodeId>,
+    tile_background_color: Color<u8>,
+) {
+    let progress_bar =
+        create_syncable_progress_bar(nodes.len(), &format!("Building level {}", current_level));
+    nodes.par_iter().for_each(|node| {
+        build_node(output_directory, *node, tile_size_px, tile_background_color);
+        progress_bar.lock().unwrap().inc();
+    });
+    progress_bar.lock().unwrap().finish_println("");
+}
+
+fn build_node(
+    output_directory: &Path,
+    node_id: NodeId,
+    tile_size_px: u32,
+    tile_background_color: Color<u8>,
+) {
+    let mut children = [None, None, None, None];
+    // We a right handed coordinate system with the x-axis of world and images
+    // aligning. This means that the y-axis aligns too, but the origin of the image
+    // space must be at the bottom left. Since images have their origin at the top
+    // left, we need actually have to invert y and go from the bottom of the image.
+    for id in 0..4 {
+        let png = get_image_path(
+            output_directory,
+            node_id.get_child_id(&ChildIndex::from_u8(id)),
+        );
+        if png.exists() {
+            children[id as usize] = Some(image::open(&png).unwrap().to_rgba());
+        }
+    }
+    if children.iter().any(|child| child.is_some()) {
+        let large_image = build_parent(&children, tile_background_color);
+        let image = image::DynamicImage::ImageRgba8(large_image).resize(
+            tile_size_px,
+            tile_size_px,
+            image::imageops::FilterType::Lanczos3,
+        );
+        image
+            .as_rgba8()
+            .unwrap()
+            .save(&get_image_path(output_directory, node_id))
+            .unwrap();
+    }
 }

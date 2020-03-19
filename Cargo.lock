@@ -2238,6 +2238,7 @@ name = "quadtree"
 version = "0.1.0"
 dependencies = [
  "nalgebra",
+ "xray_proto_rust",
 ]
 
 [[package]]

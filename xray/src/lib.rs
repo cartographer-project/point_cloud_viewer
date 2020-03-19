@@ -116,9 +116,11 @@ impl Meta {
             .intersector()
             .cache_separating_axes(&Aabb::axes(), &Aabb::axes());
         let mut result = Vec::new();
-        let mut open = vec![Node::root_with_bounding_rect(self.bounding_rect.clone())];
-        while !open.is_empty() {
-            let node = open.pop().unwrap();
+        let mut open = vec![Node::from_node_id_and_root_bounding_rect(
+            NodeId::root(),
+            self.bounding_rect.clone(),
+        )];
+        while let Some(node) = open.pop() {
             let aabb = Aabb::new(
                 Point3::new(node.bounding_rect.min().x, node.bounding_rect.min().y, -0.1),
                 Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
