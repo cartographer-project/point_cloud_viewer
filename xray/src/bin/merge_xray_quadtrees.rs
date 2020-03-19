@@ -3,10 +3,10 @@ use point_viewer::color::Color;
 use protobuf::Message;
 use quadtree::NodeId;
 use std::fs::File;
-use std::io::{BufWriter, Cursor};
+use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
-use xray::generation;
+use xray::{Meta, generation};
 use xray_proto_rust::proto;
 
 #[derive(StructOpt, Debug)]
@@ -53,22 +53,17 @@ fn copy_all_images(input_directories: &[PathBuf], output_directory: &Path) {
     }
 }
 
-fn read_metadata(path: &Path) -> proto::Meta {
-    let data = std::fs::read(&path).expect("Cannot open file");
-    protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
-        .expect("Could not read meta proto")
-}
-
-fn read_metadata_from_directory(directory: &Path) -> Vec<proto::Meta> {
+fn read_metadata_from_directory(directory: &Path) -> Vec<Meta> {
     globwalk::GlobWalkerBuilder::new(directory, "meta*.pb")
         .build()
         .expect("Failed to build GlobWalker")
         .filter_map(Result::ok)
-        .map(|dir_entry| read_metadata(dir_entry.path()))
+        .map(|dir_entry| PathBuf::from(dir_entry.path()))
+        .map(|path| Meta::from_disk(&path).expect(&format!("Failed to load meta from {:?}.", path)))
         .collect()
 }
 
-fn read_metadata_from_directories(directories: &[PathBuf]) -> Vec<proto::Meta> {
+fn read_metadata_from_directories(directories: &[PathBuf]) -> Vec<Meta> {
     directories
         .iter()
         .map(|directory| read_metadata_from_directory(&directory))
@@ -76,24 +71,21 @@ fn read_metadata_from_directories(directories: &[PathBuf]) -> Vec<proto::Meta> {
         .collect()
 }
 
-fn get_root_node(meta: &proto::Meta) -> Option<NodeId> {
-    meta.get_nodes()
+fn get_root_node(meta: &Meta) -> Option<NodeId> {
+    meta.nodes
         .iter()
-        .map(NodeId::from)
+        .copied()
         .min_by_key(|node| node.level())
 }
 
-fn get_root_nodes(meta: &[proto::Meta]) -> Vec<Option<NodeId>> {
+fn get_root_nodes(meta: &[Meta]) -> Vec<Option<NodeId>> {
     meta.iter().map(get_root_node).collect()
 }
 
-struct Metadata {
+struct MergedMetadata {
     root_nodes: FnvHashSet<NodeId>,
-    nodes: FnvHashSet<NodeId>,
     level: u8,
-    deepest_level: u8,
-    tile_size: u32,
-    bounding_rect: proto::Rect,
+    merged_meta: Meta,
 }
 
 // Checks wheter all the elements in the iterator have the same value and returns it.
@@ -111,7 +103,7 @@ where
     }
 }
 
-fn validate_metadata(metadata: &[proto::Meta]) -> Metadata {
+fn validate_metadata(metadata: &[Meta]) -> MergedMetadata {
     assert!(!metadata.is_empty(), "No meta.pb files found.");
     let (somes, nones): (Vec<Option<NodeId>>, Vec<Option<NodeId>>) = get_root_nodes(metadata)
         .iter()
@@ -129,34 +121,33 @@ fn validate_metadata(metadata: &[proto::Meta]) -> Metadata {
     assert_eq!(root_nodes.len(), somes.len(), "Not all roots are unique.");
     let level = check_all_the_same(root_nodes.iter().map(|node| node.level()))
         .expect("Not all roots have the same level.");
-    let version = check_all_the_same(metadata.iter().map(|meta| meta.get_version()))
-        .expect("Not all meta files have the same version.");
-    assert_eq!(version, xray::CURRENT_VERSION);
-    let deepest_level = check_all_the_same(metadata.iter().map(|meta| meta.get_deepest_level()))
+    let deepest_level = check_all_the_same(metadata.iter().map(|meta| meta.deepest_level))
         .expect("Not all meta files have the same deepest level.") as u8;
-    let tile_size = check_all_the_same(metadata.iter().map(|meta| meta.get_tile_size()))
+    let tile_size = check_all_the_same(metadata.iter().map(|meta| meta.tile_size))
         .expect("Not all meta files have the same tile size.");
     // TODO: check whether all root nodes have the same bound_rect.
-    let bounding_rect = metadata[0].get_bounding_rect().clone();
+    let bounding_rect = metadata[0].bounding_rect.clone();
 
     let mut nodes = FnvHashSet::default();
     for meta in metadata {
-        nodes.extend(meta.get_nodes().iter().map(NodeId::from));
+        nodes.extend(&meta.nodes);
     }
 
-    Metadata {
+    MergedMetadata {
         root_nodes,
         level,
-        deepest_level,
-        tile_size,
-        bounding_rect,
-        nodes,
+        merged_meta: Meta{
+            deepest_level,
+            tile_size,
+            bounding_rect,
+            nodes,
+        }
     }
 }
 
-fn write_metadata(metadata: Metadata, output_directory: &Path) {
+fn write_metadata(metadata: Meta, output_directory: &Path) {
     let mut meta = proto::Meta::new();
-    meta.set_bounding_rect(metadata.bounding_rect);
+    //meta.set_bounding_rect(metadata.bounding_rect);
     meta.set_deepest_level(u32::from(metadata.deepest_level));
     meta.set_tile_size(metadata.tile_size);
     meta.set_version(xray::CURRENT_VERSION);
@@ -173,8 +164,8 @@ fn write_metadata(metadata: Metadata, output_directory: &Path) {
         .expect("Failed to write meta.pb.");
 }
 
-fn merge(mut metadata: Metadata, output_directory: &Path, tile_background_color: Color<u8>) {
-    let mut current_level_nodes = metadata.root_nodes.clone();
+fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_color: Color<u8>) {
+    let mut current_level_nodes = metadata.root_nodes;
     for current_level in (0..metadata.level).rev() {
         current_level_nodes = current_level_nodes
             .iter()
@@ -182,23 +173,23 @@ fn merge(mut metadata: Metadata, output_directory: &Path, tile_background_color:
             .collect();
         generation::build_level(
             output_directory,
-            metadata.tile_size,
+            metadata.merged_meta.tile_size,
             current_level,
             &current_level_nodes,
             tile_background_color,
         );
-        metadata.nodes.extend(&current_level_nodes);
+        metadata.merged_meta.nodes.extend(&current_level_nodes);
     }
-    write_metadata(metadata, output_directory);
+    write_metadata(metadata.merged_meta, output_directory);
 }
 
 fn main() {
     let args = CommandlineArguments::from_args();
     let metadata = read_metadata_from_directories(&args.input_directories);
-    let metadata = validate_metadata(&metadata);
+    let merged_metadata = validate_metadata(&metadata);
     copy_all_images(&args.input_directories, &args.output_directory);
     merge(
-        metadata,
+        merged_metadata,
         &args.output_directory,
         args.tile_background_color.to_color(),
     );
