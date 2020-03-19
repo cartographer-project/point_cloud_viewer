@@ -70,7 +70,7 @@ impl<S: RealField> Perspective<S> {
             "`aspect` must be a positive number, found: {:?}",
             aspect
         );
-        let angle = nalgebra::convert::<f64, S>(0.5) * fovy;
+        let angle = fovy * nalgebra::convert(0.5);
         let ymax = near * angle.tan();
         let xmax = ymax * aspect;
 
