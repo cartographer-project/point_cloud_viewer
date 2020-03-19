@@ -27,7 +27,7 @@ use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::BufWriter;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
@@ -452,6 +452,7 @@ pub fn build_parent(children: &[Option<RgbaImage>], tile_background_color: Color
 }
 
 pub struct XrayParameters {
+    pub output_directory: PathBuf,
     pub point_cloud_client: PointCloudClient,
     pub query_from_global: Option<Isometry3<f64>>,
     pub filter_intervals: HashMap<String, ClosedInterval<f64>>,
@@ -527,12 +528,11 @@ fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb3<f64>, tile_size_m: f64) -
 }
 
 pub fn build_xray_quadtree(
-    output_directory: &Path,
     coloring_strategy_kind: &ColoringStrategyKind,
     parameters: &XrayParameters,
 ) -> Result<(), Box<dyn Error>> {
     // Ignore errors, maybe directory is already there.
-    let _ = fs::create_dir(output_directory);
+    let _ = fs::create_dir(&parameters.output_directory);
 
     let bounding_box = match &parameters.query_from_global {
         Some(query_from_global) => {
@@ -574,24 +574,18 @@ pub fn build_xray_quadtree(
         leaf_nodes,
         deepest_level,
         &bounding_box,
-        output_directory,
         coloring_strategy_kind,
         parameters,
     )?;
 
     perform_inpainting(
-        output_directory,
+        &parameters.output_directory,
         parameters.inpaint_distance_px,
         &created_leaf_node_ids,
     )?;
 
-    let all_node_ids = create_non_leaf_nodes(
-        created_leaf_node_ids,
-        deepest_level,
-        root_level,
-        output_directory,
-        parameters,
-    )?;
+    let all_node_ids =
+        create_non_leaf_nodes(created_leaf_node_ids, deepest_level, root_level, parameters)?;
 
     let meta = {
         let mut meta = proto::Meta::new();
@@ -617,7 +611,8 @@ pub fn build_xray_quadtree(
     };
 
     let meta_pb_name = format!("{}.pb", root_node_id).replace("r", "meta");
-    let mut buf_writer = BufWriter::new(File::create(output_directory.join(meta_pb_name)).unwrap());
+    let mut buf_writer =
+        BufWriter::new(File::create(&parameters.output_directory.join(meta_pb_name)).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
 
     Ok(())
@@ -627,7 +622,6 @@ pub fn create_leaf_nodes(
     leaf_nodes: Vec<Node>,
     deepest_level: u8,
     bounding_box: &Aabb3<f64>,
-    output_directory: &Path,
     coloring_strategy_kind: &ColoringStrategyKind,
     parameters: &XrayParameters,
 ) -> ImageResult<FnvHashSet<NodeId>> {
@@ -651,7 +645,7 @@ pub fn create_leaf_nodes(
                 strategy,
                 parameters,
             ) {
-                image.save(&get_image_path(output_directory, node.id))?;
+                image.save(&get_image_path(&parameters.output_directory, node.id))?;
                 created_leaf_node_ids_tx.send(node.id).unwrap();
             }
             progress_bar.lock().unwrap().inc();
@@ -666,7 +660,6 @@ pub fn create_non_leaf_nodes(
     created_leaf_node_ids: FnvHashSet<NodeId>,
     deepest_level: u8,
     root_level: u8,
-    output_directory: &Path,
     parameters: &XrayParameters,
 ) -> ImageResult<FnvHashSet<NodeId>> {
     let progress_bar =
@@ -675,7 +668,7 @@ pub fn create_non_leaf_nodes(
     created_leaf_node_ids
         .par_iter()
         .try_for_each(|node_id| -> ImageResult<()> {
-            let image_path = get_image_path(output_directory, *node_id);
+            let image_path = get_image_path(&parameters.output_directory, *node_id);
             let mut image = image::open(&image_path)?.to_rgba();
             // Depending on the implementation of the inpainting function above we may get pixels
             // that are not fully opaque or fully transparent. This is why we choose a threshold
@@ -697,7 +690,7 @@ pub fn create_non_leaf_nodes(
             .filter_map(|node| node.parent_id())
             .collect();
         build_level(
-            output_directory,
+            &parameters.output_directory,
             parameters.tile_size_px,
             current_level,
             &current_level_nodes,

@@ -11,7 +11,7 @@ use point_viewer::read_write::attempt_increasing_rlimit_to_max;
 use point_viewer::utils::parse_key_val;
 use quadtree::NodeId;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::PathBuf;
 
 pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
@@ -173,7 +173,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         }
     };
 
-    let output_directory = Path::new(args.value_of("output_directory").unwrap());
+    let output_directory = PathBuf::from(args.value_of("output_directory").unwrap());
 
     rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
@@ -208,6 +208,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         .parse::<NodeId>()
         .expect("root_node_id could not be parsed.");
     let parameters = XrayParameters {
+        output_directory,
         point_cloud_client,
         query_from_global: T::query_from_global(&args),
         filter_intervals,
@@ -217,5 +218,5 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         inpaint_distance_px,
         root_node_id,
     };
-    build_xray_quadtree(output_directory, &coloring_strategy_kind, &parameters).unwrap();
+    build_xray_quadtree(&coloring_strategy_kind, &parameters).unwrap();
 }
