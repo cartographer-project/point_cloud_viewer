@@ -2,13 +2,13 @@ use cgmath::Point2;
 use cgmath::{Matrix4, Point3};
 use collision::{Aabb3, Frustum, Relation};
 use fnv::FnvHashSet;
+use protobuf::Message;
 use quadtree::{ChildIndex, Node};
 use quadtree::{NodeId, Rect};
 use serde_derive::Serialize;
+use std::fs::File;
 use std::io::{self, BufWriter, Cursor};
 use std::path::Path;
-use std::fs::File;
-use protobuf::Message;
 
 // Version 2 -> 3: Change in Rect proto from Vector2f to Vector2d min and float to double edge_length.
 // We are able to convert the proto on read, so the tools can still read version 2.
@@ -49,8 +49,14 @@ impl Meta {
 
     pub fn to_disk<P: AsRef<Path>>(&self, filename: P) -> io::Result<()> {
         let mut buf_writer = BufWriter::new(File::create(filename.as_ref())?);
-        self.to_proto().write_to_writer(&mut buf_writer)
-            .map_err(|_| io::Error::new(io::ErrorKind::Other, format!("Couldn't write meta to {:?}.", filename.as_ref())))
+        self.to_proto()
+            .write_to_writer(&mut buf_writer)
+            .map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Couldn't write meta to {:?}.", filename.as_ref()),
+                )
+            })
     }
 
     // Reads the meta from the provided encoded protobuf.
@@ -97,7 +103,7 @@ impl Meta {
         meta.set_deepest_level(u32::from(self.deepest_level));
         meta.set_tile_size(self.tile_size);
         meta.set_version(CURRENT_VERSION);
-    
+
         for node_id in &self.nodes {
             let mut proto = proto::NodeId::new();
             proto.set_index(node_id.index());

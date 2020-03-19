@@ -1,13 +1,9 @@
 use fnv::FnvHashSet;
 use point_viewer::color::Color;
-use protobuf::Message;
 use quadtree::NodeId;
-use std::fs::File;
-use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
-use xray::{Meta, generation};
-use xray_proto_rust::proto;
+use xray::{generation, Meta};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "merge_xray_quadtrees")]
@@ -72,10 +68,7 @@ fn read_metadata_from_directories(directories: &[PathBuf]) -> Vec<Meta> {
 }
 
 fn get_root_node(meta: &Meta) -> Option<NodeId> {
-    meta.nodes
-        .iter()
-        .copied()
-        .min_by_key(|node| node.level())
+    meta.nodes.iter().copied().min_by_key(|node| node.level())
 }
 
 fn get_root_nodes(meta: &[Meta]) -> Vec<Option<NodeId>> {
@@ -136,32 +129,13 @@ fn validate_metadata(metadata: &[Meta]) -> MergedMetadata {
     MergedMetadata {
         root_nodes,
         level,
-        merged_meta: Meta{
+        merged_meta: Meta {
             deepest_level,
             tile_size,
             bounding_rect,
             nodes,
-        }
+        },
     }
-}
-
-fn write_metadata(metadata: Meta, output_directory: &Path) {
-    let mut meta = proto::Meta::new();
-    //meta.set_bounding_rect(metadata.bounding_rect);
-    meta.set_deepest_level(u32::from(metadata.deepest_level));
-    meta.set_tile_size(metadata.tile_size);
-    meta.set_version(xray::CURRENT_VERSION);
-
-    for node_id in metadata.nodes {
-        let mut proto = proto::NodeId::new();
-        proto.set_index(node_id.index());
-        proto.set_level(u32::from(node_id.level()));
-        meta.mut_nodes().push(proto);
-    }
-
-    let mut buf_writer = BufWriter::new(File::create(output_directory.join("meta.pb")).unwrap());
-    meta.write_to_writer(&mut buf_writer)
-        .expect("Failed to write meta.pb.");
 }
 
 fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_color: Color<u8>) {
@@ -180,7 +154,10 @@ fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_
         );
         metadata.merged_meta.nodes.extend(&current_level_nodes);
     }
-    write_metadata(metadata.merged_meta, output_directory);
+    metadata
+        .merged_meta
+        .to_disk(output_directory)
+        .expect("Failed to write meta.pb");
 }
 
 fn main() {
