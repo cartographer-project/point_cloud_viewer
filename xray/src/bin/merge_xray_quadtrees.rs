@@ -81,7 +81,6 @@ fn get_root_node(meta: &proto::Meta) -> Option<NodeId> {
         .iter()
         .map(NodeId::from)
         .min_by_key(|node| node.level())
-    //.find(|node| node.parent_id().is_none())
 }
 
 fn get_root_nodes(meta: &Vec<proto::Meta>) -> Option<FnvHashSet<NodeId>> {
