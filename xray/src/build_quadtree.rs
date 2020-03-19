@@ -1,5 +1,5 @@
 use crate::generation::{
-    build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, ColormapArgument, Tile,
+    build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, ColormapArgument,
     TileBackgroundColorArgument, XrayParameters,
 };
 use clap::value_t;
@@ -125,7 +125,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     attempt_increasing_rlimit_to_max();
 
     let args = parse_arguments::<T>();
-    let resolution = args
+    let pixel_resolution = args
         .value_of("resolution")
         .unwrap()
         .parse::<f64>()
@@ -135,12 +135,12 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         .unwrap()
         .parse::<usize>()
         .expect("num_threads could not be parsed.");
-    let tile_size = args
+    let tile_size_px = args
         .value_of("tile_size")
         .unwrap()
         .parse::<u32>()
         .expect("tile_size could not be parsed.");
-    if !tile_size.is_power_of_two() {
+    if !tile_size_px.is_power_of_two() {
         panic!("tile_size is not a power of two.");
     }
 
@@ -212,17 +212,10 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         query_from_global: T::query_from_global(&args),
         filter_intervals,
         tile_background_color,
+        tile_size_px,
+        pixel_resolution,
         inpaint_distance_px,
         root_node_id,
     };
-    build_xray_quadtree(
-        output_directory,
-        &Tile {
-            size_px: tile_size,
-            resolution,
-        },
-        &coloring_strategy_kind,
-        &parameters,
-    )
-    .unwrap();
+    build_xray_quadtree(output_directory, &coloring_strategy_kind, &parameters).unwrap();
 }
