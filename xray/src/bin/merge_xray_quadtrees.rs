@@ -83,8 +83,9 @@ fn get_root_node(meta: &proto::Meta) -> Option<NodeId> {
         .min_by_key(|node| node.level())
 }
 
-fn get_root_nodes(meta: &Vec<proto::Meta>) -> Option<FnvHashSet<NodeId>> {
-    meta.iter().map(get_root_node).collect()
+fn get_root_nodes(meta: &Vec<proto::Meta>) -> FnvHashSet<NodeId> {
+    // This will filter out empty quad trees.
+    meta.iter().map(get_root_node).filter_map(|node| node).collect()
 }
 
 struct Metadata {
@@ -112,7 +113,7 @@ where
 
 fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
     assert!(!metadata.is_empty(), "No meta.pb files found.");
-    let root_nodes = get_root_nodes(metadata).expect("One of the quadtrees is empty.");
+    let root_nodes = get_root_nodes(metadata);//.expect("One of the quadtrees is empty.");
     assert_eq!(
         metadata.len(),
         root_nodes.len(),
