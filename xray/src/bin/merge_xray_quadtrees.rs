@@ -118,11 +118,11 @@ fn validate_metadata(metadata: &Vec<proto::Meta>) -> Metadata {
         root_nodes.len(),
         "Not all roots are unique."
     );
+    let level = check_all_the_same(root_nodes.iter().map(|node| node.level()))
+        .expect("Not all roots have the same level.");
     let version = check_all_the_same(metadata.iter().map(|meta| meta.get_version()))
         .expect("Not all meta files have the same version.");
     assert_eq!(version, xray::CURRENT_VERSION);
-    let level = check_all_the_same(root_nodes.iter().map(|node| node.level()))
-        .expect("Not all roots have the same level.");
     let deepest_level = check_all_the_same(metadata.iter().map(|meta| meta.get_deepest_level()))
         .expect("Not all meta files have the same deepest level.") as u8;
     let tile_size = check_all_the_same(metadata.iter().map(|meta| meta.get_tile_size()))
