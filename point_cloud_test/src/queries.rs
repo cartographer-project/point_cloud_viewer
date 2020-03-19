@@ -1,8 +1,8 @@
 // Some synthetic queries for synthetic data. These are just examples, more can be added.
 use crate::synthetic_data::SyntheticData;
 use crate::S2_LEVEL;
-use nalgebra::{Point3, Vector3};
-use point_viewer::geometry::{Frustum, Obb, Perspective};
+use nalgebra::{Perspective3, Point3, Vector3};
+use point_viewer::geometry::{Frustum, Obb};
 use point_viewer::iterator::PointLocation;
 use point_viewer::math::FromPoint3;
 use s2::cellid::CellID;
@@ -27,10 +27,10 @@ pub fn get_obb_query(data: SyntheticData) -> PointLocation {
 }
 pub fn get_frustum_query(data: SyntheticData) -> PointLocation {
     let ecef_from_local = *data.ecef_from_local();
-    let perspective = Perspective::new_fov(
-        /* fovy */ 1.2, /* aspect */ 1.0, /* near */ 0.1, /* far */ 10.0,
+    let perspective = Perspective3::new(
+        /* aspect */ 1.0, /* fovy */ 1.2, /* near */ 0.1, /* far */ 10.0,
     );
-    let frustum = Frustum::new(ecef_from_local, perspective);
+    let frustum = Frustum::new(ecef_from_local, perspective.into());
     PointLocation::Frustum(frustum)
 }
 

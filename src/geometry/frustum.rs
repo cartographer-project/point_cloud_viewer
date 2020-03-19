@@ -4,7 +4,7 @@ use crate::geometry::Aabb;
 use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector, Relation};
 use crate::math::PointCulling;
 use arrayvec::ArrayVec;
-use nalgebra::{Isometry3, Matrix4, Point3, RealField, Unit};
+use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, RealField, Unit};
 use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
@@ -57,26 +57,6 @@ impl<S: RealField> Perspective<S> {
         Self { matrix }
     }
 
-    // This emulates cgmath::PerspectiveFov, which is more restricted
-    // and corresponds to nalgebra::Perspective.
-    pub fn new_fov(fovy: S, aspect: S, near: S, far: S) -> Self {
-        assert!(
-            fovy > S::zero() && fovy < S::pi(),
-            "`fovy` must be a number between 0 and π, found: {:?}",
-            fovy
-        );
-        assert!(
-            aspect > S::zero(),
-            "`aspect` must be a positive number, found: {:?}",
-            aspect
-        );
-        let angle = fovy * nalgebra::convert(0.5);
-        let ymax = near * angle.tan();
-        let xmax = ymax * aspect;
-
-        Self::new(-xmax, xmax, -ymax, ymax, near, far)
-    }
-
     pub fn as_matrix(&self) -> &Matrix4<S> {
         &self.matrix
     }
@@ -99,6 +79,14 @@ impl<S: RealField> Perspective<S> {
             S::zero(), S::zero(), r3c2,      r3c3,
         );
         matrix
+    }
+}
+
+impl<S: RealField> From<Perspective3<S>> for Perspective<S> {
+    fn from(per3: Perspective3<S>) -> Self {
+        Self {
+            matrix: per3.to_homogeneous(),
+        }
     }
 }
 
@@ -206,6 +194,43 @@ where
             corners,
             edges,
             face_normals,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// This compares the From instance with another way of getting a more
+    /// general `Perspective` from a symmetric Perspective defined through
+    /// aspect, fovy, near and far.
+    #[test]
+    fn compare_perspective() {
+        impl<S: RealField> Perspective<S> {
+            pub fn new_fov(aspect: S, fovy: S, near: S, far: S) -> Self {
+                assert!(
+                    fovy > S::zero() && fovy < S::pi(),
+                    "`fovy` must be a number between 0 and π, found: {:?}",
+                    fovy
+                );
+                assert!(
+                    aspect > S::zero(),
+                    "`aspect` must be a positive number, found: {:?}",
+                    aspect
+                );
+                let angle = fovy * nalgebra::convert(0.5);
+                let ymax = near * angle.tan();
+                let xmax = ymax * aspect;
+
+                Self::new(-xmax, xmax, -ymax, ymax, near, far)
+            }
+        }
+
+        let persp_a: Perspective<f64> = Perspective::new_fov(1.2, 0.66, 1.0, 100.0);
+        let persp_b: Perspective<f64> = nalgebra::Perspective3::new(1.2, 0.66, 1.0, 100.0).into();
+        for (el_a, el_b) in persp_a.as_matrix().iter().zip(persp_b.as_matrix().iter()) {
+            assert_eq!(el_a, el_b);
         }
     }
 }

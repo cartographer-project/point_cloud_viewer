@@ -134,9 +134,7 @@ mod tests {
         let bbox = Aabb::new(Point3::new(0.5, 1.0, -3.0), Point3::new(1.5, 3.0, 3.0));
 
         let zero_obb = Obb::new(Isometry3::from_parts(translation, zero_rot), half_extent);
-        let zero_obb_isec = zero_obb
-            .intersector()
-            .cache_separating_axes(&Aabb::axes(), &Aabb::axes());
+        let zero_obb_isec = zero_obb.intersector().cache_separating_axes_for_aabb();
         assert_eq!(zero_obb_isec.axes.len(), 3);
         assert_eq!(
             zero_obb_isec.intersect(&bbox.compute_corners()),
@@ -149,7 +147,7 @@ mod tests {
         );
         let fourty_five_deg_obb_isec = fourty_five_deg_obb
             .intersector()
-            .cache_separating_axes(&Aabb::axes(), &Aabb::axes());
+            .cache_separating_axes_for_aabb();
         assert_eq!(fourty_five_deg_obb_isec.axes.len(), 5);
         assert_eq!(
             fourty_five_deg_obb_isec.intersect(&bbox.compute_corners()),
@@ -160,9 +158,7 @@ mod tests {
             Isometry3::from_parts(translation, arbitrary_rot),
             half_extent,
         );
-        let arbitrary_obb_isec = arbitrary_obb
-            .intersector()
-            .cache_separating_axes(&Aabb::axes(), &Aabb::axes());
+        let arbitrary_obb_isec = arbitrary_obb.intersector().cache_separating_axes_for_aabb();
         assert_eq!(arbitrary_obb_isec.axes.len(), 15);
     }
 }
