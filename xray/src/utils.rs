@@ -3,8 +3,7 @@ use quadtree::NodeId;
 use std::path::{Path, PathBuf};
 
 pub fn get_meta_pb_path(directory: &Path, id: NodeId) -> PathBuf {
-    let meta_pb_name = format!("{}.pb", id).replace("r", "meta");
-    directory.join(&meta_pb_name)
+    directory.join(&format!("{}.pb", id).replace("r", "meta"))
 }
 
 pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
