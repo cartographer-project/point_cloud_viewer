@@ -113,12 +113,13 @@ where
     F: Fn(&V, &V) -> bool,
     V: Clone,
 {
-    let first_element = &iterator.next().expect("Iterator cannot be empty.");
-    if iterator.all(|element| comp(&element, first_element)) {
-        Some(first_element.clone())
-    } else {
-        None
-    }
+    iterator.next().and_then(|first_element| {
+        if iterator.all(|element| comp(&element, &first_element)) {
+            Some(first_element.clone())
+        } else {
+            None
+        }
+    })
 }
 
 fn validate_and_merge_metadata(metadata: &[Meta]) -> MergedMetadata {
