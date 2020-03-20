@@ -2,6 +2,7 @@ use approx::relative_eq;
 use fnv::FnvHashSet;
 use point_viewer::color::Color;
 use quadtree::NodeId;
+use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 use xray::{generation, Meta};
@@ -25,7 +26,7 @@ struct CommandlineArguments {
 }
 
 fn copy_images(input_directory: &Path, output_directory: &Path) {
-    if input_directory == output_directory {
+    if input_directory.canonicalize().unwrap() == output_directory.canonicalize().unwrap() {
         return;
     }
     globwalk::GlobWalkerBuilder::new(
@@ -183,6 +184,19 @@ fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_
 
 fn main() {
     let args = CommandlineArguments::from_args();
+    for input_directory in &args.input_directories {
+        assert!(
+            input_directory.exists(),
+            format!("Input directory {:?} doesn't exist.", input_directory)
+        );
+        assert!(
+            input_directory.metadata().unwrap().is_dir(),
+            format!("{:?} is not a directory.", input_directory)
+        )
+    }
+    if !args.output_directory.exists() {
+        create_dir_all(&args.output_directory).expect("Couldn't create the output directory.");
+    }
     let metadata = read_metadata_from_directories(&args.input_directories);
     let merged_metadata = validate_and_merge_metadata(&metadata);
     copy_all_images(&args.input_directories, &args.output_directory);
