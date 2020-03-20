@@ -45,14 +45,14 @@ fn get_adjacent_leaf_node_ids(
 ) -> FnvHashSet<NodeId> {
     let spatial_root_node_id = SpatialNodeId::from(root_node_id);
     let mut neighboring_leaf_node_ids = FnvHashSet::default();
-    let directions = [
+    let directions = &[
         Direction::Left,
         Direction::Top,
         Direction::Right,
         Direction::Bottom,
     ];
-    for i in 0..4 {
-        if let Some(spatial_root_neighbor_id) = spatial_root_node_id.neighbor(directions[i]) {
+    for direction in directions {
+        if let Some(spatial_root_neighbor_id) = spatial_root_node_id.neighbor(*direction) {
             if let Ok(neighbor_meta) = Meta::from_disk(get_meta_pb_path(
                 input_directory,
                 NodeId::from(spatial_root_neighbor_id),
@@ -63,7 +63,7 @@ fn get_adjacent_leaf_node_ids(
                     .filter(|id| id.level() == neighbor_meta.deepest_level)
                 {
                     if let Some(spatial_id) =
-                        SpatialNodeId::from(*neighbor_node_id).neighbor(directions[(i + 2) % 4])
+                        SpatialNodeId::from(*neighbor_node_id).neighbor(direction.opposite())
                     {
                         if leaf_node_ids.contains(&NodeId::from(spatial_id)) {
                             neighboring_leaf_node_ids.insert(*neighbor_node_id);
