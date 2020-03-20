@@ -184,7 +184,7 @@ pub mod backend;
 pub mod build_quadtree;
 pub mod colormap;
 pub mod generation;
-mod inpaint;
+pub mod inpaint;
 mod utils;
 
 pub use xray_proto_rust::proto;

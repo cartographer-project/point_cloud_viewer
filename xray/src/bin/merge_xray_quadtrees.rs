@@ -126,7 +126,7 @@ fn validate_and_merge_metadata(metadata: &[Meta]) -> MergedMetadata {
         .expect("Not all meta files have the same deepest level.") as u8;
     let tile_size = check_all_the_same(metadata.iter().map(|meta| meta.tile_size))
         .expect("Not all meta files have the same tile size.");
-    // TODO: check whether all root nodes have the same bound_rect.
+    // TODO(krzesi-mir): check whether all root nodes have the same bound_rect.
     let bounding_rect = metadata[0].bounding_rect.clone();
 
     let mut nodes = FnvHashSet::default();
