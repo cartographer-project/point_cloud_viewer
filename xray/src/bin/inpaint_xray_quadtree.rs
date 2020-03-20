@@ -93,6 +93,9 @@ fn copy_nodes(
 fn main() -> Result<(), Box<dyn Error>> {
     let args = CommandlineArguments::from_args();
     let input_directory = args.input_directory.canonicalize()?;
+    if !args.output_directory.exists() {
+        fs::create_dir_all(&args.output_directory)?;
+    }
     let output_directory = args.output_directory.canonicalize()?;
     let tile_background_color = args.tile_background_color.to_color();
     let root_node_id = args.root_node_id;
