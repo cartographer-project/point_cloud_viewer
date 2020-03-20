@@ -51,8 +51,8 @@ fn get_adjacent_leaf_node_ids(
         Direction::Right,
         Direction::Bottom,
     ];
-    for (i, direction) in directions.iter().enumerate() {
-        if let Some(spatial_root_neighbor_id) = spatial_root_node_id.neighbor(*direction) {
+    for i in 0..4 {
+        if let Some(spatial_root_neighbor_id) = spatial_root_node_id.neighbor(directions[i]) {
             if let Ok(neighbor_meta) = Meta::from_disk(get_meta_pb_path(
                 input_directory,
                 NodeId::from(spatial_root_neighbor_id),
