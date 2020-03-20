@@ -90,6 +90,17 @@ fn copy_nodes(
     Ok(())
 }
 
+fn copy_meta_pb(
+    root_node_id: NodeId,
+    input_directory: &Path,
+    output_directory: &Path,
+) -> io::Result<u64> {
+    fs::copy(
+        get_meta_pb_path(&input_directory, root_node_id),
+        get_meta_pb_path(&output_directory, root_node_id),
+    )
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args = CommandlineArguments::from_args();
     let input_directory = args.input_directory.canonicalize()?;
@@ -119,10 +130,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if input_directory != output_directory {
-        fs::copy(
-            get_meta_pb_path(&input_directory, root_node_id),
-            get_meta_pb_path(&output_directory, root_node_id),
-        )?;
+        copy_meta_pb(root_node_id, &input_directory, &output_directory)?;
         copy_nodes(&leaf_node_ids, &input_directory, &output_directory)?;
         copy_nodes(&adjacent_leaf_node_ids, &input_directory, &output_directory)?;
     }
