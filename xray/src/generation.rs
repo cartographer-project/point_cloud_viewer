@@ -590,8 +590,14 @@ pub fn build_xray_quadtree(
         &created_leaf_node_ids,
     )?;
 
-    let all_node_ids =
-        create_non_leaf_nodes(created_leaf_node_ids, deepest_level, root_level, parameters);
+    let all_node_ids = create_non_leaf_nodes(
+        created_leaf_node_ids,
+        deepest_level,
+        root_level,
+        &parameters.output_directory,
+        parameters.tile_background_color,
+        parameters.tile_size_px,
+    );
 
     let meta = {
         let mut meta = proto::Meta::new();
@@ -666,7 +672,9 @@ pub fn create_non_leaf_nodes(
     created_leaf_node_ids: FnvHashSet<NodeId>,
     deepest_level: u8,
     root_level: u8,
-    parameters: &XrayParameters,
+    output_directory: &Path,
+    tile_background_color: Color<u8>,
+    tile_size_px: u32,
 ) -> FnvHashSet<NodeId> {
     let mut current_level_nodes = created_leaf_node_ids;
     let mut all_nodes = current_level_nodes.clone();
@@ -677,11 +685,11 @@ pub fn create_non_leaf_nodes(
             .filter_map(|node| node.parent_id())
             .collect();
         build_level(
-            &parameters.output_directory,
-            parameters.tile_size_px,
+            output_directory,
+            tile_size_px,
             current_level,
             &current_level_nodes,
-            parameters.tile_background_color,
+            tile_background_color,
         );
         all_nodes.extend(&current_level_nodes);
     }
