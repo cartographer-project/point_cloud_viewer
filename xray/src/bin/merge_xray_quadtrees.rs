@@ -59,8 +59,10 @@ fn read_metadata_from_directory(directory: &Path) -> Vec<Meta> {
         .build()
         .expect("Failed to build GlobWalker")
         .filter_map(Result::ok)
-        .map(|dir_entry| PathBuf::from(dir_entry.path()))
-        .map(|path| Meta::from_disk(&path).expect(&format!("Failed to load meta from {:?}.", path)))
+        .map(|dir_entry| {
+            Meta::from_disk(dir_entry.path())
+                .expect(&format!("Failed to load meta from {:?}.", dir_entry.path()))
+        })
         .collect()
 }
 
