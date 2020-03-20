@@ -1161,6 +1161,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "globset"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ad1da430bd7281dde2576f44c84cc3f0f7b475e7202cd503042dff01a8c8120"
+dependencies = [
+ "aho-corasick",
+ "bstr",
+ "fnv",
+ "log 0.4.8",
+ "regex",
+]
+
+[[package]]
+name = "globwalk"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "178270263374052c40502e9f607134947de75302c1348d1a0e31db67c1691446"
+dependencies = [
+ "bitflags",
+ "ignore",
+ "walkdir",
+]
+
+[[package]]
 name = "grpcio"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1308,6 +1332,25 @@ dependencies = [
  "matches",
  "unicode-bidi",
  "unicode-normalization",
+]
+
+[[package]]
+name = "ignore"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c81b30e645a7b49ad57340fd900717e6b3404bfe8322035ef189d434c412aa1"
+dependencies = [
+ "crossbeam-channel",
+ "crossbeam-utils",
+ "globset",
+ "lazy_static",
+ "log 0.4.8",
+ "memchr",
+ "regex",
+ "same-file",
+ "thread_local",
+ "walkdir",
+ "winapi-util",
 ]
 
 [[package]]
@@ -2279,6 +2322,7 @@ name = "quadtree"
 version = "0.1.0"
 dependencies = [
  "cgmath 0.17.0",
+ "xray_proto_rust",
 ]
 
 [[package]]
@@ -3516,14 +3560,17 @@ checksum = "541b12c998c5b56aa2b4e6f18f03664eef9a4fd0a246a55594efae6cc2d964b5"
 name = "xray"
 version = "0.1.0"
 dependencies = [
+ "approx 0.3.2",
  "cgmath 0.17.0",
  "clap",
  "collision",
  "crossbeam",
  "fnv",
+ "globwalk",
  "image",
  "imageproc",
  "iron",
+ "itertools 0.9.0",
  "num 0.2.1",
  "pbr",
  "point_cloud_client",
