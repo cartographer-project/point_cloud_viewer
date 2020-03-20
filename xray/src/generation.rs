@@ -591,7 +591,7 @@ pub fn build_xray_quadtree(
     )?;
 
     let all_node_ids =
-        create_non_leaf_nodes(created_leaf_node_ids, deepest_level, root_level, parameters)?;
+        create_non_leaf_nodes(created_leaf_node_ids, deepest_level, root_level, parameters);
 
     let meta = {
         let mut meta = proto::Meta::new();
@@ -667,7 +667,7 @@ pub fn create_non_leaf_nodes(
     deepest_level: u8,
     root_level: u8,
     parameters: &XrayParameters,
-) -> ImageResult<FnvHashSet<NodeId>> {
+) -> FnvHashSet<NodeId> {
     let mut current_level_nodes = created_leaf_node_ids;
     let mut all_nodes = current_level_nodes.clone();
 
@@ -685,7 +685,7 @@ pub fn create_non_leaf_nodes(
         );
         all_nodes.extend(&current_level_nodes);
     }
-    Ok(all_nodes)
+    all_nodes
 }
 
 pub fn assign_background_color(
