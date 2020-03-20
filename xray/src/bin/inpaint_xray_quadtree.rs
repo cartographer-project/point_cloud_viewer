@@ -34,7 +34,7 @@ struct CommandlineArguments {
     #[structopt(long)]
     inpaint_distance_px: u8,
     /// The root node id to start inpainting with.
-    #[structopt(long)]
+    #[structopt(default_value = "r", long)]
     root_node_id: NodeId,
 }
 
