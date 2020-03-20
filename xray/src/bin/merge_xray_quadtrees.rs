@@ -40,11 +40,13 @@ fn copy_images(input_directory: &Path, output_directory: &Path) {
             dir_entry.path(),
             output_directory.join(dir_entry.file_name()),
         )
-        .expect(&format!(
-            "Failed to copy {:?} to {:?}.",
-            dir_entry.path(),
-            output_directory
-        ));
+        .unwrap_or_else(|_| {
+            panic!(
+                "Failed to copy {:?} to {:?}.",
+                dir_entry.path(),
+                output_directory
+            )
+        });
     })
 }
 
@@ -61,7 +63,7 @@ fn read_metadata_from_directory(directory: &Path) -> Vec<Meta> {
         .filter_map(Result::ok)
         .map(|dir_entry| {
             Meta::from_disk(dir_entry.path())
-                .expect(&format!("Failed to load meta from {:?}.", dir_entry.path()))
+                .unwrap_or_else(|_| panic!("Failed to load meta from {:?}.", dir_entry.path()))
         })
         .collect()
 }
@@ -92,7 +94,7 @@ fn get_root_nodes(meta: &[Meta]) -> Vec<NodeId> {
 struct MergedMetadata {
     root_nodes: FnvHashSet<NodeId>,
     level: u8,
-    merged_meta: Meta,
+    root_meta: Meta,
 }
 
 // Checks wheter all the elements in the iterator have the same value and returns it.
@@ -135,7 +137,7 @@ fn validate_and_merge_metadata(metadata: &[Meta]) -> MergedMetadata {
     MergedMetadata {
         root_nodes,
         level,
-        merged_meta: Meta {
+        root_meta: Meta {
             deepest_level,
             tile_size,
             bounding_rect,
@@ -153,15 +155,15 @@ fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_
             .collect();
         generation::build_level(
             output_directory,
-            metadata.merged_meta.tile_size,
+            metadata.root_meta.tile_size,
             current_level,
             &current_level_nodes,
             tile_background_color,
         );
-        metadata.merged_meta.nodes.extend(&current_level_nodes);
+        metadata.root_meta.nodes.extend(&current_level_nodes);
     }
     metadata
-        .merged_meta
+        .root_meta
         .to_disk(output_directory.join("meta.pb"))
         .expect("Failed to write meta.pb");
 }
