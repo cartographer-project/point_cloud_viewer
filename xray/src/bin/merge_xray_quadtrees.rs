@@ -1,5 +1,5 @@
+use approx::relative_eq;
 use fnv::FnvHashSet;
-use itertools::Itertools;
 use point_viewer::color::Color;
 use quadtree::NodeId;
 use std::path::{Path, PathBuf};
@@ -99,13 +99,23 @@ struct MergedMetadata {
 
 // Checks wheter all the elements in the iterator have the same value and returns it.
 // There must be at least one element in the iterator.
-fn check_all_the_same<I, V>(mut iterator: I) -> Option<V>
+fn all_equal<I, V>(iterator: I) -> Option<V>
 where
-    I: Iterator<Item = V> + Clone,
-    V: std::cmp::PartialEq,
+    I: Iterator<Item = V>,
+    V: std::cmp::PartialEq + Clone,
 {
-    if iterator.clone().all_equal() {
-        Some(iterator.next().expect("Iterator cannot be empty."))
+    all_equal_by_func(iterator, |left, right| left == right)
+}
+
+fn all_equal_by_func<I, V, F>(mut iterator: I, comp: F) -> Option<V>
+where
+    I: Iterator<Item = V>,
+    F: Fn(&V, &V) -> bool,
+    V: Clone,
+{
+    let first_element = &iterator.next().expect("Iterator cannot be empty.");
+    if iterator.all(|element| comp(&element, first_element)) {
+        Some(first_element.clone())
     } else {
         None
     }
@@ -120,14 +130,22 @@ fn validate_and_merge_metadata(metadata: &[Meta]) -> MergedMetadata {
         root_nodes_vec.len(),
         "Not all roots are unique."
     );
-    let level = check_all_the_same(root_nodes.iter().map(|node| node.level()))
+    let level = all_equal(root_nodes.iter().map(|node| node.level()))
         .expect("Not all roots have the same level.");
-    let deepest_level = check_all_the_same(metadata.iter().map(|meta| meta.deepest_level))
+    let deepest_level = all_equal(metadata.iter().map(|meta| meta.deepest_level))
         .expect("Not all meta files have the same deepest level.") as u8;
-    let tile_size = check_all_the_same(metadata.iter().map(|meta| meta.tile_size))
+    let tile_size = all_equal(metadata.iter().map(|meta| meta.tile_size))
         .expect("Not all meta files have the same tile size.");
-    // TODO(krzesi-mir): check whether all root nodes have the same bound_rect.
-    let bounding_rect = metadata[0].bounding_rect.clone();
+    let bounding_rect = all_equal_by_func(
+        metadata.iter().map(|meta| &meta.bounding_rect),
+        |left, right| {
+            relative_eq!(left.edge_length(), right.edge_length())
+                && relative_eq!(left.min().x, right.min().x)
+                && relative_eq!(left.min().y, right.min().y)
+        },
+    )
+    .expect("Not all meta files have the same bounding rect.")
+    .clone();
 
     let mut nodes = FnvHashSet::default();
     for meta in metadata {
