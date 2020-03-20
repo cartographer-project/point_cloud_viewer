@@ -111,7 +111,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let adjacent_leaf_node_ids =
         get_adjacent_leaf_node_ids(&leaf_node_ids, &input_directory, root_node_id);
     if root_node_id.level() != 0 && adjacent_leaf_node_ids.is_empty() {
-        println!("No adjacent leaf nodes found in neighboring quadtrees. Did you forget to specify these?")
+        println!(
+            "No adjacent leaf nodes found in neighboring quadtrees. \
+             Did you forget to copy them into {}?",
+            &input_directory
+        )
     }
 
     if input_directory != output_directory {
