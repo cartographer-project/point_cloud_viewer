@@ -103,7 +103,7 @@ struct MergedMetadata {
 fn all_equal<I, V>(iterator: I) -> Option<V>
 where
     I: Iterator<Item = V>,
-    V: std::cmp::PartialEq + Clone,
+    V: std::cmp::PartialEq,
 {
     all_equal_by_func(iterator, |left, right| left == right)
 }
@@ -112,11 +112,10 @@ fn all_equal_by_func<I, V, F>(mut iterator: I, comp: F) -> Option<V>
 where
     I: Iterator<Item = V>,
     F: Fn(&V, &V) -> bool,
-    V: Clone,
 {
     iterator.next().and_then(|first_element| {
         if iterator.all(|element| comp(&element, &first_element)) {
-            Some(first_element.clone())
+            Some(first_element)
         } else {
             None
         }
