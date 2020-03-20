@@ -147,21 +147,15 @@ fn validate_and_merge_metadata(metadata: &[Meta]) -> MergedMetadata {
 }
 
 fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_color: Color<u8>) {
-    let mut current_level_nodes = metadata.root_nodes;
-    for current_level in (0..metadata.level).rev() {
-        current_level_nodes = current_level_nodes
-            .iter()
-            .filter_map(|node| node.parent_id())
-            .collect();
-        generation::build_level(
-            output_directory,
-            metadata.root_meta.tile_size,
-            current_level,
-            &current_level_nodes,
-            tile_background_color,
-        );
-        metadata.root_meta.nodes.extend(&current_level_nodes);
-    }
+    let all_node_ids = generation::create_non_leaf_nodes(
+        metadata.root_nodes,
+        metadata.level,
+        0, // root_level
+        output_directory,
+        tile_background_color,
+        metadata.root_meta.tile_size,
+    );
+    metadata.root_meta.nodes.extend(&all_node_ids);
     metadata
         .root_meta
         .to_disk(output_directory.join("meta.pb"))
