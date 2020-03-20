@@ -2,15 +2,18 @@ use cgmath::Point2;
 use cgmath::{Matrix4, Point3};
 use collision::{Aabb3, Frustum, Relation};
 use fnv::FnvHashSet;
+use protobuf::Message;
 use quadtree::{ChildIndex, Node};
 use quadtree::{NodeId, Rect};
 use serde_derive::Serialize;
-use std::io::{self, Cursor};
+use std::fs::File;
+use std::io::{self, BufWriter, Cursor};
 use std::path::Path;
 
 // Version 2 -> 3: Change in Rect proto from Vector2f to Vector2d min and float to double edge_length.
 // We are able to convert the proto on read, so the tools can still read version 2.
 pub const CURRENT_VERSION: i32 = 3;
+pub const IMAGE_FILE_EXTENSION: &str = "png";
 
 #[derive(Debug, Clone)]
 pub struct Meta {
@@ -42,6 +45,18 @@ impl Meta {
                 .map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not parse meta.pb"))?
         };
         Ok(Self::from_proto(&proto))
+    }
+
+    pub fn to_disk<P: AsRef<Path>>(&self, filename: P) -> io::Result<()> {
+        let mut buf_writer = BufWriter::new(File::create(filename.as_ref())?);
+        self.to_proto()
+            .write_to_writer(&mut buf_writer)
+            .map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Couldn't write meta to {:?}.", filename.as_ref()),
+                )
+            })
     }
 
     // Reads the meta from the provided encoded protobuf.
@@ -80,6 +95,27 @@ impl Meta {
             tile_size: proto.tile_size,
             deepest_level: proto.deepest_level as u8,
         }
+    }
+
+    pub fn to_proto(&self) -> proto::Meta {
+        let mut meta = proto::Meta::new();
+        let bounding_rect = meta.mut_bounding_rect();
+        bounding_rect.set_edge_length(self.bounding_rect.edge_length());
+        let min = bounding_rect.mut_min();
+        min.set_x(self.bounding_rect.min().x);
+        min.set_y(self.bounding_rect.min().y);
+        meta.set_deepest_level(u32::from(self.deepest_level));
+        meta.set_tile_size(self.tile_size);
+        meta.set_version(CURRENT_VERSION);
+
+        for node_id in &self.nodes {
+            let mut proto = proto::NodeId::new();
+            proto.set_index(node_id.index());
+            proto.set_level(u32::from(node_id.level()));
+            meta.mut_nodes().push(proto);
+        }
+
+        meta
     }
 
     pub fn get_nodes_for_level(
@@ -148,7 +184,7 @@ pub mod backend;
 pub mod build_quadtree;
 pub mod colormap;
 pub mod generation;
-mod inpaint;
-mod utils;
+pub mod inpaint;
+pub mod utils;
 
 pub use xray_proto_rust::proto;

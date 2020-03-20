@@ -4,7 +4,6 @@ use crate::generation::{
 };
 use clap::value_t;
 use point_cloud_client::PointCloudClientBuilder;
-use point_viewer::color::{TRANSPARENT, WHITE};
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::{ClosedInterval, Isometry3};
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
@@ -164,14 +163,10 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         }
     };
 
-    let tile_background_color = {
-        let arg = value_t!(args, "tile_background_color", TileBackgroundColorArgument)
-            .expect("tile_background_color is invalid");
-        match arg {
-            TileBackgroundColorArgument::white => WHITE.to_u8(),
-            TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
-        }
-    };
+    let tile_background_color =
+        value_t!(args, "tile_background_color", TileBackgroundColorArgument)
+            .expect("tile_background_color is invalid")
+            .to_color();
 
     let output_directory = PathBuf::from(args.value_of("output_directory").unwrap());
 
