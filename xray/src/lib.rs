@@ -118,6 +118,13 @@ impl Meta {
         meta
     }
 
+    pub fn iter_level<'a>(&'a self, level: u8) -> impl Iterator<Item = NodeId> + 'a {
+        self.nodes
+            .iter()
+            .copied()
+            .filter(move |node_id| node_id.level() == level)
+    }
+
     pub fn get_nodes_for_level(
         &self,
         level: u8,

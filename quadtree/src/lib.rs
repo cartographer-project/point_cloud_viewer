@@ -186,6 +186,12 @@ impl NodeId {
         })
     }
 
+    pub fn neighbor(&self, direction: Direction) -> Option<Self> {
+        SpatialNodeId::from(*self)
+            .neighbor(direction)
+            .map(NodeId::from)
+    }
+
     /// Returns the level of this node in the quadtree, with 0 being the root.
     pub fn level(&self) -> u8 {
         self.level
