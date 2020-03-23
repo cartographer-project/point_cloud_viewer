@@ -3570,7 +3570,6 @@ dependencies = [
  "image",
  "imageproc",
  "iron",
- "itertools 0.9.0",
  "num 0.2.1",
  "pbr",
  "point_cloud_client",
