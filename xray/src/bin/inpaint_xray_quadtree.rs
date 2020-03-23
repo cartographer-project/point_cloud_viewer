@@ -107,10 +107,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let meta = Meta::from_disk(get_meta_pb_path(&input_directory, root_node_id))?;
 
     let leaf_node_ids: FnvHashSet<NodeId> = meta.iter_level(meta.deepest_level).collect();
-
     let adjacent_leaf_node_ids =
         get_adjacent_leaf_node_ids(&leaf_node_ids, &input_directory, root_node_id);
     if root_node_id.level() != 0 && adjacent_leaf_node_ids.is_empty() {
+        // TODO(feuerste): Replace with slog warn.
         println!(
             "No adjacent leaf nodes found in neighboring quadtrees. \
              Did you forget to copy them into {:?}?",
