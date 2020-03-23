@@ -1,8 +1,7 @@
 // Code related to X-Ray generation.
 
 use crate::colormap::{Colormap, Jet, Monochrome, PURPLISH};
-use crate::inpaint::perform_inpainting;
-use crate::utils::get_image_path;
+use crate::utils::{get_image_path, get_meta_pb_path};
 use crate::Meta;
 use cgmath::{Decomposed, EuclideanSpace, Point2, Point3, Quaternion, Vector2, Vector3};
 use clap::arg_enum;
@@ -466,7 +465,6 @@ pub struct XrayParameters {
     pub tile_background_color: Color<u8>,
     pub tile_size_px: u32,
     pub pixel_size_m: f64,
-    pub inpaint_distance_px: u8,
     pub root_node_id: NodeId,
 }
 
@@ -585,12 +583,6 @@ pub fn build_xray_quadtree(
         parameters,
     )?;
 
-    perform_inpainting(
-        &parameters.output_directory,
-        parameters.inpaint_distance_px,
-        &created_leaf_node_ids,
-    )?;
-
     assign_background_color(
         &parameters.output_directory,
         parameters.tile_background_color,
@@ -612,8 +604,7 @@ pub fn build_xray_quadtree(
         tile_size: parameters.tile_size_px,
         deepest_level,
     };
-    let meta_pb_name = format!("{}.pb", root_node_id).replace("r", "meta");
-    meta.to_disk(parameters.output_directory.join(meta_pb_name))
+    meta.to_disk(get_meta_pb_path(&parameters.output_directory, root_node_id))
         .expect("Filed to write meta file to disk.");
 
     Ok(())

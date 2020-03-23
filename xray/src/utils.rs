@@ -2,6 +2,10 @@ use image::{GenericImage, GenericImageView, ImageResult, Pixel, RgbaImage, SubIm
 use quadtree::NodeId;
 use std::path::{Path, PathBuf};
 
+pub fn get_meta_pb_path(directory: &Path, id: NodeId) -> PathBuf {
+    directory.join(&format!("{}.pb", id).replace("r", "meta"))
+}
+
 pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
     directory
         .join(id.to_string())

@@ -104,12 +104,6 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                      weight than points temporally further away.")
                 .long("binning")
                 .takes_value(true),
-            clap::Arg::with_name("inpaint_distance_px")
-                .help("The inpainting distance in pixels to fill holes (in particular useful \
-                       for high resolutions).")
-                .long("inpaint-distance-px")
-                .takes_value(true)
-                .default_value("0"),
             clap::Arg::with_name("root_node_id")
                 .help("The root node id to start building with.")
                 .long("root-node-id")
@@ -192,11 +186,6 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         .unwrap_or_default()
         .map(|f| parse_key_val(f).unwrap())
         .collect::<HashMap<String, ClosedInterval<f64>>>();
-    let inpaint_distance_px = args
-        .value_of("inpaint_distance_px")
-        .unwrap()
-        .parse::<u8>()
-        .expect("inpaint_distance_px could not be parsed.");
     let root_node_id = args
         .value_of("root_node_id")
         .unwrap()
@@ -210,7 +199,6 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         tile_background_color,
         tile_size_px,
         pixel_size_m,
-        inpaint_distance_px,
         root_node_id,
     };
     build_xray_quadtree(&coloring_strategy_kind, &parameters)
