@@ -76,18 +76,8 @@ fn read_metadata_from_directories(directories: &[PathBuf]) -> Vec<Meta> {
         .collect()
 }
 
-fn get_root_node(meta: &Meta) -> Option<Node> {
-    meta.nodes
-        .iter()
-        .min_by_key(|node_id| node_id.level())
-        .map(|node_id| Node {
-            id: *node_id,
-            bounding_rect: meta.bounding_rect.clone(),
-        })
-}
-
 fn get_root_nodes(meta: &[Meta]) -> Vec<Node> {
-    let root_nodes: Vec<Node> = meta.iter().filter_map(get_root_node).collect();
+    let root_nodes: Vec<Node> = meta.iter().filter_map(Meta::get_root_node).collect();
     if root_nodes.len() != meta.len() {
         println!(
             "Skipped {} empty subquadtrees.",
