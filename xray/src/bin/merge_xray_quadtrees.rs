@@ -1,7 +1,6 @@
-use approx::relative_eq;
 use fnv::FnvHashSet;
 use point_viewer::color::Color;
-use quadtree::NodeId;
+use quadtree::{Node, NodeId};
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
@@ -77,12 +76,8 @@ fn read_metadata_from_directories(directories: &[PathBuf]) -> Vec<Meta> {
         .collect()
 }
 
-fn get_root_node(meta: &Meta) -> Option<NodeId> {
-    meta.nodes.iter().copied().min_by_key(|node| node.level())
-}
-
-fn get_root_nodes(meta: &[Meta]) -> Vec<NodeId> {
-    let root_nodes: Vec<NodeId> = meta.iter().filter_map(get_root_node).collect();
+fn get_root_nodes(meta: &[Meta]) -> Vec<Node> {
+    let root_nodes: Vec<Node> = meta.iter().filter_map(Meta::get_root_node).collect();
     if root_nodes.len() != meta.len() {
         println!(
             "Skipped {} empty subquadtrees.",
@@ -93,7 +88,7 @@ fn get_root_nodes(meta: &[Meta]) -> Vec<NodeId> {
 }
 
 struct MergedMetadata {
-    root_nodes: FnvHashSet<NodeId>,
+    root_node_ids: FnvHashSet<NodeId>,
     level: u8,
     root_meta: Meta,
 }
@@ -125,28 +120,25 @@ where
 fn validate_and_merge_metadata(metadata: &[Meta]) -> MergedMetadata {
     assert!(!metadata.is_empty(), "No subquadtrees meta files found.");
     let root_nodes_vec = get_root_nodes(metadata);
-    let root_nodes: FnvHashSet<NodeId> = root_nodes_vec.iter().copied().collect();
+    let root_node_ids: FnvHashSet<NodeId> = root_nodes_vec.iter().map(|node| node.id).collect();
     assert_eq!(
-        root_nodes.len(),
+        root_node_ids.len(),
         root_nodes_vec.len(),
         "Not all roots are unique."
     );
-    let level = all_equal(root_nodes.iter().map(|node| node.level()))
+    let level = all_equal(root_node_ids.iter().map(|node_id| node_id.level()))
         .expect("Not all roots have the same level.");
     let deepest_level = all_equal(metadata.iter().map(|meta| meta.deepest_level))
         .expect("Not all meta files have the same deepest level.") as u8;
     let tile_size = all_equal(metadata.iter().map(|meta| meta.tile_size))
         .expect("Not all meta files have the same tile size.");
-    let bounding_rect = all_equal_by_func(
-        metadata.iter().map(|meta| &meta.bounding_rect),
-        |left, right| {
-            relative_eq!(left.edge_length(), right.edge_length())
-                && relative_eq!(left.min().x, right.min().x)
-                && relative_eq!(left.min().y, right.min().y)
-        },
-    )
-    .expect("Not all meta files have the same bounding rect.")
-    .clone();
+    let bounding_rect = {
+        let mut root_node = root_nodes_vec.first().cloned();
+        while let Some(node) = root_node {
+            root_node = node.parent();
+        }
+        root_node.expect("No parent root node found.").bounding_rect
+    };
 
     let mut nodes = FnvHashSet::default();
     for meta in metadata {
@@ -154,7 +146,7 @@ fn validate_and_merge_metadata(metadata: &[Meta]) -> MergedMetadata {
     }
 
     MergedMetadata {
-        root_nodes,
+        root_node_ids,
         level,
         root_meta: Meta {
             deepest_level,
@@ -167,7 +159,7 @@ fn validate_and_merge_metadata(metadata: &[Meta]) -> MergedMetadata {
 
 fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_color: Color<u8>) {
     let all_node_ids = generation::create_non_leaf_nodes(
-        metadata.root_nodes,
+        metadata.root_node_ids,
         metadata.level,
         0, // root_level
         output_directory,

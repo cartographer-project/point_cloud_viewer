@@ -49,7 +49,7 @@ impl Rect {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Node {
     pub id: NodeId,
     pub bounding_rect: Rect,

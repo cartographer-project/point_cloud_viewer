@@ -118,6 +118,16 @@ impl Meta {
         meta
     }
 
+    pub fn get_root_node(&self) -> Option<Node> {
+        self.nodes
+            .iter()
+            .min_by_key(|node_id| node_id.level())
+            .map(|node_id| Node {
+                id: *node_id,
+                bounding_rect: self.bounding_rect.clone(),
+            })
+    }
+
     pub fn iter_level<'a>(&'a self, level: u8) -> impl Iterator<Item = NodeId> + 'a {
         self.nodes
             .iter()

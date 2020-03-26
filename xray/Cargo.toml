@@ -5,12 +5,12 @@ authors = [
    "Holger Rapp <hrapp@lyft.com>",
    "Marco Feuerstein <mfeuerstein@lyft.com>",
    "Nikolai Morin <nmorin@lyft.com>",
-   "Caterina Vitadello <cvitadello@lyft.com>"
+   "Caterina Vitadello <cvitadello@lyft.com>",
+   "Kamil Popielarz <kpopielarz@lyft.com>"
 ]
 edition = "2018"
 
 [dependencies]
-approx = "0.3.2"
 cgmath = "0.17.0"
 clap = "2.33.0"
 collision = "0.20.1"

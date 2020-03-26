@@ -3560,7 +3560,6 @@ checksum = "541b12c998c5b56aa2b4e6f18f03664eef9a4fd0a246a55594efae6cc2d964b5"
 name = "xray"
 version = "0.1.0"
 dependencies = [
- "approx 0.3.2",
  "cgmath 0.17.0",
  "clap",
  "collision",
