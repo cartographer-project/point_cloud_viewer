@@ -555,8 +555,7 @@ pub fn create_meta(
 }
 
 pub fn get_nodes_at_level(root_node: &Node, level: u8) -> Vec<Node> {
-    let root_level = root_node.level();
-    let mut nodes_at_level = Vec::with_capacity(4usize.pow((level - root_level).into()));
+    let mut nodes_at_level = Vec::with_capacity(4usize.pow((level - root_node.level()).into()));
     let mut nodes_to_traverse = Vec::with_capacity((4 * nodes_at_level.capacity() - 1) / 3);
     nodes_to_traverse.push(root_node.clone());
     while let Some(node) = nodes_to_traverse.pop() {
