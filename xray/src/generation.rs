@@ -519,7 +519,12 @@ pub fn xray_from_points(
     Some(image)
 }
 
-fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb3<f64>, tile_size_m: f64) -> (Rect, u8) {
+pub fn find_quadtree_bounding_rect_and_levels(
+    bbox: &Aabb3<f64>,
+    tile_size_px: u32,
+    pixel_size_m: f64,
+) -> (Rect, u8) {
+    let tile_size_m = f64::from(tile_size_px) * pixel_size_m;
     let mut levels = 0;
     let mut cur_size = tile_size_m;
     while cur_size < bbox.dim().x || cur_size < bbox.dim().y {
@@ -548,6 +553,20 @@ pub fn get_nodes_at_level(root_node: &Node, level: u8) -> Vec<Node> {
     nodes_at_level
 }
 
+pub fn get_bounding_box(
+    bounding_box: &Aabb3<f64>,
+    query_from_global: &Option<Isometry3<f64>>,
+) -> Aabb3<f64> {
+    match query_from_global {
+        Some(query_from_global) => {
+            let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> =
+                query_from_global.clone().into();
+            bounding_box.transform(&decomposed)
+        }
+        None => *bounding_box,
+    }
+}
+
 pub fn build_xray_quadtree(
     coloring_strategy_kind: &ColoringStrategyKind,
     parameters: &XrayParameters,
@@ -555,20 +574,14 @@ pub fn build_xray_quadtree(
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(&parameters.output_directory);
 
-    let bounding_box = match &parameters.query_from_global {
-        Some(query_from_global) => {
-            let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> =
-                query_from_global.clone().into();
-            parameters
-                .point_cloud_client
-                .bounding_box()
-                .transform(&decomposed)
-        }
-        None => *parameters.point_cloud_client.bounding_box(),
-    };
+    let bounding_box = get_bounding_box(
+        parameters.point_cloud_client.bounding_box(),
+        &parameters.query_from_global,
+    );
     let (bounding_rect, deepest_level) = find_quadtree_bounding_rect_and_levels(
         &bounding_box,
-        f64::from(parameters.tile_size_px) * parameters.pixel_size_m,
+        parameters.tile_size_px,
+        parameters.pixel_size_m,
     );
 
     let root_node_id = parameters.root_node_id;
