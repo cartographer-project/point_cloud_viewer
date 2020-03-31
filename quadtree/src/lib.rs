@@ -217,9 +217,10 @@ impl FromStr for NodeId {
     }
 }
 
+pub const NODE_PREFIX: char = 'r';
 impl fmt::Display for NodeId {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_char('r')?;
+        formatter.write_char(NODE_PREFIX)?;
         let index = self.index;
         for level in (0..self.level).rev() {
             let c = match (index >> (2 * level)) & 3 {
