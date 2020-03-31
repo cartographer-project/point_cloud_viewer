@@ -531,28 +531,6 @@ fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb3<f64>, tile_size_m: f64) -
         levels,
     )
 }
-pub fn create_meta(
-    root_node_id: NodeId,
-    bounding_box: &Aabb3<f64>,
-    tile_size_px: u32,
-    pixel_size_m: f64,
-) -> Meta {
-    let (bounding_rect, deepest_level) = find_quadtree_bounding_rect_and_levels(
-        bounding_box,
-        f64::from(tile_size_px) * pixel_size_m,
-    );
-    let root_level = root_node_id.level();
-    assert!(
-        root_level <= deepest_level,
-        "Specified root node id is outside quadtree."
-    );
-    Meta {
-        nodes: FnvHashSet::default(),
-        bounding_rect,
-        tile_size: tile_size_px,
-        deepest_level,
-    }
-}
 
 pub fn get_nodes_at_level(root_node: &Node, level: u8) -> Vec<Node> {
     let mut nodes_at_level = Vec::with_capacity(4usize.pow((level - root_node.level()).into()));
@@ -588,21 +566,23 @@ pub fn build_xray_quadtree(
         }
         None => *parameters.point_cloud_client.bounding_box(),
     };
+    let (bounding_rect, deepest_level) = find_quadtree_bounding_rect_and_levels(
+        &bounding_box,
+        f64::from(parameters.tile_size_px) * parameters.pixel_size_m,
+    );
 
     let root_node_id = parameters.root_node_id;
-    let mut meta = create_meta(
-        root_node_id,
-        &bounding_box,
-        parameters.tile_size_px,
-        parameters.pixel_size_m,
+    let root_level = root_node_id.level();
+    assert!(
+        root_level <= deepest_level,
+        "Specified root node id is outside quadtree."
     );
-    let root_node =
-        Node::from_node_id_and_root_bounding_rect(root_node_id, meta.bounding_rect.clone());
-    let leaf_nodes = get_nodes_at_level(&root_node, meta.deepest_level);
+    let root_node = Node::from_node_id_and_root_bounding_rect(root_node_id, bounding_rect);
+    let leaf_nodes = get_nodes_at_level(&root_node, deepest_level);
 
     let created_leaf_node_ids = create_leaf_nodes(
         leaf_nodes,
-        meta.deepest_level,
+        deepest_level,
         &bounding_box,
         coloring_strategy_kind,
         parameters,
@@ -616,14 +596,19 @@ pub fn build_xray_quadtree(
 
     let all_node_ids = create_non_leaf_nodes(
         created_leaf_node_ids,
-        meta.deepest_level,
-        root_node.level(),
+        deepest_level,
+        root_level,
         &parameters.output_directory,
         parameters.tile_background_color,
         parameters.tile_size_px,
     );
 
-    meta.nodes = all_node_ids;
+    let meta = Meta {
+        nodes: all_node_ids,
+        bounding_rect: root_node.bounding_rect,
+        tile_size: parameters.tile_size_px,
+        deepest_level,
+    };
     meta.to_disk(get_meta_pb_path(&parameters.output_directory, root_node_id))
         .expect("Filed to write meta file to disk.");
 
