@@ -519,7 +519,12 @@ pub fn xray_from_points(
     Some(image)
 }
 
-fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb3<f64>, tile_size_m: f64) -> (Rect, u8) {
+pub fn find_quadtree_bounding_rect_and_levels(
+    bbox: &Aabb3<f64>,
+    tile_size_px: u32,
+    pixel_size_m: f64,
+) -> (Rect, u8) {
+    let tile_size_m = f64::from(tile_size_px) * pixel_size_m;
     let mut levels = 0;
     let mut cur_size = tile_size_m;
     while cur_size < bbox.dim().x || cur_size < bbox.dim().y {
@@ -532,6 +537,36 @@ fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb3<f64>, tile_size_m: f64) -
     )
 }
 
+pub fn get_nodes_at_level(root_node: &Node, level: u8) -> Vec<Node> {
+    let mut nodes_at_level = Vec::with_capacity(4usize.pow((level - root_node.level()).into()));
+    let mut nodes_to_traverse = Vec::with_capacity((4 * nodes_at_level.capacity() - 1) / 3);
+    nodes_to_traverse.push(root_node.clone());
+    while let Some(node) = nodes_to_traverse.pop() {
+        if node.level() == level {
+            nodes_at_level.push(node);
+        } else {
+            for i in 0..4 {
+                nodes_to_traverse.push(node.get_child(&ChildIndex::from_u8(i)));
+            }
+        }
+    }
+    nodes_at_level
+}
+
+pub fn get_bounding_box(
+    bounding_box: &Aabb3<f64>,
+    query_from_global: &Option<Isometry3<f64>>,
+) -> Aabb3<f64> {
+    match query_from_global {
+        Some(query_from_global) => {
+            let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> =
+                query_from_global.clone().into();
+            bounding_box.transform(&decomposed)
+        }
+        None => *bounding_box,
+    }
+}
+
 pub fn build_xray_quadtree(
     coloring_strategy_kind: &ColoringStrategyKind,
     parameters: &XrayParameters,
@@ -539,20 +574,14 @@ pub fn build_xray_quadtree(
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(&parameters.output_directory);
 
-    let bounding_box = match &parameters.query_from_global {
-        Some(query_from_global) => {
-            let decomposed: Decomposed<Vector3<f64>, Quaternion<f64>> =
-                query_from_global.clone().into();
-            parameters
-                .point_cloud_client
-                .bounding_box()
-                .transform(&decomposed)
-        }
-        None => *parameters.point_cloud_client.bounding_box(),
-    };
+    let bounding_box = get_bounding_box(
+        parameters.point_cloud_client.bounding_box(),
+        &parameters.query_from_global,
+    );
     let (bounding_rect, deepest_level) = find_quadtree_bounding_rect_and_levels(
         &bounding_box,
-        f64::from(parameters.tile_size_px) * parameters.pixel_size_m,
+        parameters.tile_size_px,
+        parameters.pixel_size_m,
     );
 
     let root_node_id = parameters.root_node_id;
@@ -562,18 +591,7 @@ pub fn build_xray_quadtree(
         "Specified root node id is outside quadtree."
     );
     let root_node = Node::from_node_id_and_root_bounding_rect(root_node_id, bounding_rect);
-    let mut leaf_nodes = Vec::with_capacity(4usize.pow((deepest_level - root_level).into()));
-    let mut nodes_to_traverse = Vec::with_capacity((4 * leaf_nodes.capacity() - 1) / 3);
-    nodes_to_traverse.push(root_node.clone());
-    while let Some(node) = nodes_to_traverse.pop() {
-        if node.level() == deepest_level {
-            leaf_nodes.push(node);
-        } else {
-            for i in 0..4 {
-                nodes_to_traverse.push(node.get_child(&ChildIndex::from_u8(i)));
-            }
-        }
-    }
+    let leaf_nodes = get_nodes_at_level(&root_node, deepest_level);
 
     let created_leaf_node_ids = create_leaf_nodes(
         leaf_nodes,

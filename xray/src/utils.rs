@@ -1,9 +1,28 @@
 use image::{GenericImage, GenericImageView, ImageResult, Pixel, RgbaImage, SubImage};
-use quadtree::NodeId;
+use quadtree::{NodeId, NODE_PREFIX};
+use std::io;
 use std::path::{Path, PathBuf};
 
+const META_PREFIX: &str = "meta";
+
 pub fn get_meta_pb_path(directory: &Path, id: NodeId) -> PathBuf {
-    directory.join(&format!("{}.pb", id).replace("r", "meta"))
+    directory.join(&format!("{}.pb", id).replace(NODE_PREFIX, META_PREFIX))
+}
+
+pub fn get_root_node_id_from_meta_pb_path(meta_path: &Path) -> io::Result<NodeId> {
+    let invalid_input_error = || {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Invalid path {:?}.", meta_path),
+        )
+    };
+    let stem = meta_path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .map(|stem| stem.replace(META_PREFIX, NODE_PREFIX))
+        .ok_or_else(invalid_input_error)?;
+
+    stem.parse::<NodeId>().map_err(|_| invalid_input_error())
 }
 
 pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
@@ -51,5 +70,31 @@ pub fn interpolate_subimages<W>(
         for i in 0..width {
             interpolate_pixels(i, j, this, other, this_weighting_function(i, j));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn node_id_to_paths_back_and_forth() {
+        let directory = PathBuf::from("/tmp/");
+        let root_node_id = NodeId::root();
+        let path = get_meta_pb_path(&directory, root_node_id);
+        let expected_path = PathBuf::from("/tmp/meta.pb");
+        assert_eq!(path, expected_path);
+        let derived_root_node_id =
+            get_root_node_id_from_meta_pb_path(&path).expect("Failed to get root node id.");
+        assert_eq!(root_node_id, derived_root_node_id);
+
+        let directory = PathBuf::from("/tmp/");
+        let root_node_id = NodeId::new(1, 2);
+        let path = get_meta_pb_path(&directory, root_node_id);
+        let expected_path = PathBuf::from("/tmp/meta2.pb");
+        assert_eq!(path, expected_path);
+        let derived_root_node_id =
+            get_root_node_id_from_meta_pb_path(&path).expect("Failed to get root node id.");
+        assert_eq!(root_node_id, derived_root_node_id);
     }
 }
