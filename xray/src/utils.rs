@@ -6,19 +6,23 @@ use std::path::{Path, PathBuf};
 const META_PREFIX: &str = "meta";
 
 pub fn get_meta_pb_path(directory: &Path, id: NodeId) -> PathBuf {
-    directory.join(&format!("{}.pb", id).replace(&NODE_PREFIX.to_string(), META_PREFIX))
+    directory.join(&format!("{}.pb", id).replace(NODE_PREFIX, META_PREFIX))
 }
 
 pub fn get_root_node_id_from_meta_pb_path(meta_path: &Path) -> io::Result<NodeId> {
-    let error_message = format!("Invalid path {:?}.", meta_path);
+    let invalid_input_error = || {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Invalid path {:?}.", meta_path),
+        )
+    };
     let stem = meta_path
         .file_stem()
         .and_then(|stem| stem.to_str())
-        .map(|stem| stem.replace(META_PREFIX, &NODE_PREFIX.to_string()))
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, error_message.clone()))?;
+        .map(|stem| stem.replace(META_PREFIX, NODE_PREFIX))
+        .ok_or_else(invalid_input_error)?;
 
-    stem.parse::<NodeId>()
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, error_message))
+    stem.parse::<NodeId>().map_err(|_| invalid_input_error())
 }
 
 pub fn get_image_path(directory: &Path, id: NodeId) -> PathBuf {
