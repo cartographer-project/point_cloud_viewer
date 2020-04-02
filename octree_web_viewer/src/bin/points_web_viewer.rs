@@ -68,6 +68,6 @@ fn main() {
     let sys = actix::System::new("octree-server");
     let _ = start_octree_server(app_state, &ip_port);
 
-    println!("Starting http server: {}", &ip_port);
+    eprintln!("Starting http server: {}", &ip_port);
     let _ = sys.run();
 }

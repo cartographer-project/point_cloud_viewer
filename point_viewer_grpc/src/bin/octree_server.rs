@@ -49,10 +49,10 @@ fn main() {
     server.start();
 
     for &(ref host, port) in server.bind_addrs() {
-        println!("listening on {}:{}", host, port);
+        eprintln!("listening on {}:{}", host, port);
     }
     let rx: crossbeam_channel::Receiver<()> = ctrlc_channel().unwrap();
-    println!("Exit with Ctrl-C");
+    eprintln!("Exit with Ctrl-C");
     let _ = rx.recv();
     let _ = server.shutdown().wait();
 }

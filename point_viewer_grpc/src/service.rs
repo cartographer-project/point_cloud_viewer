@@ -78,7 +78,7 @@ impl proto_grpc::Octree for OctreeService {
         resp.set_meta(service_data.meta.clone());
         let f = sink
             .success(resp)
-            .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
+            .map_err(move |e| eprintln!("failed to reply {:?}: {:?}", req, e));
         ctx.spawn(f)
     }
 
@@ -108,7 +108,7 @@ impl proto_grpc::Octree for OctreeService {
         resp.set_color(node_data.color);
         let f = sink
             .success(resp)
-            .map_err(move |e| println!("failed to reply {:?}: {:?}", req, e));
+            .map_err(move |e| eprintln!("failed to reply {:?}: {:?}", req, e));
         ctx.spawn(f)
     }
 
@@ -317,7 +317,7 @@ impl OctreeService {
         let f = resp
             .send_all(rx)
             .map(|_| {})
-            .map_err(|e| println!("failed to reply: {:?}", e));
+            .map_err(|e| eprintln!("failed to reply: {:?}", e));
         ctx.spawn(f)
     }
 

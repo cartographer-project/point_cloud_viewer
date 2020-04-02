@@ -36,7 +36,7 @@ fn write_meta(directory: &Path, mut meta: proto::Meta, version: i32) {
 }
 
 fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
-    println!("Upgrading version 9 => 10.");
+    eprintln!("Upgrading version 9 => 10.");
     for node_proto in &mut meta.deprecated_nodes.iter_mut() {
         let mut id = node_proto.id.as_mut().unwrap();
         let node_id = NodeId::from_proto(id);
@@ -48,7 +48,7 @@ fn upgrade_version9(directory: &Path, mut meta: proto::Meta) {
 }
 
 fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
-    println!("Upgrading version 10 => 11.");
+    eprintln!("Upgrading version 10 => 11.");
     let bbox = meta.bounding_box.as_mut().unwrap();
     let deprecated_min = bbox.take_deprecated_min();
     bbox.set_min(point_viewer::proto::Vector3d::from(deprecated_min));
@@ -58,7 +58,7 @@ fn upgrade_version10(directory: &Path, mut meta: proto::Meta) {
 }
 
 fn upgrade_version11(directory: &Path, mut meta: proto::Meta) {
-    println!("Upgrading version 11 => 12.");
+    eprintln!("Upgrading version 11 => 12.");
     let mut octree = proto::OctreeMeta::new();
 
     octree.set_resolution(meta.deprecated_resolution);
@@ -71,7 +71,7 @@ fn upgrade_version11(directory: &Path, mut meta: proto::Meta) {
 }
 
 fn upgrade_version12(directory: &Path, mut meta: proto::Meta) {
-    println!("Upgrading version 12 => 13.");
+    eprintln!("Upgrading version 12 => 13.");
     if meta.has_octree() {
         let bounding_box = meta.mut_octree().take_deprecated_bounding_box();
         meta.set_bounding_box(bounding_box);
@@ -95,14 +95,14 @@ fn main() {
             11 => upgrade_version11(&args.directory, meta),
             12 => upgrade_version12(&args.directory, meta),
             other if other == point_viewer::CURRENT_VERSION => {
-                println!(
+                eprintln!(
                     "Point cloud at current version {}",
                     point_viewer::CURRENT_VERSION
                 );
                 break;
             }
             other => {
-                println!("Do not know how to upgrade version {}", other);
+                eprintln!("Do not know how to upgrade version {}", other);
                 std::process::exit(1);
             }
         }

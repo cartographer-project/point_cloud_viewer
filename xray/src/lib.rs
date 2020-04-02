@@ -62,7 +62,7 @@ impl Meta {
     // Reads the meta from the provided encoded protobuf.
     pub fn from_proto(proto: &proto::Meta) -> Self {
         match proto.version {
-            2 => println!(
+            2 => eprintln!(
                 "Data is an older xray quadtree version: {}, current would be {}. \
                  If feasible, try upgrading this xray quadtree using `upgrade_xray_quadtree`.",
                 proto.version, CURRENT_VERSION

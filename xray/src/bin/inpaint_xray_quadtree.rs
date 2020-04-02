@@ -111,7 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         get_adjacent_leaf_node_ids(&leaf_node_ids, &input_directory, root_node_id);
     if root_node_id.level() != 0 && adjacent_leaf_node_ids.is_empty() {
         // TODO(feuerste): Replace with slog warn.
-        println!(
+        eprintln!(
             "No adjacent leaf nodes found in neighboring quadtrees. \
              Did you forget to copy them into {:?}?",
             &input_directory

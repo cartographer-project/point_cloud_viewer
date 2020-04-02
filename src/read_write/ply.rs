@@ -295,7 +295,7 @@ macro_rules! push_reader {
 // pointer.
 macro_rules! push_skip_reader {
     ($prop:expr, &mut $size:ident, $num_bytes:expr) => {{
-        println!("Will ignore property '{}' on 'vertex'.", $prop.name);
+        eprintln!("Will ignore property '{}' on 'vertex'.", $prop.name);
         $size += $num_bytes;
         fn _read_fn(nread: &mut usize, _: &[u8], _: &mut AttributeData) {
             *nread += $num_bytes;
