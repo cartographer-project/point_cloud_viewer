@@ -26,7 +26,6 @@ use crate::{AttributeDataType, NumberOfPoints, PointCloudMeta, PointsBatch, NUM_
 use cgmath::{EuclideanSpace, Point3, Vector3};
 use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
-use pbr::ProgressBar;
 use protobuf::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rayon::Scope;
@@ -73,7 +72,7 @@ where
     let mut children: Vec<Option<RawNodeWriter>> =
         vec![None, None, None, None, None, None, None, None];
     let size = stream.num_points();
-    println!(
+    eprintln!(
         "Splitting {} which has {} points ({:.2}x MAX_POINTS_PER_NODE).",
         node_id,
         size,
@@ -143,7 +142,7 @@ fn should_split_node(
     if bounding_cube.edge_length() <= octree_meta.resolution {
         // TODO(hrapp): If the data has billion of points in this small spot, performance will
         // greatly suffer if we display it. Drop points?
-        println!(
+        eprintln!(
             "Node {} which has {} points ({:.2}x MAX_POINTS_PER_NODE) \
              is too small to be split, keeping all points.",
             id,
@@ -312,7 +311,7 @@ pub fn build_octree(
     // Ignore errors, maybe directory is already there.
     let _ = fs::create_dir(output_directory.as_ref());
 
-    println!("Creating octree structure.");
+    eprintln!("Creating octree structure.");
 
     let (leaf_nodes_sender, leaf_nodes_receiver) = crossbeam::channel::unbounded();
     rayon::scope(move |scope| {
@@ -351,8 +350,10 @@ pub fn build_octree(
             .into_iter()
             .map(|id| id.parent_id().unwrap())
             .collect();
-        let mut progress_bar = ProgressBar::new(parent_ids.len() as u64);
-        progress_bar.message(&format!("Building level {}: ", current_level - 1));
+        let mut progress_bar = create_progress_bar(
+            parent_ids.len(),
+            &format!("Building level {}", current_level - 1),
+        );
 
         let (finished_nodes_sender, finished_nodes_receiver) = crossbeam::channel::unbounded();
         let (progress_tx, progress_rx) = crossbeam::channel::unbounded();

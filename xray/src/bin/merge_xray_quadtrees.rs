@@ -79,7 +79,7 @@ fn read_metadata_from_directories(directories: &[PathBuf]) -> Vec<Meta> {
 fn get_root_nodes(meta: &[Meta]) -> Vec<Node> {
     let root_nodes: Vec<Node> = meta.iter().filter_map(Meta::get_root_node).collect();
     if root_nodes.len() != meta.len() {
-        println!(
+        eprintln!(
             "Skipped {} empty subquadtrees.",
             meta.len() - root_nodes.len()
         );

@@ -28,7 +28,7 @@ struct CommandlineArguments {
 }
 
 fn upgrade_version2(filename: &Path, mut meta: proto::Meta) {
-    println!("Upgrading version 2 => 3.");
+    eprintln!("Upgrading version 2 => 3.");
     let bounding_rect = meta.mut_bounding_rect();
     let deprecated_min = bounding_rect.get_deprecated_min();
     let mut min = proto::Vector2d::new();
@@ -56,11 +56,11 @@ fn main() {
         match meta.version {
             2 => upgrade_version2(&filename, meta),
             other if other == xray::CURRENT_VERSION => {
-                println!("Xray quadtree at current version {}", xray::CURRENT_VERSION);
+                eprintln!("Xray quadtree at current version {}", xray::CURRENT_VERSION);
                 break;
             }
             other => {
-                println!("Do not know how to upgrade version {}", other);
+                eprintln!("Do not know how to upgrade version {}", other);
                 std::process::exit(1);
             }
         }
