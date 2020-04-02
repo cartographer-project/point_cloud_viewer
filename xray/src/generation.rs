@@ -11,8 +11,8 @@ use nalgebra::{Isometry3, Point2, Point3, Vector2, Vector3};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
-use point_viewer::geometry::{Aabb, Obb};
 use point_viewer::color::{Color, TRANSPARENT, WHITE};
+use point_viewer::geometry::{Aabb, Obb};
 use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::math::ClosedInterval;
 use point_viewer::utils::create_syncable_progress_bar;
@@ -570,9 +570,7 @@ pub fn get_bounding_box(
     query_from_global: &Option<Isometry3<f64>>,
 ) -> Aabb<f64> {
     match query_from_global {
-        Some(query_from_global) => {
-            bounding_box.transform(&query_from_global)
-        }
+        Some(query_from_global) => bounding_box.transform(&query_from_global),
         None => bounding_box.clone(),
     }
 }
