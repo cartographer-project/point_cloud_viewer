@@ -111,13 +111,13 @@ fn server_benchmark(
         num_threads,
         buffer_size,
     );
-    println!("Server benchmark:");
+    eprintln!("Server benchmark:");
     let _result = parallel_iterator.try_for_each_batch(move |points_batch| {
         counter += points_batch.position.len();
 
         if points_streamed_m < counter / 1_000_000 {
             points_streamed_m = counter / 1_000_000;
-            println!("Streamed {}M points", points_streamed_m)
+            eprintln!("Streamed {}M points", points_streamed_m)
         };
         if counter >= num_points {
             std::process::exit(0)
@@ -144,7 +144,7 @@ fn full_benchmark(octree_directory: &Path, num_points: usize, port: u16) {
     'outer: for rep in receiver.wait() {
         for _pos in rep.expect("Stream error").get_positions().iter() {
             if counter % 1_000_000 == 0 {
-                println!("Streamed {}M points", counter / 1_000_000);
+                eprintln!("Streamed {}M points", counter / 1_000_000);
             }
             counter += 1;
             if counter == num_points {

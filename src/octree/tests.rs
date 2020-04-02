@@ -64,12 +64,12 @@ impl Consumer {
     fn consume(&mut self, points_batch: PointsBatch) -> Result<()> {
         self.num_received_callbacks += 1;
         self.num_received_points += points_batch.position.len();
-        println!(
+        eprintln!(
             "Callback_count {}, delivered points {}",
             self.num_received_callbacks, self.num_received_points
         );
         if self.num_received_points >= self.max_num_points {
-            println!("Callback: Max Points reached!");
+            eprintln!("Callback: Max Points reached!");
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Interrupted,
                 format!("Maximum number of {} points reached.", self.max_num_points),

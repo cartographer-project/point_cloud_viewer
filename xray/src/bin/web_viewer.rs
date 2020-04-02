@@ -74,6 +74,6 @@ fn main() {
     )
     .unwrap();
 
-    println!("Listening on port {}.", port);
+    eprintln!("Listening on port {}.", port);
     Iron::new(router).http(("0.0.0.0", port)).unwrap();
 }

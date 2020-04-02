@@ -155,7 +155,7 @@ impl Octree {
     pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
         if meta_proto.version < CURRENT_VERSION {
-            println!(
+            eprintln!(
                 "Data is an older octree version: {}, current would be {}. \
                  If feasible, try upgrading this octree using `upgrade_octree`.",
                 meta_proto.version, CURRENT_VERSION

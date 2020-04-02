@@ -1,33 +1,29 @@
 // Code related to X-Ray generation.
 
 use crate::colormap::{Colormap, Jet, Monochrome, PURPLISH};
-use crate::inpaint::perform_inpainting;
-use crate::utils::get_image_path;
-use crate::{proto, CURRENT_VERSION};
+use crate::utils::{get_image_path, get_meta_pb_path};
+use crate::Meta;
 use clap::arg_enum;
 use fnv::{FnvHashMap, FnvHashSet};
-use image::{self, GenericImage, Rgba, RgbaImage};
+use image::{self, GenericImage, ImageResult, Rgba, RgbaImage};
 use imageproc::map::map_colors;
 use nalgebra::{Isometry3, Point2, Point3, Vector2, Vector3};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
-use point_viewer::color::{Color, TRANSPARENT};
 use point_viewer::geometry::{Aabb, Obb};
+use point_viewer::color::{Color, TRANSPARENT, WHITE};
 use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::math::ClosedInterval;
 use point_viewer::utils::create_syncable_progress_bar;
 use point_viewer::{match_1d_attr_data, PointsBatch};
-use protobuf::Message;
 use quadtree::{ChildIndex, Node, NodeId, Rect};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use stats::OnlineStats;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
-use std::fs::{self, File};
-use std::io::BufWriter;
-use std::path::Path;
-use std::sync::Arc;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 // The number of Z-buckets we subdivide our bounding cube into along the z-direction. This affects
 // the saturation of a point in x-rays: the more buckets contain a point, the darker the pixel
@@ -51,6 +47,15 @@ arg_enum! {
     pub enum TileBackgroundColorArgument {
         white,
         transparent,
+    }
+}
+
+impl TileBackgroundColorArgument {
+    pub fn to_color(&self) -> Color<u8> {
+        match self {
+            TileBackgroundColorArgument::white => WHITE.to_u8(),
+            TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
+        }
     }
 }
 
@@ -463,27 +468,23 @@ pub fn build_parent(children: &[Option<RgbaImage>], tile_background_color: Color
     large_image
 }
 
-pub struct Tile {
-    pub size_px: u32,
-    pub resolution: f64,
-}
-
 pub struct XrayParameters {
+    pub output_directory: PathBuf,
     pub point_cloud_client: PointCloudClient,
     pub query_from_global: Option<Isometry3<f64>>,
     pub filter_intervals: HashMap<String, ClosedInterval<f64>>,
     pub tile_background_color: Color<u8>,
-    pub inpaint_distance_px: u8,
+    pub tile_size_px: u32,
+    pub pixel_size_m: f64,
     pub root_node_id: NodeId,
 }
 
 pub fn xray_from_points(
     bbox: &Aabb<f64>,
-    png_file: &Path,
     image_size: Vector2<u32>,
     mut coloring_strategy: Box<dyn ColoringStrategy>,
     parameters: &XrayParameters,
-) -> bool {
+) -> Option<RgbaImage> {
     let mut seen_any_points = false;
     let location = match &parameters.query_from_global {
         Some(query_from_global) => {
@@ -517,7 +518,7 @@ pub fn xray_from_points(
         });
 
     if !seen_any_points {
-        return false;
+        return None;
     }
 
     let mut image = RgbaImage::new(image_size.x, image_size.y);
@@ -526,11 +527,15 @@ pub fn xray_from_points(
         let pixel_color = coloring_strategy.get_pixel_color(x, y);
         *i = pixel_color.map(Rgba::from).unwrap_or(background_color);
     }
-    image.save(png_file).unwrap();
-    true
+    Some(image)
 }
 
-fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb<f64>, tile_size_m: f64) -> (Rect, u8) {
+pub fn find_quadtree_bounding_rect_and_levels(
+    bbox: &Aabb<f64>,
+    tile_size_px: u32,
+    pixel_size_m: f64,
+) -> (Rect, u8) {
+    let tile_size_m = f64::from(tile_size_px) * pixel_size_m;
     let mut levels = 0;
     let mut cur_size = tile_size_m;
     let diag = bbox.diag();
@@ -544,29 +549,50 @@ fn find_quadtree_bounding_rect_and_levels(bbox: &Aabb<f64>, tile_size_m: f64) ->
     )
 }
 
+pub fn get_nodes_at_level(root_node: &Node, level: u8) -> Vec<Node> {
+    let mut nodes_at_level = Vec::with_capacity(4usize.pow((level - root_node.level()).into()));
+    let mut nodes_to_traverse = Vec::with_capacity((4 * nodes_at_level.capacity() - 1) / 3);
+    nodes_to_traverse.push(root_node.clone());
+    while let Some(node) = nodes_to_traverse.pop() {
+        if node.level() == level {
+            nodes_at_level.push(node);
+        } else {
+            for i in 0..4 {
+                nodes_to_traverse.push(node.get_child(&ChildIndex::from_u8(i)));
+            }
+        }
+    }
+    nodes_at_level
+}
+
+pub fn get_bounding_box(
+    bounding_box: &Aabb<f64>,
+    query_from_global: &Option<Isometry3<f64>>,
+) -> Aabb<f64> {
+    match query_from_global {
+        Some(query_from_global) => {
+            bounding_box.transform(&query_from_global)
+        }
+        None => bounding_box.clone(),
+    }
+}
+
 pub fn build_xray_quadtree(
-    output_directory: &Path,
-    tile: &Tile,
     coloring_strategy_kind: &ColoringStrategyKind,
     parameters: &XrayParameters,
 ) -> Result<(), Box<dyn Error>> {
     // Ignore errors, maybe directory is already there.
-    let _ = fs::create_dir(output_directory);
+    let _ = fs::create_dir(&parameters.output_directory);
 
-    let bounding_box = match &parameters.query_from_global {
-        Some(query_from_global) => parameters
-            .point_cloud_client
-            .bounding_box()
-            .transform(&query_from_global),
-        None => parameters.point_cloud_client.bounding_box().clone(),
-    };
+    let bounding_box = get_bounding_box(
+        &parameters.point_cloud_client.bounding_box(),
+        &parameters.query_from_global,
+    );
     let (bounding_rect, deepest_level) = find_quadtree_bounding_rect_and_levels(
         &bounding_box,
-        f64::from(tile.size_px) * tile.resolution,
+        parameters.tile_size_px,
+        parameters.pixel_size_m,
     );
-
-    // Create the deepest level of the quadtree.
-    let (created_leaf_node_ids_tx, created_leaf_node_ids_rx) = crossbeam::channel::unbounded();
 
     let root_node_id = parameters.root_node_id;
     let root_level = root_node_id.level();
@@ -574,75 +600,90 @@ pub fn build_xray_quadtree(
         root_level <= deepest_level,
         "Specified root node id is outside quadtree."
     );
-    let root_node = Node::from_node_id_and_root_bounding_rect(root_node_id, bounding_rect.clone());
-    let mut leaf_nodes = Vec::with_capacity(4usize.pow((deepest_level - root_level).into()));
-    let mut nodes_to_traverse = Vec::with_capacity((4 * leaf_nodes.capacity() - 1) / 3);
-    nodes_to_traverse.push(root_node);
-    while let Some(node) = nodes_to_traverse.pop() {
-        if node.level() == deepest_level {
-            leaf_nodes.push(node);
-        } else {
-            for i in 0..4 {
-                nodes_to_traverse.push(node.get_child(&ChildIndex::from_u8(i)));
-            }
-        }
-    }
+    let root_node = Node::from_node_id_and_root_bounding_rect(root_node_id, bounding_rect);
+    let leaf_nodes = get_nodes_at_level(&root_node, deepest_level);
+
+    let created_leaf_node_ids = create_leaf_nodes(
+        leaf_nodes,
+        deepest_level,
+        &bounding_box,
+        coloring_strategy_kind,
+        parameters,
+    )?;
+
+    assign_background_color(
+        &parameters.output_directory,
+        parameters.tile_background_color,
+        &created_leaf_node_ids,
+    )?;
+
+    let all_node_ids = create_non_leaf_nodes(
+        created_leaf_node_ids,
+        deepest_level,
+        root_level,
+        &parameters.output_directory,
+        parameters.tile_background_color,
+        parameters.tile_size_px,
+    );
+
+    let meta = Meta {
+        nodes: all_node_ids,
+        bounding_rect: root_node.bounding_rect,
+        tile_size: parameters.tile_size_px,
+        deepest_level,
+    };
+    meta.to_disk(get_meta_pb_path(&parameters.output_directory, root_node_id))
+        .expect("Filed to write meta file to disk.");
+
+    Ok(())
+}
+
+pub fn create_leaf_nodes(
+    leaf_nodes: Vec<Node>,
+    deepest_level: u8,
+    bounding_box: &Aabb<f64>,
+    coloring_strategy_kind: &ColoringStrategyKind,
+    parameters: &XrayParameters,
+) -> ImageResult<FnvHashSet<NodeId>> {
+    let (created_leaf_node_ids_tx, created_leaf_node_ids_rx) = crossbeam::channel::unbounded();
     let progress_bar = create_syncable_progress_bar(
         leaf_nodes.len(),
         &format!("Building level {}", deepest_level),
     );
-    rayon::scope(|scope| {
-        while let Some(node) = leaf_nodes.pop() {
-            let created_leaf_node_ids_tx_clone = created_leaf_node_ids_tx.clone();
+    leaf_nodes
+        .into_par_iter()
+        .try_for_each(|node| -> ImageResult<()> {
             let strategy: Box<dyn ColoringStrategy> = coloring_strategy_kind.new_strategy();
-            let progress_bar = Arc::clone(&progress_bar);
-            let bbox = bounding_box.clone();
-            scope.spawn(move |_| {
-                let rect_min = node.bounding_rect.min();
-                let rect_max = node.bounding_rect.max();
-                let min = Point3::new(rect_min.x, rect_min.y, bbox.min().z);
-                let max = Point3::new(rect_max.x, rect_max.y, bbox.max().z);
-                let bbox = Aabb::new(min, max);
-                if xray_from_points(
-                    &bbox,
-                    &get_image_path(output_directory, node.id),
-                    Vector2::new(tile.size_px, tile.size_px),
-                    strategy,
-                    parameters,
-                ) {
-                    created_leaf_node_ids_tx_clone.send(node.id).unwrap();
-                }
-                progress_bar.lock().unwrap().inc();
-            });
-        }
-    });
+            let rect_min = node.bounding_rect.min();
+            let rect_max = node.bounding_rect.max();
+            let min = Point3::new(rect_min.x, rect_min.y, bounding_box.min().z);
+            let max = Point3::new(rect_max.x, rect_max.y, bounding_box.max().z);
+            let bbox = Aabb::new(min, max);
+            if let Some(image) = xray_from_points(
+                &bbox,
+                Vector2::new(parameters.tile_size_px, parameters.tile_size_px),
+                strategy,
+                parameters,
+            ) {
+                image.save(&get_image_path(&parameters.output_directory, node.id))?;
+                created_leaf_node_ids_tx.send(node.id).unwrap();
+            }
+            progress_bar.lock().unwrap().inc();
+            Ok(())
+        })?;
     progress_bar.lock().unwrap().finish_println("");
     drop(created_leaf_node_ids_tx);
-    let created_leaf_node_ids: FnvHashSet<NodeId> = created_leaf_node_ids_rx.into_iter().collect();
+    Ok(created_leaf_node_ids_rx.into_iter().collect())
+}
 
-    perform_inpainting(
-        output_directory,
-        parameters.inpaint_distance_px,
-        &created_leaf_node_ids,
-    )
-    .expect("Inpainting failed.");
-
-    let progress_bar =
-        create_syncable_progress_bar(created_leaf_node_ids.len(), "Assigning background color");
-    let background_color = Rgba::from(parameters.tile_background_color);
-    created_leaf_node_ids.par_iter().for_each(|node_id| {
-        let image_path = get_image_path(output_directory, *node_id);
-        let mut image = image::open(&image_path).unwrap().to_rgba();
-        // Depending on the implementation of the inpainting function above we may get pixels
-        // that are not fully opaque or fully transparent. This is why we choose a threshold
-        // in the middle to consider pixels as background or foreground and could be reevaluated
-        // in the future.
-        image = map_colors(&image, |p| if p[3] < 128 { background_color } else { p });
-        image.save(&image_path).unwrap();
-        progress_bar.lock().unwrap().inc();
-    });
-    progress_bar.lock().unwrap().finish_println("");
-
+pub fn create_non_leaf_nodes(
+    created_leaf_node_ids: FnvHashSet<NodeId>,
+    deepest_level: u8,
+    root_level: u8,
+    output_directory: &Path,
+    tile_background_color: Color<u8>,
+    tile_size_px: u32,
+) -> FnvHashSet<NodeId> {
     let mut current_level_nodes = created_leaf_node_ids;
     let mut all_nodes = current_level_nodes.clone();
 
@@ -653,43 +694,39 @@ pub fn build_xray_quadtree(
             .collect();
         build_level(
             output_directory,
-            tile.size_px,
+            tile_size_px,
             current_level,
             &current_level_nodes,
-            parameters.tile_background_color,
+            tile_background_color,
         );
         all_nodes.extend(&current_level_nodes);
     }
+    all_nodes
+}
 
-    let meta = {
-        let mut meta = proto::Meta::new();
-        meta.mut_bounding_rect()
-            .mut_min()
-            .set_x(bounding_rect.min().x);
-        meta.mut_bounding_rect()
-            .mut_min()
-            .set_y(bounding_rect.min().y);
-        meta.mut_bounding_rect()
-            .set_edge_length(bounding_rect.edge_length());
-        meta.set_deepest_level(u32::from(deepest_level));
-        meta.set_tile_size(tile.size_px);
-        meta.set_version(CURRENT_VERSION);
-
-        for node_id in all_nodes {
-            let mut proto = proto::NodeId::new();
-            proto.set_index(node_id.index());
-            proto.set_level(u32::from(node_id.level()));
-            meta.mut_nodes().push(proto);
-        }
-        meta
-    };
-
-    let meta_pb_name = format!("{}.pb", root_node_id).replace("r", "meta");
-    let mut buf_writer = BufWriter::new(File::create(output_directory.join(meta_pb_name)).unwrap());
-    meta.write_to_writer(&mut buf_writer).unwrap();
-
-    progress_bar.lock().unwrap().finish();
-
+pub fn assign_background_color(
+    output_directory: &Path,
+    tile_background_color: Color<u8>,
+    created_leaf_node_ids: &FnvHashSet<NodeId>,
+) -> ImageResult<()> {
+    let progress_bar =
+        create_syncable_progress_bar(created_leaf_node_ids.len(), "Assigning background color");
+    let background_color = Rgba::from(tile_background_color);
+    created_leaf_node_ids
+        .par_iter()
+        .try_for_each(|node_id| -> ImageResult<()> {
+            let image_path = get_image_path(output_directory, *node_id);
+            let mut image = image::open(&image_path)?.to_rgba();
+            // Depending on the implementation of the inpainting function above we may get pixels
+            // that are not fully opaque or fully transparent. This is why we choose a threshold
+            // in the middle to consider pixels as background or foreground and could be reevaluated
+            // in the future.
+            image = map_colors(&image, |p| if p[3] < 128 { background_color } else { p });
+            image.save(&image_path)?;
+            progress_bar.lock().unwrap().inc();
+            Ok(())
+        })?;
+    progress_bar.lock().unwrap().finish_println("");
     Ok(())
 }
 

@@ -5,7 +5,8 @@ authors = [
    "Holger Rapp <hrapp@lyft.com>",
    "Marco Feuerstein <mfeuerstein@lyft.com>",
    "Nikolai Morin <nmorin@lyft.com>",
-   "Caterina Vitadello <cvitadello@lyft.com>"
+   "Caterina Vitadello <cvitadello@lyft.com>",
+   "Kamil Popielarz <kpopielarz@lyft.com>"
 ]
 edition = "2018"
 
@@ -13,6 +14,7 @@ edition = "2018"
 clap = "2.33.0"
 crossbeam = "0.7.3"
 fnv = "1.0.6"
+globwalk = "0.8.0"
 image = "0.23.1"
 imageproc = "0.20.0"
 iron = "0.6.1"

@@ -228,7 +228,7 @@ impl PointCloudRenderer {
             }
             self.num_frames = 0;
             self.last_log = now;
-            println!(
+            eprintln!(
                 "FPS: {:.2}, Drew {} points from {} loaded nodes. {} nodes \
                  should be shown, Cache {} MB",
                 fps,
@@ -249,7 +249,7 @@ pub struct CameraStates {
 
 fn save_camera(index: usize, pose_path: &Option<PathBuf>, camera: &Camera) {
     if pose_path.is_none() {
-        println!("Not serving from a local directory. Cannot save camera.");
+        eprintln!("Not serving from a local directory. Cannot save camera.");
         return;
     }
     assert!(index < 10);
@@ -268,18 +268,18 @@ fn save_camera(index: usize, pose_path: &Option<PathBuf>, camera: &Camera) {
         serde_json::to_string_pretty(&states).unwrap().as_bytes(),
     ) {
         Ok(_) => (),
-        Err(e) => println!(
+        Err(e) => eprintln!(
             "Could not write {}: {}",
             pose_path.as_ref().unwrap().display(),
             e
         ),
     }
-    println!("Saved current camera position as {}.", index);
+    eprintln!("Saved current camera position as {}.", index);
 }
 
 fn load_camera(index: usize, pose_path: &Option<PathBuf>, camera: &mut Camera) {
     if pose_path.is_none() {
-        println!("Not serving from a local directory. Cannot load camera.");
+        eprintln!("Not serving from a local directory. Cannot load camera.");
         return;
     }
     assert!(index < 10);
@@ -423,7 +423,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
                 )
             };
 
-            println!(
+            eprintln!(
                 "Found a joystick named '{}' ({} axes, {} buttons, {} balls, {} hats). Will treat it as a {}.",
                 j.joystick().name(),
                 j.joystick().num_axes(),

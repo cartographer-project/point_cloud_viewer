@@ -80,7 +80,7 @@ fn main() {
         point_count += points_batch.position.len();
         if point_count >= print_count * BATCH_SIZE {
             print_count += 1;
-            println!("Streamed {}M points", point_count / BATCH_SIZE);
+            eprintln!("Streamed {}M points", point_count / BATCH_SIZE);
         }
         if point_count >= num_points {
             return Err(std::io::Error::new(
@@ -96,7 +96,7 @@ fn main() {
         Err(e) => match e.kind() {
             ErrorKind::Io(ref e) if e.kind() == std::io::ErrorKind::Interrupted => (),
             _ => {
-                println!("Encountered error:\n{}", e);
+                eprintln!("Encountered error:\n{}", e);
                 std::process::exit(1);
             }
         },

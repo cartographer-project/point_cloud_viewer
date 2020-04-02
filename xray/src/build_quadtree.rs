@@ -1,18 +1,17 @@
 use crate::generation::{
-    build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, ColormapArgument, Tile,
+    build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, ColormapArgument,
     TileBackgroundColorArgument, XrayParameters,
 };
 use clap::value_t;
 use nalgebra::Isometry3;
 use point_cloud_client::PointCloudClientBuilder;
-use point_viewer::color::{TRANSPARENT, WHITE};
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::math::ClosedInterval;
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
 use point_viewer::utils::parse_key_val;
 use quadtree::NodeId;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::PathBuf;
 
 pub trait Extension {
     fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
@@ -106,12 +105,6 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                      weight than points temporally further away.")
                 .long("binning")
                 .takes_value(true),
-            clap::Arg::with_name("inpaint_distance_px")
-                .help("The inpainting distance in pixels to fill holes (in particular useful \
-                       for high resolutions).")
-                .long("inpaint-distance-px")
-                .takes_value(true)
-                .default_value("0"),
             clap::Arg::with_name("root_node_id")
                 .help("The root node id to start building with.")
                 .long("root-node-id")
@@ -126,7 +119,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     attempt_increasing_rlimit_to_max();
 
     let args = parse_arguments::<T>();
-    let resolution = args
+    let pixel_size_m = args
         .value_of("resolution")
         .unwrap()
         .parse::<f64>()
@@ -136,12 +129,12 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         .unwrap()
         .parse::<usize>()
         .expect("num_threads could not be parsed.");
-    let tile_size = args
+    let tile_size_px = args
         .value_of("tile_size")
         .unwrap()
         .parse::<u32>()
         .expect("tile_size could not be parsed.");
-    if !tile_size.is_power_of_two() {
+    if !tile_size_px.is_power_of_two() {
         panic!("tile_size is not a power of two.");
     }
 
@@ -165,16 +158,12 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         }
     };
 
-    let tile_background_color = {
-        let arg = value_t!(args, "tile_background_color", TileBackgroundColorArgument)
-            .expect("tile_background_color is invalid");
-        match arg {
-            TileBackgroundColorArgument::white => WHITE.to_u8(),
-            TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
-        }
-    };
+    let tile_background_color =
+        value_t!(args, "tile_background_color", TileBackgroundColorArgument)
+            .expect("tile_background_color is invalid")
+            .to_color();
 
-    let output_directory = Path::new(args.value_of("output_directory").unwrap());
+    let output_directory = PathBuf::from(args.value_of("output_directory").unwrap());
 
     rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
@@ -198,32 +187,21 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         .unwrap_or_default()
         .map(|f| parse_key_val(f).unwrap())
         .collect::<HashMap<String, ClosedInterval<f64>>>();
-    let inpaint_distance_px = args
-        .value_of("inpaint_distance_px")
-        .unwrap()
-        .parse::<u8>()
-        .expect("inpaint_distance_px could not be parsed.");
     let root_node_id = args
         .value_of("root_node_id")
         .unwrap()
         .parse::<NodeId>()
         .expect("root_node_id could not be parsed.");
     let parameters = XrayParameters {
+        output_directory,
         point_cloud_client,
         query_from_global: T::query_from_global(&args),
         filter_intervals,
         tile_background_color,
-        inpaint_distance_px,
+        tile_size_px,
+        pixel_size_m,
         root_node_id,
     };
-    build_xray_quadtree(
-        output_directory,
-        &Tile {
-            size_px: tile_size,
-            resolution,
-        },
-        &coloring_strategy_kind,
-        &parameters,
-    )
-    .unwrap();
+    build_xray_quadtree(&coloring_strategy_kind, &parameters)
+        .expect("Failed to build xray quadtree.");
 }
