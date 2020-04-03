@@ -44,22 +44,22 @@ export class Maps2DController {
     window.addEventListener(
       'keydown',
       (event) => this.onKeyDown(<KeyboardEvent>event),
-      false
+      { capture: false, passive: false }
     );
     window.addEventListener(
       'keyup',
       (event) => this.onKeyUp(<KeyboardEvent>event),
-      false
+      { capture: false, passive: false }
     );
     window.addEventListener(
       'mousewheel',
       (event) => this.onMouseWheel(<WheelEvent>event),
-      false
+      { capture: false, passive: false }
     );
     this.domElement.addEventListener(
       'mousedown',
       (event) => this.onMouseDown(<MouseEvent>event),
-      false
+      { capture: false, passive: false }
     );
   }
 
@@ -136,12 +136,12 @@ export class Maps2DController {
       this.domElement.addEventListener(
         'mousemove',
         (event) => this.onMouseMove(<MouseEvent>event),
-        false
+        { capture: false, passive: false }
       );
       this.domElement.addEventListener(
         'mouseup',
         (event) => this.onMouseUp(<MouseEvent>event),
-        false
+        { capture: false, passive: false }
       );
     }
   }
