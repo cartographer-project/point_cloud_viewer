@@ -118,28 +118,16 @@ pub trait ColoringStrategy: Send {
         image_size: Vector2<u32>,
     ) {
         let mut discretized_locations = Vec::with_capacity(points_batch.position.len());
-        // We're pulling a few things outside the loop. This is a combined scaling from coordinates
-        // between 0 and the bbox size to [0, 1]³ and from [0, 1]³ to the image size.
-        let old_scale = bbox.diag();
-        let new_scale = Vector3::new(
-            f64::from(image_size.x),
-            f64::from(image_size.y),
-            NUM_Z_BUCKETS,
-        );
-        let rescale = new_scale.component_div(&old_scale);
-
         for pos in &points_batch.position {
-            let pos_img = (pos - bbox.min()).component_mul(&rescale);
             // We want a right handed coordinate system with the x-axis of world and images aligning.
             // This means that the y-axis aligns too, but the origin of the image space must be at the
             // bottom left. Since images have their origin at the top left, we need actually have to
             // invert y and go from the bottom of the image.
-            let pos_discrete = Point3::new(
-                pos_img.x as u32,
-                image_size.y - pos_img.y as u32,
-                pos_img.z as u32,
-            );
-            discretized_locations.push(pos_discrete);
+            let x = (((pos.x - bbox.min().x) / bbox.diag().x) * f64::from(image_size.x)) as u32;
+            let y =
+                ((1. - ((pos.y - bbox.min().y) / bbox.diag().y)) * f64::from(image_size.y)) as u32;
+            let z = (((pos.z - bbox.min().z) / bbox.diag().z) * NUM_Z_BUCKETS) as u32;
+            discretized_locations.push(Point3::new(x, y, z));
         }
         self.process_discretized_point_data(points_batch, discretized_locations)
     }
