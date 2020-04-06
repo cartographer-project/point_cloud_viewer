@@ -46,7 +46,7 @@ pub fn get_visible_nodes(
                 }
             };
 
-            let visible_nodes = { octree.get_visible_nodes(&matrix) };
+            let visible_nodes = octree.get_visible_nodes(&matrix);
             let mut reply = String::from("[");
             let visible_nodes_string = visible_nodes
                 .iter()
