@@ -15,8 +15,8 @@ use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::geometry::{Aabb, Cube, Frustum};
 use crate::iterator::{PointCloud, PointLocation};
-use crate::math::sat::{ConvexPolyhedron, Intersector};
-use crate::math::{cell_union_intersects_aabb, Relation};
+use crate::math::base::PointCulling;
+use crate::math::sat::{ConvexPolyhedron, Intersector, Relation};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -328,7 +328,7 @@ impl PointCloud for Octree {
             PointLocation::Obb(obb) => node_ids_for_intersector(obb.intersector()),
             PointLocation::S2Cells(cu) => NodeIdsIterator::new(&self, |node_id, octree| {
                 let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
-                cell_union_intersects_aabb(cu, &aabb) != Relation::Out
+                cu.intersects_aabb(&aabb)
             })
             .collect(),
         }

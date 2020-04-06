@@ -15,10 +15,6 @@
 use crate::geometry::Aabb;
 use nalgebra::{Isometry3, Point3, RealField, Scalar, UnitQuaternion, Vector3};
 use nav_types::{ECEF, WGS84};
-use s2::cell::Cell;
-use s2::cellid::CellID;
-use s2::cellunion::CellUnion;
-use s2::region::Region;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -145,47 +141,6 @@ where
 
     fn intersects_aabb(&self, _aabb: &Aabb<S>) -> bool {
         true
-    }
-}
-
-pub fn cell_union_intersects_aabb<S>(
-    cell_union: &CellUnion,
-    aabb: &crate::geometry::Aabb<S>,
-) -> Relation
-where
-    S: RealField,
-    f64: From<S>,
-{
-    let aabb_corner_cells = aabb
-        .compute_corners()
-        .iter()
-        .map(|p| CellID::from_point(p))
-        .collect();
-    let mut aabb_cell_union = CellUnion(aabb_corner_cells);
-    aabb_cell_union.normalize();
-    let rect = aabb_cell_union.rect_bound();
-    let intersects = cell_union
-        .0
-        .iter()
-        .any(|cell_id| rect.intersects_cell(&Cell::from(cell_id)));
-    if intersects {
-        Relation::Cross
-    } else {
-        Relation::Out
-    }
-}
-
-impl<S> PointCulling<S> for CellUnion
-where
-    S: RealField,
-    f64: From<S>,
-{
-    fn contains(&self, p: &Point3<S>) -> bool {
-        self.contains_cellid(&CellID::from_point(p))
-    }
-
-    fn intersects_aabb(&self, aabb: &Aabb<S>) -> bool {
-        cell_union_intersects_aabb(self, aabb) != Relation::Out
     }
 }
 
