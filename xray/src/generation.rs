@@ -7,7 +7,7 @@ use clap::arg_enum;
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage, ImageResult, Rgba, RgbaImage};
 use imageproc::map::map_colors;
-use nalgebra::{Isometry3, Point2, Point3, Vector2, Vector3};
+use nalgebra::{Isometry3, Point2, Point3, Vector2};
 use num::clamp;
 use point_cloud_client::PointCloudClient;
 use point_viewer::attributes::AttributeData;
