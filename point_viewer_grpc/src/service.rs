@@ -15,20 +15,18 @@
 use crate::proto;
 use crate::proto_grpc;
 use crate::Color;
-use cgmath::{PerspectiveFov, Point3, Quaternion, Rad, Vector3};
-use collision::Aabb3;
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};
 use grpcio::{
     Environment, RpcContext, RpcStatus, RpcStatusCode, Server, ServerBuilder, ServerStreamingSink,
     UnarySink, WriteFlags,
 };
+use nalgebra::{Isometry3, Perspective3, Point3, Quaternion, UnitQuaternion, Vector3};
 use point_viewer::attributes::AttributeData;
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::errors::*;
-use point_viewer::geometry::Frustum;
+use point_viewer::geometry::{Aabb, Frustum};
 use point_viewer::iterator::{ParallelIterator, PointLocation, PointQuery};
-use point_viewer::math::Isometry3;
 use point_viewer::octree::{NodeId, Octree};
 use point_viewer::PointsBatch;
 use protobuf::Message;
@@ -118,16 +116,10 @@ impl proto_grpc::Octree for OctreeService {
         req: proto::GetPointsInFrustumRequest,
         resp: ServerStreamingSink<proto::PointsReply>,
     ) {
-        let perspective = PerspectiveFov {
-            fovy: Rad(req.fovy_rad),
-            aspect: req.aspect,
-            near: req.z_near,
-            far: req.z_far,
-        }
-        .to_perspective();
+        let perspective = Perspective3::new(req.aspect, req.fovy_rad, req.z_near, req.z_far);
         let rotation = {
             let q = req.rotation.unwrap();
-            Quaternion::new(q.w, q.x, q.y, q.z)
+            UnitQuaternion::new_normalize(Quaternion::new(q.w, q.x, q.y, q.z))
         };
 
         let translation = {
@@ -135,11 +127,8 @@ impl proto_grpc::Octree for OctreeService {
             Vector3::new(t.x, t.y, t.z)
         };
 
-        let view_transform = Isometry3::<f64> {
-            rotation,
-            translation,
-        };
-        let frustum = Frustum::new(view_transform, perspective);
+        let view_transform = Isometry3::from_parts(translation.into(), rotation);
+        let frustum = Frustum::new(view_transform, perspective.into());
         let location = PointLocation::Frustum(frustum);
         self.stream_points_back_to_sink(location, &req.octree_id, &ctx, resp)
     }
@@ -154,7 +143,7 @@ impl proto_grpc::Octree for OctreeService {
             let bounding_box = req.bounding_box.clone().unwrap();
             let min = bounding_box.min.unwrap();
             let max = bounding_box.max.unwrap();
-            Aabb3::new(
+            Aabb::new(
                 Point3::new(min.x, min.y, min.z),
                 Point3::new(max.x, max.y, max.z),
             )

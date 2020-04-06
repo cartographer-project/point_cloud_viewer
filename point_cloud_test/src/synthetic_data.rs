@@ -1,8 +1,8 @@
-use cgmath::{Decomposed, EuclideanSpace, Matrix4, Point3, Quaternion, Transform, Vector3};
-use collision::{Aabb, Aabb3};
+use nalgebra::{Isometry3, Point3, Vector3};
 use point_viewer::attributes::AttributeData;
 use point_viewer::color::Color;
-use point_viewer::math::{local_frame_from_lat_lng, Isometry3};
+use point_viewer::geometry::Aabb;
+use point_viewer::math::local_frame_from_lat_lng;
 use point_viewer::{NumberOfPoints, Point, PointsBatch};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -14,7 +14,6 @@ pub struct SyntheticData {
     pub half_width: f64,
     pub half_height: f64,
     ecef_from_local: Isometry3<f64>,
-    ecef_from_local_mat: Matrix4<f64>,
     size: usize,
     count: usize,
 }
@@ -26,14 +25,11 @@ impl SyntheticData {
         let lat = rng.gen_range(-90.0, 90.0);
         let lon = rng.gen_range(-180.0, 180.0);
         let ecef_from_local = local_frame_from_lat_lng(lat, lon).inverse();
-        let ecef_from_local_decomp: Decomposed<Vector3<f64>, Quaternion<f64>> =
-            ecef_from_local.clone().into();
         SyntheticData {
             rng,
             half_width: width * 0.5,
             half_height: height * 0.5,
             ecef_from_local,
-            ecef_from_local_mat: ecef_from_local_decomp.into(),
             size,
             count: 0,
         }
@@ -44,13 +40,13 @@ impl SyntheticData {
         let y = self.rng.gen_range(-self.half_width, self.half_width);
         let z = self.rng.gen_range(-self.half_height, self.half_height);
         let pt_local = Point3::new(x, y, z);
-        self.ecef_from_local_mat.transform_point(pt_local)
+        self.ecef_from_local.transform_point(&pt_local)
     }
 
-    pub fn bbox(&self) -> Aabb3<f64> {
+    pub fn bbox(&self) -> Aabb<f64> {
         let local_min = Point3::new(-self.half_width, -self.half_width, -self.half_height);
         let local_max = Point3::new(self.half_width, self.half_width, self.half_height);
-        Aabb3::new(local_min, local_max).transform(&self.ecef_from_local_mat)
+        Aabb::new(local_min, local_max).transform(&self.ecef_from_local)
     }
 
     pub fn ecef_from_local(&self) -> &Isometry3<f64> {
@@ -65,9 +61,9 @@ impl Iterator for SyntheticData {
         if self.count == self.size {
             return None;
         }
-        let pos = self.next_pos();
+        let position = self.next_pos();
         let point = Point {
-            position: pos.to_vec(),
+            position,
             // Encode index in color, which is preserved in octrees.
             color: Color::<u8> {
                 red: (self.count >> 16) as u8,

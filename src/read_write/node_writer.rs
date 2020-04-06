@@ -16,7 +16,7 @@ use crate::color::Color;
 use crate::read_write::{vec3_encode, vec3_fixpoint_encode, Encoding, PositionEncoding};
 use crate::AttributeData;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
-use cgmath::Vector3;
+use nalgebra::{Point3, Vector3};
 use std::fs::{remove_file, File, OpenOptions};
 use std::io::{BufWriter, Result, Seek, SeekFrom, Write};
 use std::path::PathBuf;
@@ -158,14 +158,14 @@ derive_write_le_vec!(u64, write_u64_into);
 
 impl WriteLE for Vector3<u8> {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
-        writer.write_all(&self[..])
+        writer.write_all(self.as_slice())
     }
 }
 
 impl WriteLE for Vector3<u16> {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         let mut bytes = [0; 6];
-        LittleEndian::write_u16_into(&self[..], &mut bytes);
+        LittleEndian::write_u16_into(self.as_slice(), &mut bytes);
         writer.write_all(&bytes)
     }
 }
@@ -173,7 +173,7 @@ impl WriteLE for Vector3<u16> {
 impl WriteLE for Vector3<f32> {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         let mut bytes = [0; 12];
-        LittleEndian::write_f32_into(&self[..], &mut bytes);
+        LittleEndian::write_f32_into(self.as_slice(), &mut bytes);
         writer.write_all(&bytes)
     }
 }
@@ -181,7 +181,7 @@ impl WriteLE for Vector3<f32> {
 impl WriteLE for Vector3<f64> {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         let mut bytes = [0; 24];
-        LittleEndian::write_f64_into(&self[..], &mut bytes);
+        LittleEndian::write_f64_into(self.as_slice(), &mut bytes);
         writer.write_all(&bytes)
     }
 }
@@ -208,6 +208,15 @@ impl WriteLE for Vec<Vector3<f64>> {
     fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
         for elem in self {
             elem.write_le(writer)?;
+        }
+        Ok(())
+    }
+}
+
+impl WriteLE for Vec<Point3<f64>> {
+    fn write_le(&self, writer: &mut DataWriter) -> Result<()> {
+        for elem in self {
+            elem.coords.write_le(writer)?;
         }
         Ok(())
     }
@@ -243,10 +252,10 @@ pub trait WriteEncoded {
     fn write_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()>;
 }
 
-impl WriteEncoded for Vector3<f64> {
+impl WriteEncoded for Point3<f64> {
     fn write_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()> {
         match encoding {
-            Encoding::Plain => self.write_le(writer),
+            Encoding::Plain => self.coords.write_le(writer),
             Encoding::ScaledToCube(min, edge_length, position_encoding) => {
                 // Note that due to floating point rounding errors while calculating bounding boxes, it
                 // could be here that 'p' is not quite inside the bounding box of our node.
@@ -269,7 +278,7 @@ impl WriteEncoded for Vector3<f64> {
     }
 }
 
-impl WriteEncoded for Vec<Vector3<f64>> {
+impl WriteEncoded for Vec<Point3<f64>> {
     fn write_encoded(&self, encoding: &Encoding, writer: &mut DataWriter) -> Result<()> {
         match encoding {
             Encoding::Plain => self.write_le(writer),

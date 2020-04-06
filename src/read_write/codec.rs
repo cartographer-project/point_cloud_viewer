@@ -14,10 +14,10 @@
 
 use crate::errors::*;
 use crate::geometry::Cube;
-use crate::math;
 use crate::proto;
-use cgmath::{BaseFloat, Vector3, Zero};
+use nalgebra::{Point3, Scalar, Vector3};
 use num::clamp;
+use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PositionEncoding {
@@ -73,73 +73,78 @@ impl PositionEncoding {
     }
 }
 
+/// The _encode and _decode functions are not methods of this type, because
+/// we are sometimes able to pull the match outside the inner loop.
 #[derive(Clone)]
 pub enum Encoding {
     Plain,
-    ScaledToCube(Vector3<f64>, f64, PositionEncoding),
+    ScaledToCube(Point3<f64>, f64, PositionEncoding),
 }
 
+/// Encode float as integer.
 pub fn fixpoint_encode<T>(value: f64, min: f64, edge_length: f64) -> T
 where
-    T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
+    T: num_traits::PrimInt + num_traits::Bounded + alga::general::SubsetOf<f64>,
 {
     let value =
-        clamp((value - min) / edge_length, 0., 1.) * num::cast::<T, f64>(T::max_value()).unwrap();
-    num::cast(value).unwrap()
+        clamp((value - min) / edge_length, 0., 1.) * nalgebra::convert::<T, f64>(T::max_value());
+    nalgebra::try_convert(value).unwrap()
 }
 
+/// Encode float as f32 or f64 unit interval float.
 pub fn _encode<T>(value: f64, min: f64, edge_length: f64) -> T
 where
-    T: num_traits::NumCast,
+    T: alga::general::SubsetOf<f64>,
 {
-    num::cast(clamp((value - min) / edge_length, 0., 1.)).unwrap()
+    nalgebra::try_convert(clamp((value - min) / edge_length, 0., 1.)).unwrap()
 }
 
 pub fn vec3_fixpoint_encode<T>(
-    value: &Vector3<f64>,
-    min: &Vector3<f64>,
+    value: &Point3<f64>,
+    min: &Point3<f64>,
     edge_length: f64,
 ) -> Vector3<T>
 where
-    T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
+    T: Scalar + num_traits::PrimInt + num_traits::Bounded + alga::general::SubsetOf<f64>,
 {
-    let value = math::clamp(
-        (value - min) / edge_length,
-        Vector3::zero(),
-        Vector3::new(1.0, 1.0, 1.0),
-    ) * num::cast::<T, f64>(T::max_value()).unwrap();
-    value.cast::<T>().unwrap()
+    let scale: f64 = nalgebra::convert(T::max_value());
+    let value = clamp_elementwise((value - min) / edge_length, 0.0, 1.0);
+    nalgebra::try_convert(scale * value).unwrap()
 }
 
-pub fn vec3_encode<T>(value: &Vector3<f64>, min: &Vector3<f64>, edge_length: f64) -> Vector3<T>
+pub fn vec3_encode<T>(value: &Point3<f64>, min: &Point3<f64>, edge_length: f64) -> Vector3<T>
 where
-    T: BaseFloat,
+    T: Scalar + alga::general::SubsetOf<f64>,
 {
-    math::clamp(
-        (value - min) / edge_length,
-        Vector3::zero(),
-        Vector3::new(1.0, 1.0, 1.0),
-    )
-    .cast::<T>()
-    .unwrap()
+    let value = clamp_elementwise((value - min) / edge_length, 0.0, 1.0);
+    nalgebra::try_convert(value).unwrap()
 }
 
+/// Decode integer as float.
 pub fn fixpoint_decode<T>(value: T, min: f64, edge_length: f64) -> f64
 where
-    T: num_traits::PrimInt + num_traits::Bounded + num_traits::NumCast,
+    T: num_traits::PrimInt + num_traits::Bounded + alga::general::SubsetOf<f64>,
 {
-    let max: f64 = num::cast(T::max_value()).unwrap();
-    let v: f64 = num::cast(value).unwrap();
+    let max: f64 = nalgebra::convert(T::max_value());
+    let v: f64 = nalgebra::convert(value);
     (v / max).mul_add(edge_length, min)
 }
 
+/// Decode f32 or f64 unit interval float as f64.
 pub fn decode<T>(value: T, min: f64, edge_length: f64) -> f64
 where
-    T: num_traits::NumCast,
+    T: alga::general::SubsetOf<f64>,
 {
-    num::cast::<T, f64>(value)
-        .unwrap()
-        .mul_add(edge_length, min)
+    nalgebra::convert::<T, f64>(value).mul_add(edge_length, min)
+}
+
+// Careful: num's (or nalgebra's) clamp accepts Vector3 too, but does not work elementwise like this
+fn clamp_elementwise(value: Vector3<f64>, lower: f64, upper: f64) -> Vector3<f64> {
+    Vector3::new(
+        clamp(value.x, lower, upper),
+        clamp(value.y, lower, upper),
+        clamp(value.z, lower, upper),
+    )
 }
 
 #[cfg(test)]

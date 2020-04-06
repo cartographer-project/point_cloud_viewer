@@ -13,13 +13,13 @@
 // limitations under the License.
 
 use crate::proto_grpc::OctreeClient;
-use cgmath::Vector3;
-use collision::Aabb3;
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
+use nalgebra::Point3;
 use point_viewer::color::Color;
 use point_viewer::data_provider::{DataProvider, DataProviderFactoryResult};
 use point_viewer::errors::*;
+use point_viewer::geometry::Aabb;
 use point_viewer::proto::Meta;
 use point_viewer::Point;
 pub use point_viewer_grpc_proto_rust::proto;
@@ -51,17 +51,17 @@ impl GrpcOctreeDataProvider {
 
     pub fn get_points_in_box(
         &self,
-        bounding_box: &Aabb3<f64>,
+        bounding_box: &Aabb<f64>,
         mut func: impl FnMut(&[Point]) -> bool,
     ) -> Result<()> {
         let mut req = proto::GetPointsInBoxRequest::new();
         req.set_octree_id(self.octree_id.clone());
-        req.mut_bounding_box().mut_min().set_x(bounding_box.min.x);
-        req.mut_bounding_box().mut_min().set_y(bounding_box.min.y);
-        req.mut_bounding_box().mut_min().set_z(bounding_box.min.z);
-        req.mut_bounding_box().mut_max().set_x(bounding_box.max.x);
-        req.mut_bounding_box().mut_max().set_y(bounding_box.max.y);
-        req.mut_bounding_box().mut_max().set_z(bounding_box.max.z);
+        req.mut_bounding_box().mut_min().set_x(bounding_box.min().x);
+        req.mut_bounding_box().mut_min().set_y(bounding_box.min().y);
+        req.mut_bounding_box().mut_min().set_z(bounding_box.min().z);
+        req.mut_bounding_box().mut_max().set_x(bounding_box.max().x);
+        req.mut_bounding_box().mut_max().set_y(bounding_box.max().y);
+        req.mut_bounding_box().mut_max().set_z(bounding_box.max().z);
         let replies = self
             .client
             .get_points_in_box(&req)
@@ -74,7 +74,7 @@ impl GrpcOctreeDataProvider {
                 let last_num_points = points.len();
                 for (p, color) in reply.positions.iter().zip(reply.colors.iter()) {
                     points.push(Point {
-                        position: Vector3::new(p.x, p.y, p.z),
+                        position: Point3::from(p),
                         color: Color {
                             red: color.red,
                             green: color.green,

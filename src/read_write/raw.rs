@@ -20,8 +20,7 @@ use crate::read_write::{
 };
 use crate::{attribute_extension, AttributeData, AttributeDataType, Point, PointsBatch};
 use byteorder::{LittleEndian, ReadBytesExt};
-use cgmath::Vector3;
-use num_traits::identities::Zero;
+use nalgebra::{Point3, Vector3};
 use std::collections::{BTreeMap, HashMap};
 use std::io::{self, BufReader, ErrorKind, Read};
 use std::path::PathBuf;
@@ -35,7 +34,7 @@ pub struct RawNodeReader {
 impl RawNodeReader {
     pub fn read(&mut self) -> io::Result<Point> {
         let mut point = Point {
-            position: Vector3::zero(),
+            position: Point3::origin(),
             color: color::RED.to_u8(), // is overwritten
             intensity: None,
         };
@@ -136,7 +135,7 @@ impl RawNodeReader {
                 let x = self.xyz_reader.read_f64::<LittleEndian>()?;
                 let y = self.xyz_reader.read_f64::<LittleEndian>()?;
                 let z = self.xyz_reader.read_f64::<LittleEndian>()?;
-                batch.position.push(Vector3::new(x, y, z));
+                batch.position.push(Point3::new(x, y, z));
                 Ok(())
             })?,
             Encoding::ScaledToCube(min, edge_length, ref pos) => match pos {
@@ -144,7 +143,7 @@ impl RawNodeReader {
                     let x = fixpoint_decode(self.xyz_reader.read_u8()?, min.x, edge_length);
                     let y = fixpoint_decode(self.xyz_reader.read_u8()?, min.y, edge_length);
                     let z = fixpoint_decode(self.xyz_reader.read_u8()?, min.z, edge_length);
-                    batch.position.push(Vector3::new(x, y, z));
+                    batch.position.push(Point3::new(x, y, z));
                     Ok(())
                 })?,
 
@@ -165,7 +164,7 @@ impl RawNodeReader {
                             min.z,
                             edge_length,
                         );
-                        batch.position.push(Vector3::new(x, y, z));
+                        batch.position.push(Point3::new(x, y, z));
                         Ok(())
                     })?
                 }
@@ -187,7 +186,7 @@ impl RawNodeReader {
                             min.z,
                             edge_length,
                         );
-                        batch.position.push(Vector3::new(x, y, z));
+                        batch.position.push(Point3::new(x, y, z));
                         Ok(())
                     })?
                 }
@@ -209,7 +208,7 @@ impl RawNodeReader {
                             min.z,
                             edge_length,
                         );
-                        batch.position.push(Vector3::new(x, y, z));
+                        batch.position.push(Point3::new(x, y, z));
                         Ok(())
                     })?
                 }

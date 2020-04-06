@@ -14,7 +14,7 @@
 
 use crate::data_provider::OnDiskDataProvider;
 use crate::errors::*;
-use crate::geometry::Cube;
+use crate::geometry::{Aabb, Cube};
 use crate::octree::{self, to_meta_proto, to_node_proto, ChildIndex, NodeId, OctreeMeta};
 use crate::proto;
 use crate::read_write::{
@@ -23,8 +23,6 @@ use crate::read_write::{
 };
 use crate::utils::create_progress_bar;
 use crate::{AttributeDataType, NumberOfPoints, PointCloudMeta, PointsBatch, NUM_POINTS_PER_BATCH};
-use cgmath::{EuclideanSpace, Point3, Vector3};
-use collision::{Aabb, Aabb3};
 use fnv::{FnvHashMap, FnvHashSet};
 use protobuf::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -49,11 +47,7 @@ impl RawNodeWriter {
         let min = bounding_cube.min();
         RawNodeWriter::new(
             path,
-            Encoding::ScaledToCube(
-                Vector3::new(min.x, min.y, min.z),
-                bounding_cube.edge_length(),
-                position_encoding,
-            ),
+            Encoding::ScaledToCube(min, bounding_cube.edge_length(), position_encoding),
             OpenMode::Truncate,
         )
     }
@@ -84,7 +78,7 @@ where
         let child_indices: Vec<_> = batch
             .position
             .iter()
-            .map(|p| octree::ChildIndex::from_bounding_cube(&bounding_cube, &p))
+            .map(|p| octree::ChildIndex::from_bounding_cube(&bounding_cube, p))
             .collect();
         for (array_index, child_writer) in children.iter_mut().enumerate() {
             let mut child_batch = batch.clone();
@@ -258,21 +252,20 @@ fn subsample_children_into(
 }
 
 /// Returns the bounding box containing all points
-fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb3<f64> {
+fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb<f64> {
     let mut bounding_box = None;
     let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap();
     let mut progress_bar = create_progress_bar(stream.num_points(), "Determining bounding box");
 
     stream.for_each(|batch| {
-        for position in batch.position {
-            let p3 = Point3::from_vec(position);
-            let b = bounding_box.get_or_insert(Aabb3::new(p3, p3));
-            *b = b.grow(p3);
+        for pos in batch.position {
+            let b = bounding_box.get_or_insert(Aabb::new(pos, pos));
+            b.grow(pos);
             progress_bar.inc();
         }
     });
     progress_bar.finish();
-    bounding_box.unwrap_or_else(Aabb3::zero)
+    bounding_box.unwrap_or_else(Aabb::zero)
 }
 
 pub fn build_octree_from_file(
@@ -295,13 +288,14 @@ pub fn build_octree_from_file(
 pub fn build_octree(
     output_directory: impl AsRef<Path>,
     resolution: f64,
-    bounding_box: Aabb3<f64>,
+    bounding_box: Aabb<f64>,
     input: impl Iterator<Item = PointsBatch> + NumberOfPoints + Send,
     attributes: &[&str],
 ) {
     attempt_increasing_rlimit_to_max();
 
-    let octree_meta = &octree::OctreeMeta::new_with_standard_attributes(resolution, bounding_box);
+    let octree_meta =
+        &octree::OctreeMeta::new_with_standard_attributes(resolution, bounding_box.clone());
     let attribute_data_types = &octree_meta.attribute_data_types_for(attributes).unwrap();
     let octree_data_provider = OnDiskDataProvider {
         directory: output_directory.as_ref().to_path_buf(),

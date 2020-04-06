@@ -1,8 +1,7 @@
 use crate::c_str;
 use crate::graphic::{GlBuffer, GlProgram, GlProgramBuilder, GlUniform, GlVertexArray};
 use crate::opengl;
-use cgmath::{EuclideanSpace, Matrix4, Point3, SquareMatrix};
-use point_viewer::math::Isometry3;
+use nalgebra::{Isometry3, Matrix4, Point3};
 
 use opengl::types::{GLsizeiptr, GLuint};
 
@@ -141,8 +140,8 @@ impl TerrainRenderer {
         (buffer_position, buffer_indices, indices.len())
     }
 
-    pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f64>, camera_to_world: &Matrix4<f64>) {
-        let camera_pos = Point3::from_vec(camera_to_world.w.truncate());
+    pub fn camera_changed(&mut self, world_to_gl: &Matrix4<f64>, camera_to_world: &Isometry3<f64>) {
+        let camera_pos = Point3::from(camera_to_world.translation.vector);
         self.terrain_layers
             .iter_mut()
             .for_each(|layer| layer.update(camera_pos));
@@ -190,6 +189,6 @@ impl TerrainRenderer {
     pub fn local_from_global(&self) -> Option<Isometry3<f64>> {
         self.terrain_layers
             .first()
-            .map(|layer| layer.terrain_from_world())
+            .map(|layer| *layer.terrain_from_world())
     }
 }

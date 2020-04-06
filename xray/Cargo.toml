@@ -11,15 +11,14 @@ authors = [
 edition = "2018"
 
 [dependencies]
-cgmath = "0.17.0"
 clap = "2.33.0"
-collision = "0.20.1"
 crossbeam = "0.7.3"
 fnv = "1.0.6"
 globwalk = "0.8.0"
 image = "0.23.1"
 imageproc = "0.20.0"
 iron = "0.6.1"
+nalgebra = "0.20.0"
 num = "0.2.1"
 pbr = "1.0.2"
 protobuf = "2.10.2"

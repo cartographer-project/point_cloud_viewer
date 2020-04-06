@@ -1,9 +1,8 @@
 use crate::graphic::tiled_texture_loader::TiledTextureLoader;
 use crate::graphic::{GlMovingWindowTexture, GlProgram, GlUniform};
 use crate::terrain_drawer::read_write::Metadata;
-use cgmath::{Decomposed, Matrix4, Point3, Vector2, Vector3};
 use image::{ImageBuffer, LumaA, Rgba};
-use point_viewer::math::Isometry3;
+use nalgebra::{Isometry3, Matrix4, Point3, Vector2, Vector3};
 use std::convert::TryInto;
 use std::io;
 use std::rc::Rc;
@@ -47,9 +46,11 @@ impl TerrainLayer {
         let grid_coordinates = GridCoordinateFrame::new(program, metadata, texture_size);
 
         // Initial terrain pos
+        // TODO(nnmm): Do not hardcode 0, 0, 0
         let terrain_pos: Vector2<i64> =
-            grid_coordinates.terrain_pos_for_camera_pos(Point3::new(0.0, 0.0, 0.0));
-        let u_terrain_pos = GlUniform::new(&program, "terrain_pos", terrain_pos.cast().unwrap());
+            grid_coordinates.terrain_pos_for_camera_pos(&Point3::new(0.0, 0.0, 0.0));
+        let float_terrain_pos = Self::convert_terrain_pos_to_float(&terrain_pos);
+        let u_terrain_pos = GlUniform::new(&program, "terrain_pos", float_terrain_pos);
 
         let height_initial = height_tiles.load(
             terrain_pos.x,
@@ -101,7 +102,7 @@ impl TerrainLayer {
     pub fn update(&mut self, cur_world_pos: Point3<f64>) {
         let cur_pos = self
             .grid_coordinates
-            .terrain_pos_for_camera_pos(cur_world_pos);
+            .terrain_pos_for_camera_pos(&cur_world_pos);
         let moved = cur_pos - self.terrain_pos;
 
         let hori_strip = if moved.y > 0 {
@@ -149,20 +150,11 @@ impl TerrainLayer {
         );
 
         self.terrain_pos = cur_pos;
-        // Convert to f64, because GLSL doesn't understand i64
-        assert!(
-            cur_pos.x < F64_MAX_SAFE_INT && cur_pos.x > F64_MIN_SAFE_INT,
-            "Terrain location not representable."
-        );
-        assert!(
-            cur_pos.y < F64_MAX_SAFE_INT && cur_pos.y > F64_MIN_SAFE_INT,
-            "Terrain location not representable."
-        );
-        self.u_terrain_pos.value = cur_pos.cast().unwrap();
+        self.u_terrain_pos.value = Self::convert_terrain_pos_to_float(&cur_pos)
     }
 
-    pub fn terrain_from_world(&self) -> Isometry3<f64> {
-        self.grid_coordinates.terrain_from_world.clone()
+    pub fn terrain_from_world(&self) -> &Isometry3<f64> {
+        &self.grid_coordinates.terrain_from_world
     }
 
     pub fn submit(&self) {
@@ -177,6 +169,19 @@ impl TerrainLayer {
             height: self.height_tiles.load(min_x, min_y, width, height),
             color: self.color_tiles.load(min_x, min_y, width, height),
         }
+    }
+
+    // Helper function because OpenGL doesn't like i64
+    fn convert_terrain_pos_to_float(v: &Vector2<i64>) -> Vector2<f64> {
+        assert!(
+            v.x < F64_MAX_SAFE_INT && v.x > F64_MIN_SAFE_INT,
+            "Terrain location not representable."
+        );
+        assert!(
+            v.y < F64_MAX_SAFE_INT && v.y > F64_MIN_SAFE_INT,
+            "Terrain location not representable."
+        );
+        Vector2::new(v.x as f64, v.y as f64)
     }
 }
 
@@ -198,10 +203,7 @@ impl GridCoordinateFrame {
         let u_world_from_terrain = GlUniform::new(
             &program,
             "terrain_to_world",
-            Matrix4::from({
-                let decomp: Decomposed<_, _> = metadata.world_from_terrain.into();
-                decomp
-            }),
+            metadata.world_from_terrain.to_homogeneous(),
         );
         let u_resolution_m = GlUniform::new(&program, "terrain_res_m", metadata.resolution_m);
         let texture_half_extent =
@@ -217,11 +219,19 @@ impl GridCoordinateFrame {
 
     /// Returns the terrain pos (i.e. the coordinate of the lower corner of the terrain) for
     /// a given camera position (in the world coordinate system).
-    fn terrain_pos_for_camera_pos(&self, world_pos: Point3<f64>) -> Vector2<i64> {
-        let local_pos = &self.terrain_from_world * &world_pos;
+    fn terrain_pos_for_camera_pos(&self, world_pos: &Point3<f64>) -> Vector2<i64> {
+        let local_pos = self.terrain_from_world * world_pos;
         let x = ((local_pos.x - self.u_origin.value.x) / self.u_resolution_m.value).floor();
         let y = ((local_pos.y - self.u_origin.value.y) / self.u_resolution_m.value).floor();
-        (Vector2::new(x, y)).cast().unwrap() - self.texture_half_extent
+        assert!(
+            x <= std::i64::MAX as f64 && x >= std::i64::MIN as f64,
+            "Terrain location not representable."
+        );
+        assert!(
+            y <= std::i64::MAX as f64 && y >= std::i64::MIN as f64,
+            "Terrain location not representable."
+        );
+        Vector2::new(x as i64, y as i64) - self.texture_half_extent
     }
 
     fn submit(&self) {

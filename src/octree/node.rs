@@ -15,7 +15,7 @@
 use crate::geometry::Cube;
 use crate::proto;
 use crate::read_write::PositionEncoding;
-use cgmath::Vector3;
+use nalgebra::Point3;
 use std::num::ParseIntError;
 use std::str::FromStr;
 use std::{fmt, result};
@@ -31,7 +31,7 @@ impl ChildIndex {
     }
 
     /// Returns the ChildId of the child containing 'v'.
-    pub fn from_bounding_cube(bounding_cube: &Cube, v: &Vector3<f64>) -> ChildIndex {
+    pub fn from_bounding_cube(bounding_cube: &Cube, v: &Point3<f64>) -> ChildIndex {
         // This is a bit flawed: it is not guaranteed that 'child_bounding_box.contains(&v)' is true
         // using this calculated index due to floating point precision.
         let center = bounding_cube.center();
@@ -272,7 +272,7 @@ pub fn to_node_proto(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cgmath::Point3;
+    use nalgebra::Point3;
 
     #[test]
     fn test_parent_node_name() {

@@ -1,10 +1,10 @@
 use crate::data_provider::OnDiskDataProvider;
 use crate::errors::Result;
+use crate::geometry::Aabb;
 use crate::iterator::{ParallelIterator, PointQuery};
 use crate::octree::{build_octree, Octree};
 use crate::{AttributeData, NumberOfPoints, PointsBatch};
-use cgmath::{EuclideanSpace, Point3, Vector3};
-use collision::{Aabb, Aabb3};
+use nalgebra::{Point3, Vector3};
 use tempdir::TempDir;
 
 const NUM_POINTS: usize = 100_001;
@@ -17,7 +17,7 @@ impl NumberOfPoints for std::vec::IntoIter<PointsBatch> {
 
 fn build_test_octree() -> Octree {
     let mut batch = PointsBatch {
-        position: vec![Vector3::new(0.0, 0.0, 0.0); NUM_POINTS],
+        position: vec![Point3::new(0.0, 0.0, 0.0); NUM_POINTS],
         attributes: vec![(
             "color".to_string(),
             AttributeData::U8Vec3(vec![Vector3::new(255, 0, 0); NUM_POINTS]),
@@ -26,9 +26,9 @@ fn build_test_octree() -> Octree {
         .collect(),
     };
 
-    batch.position[NUM_POINTS - 1] = Vector3::new(-200., -40., 30.);
+    batch.position[NUM_POINTS - 1] = Point3::new(-200., -40., 30.);
 
-    let bounding_box = Aabb3::zero().grow(Point3::from_vec(batch.position[NUM_POINTS - 1]));
+    let bounding_box = Aabb::new(batch.position[0], batch.position[NUM_POINTS - 1]);
 
     let tmp_dir = TempDir::new("octree").unwrap();
 

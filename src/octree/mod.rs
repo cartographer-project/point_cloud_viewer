@@ -13,14 +13,15 @@
 // limitations under the License.
 use crate::data_provider::DataProvider;
 use crate::errors::*;
-use crate::geometry::Cube;
+use crate::geometry::{Aabb, Cube, Frustum};
 use crate::iterator::{PointCloud, PointLocation};
+use crate::math::sat::{ConvexPolyhedron, Intersector};
+use crate::math::{cell_union_intersects_aabb, Relation};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
-use cgmath::{EuclideanSpace, Matrix4, Point3};
-use collision::{Aabb, Aabb3, Relation};
 use fnv::FnvHashMap;
+use nalgebra::{Matrix4, Point3};
 use num::clamp;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
@@ -41,7 +42,7 @@ mod tests;
 #[derive(Clone, Debug)]
 pub struct OctreeMeta {
     pub resolution: f64,
-    pub bounding_box: Aabb3<f64>,
+    pub bounding_box: Aabb<f64>,
     attribute_data_types: HashMap<String, AttributeDataType>,
 }
 
@@ -57,7 +58,7 @@ impl OctreeMeta {
     /// meta data structure, but not its serialized form. So the data structure
     /// is initialized with color and intensity hardcoded until attributes are
     /// in the meta proto.
-    pub fn new_with_standard_attributes(resolution: f64, bounding_box: Aabb3<f64>) -> Self {
+    pub fn new_with_standard_attributes(resolution: f64, bounding_box: Aabb<f64>) -> Self {
         let attribute_data_types = vec![
             ("color".to_string(), AttributeDataType::U8Vec3),
             ("intensity".to_string(), AttributeDataType::F32),
@@ -75,7 +76,7 @@ impl OctreeMeta {
         let bounding_cube = id.find_bounding_cube(&Cube::bounding(&self.bounding_box));
         let position_encoding = PositionEncoding::new(&bounding_cube, self.resolution);
         Encoding::ScaledToCube(
-            bounding_cube.min().to_vec(),
+            bounding_cube.min(),
             bounding_cube.edge_length(),
             position_encoding,
         )
@@ -99,8 +100,8 @@ pub fn to_meta_proto(octree_meta: &OctreeMeta, nodes: Vec<proto::OctreeNode>) ->
 // TODO(hrapp): something is funky here. "r" is smaller on screen than "r4" in many cases, though
 // that is impossible.
 fn project(m: &Matrix4<f64>, p: &Point3<f64>) -> Point3<f64> {
-    let q = m * Point3::to_homogeneous(*p);
-    Point3::from_homogeneous(q / q.w)
+    let q = m * p.to_homogeneous();
+    Point3::from_homogeneous(q).unwrap()
 }
 
 fn clip_point_to_hemicube(p: &Point3<f64>) -> Point3<f64> {
@@ -118,7 +119,7 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f64>) -> f64 {
     // z is unused here.
     let min = bounding_cube.min();
     let max = bounding_cube.max();
-    let mut rv = Aabb3::new(
+    let mut rv = Aabb::new(
         clip_point_to_hemicube(&project(matrix, &min)),
         clip_point_to_hemicube(&project(matrix, &max)),
     );
@@ -130,9 +131,10 @@ fn relative_size_on_screen(bounding_cube: &Cube, matrix: &Matrix4<f64>) -> f64 {
         Point3::new(max.x, min.y, max.z),
         Point3::new(min.x, max.y, max.z),
     ] {
-        rv = rv.grow(clip_point_to_hemicube(&project(matrix, p)));
+        rv.grow(clip_point_to_hemicube(&project(matrix, p)));
     }
-    (rv.max().x - rv.min().x) * (rv.max().y - rv.min().y)
+    let diag = rv.diag();
+    diag.x * diag.y
 }
 
 pub struct Octree {
@@ -161,9 +163,9 @@ impl Octree {
         }
         let (bounding_box, meta, nodes_proto) = match meta_proto.version {
             9 | 10 | 11 => {
-                let bounding_box = Aabb3::from(meta_proto.get_bounding_box());
+                let bounding_box = Aabb::from(meta_proto.get_bounding_box());
                 (
-                    bounding_box,
+                    bounding_box.clone(),
                     OctreeMeta::new_with_standard_attributes(
                         meta_proto.deprecated_resolution,
                         bounding_box,
@@ -176,13 +178,13 @@ impl Octree {
                     return Err(ErrorKind::InvalidInput("No octree meta found".to_string()).into());
                 }
                 let octree_meta = meta_proto.get_octree();
-                let bounding_box = Aabb3::from(if meta_proto.version == 12 {
+                let bounding_box = Aabb::from(if meta_proto.version == 12 {
                     octree_meta.get_deprecated_bounding_box()
                 } else {
                     meta_proto.get_bounding_box()
                 });
                 (
-                    bounding_box,
+                    bounding_box.clone(),
                     OctreeMeta::new_with_standard_attributes(octree_meta.resolution, bounding_box),
                     octree_meta.get_nodes(),
                 )
@@ -223,7 +225,9 @@ impl Octree {
     }
 
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
-        let frustum = collision::Frustum::from_matrix4(*projection_matrix).unwrap();
+        let frustum =
+            Frustum::from_matrix4(*projection_matrix).expect("Invalid projection matrix.");
+        let frustum_isec = frustum.intersector().cache_separating_axes_for_aabb();
         let mut open = BinaryHeap::new();
         maybe_push_node(
             &mut open,
@@ -239,7 +243,8 @@ impl Octree {
                 Relation::Cross => {
                     for child_index in 0..8 {
                         let child = current.node.get_child(ChildIndex::from_u8(child_index));
-                        let child_relation = frustum.contains(&child.bounding_cube.to_aabb3());
+                        let child_relation = frustum_isec
+                            .intersect(&child.bounding_cube.to_aabb().compute_corners());
                         if child_relation == Relation::Out {
                             continue;
                         }
@@ -308,12 +313,25 @@ impl PointCloud for Octree {
     type Id = NodeId;
 
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
-        let culling = location.get_point_culling();
-        let filter_func = move |node_id: &NodeId, octree: &Octree| -> bool {
-            let current = &octree.nodes[&node_id];
-            culling.intersects_aabb3(&current.bounding_cube.to_aabb3())
+        let node_ids_for_intersector = |isec: Intersector<f64>| {
+            let cached_intersector = isec.cache_separating_axes_for_aabb();
+            NodeIdsIterator::new(&self, move |node_id, octree| {
+                let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
+                cached_intersector.intersect(&aabb.compute_corners()) != Relation::Out
+            })
+            .collect()
         };
-        NodeIdsIterator::new(&self, filter_func).collect()
+        match location {
+            PointLocation::AllPoints => NodeIdsIterator::new(&self, |_, _| true).collect(),
+            PointLocation::Aabb(aabb) => node_ids_for_intersector(aabb.intersector()),
+            PointLocation::Frustum(f) => node_ids_for_intersector(f.intersector()),
+            PointLocation::Obb(obb) => node_ids_for_intersector(obb.intersector()),
+            PointLocation::S2Cells(cu) => NodeIdsIterator::new(&self, |node_id, octree| {
+                let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
+                cell_union_intersects_aabb(cu, &aabb) != Relation::Out
+            })
+            .collect(),
+        }
     }
 
     fn encoding_for_node(&self, id: Self::Id) -> Encoding {
@@ -338,7 +356,7 @@ impl PointCloud for Octree {
     }
 
     /// return the bounding box saved in meta
-    fn bounding_box(&self) -> &Aabb3<f64> {
+    fn bounding_box(&self) -> &Aabb<f64> {
         &self.meta.bounding_box
     }
 }

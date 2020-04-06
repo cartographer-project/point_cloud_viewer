@@ -1,6 +1,6 @@
-use collision::{Aabb, Aabb3, Union};
 use point_viewer::data_provider::{DataProvider, DataProviderFactory};
 use point_viewer::errors::*;
+use point_viewer::geometry::Aabb;
 use point_viewer::iterator::{ParallelIterator, PointCloud, PointQuery};
 use point_viewer::octree::Octree;
 use point_viewer::s2_cells::S2Cells;
@@ -13,14 +13,14 @@ enum PointClouds {
 
 pub struct PointCloudClient {
     point_clouds: PointClouds,
-    aabb: Aabb3<f64>,
+    aabb: Aabb<f64>,
     num_points_per_batch: usize,
     num_threads: usize,
     buffer_size: usize,
 }
 
 impl PointCloudClient {
-    pub fn bounding_box(&self) -> &Aabb3<f64> {
+    pub fn bounding_box(&self) -> &Aabb<f64> {
         &self.aabb
     }
 
@@ -98,10 +98,11 @@ impl<'a> PointCloudClientBuilder<'a> {
             .iter()
             .map(|location| self.data_provider_factory.generate_data_provider(location))
             .collect::<Result<Vec<Box<dyn DataProvider>>>>()?;
-        let mut aabb: Option<Aabb3<f64>> = None;
-        let unite = |bbox: &Aabb3<f64>, with: &mut Option<Aabb3<f64>>| {
-            let b = with.get_or_insert(*bbox);
-            *b = b.union(bbox);
+        let mut aabb: Option<Aabb<f64>> = None;
+        let unite = |bbox: &Aabb<f64>, with: &mut Option<Aabb<f64>>| {
+            let b = with.get_or_insert(bbox.clone());
+            b.grow(*bbox.min());
+            b.grow(*bbox.max());
         };
         let first_meta = data_providers[0].meta_proto()?;
         let point_clouds = if first_meta.version <= 11 || first_meta.has_octree() {
@@ -132,7 +133,7 @@ impl<'a> PointCloudClientBuilder<'a> {
 
         Ok(PointCloudClient {
             point_clouds,
-            aabb: aabb.unwrap_or_else(Aabb3::zero),
+            aabb: aabb.unwrap_or_else(Aabb::zero),
             num_points_per_batch: self.num_points_per_batch,
             num_threads: self.num_threads,
             buffer_size: self.buffer_size,

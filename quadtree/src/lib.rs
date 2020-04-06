@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cgmath::{Point2, Vector2};
+use nalgebra::{Point2, Vector2};
 use std::fmt::{self, Write};
 use std::num::ParseIntError;
 use std::str::FromStr;

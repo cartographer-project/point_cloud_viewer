@@ -1,13 +1,11 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
+use crate::geometry::Aabb;
 use crate::iterator::{PointCloud, PointLocation};
-use crate::math::sat::ConvexPolyhedron;
-use crate::math::S2Point;
+use crate::math::{ConvexPolyhedron, FromPoint3};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
-use cgmath::Point3;
-use collision::Aabb3;
 use fnv::FnvHashMap;
 use s2::cell::Cell;
 use s2::cellid::CellID;
@@ -39,7 +37,7 @@ impl S2CellMeta {
 pub struct S2Meta {
     cells: FnvHashMap<CellID, S2CellMeta>,
     attribute_data_types: HashMap<String, AttributeDataType>,
-    bounding_box: Aabb3<f64>,
+    bounding_box: Aabb<f64>,
 }
 
 impl PointCloudMeta for S2Meta {
@@ -52,7 +50,7 @@ impl S2Meta {
     pub fn new(
         cells: FnvHashMap<CellID, S2CellMeta>,
         attribute_data_types: HashMap<String, AttributeDataType>,
-        bounding_box: Aabb3<f64>,
+        bounding_box: Aabb<f64>,
     ) -> Self {
         S2Meta {
             cells,
@@ -72,7 +70,7 @@ impl S2Meta {
         &self.cells
     }
 
-    pub fn bounding_box(&self) -> &Aabb3<f64> {
+    pub fn bounding_box(&self) -> &Aabb<f64> {
         &self.bounding_box
     }
 
@@ -123,7 +121,7 @@ impl S2Meta {
             .into());
         }
 
-        let bounding_box = Aabb3::from(meta_proto.get_bounding_box());
+        let bounding_box = Aabb::from(meta_proto.get_bounding_box());
         let s2_meta_proto = meta_proto.get_s2();
         // cells, num_points
         let mut cells = FnvHashMap::default();
@@ -162,9 +160,9 @@ impl PointCloud for S2Cells {
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
         match location {
             PointLocation::AllPoints => self.cells.keys().cloned().collect(),
-            PointLocation::Aabb(aabb) => self.cells_in_cuboid(aabb),
-            PointLocation::Obb(obb) => self.cells_in_cuboid(obb),
-            PointLocation::Frustum(frustum) => self.cells_in_cuboid(frustum),
+            PointLocation::Aabb(aabb) => self.cells_in_convex_polyhedron(aabb),
+            PointLocation::Obb(obb) => self.cells_in_convex_polyhedron(obb),
+            PointLocation::Frustum(frustum) => self.cells_in_convex_polyhedron(frustum),
             PointLocation::S2Cells(cell_union) => self.cells_intersecting_region(cell_union),
         }
     }
@@ -191,7 +189,7 @@ impl PointCloud for S2Cells {
         Ok(node_iterator)
     }
 
-    fn bounding_box(&self) -> &Aabb3<f64> {
+    fn bounding_box(&self) -> &Aabb<f64> {
         &self.meta.bounding_box
     }
 }
@@ -216,23 +214,16 @@ impl S2Cells {
         self.meta.to_proto()
     }
 
-    /// Wrapper arround cells_in_convex_hull for Obbs
-    fn cells_in_cuboid<T>(&self, poly: &T) -> Vec<CellID>
+    /// Returns all cells that intersect this convex polyhedron
+    fn cells_in_convex_polyhedron<T>(&self, poly: &T) -> Vec<CellID>
     where
         T: ConvexPolyhedron<f64>,
     {
-        self.cells_in_convex_hull(poly.compute_corners().iter().cloned())
-    }
-
-    /// Returns all cells that intersect the convex hull of the given points
-    fn cells_in_convex_hull<IterPoint>(&self, points: IterPoint) -> Vec<CellID>
-    where
-        IterPoint: IntoIterator<Item = Point3<f64>>,
-    {
         // We could choose either a covering rect or a covering cap as a convex hull
-        let point_cells = points
-            .into_iter()
-            .map(|p| CellID::from(S2Point::from(&p)))
+        let point_cells = poly
+            .compute_corners()
+            .iter()
+            .map(|p| CellID::from_point(&p))
             .collect();
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();

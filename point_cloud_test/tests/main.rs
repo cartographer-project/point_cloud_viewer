@@ -1,4 +1,4 @@
-use cgmath::{InnerSpace, Vector3};
+use nalgebra::{Point3, Vector3};
 use num_integer::div_ceil;
 use point_cloud_test_lib::{
     get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query, setup_pointcloud,
@@ -100,7 +100,7 @@ where
 
 struct IndexedPoint {
     idx: usize,
-    pos: Vector3<f64>,
+    pos: Point3<f64>,
 }
 
 // Checks that the points are equal up to a precision of the default resolution
@@ -118,7 +118,7 @@ fn assert_points_equal(points_s2: &[IndexedPoint], points_oct: &[IndexedPoint], 
     while let (Some((count_s2, p_s2)), Some((count_oct, p_oct))) = (s2_next, oct_next) {
         match p_s2.idx.cmp(&p_oct.idx) {
             Ordering::Equal => {
-                let distance = (p_s2.pos - p_oct.pos).magnitude();
+                let distance = (p_s2.pos - p_oct.pos).norm();
                 assert!(
                     distance <= threshold,
                     "Inequality between s2 point [{}]: {:?} and octree point [{}]: {:?}, distance {}",

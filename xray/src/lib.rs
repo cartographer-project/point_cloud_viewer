@@ -1,7 +1,7 @@
-use cgmath::Point2;
-use cgmath::{Matrix4, Point3};
-use collision::{Aabb3, Frustum, Relation};
 use fnv::FnvHashSet;
+use nalgebra::{Matrix4, Point2, Point3};
+use point_viewer::geometry::{Aabb, Frustum};
+use point_viewer::math::sat::{ConvexPolyhedron, Relation};
 use protobuf::Message;
 use quadtree::{ChildIndex, Node};
 use quadtree::{NodeId, Rect};
@@ -154,27 +154,32 @@ impl Meta {
 
         let matrix = {
             let e = &matrix_entries;
-            Matrix4::new(
-                e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10], e[11], e[12],
-                e[13], e[14], e[15],
-            )
-        }
-        .cast::<f64>()
-        .unwrap();
+            #[rustfmt::skip]
+            let mat = Matrix4::new(
+                e[0],  e[1],  e[2],  e[3],
+                e[4],  e[5],  e[6],  e[7],
+                e[8],  e[9],  e[10], e[11],
+                e[12], e[13], e[14], e[15],
+            );
+            nalgebra::convert(mat)
+        };
         let frustum =
             Frustum::from_matrix4(matrix).ok_or("Unable to create frustum from matrix")?;
+        let frustum_isec = frustum.intersector().cache_separating_axes_for_aabb();
         let mut result = Vec::new();
         let mut open = vec![Node::from_node_id_and_root_bounding_rect(
             NodeId::root(),
             self.bounding_rect.clone(),
         )];
         while let Some(node) = open.pop() {
-            let aabb = Aabb3::new(
+            let aabb = Aabb::new(
                 Point3::new(node.bounding_rect.min().x, node.bounding_rect.min().y, -0.1),
                 Point3::new(node.bounding_rect.max().x, node.bounding_rect.max().y, 0.1),
             );
 
-            if frustum.contains(&aabb) == Relation::Out || !self.nodes.contains(&node.id) {
+            if frustum_isec.intersect(&aabb.compute_corners()) == Relation::Out
+                || !self.nodes.contains(&node.id)
+            {
                 continue;
             }
 

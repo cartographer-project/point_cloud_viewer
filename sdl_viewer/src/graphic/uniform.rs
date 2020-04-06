@@ -1,7 +1,7 @@
 use crate::graphic::GlProgram;
 use crate::opengl;
 use crate::opengl::types::{GLboolean, GLint};
-use cgmath::{Matrix, Matrix4, Vector2, Vector3};
+use nalgebra::{Matrix4, Vector2, Vector3};
 use std::ffi::CString;
 use std::rc::Rc;
 

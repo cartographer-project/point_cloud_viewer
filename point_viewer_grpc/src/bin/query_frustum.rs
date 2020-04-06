@@ -13,13 +13,13 @@
 // limitations under the License.
 
 use crate::proto_grpc::OctreeClient;
-use cgmath::{Deg, EuclideanSpace, Point3, Rad, Vector3};
-use collision::{Aabb, Aabb3};
 use futures::{Future, Stream};
 use grpcio::{ChannelBuilder, EnvBuilder};
+use nalgebra::{Point3, Vector3};
 use num_integer::div_ceil;
 use point_viewer::attributes::AttributeData;
 use point_viewer::color::Color;
+use point_viewer::geometry::Aabb;
 use point_viewer::octree::build_octree;
 use point_viewer::{NumberOfPoints, Point, PointsBatch, NUM_POINTS_PER_BATCH};
 pub use point_viewer_grpc_proto_rust::proto::GetPointsInFrustumRequest;
@@ -108,23 +108,23 @@ fn main() {
     request.mut_translation().set_y(-105.560_104);
     request.mut_translation().set_z(-132.893_23);
 
-    request.set_fovy_rad(Rad::from(Deg(45.)).0);
+    request.set_fovy_rad(std::f64::consts::FRAC_PI_4);
     request.set_aspect(800. / 600.);
     request.set_z_near(0.1);
     request.set_z_far(10000.);
 
-    let mut bounding_box = Aabb3::zero();
+    let mut bounding_box = Aabb::zero();
 
     let replies = client.get_points_in_frustum(&request).expect("rpc");
     let mut points = Vec::new();
     replies
         .for_each(|reply| {
             let last_num_points = points.len();
-            for (position, color) in reply.positions.iter().zip(reply.colors.iter()) {
-                let p = Point3::new(position.x, position.y, position.z);
-                bounding_box = bounding_box.grow(p);
+            for (p, color) in reply.positions.iter().zip(reply.colors.iter()) {
+                let position = Point3::from(p);
+                bounding_box.grow(position);
                 points.push(Point {
-                    position: p.to_vec(),
+                    position,
                     color: Color {
                         red: color.red,
                         green: color.green,

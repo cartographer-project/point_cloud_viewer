@@ -3,9 +3,10 @@ use crate::generation::{
     TileBackgroundColorArgument, XrayParameters,
 };
 use clap::value_t;
+use nalgebra::Isometry3;
 use point_cloud_client::PointCloudClientBuilder;
 use point_viewer::data_provider::DataProviderFactory;
-use point_viewer::math::{ClosedInterval, Isometry3};
+use point_viewer::math::ClosedInterval;
 use point_viewer::read_write::attempt_increasing_rlimit_to_max;
 use point_viewer::utils::parse_key_val;
 use quadtree::NodeId;

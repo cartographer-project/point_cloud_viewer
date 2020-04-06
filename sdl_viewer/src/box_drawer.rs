@@ -15,9 +15,9 @@
 use crate::graphic::{GlBuffer, GlProgram, GlProgramBuilder, GlVertexArray};
 use crate::opengl;
 use crate::opengl::types::{GLboolean, GLint, GLsizeiptr, GLuint};
-use cgmath::{EuclideanSpace, Matrix, Matrix4};
-use collision::{Aabb, Aabb3};
+use nalgebra::Matrix4;
 use point_viewer::color;
+use point_viewer::geometry::Aabb;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
@@ -164,13 +164,13 @@ impl BoxDrawer {
     // Then we use 'world_to_gl' to transform it into clip space.
     pub fn draw_outlines(
         &self,
-        cuboid: &Aabb3<f64>,
+        cuboid: &Aabb<f64>,
         world_to_gl: &Matrix4<f64>,
         color: &color::Color<f32>,
     ) {
-        let dim = cuboid.dim() / 2.0;
-        let scale_matrix = Matrix4::from_nonuniform_scale(dim.x, dim.y, dim.z);
-        let translation_matrix = Matrix4::from_translation(cuboid.center().to_vec());
+        let dim = cuboid.diag() / 2.0;
+        let scale_matrix = Matrix4::new_nonuniform_scaling(&dim);
+        let translation_matrix = Matrix4::new_translation(&cuboid.center().coords);
         let transformation_matrix = world_to_gl * translation_matrix * scale_matrix;
 
         self.draw_outlines_from_transformation(&transformation_matrix, color);

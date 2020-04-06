@@ -24,7 +24,7 @@ authors = [
 edition = "2018"
 
 [dependencies]
-cgmath = "0.17.0"
+nalgebra = "0.20.0"
 
 [dependencies.xray_proto_rust]
 path = "../xray_proto_rust"

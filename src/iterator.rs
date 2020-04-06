@@ -1,10 +1,8 @@
 use crate::errors::*;
-use crate::geometry::{CachedAxesObb, Frustum, Obb};
+use crate::geometry::{Aabb, CachedAxesFrustum, CachedAxesObb, Frustum, Obb};
 use crate::math::{AllPoints, ClosedInterval, PointCulling};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{match_1d_attr_data, AttributeData, PointsBatch};
-use cgmath::Point3;
-use collision::Aabb3;
 use crossbeam::deque::{Injector, Steal, Worker};
 use num_traits::ToPrimitive;
 use s2::cellunion::CellUnion;
@@ -15,7 +13,7 @@ use std::collections::{BTreeMap, HashMap};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PointLocation {
     AllPoints,
-    Aabb(Aabb3<f64>),
+    Aabb(Aabb<f64>),
     Frustum(Frustum<f64>),
     Obb(Obb<f64>),
     S2Cells(CellUnion),
@@ -31,8 +29,8 @@ impl PointLocation {
     pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
         match &self {
             PointLocation::AllPoints => Box::new(AllPoints {}),
-            PointLocation::Aabb(aabb) => Box::new(*aabb),
-            PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
+            PointLocation::Aabb(aabb) => Box::new(aabb.clone()),
+            PointLocation::Frustum(frustum) => Box::new(CachedAxesFrustum::new(frustum.clone())),
             PointLocation::Obb(obb) => Box::new(CachedAxesObb::new(obb.clone())),
             PointLocation::S2Cells(cell_union) => Box::new(cell_union.clone()),
         }
@@ -60,7 +58,7 @@ macro_rules! with_point_culling {
         match &$point_location {
             PointLocation::AllPoints => $closure(crate::math::AllPoints {}),
             PointLocation::Aabb(aabb) => $closure(aabb.clone()),
-            PointLocation::Frustum(frustum) => $closure(frustum.clone()),
+            PointLocation::Frustum(frustum) => $closure(CachedAxesFrustum::new(frustum.clone())),
             PointLocation::Obb(obb) => $closure(CachedAxesObb::new(obb.clone())),
             PointLocation::S2Cells(cell_union) => $closure(cell_union.clone()),
         }
@@ -104,9 +102,7 @@ impl<'a, Culling: PointCulling<f64>> Iterator for FilteredIterator<'a, Culling> 
             let mut keep: Vec<bool> = batch
                 .position
                 .iter()
-                .map(|pos| {
-                    culling.contains(&<Point3<f64> as cgmath::EuclideanSpace>::from_vec(*pos))
-                })
+                .map(|pos| culling.contains(&pos))
                 .collect();
             macro_rules! rhs {
                 ($dtype:ident, $data:ident, $interval:expr) => {
@@ -126,7 +122,7 @@ impl<'a, Culling: PointCulling<f64>> Iterator for FilteredIterator<'a, Culling> 
     }
 }
 
-/// current implementation of the stream of points used in ParallelIterator
+/// Current implementation of the stream of points used in ParallelIterator
 struct PointStream<'a, F>
 where
     F: Fn(PointsBatch) -> Result<()>,
@@ -184,7 +180,7 @@ pub trait PointCloud: Sync {
         node_id: Self::Id,
         batch_size: usize,
     ) -> Result<NodeIterator>;
-    fn bounding_box(&self) -> &Aabb3<f64>;
+    fn bounding_box(&self) -> &Aabb<f64>;
 
     /// Return the points matching the query in the selected node.
     /// Why only a single node? Because the nodes are distributed to several `PointStream` instances

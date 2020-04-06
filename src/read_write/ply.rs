@@ -18,7 +18,7 @@ use crate::read_write::{
 };
 use crate::{AttributeData, NumberOfPoints, Point, PointsBatch};
 use byteorder::{ByteOrder, LittleEndian};
-use cgmath::Vector3;
+use nalgebra::{Point3, Vector3};
 use num_integer::div_ceil;
 use num_traits::identities::Zero;
 use std::collections::BTreeMap;
@@ -485,11 +485,11 @@ fn batch_from_readers(readers: &mut [PropertyReader], offset: &Vector3<f64>) -> 
             }
         }
     }
-    let position: Vec<Vector3<f64>> = x_vec
+    let position: Vec<Point3<f64>> = x_vec
         .into_iter()
         .zip(y_vec.into_iter())
         .zip(z_vec.into_iter())
-        .map(|((x, y), z)| Vector3::new(x, y, z) + offset)
+        .map(|((x, y), z)| Point3::new(x, y, z) + offset)
         .collect();
     if !r_vec.is_empty() {
         attributes.insert(

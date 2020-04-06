@@ -7,6 +7,7 @@ pub struct NodeIdsIterator<'a, F> {
     node_ids: VecDeque<NodeId>,
 }
 
+// TODO(nnmm): Make more efficient by using Relation
 impl<'a, F> NodeIdsIterator<'a, F>
 where
     F: Fn(&NodeId, &Octree) -> bool,

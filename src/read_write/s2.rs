@@ -1,9 +1,8 @@
-use crate::math::{S2Point, EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
+use crate::geometry::Aabb;
+use crate::math::{FromPoint3, EARTH_RADIUS_MAX_M, EARTH_RADIUS_MIN_M};
 use crate::read_write::{Encoding, NodeWriter, OpenMode};
 use crate::s2_cells::{S2CellMeta, S2Meta};
 use crate::{AttributeData, AttributeDataType, PointsBatch};
-use cgmath::{EuclideanSpace, InnerSpace, Point3};
-use collision::{Aabb, Aabb3};
 use fnv::FnvHashMap;
 use lru::LruCache;
 use s2::cellid::CellID;
@@ -22,7 +21,7 @@ pub struct S2Splitter<W> {
     writers: LruCache<CellID, W>,
     already_opened_writers: HashSet<CellID>,
     cell_stats: FnvHashMap<CellID, S2CellMeta>,
-    bounding_box: Option<Aabb3<f64>>,
+    bounding_box: Option<Aabb<f64>>,
     attributes_seen: BTreeMap<String, AttributeDataType>,
     encoding: Encoding,
     open_mode: OpenMode,
@@ -62,7 +61,7 @@ where
         self.check_attributes(points_batch)?;
         let mut batches_by_s2_cell = HashMap::new();
         for (i, pos) in points_batch.position.iter().enumerate() {
-            let radius = pos.magnitude();
+            let radius = pos.coords.norm();
             if radius > EARTH_RADIUS_MAX_M || radius < EARTH_RADIUS_MIN_M {
                 let msg = format!(
                     "Point ({}, {}, {}) is not a valid ECEF point",
@@ -70,11 +69,10 @@ where
                 );
                 return Err(Error::new(ErrorKind::InvalidInput, msg));
             }
-            let p3 = Point3::from_vec(*pos);
-            let b = self.bounding_box.get_or_insert(Aabb3::new(p3, p3));
-            *b = b.grow(p3);
-            let s2_point = S2Point::from(pos);
-            let s2_cell_id = CellID::from(s2_point).parent(self.split_level);
+            let p3 = *pos;
+            let b = self.bounding_box.get_or_insert(Aabb::new(p3, p3));
+            b.grow(p3);
+            let s2_cell_id = CellID::from_point(pos).parent(self.split_level);
             self.cell_stats
                 .entry(s2_cell_id)
                 .or_insert(S2CellMeta { num_points: 0 })
@@ -92,8 +90,13 @@ where
                     .entry(key)
                     .and_modify(|out_data| match (in_data, out_data) {
                         (U8(in_vec), U8(out_vec)) => out_vec.push(in_vec[i]),
-                        (I64(in_vec), I64(out_vec)) => out_vec.push(in_vec[i]),
+                        (U16(in_vec), U16(out_vec)) => out_vec.push(in_vec[i]),
+                        (U32(in_vec), U32(out_vec)) => out_vec.push(in_vec[i]),
                         (U64(in_vec), U64(out_vec)) => out_vec.push(in_vec[i]),
+                        (I8(in_vec), I8(out_vec)) => out_vec.push(in_vec[i]),
+                        (I16(in_vec), I16(out_vec)) => out_vec.push(in_vec[i]),
+                        (I32(in_vec), I32(out_vec)) => out_vec.push(in_vec[i]),
+                        (I64(in_vec), I64(out_vec)) => out_vec.push(in_vec[i]),
                         (F32(in_vec), F32(out_vec)) => out_vec.push(in_vec[i]),
                         (F64(in_vec), F64(out_vec)) => out_vec.push(in_vec[i]),
                         (U8Vec3(in_vec), U8Vec3(out_vec)) => out_vec.push(in_vec[i]),
@@ -160,11 +163,12 @@ where
         }
     }
 
-    pub fn get_meta(self) -> S2Meta {
-        S2Meta::new(
+    pub fn get_meta(self) -> Option<S2Meta> {
+        let meta = S2Meta::new(
             self.cell_stats,
             self.attributes_seen.into_iter().collect(),
-            self.bounding_box.unwrap_or_else(Aabb3::zero),
-        )
+            self.bounding_box?,
+        );
+        Some(meta)
     }
 }
