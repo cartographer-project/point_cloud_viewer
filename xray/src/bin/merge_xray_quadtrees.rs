@@ -120,6 +120,7 @@ where
 fn validate_and_merge_metadata(metadata: &[Meta]) -> MergedMetadata {
     assert!(!metadata.is_empty(), "No subquadtrees meta files found.");
     let root_nodes_vec = get_root_nodes(metadata);
+    assert!(!root_nodes_vec.is_empty(), "All subquadtress are empty.");
     let root_node_ids: FnvHashSet<NodeId> = root_nodes_vec.iter().map(|node| node.id).collect();
     assert_eq!(
         root_node_ids.len(),
@@ -133,11 +134,12 @@ fn validate_and_merge_metadata(metadata: &[Meta]) -> MergedMetadata {
     let tile_size = all_equal(metadata.iter().map(|meta| meta.tile_size))
         .expect("Not all meta files have the same tile size.");
     let bounding_rect = {
-        let mut root_node = root_nodes_vec.first().cloned();
-        while let Some(node) = root_node {
-            root_node = node.parent();
+        // This unwrap is safe by one of the assertions above.
+        let mut root_node = root_nodes_vec.first().cloned().unwrap();
+        while let Some(node) = root_node.parent() {
+            root_node = node;
         }
-        root_node.expect("No parent root node found.").bounding_rect
+        root_node.bounding_rect
     };
 
     let mut nodes = FnvHashSet::default();
