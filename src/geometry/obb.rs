@@ -1,8 +1,8 @@
 //! A bounding box with an arbitrary 3D pose.
 
 use super::aabb::Aabb;
-use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector, Relation};
-use crate::math::PointCulling;
+use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
+use crate::math::{HasAabbIntersector, PointCulling};
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, RealField, Unit, UnitQuaternion, Vector3};
 use num_traits::Bounded;
@@ -29,6 +29,13 @@ impl<S: RealField + Bounded> CachedAxesObb<S> {
             obb,
             separating_axes,
         }
+    }
+}
+
+impl<'a, S: RealField> HasAabbIntersector<'a, S> for Obb<S> {
+    type Intersector = CachedAxesIntersector<S>;
+    fn aabb_intersector(&'a self) -> Self::Intersector {
+        self.intersector().cache_separating_axes_for_aabb()
     }
 }
 
@@ -96,19 +103,15 @@ where
     }
 }
 
-impl<S> PointCulling<S> for CachedAxesObb<S>
+impl<S> PointCulling<S> for Obb<S>
 where
     S: RealField,
 {
     fn contains(&self, p: &Point3<S>) -> bool {
-        let p = self.obb.obb_from_query * p;
-        p.x.abs() <= self.obb.half_extent.x
-            && p.y.abs() <= self.obb.half_extent.y
-            && p.z.abs() <= self.obb.half_extent.z
-    }
-
-    fn intersects_aabb(&self, aabb: &Aabb<S>) -> bool {
-        self.separating_axes.intersect(&aabb.compute_corners()) != Relation::Out
+        let p = self.obb_from_query * p;
+        p.x.abs() <= self.half_extent.x
+            && p.y.abs() <= self.half_extent.y
+            && p.z.abs() <= self.half_extent.z
     }
 }
 

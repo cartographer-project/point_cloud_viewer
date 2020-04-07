@@ -15,8 +15,9 @@ use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::geometry::{Aabb, Cube, Frustum};
 use crate::iterator::{PointCloud, PointLocation};
-use crate::math::base::PointCulling;
-use crate::math::sat::{ConvexPolyhedron, Intersector, Relation};
+use crate::math::base::{HasAabbIntersector, IntersectAabb};
+use crate::math::sat::{ConvexPolyhedron, Relation};
+use crate::math::AllPoints;
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -307,30 +308,34 @@ impl Octree {
             meta: self.nodes[node_id].clone(),
         })
     }
+
+    fn nodes_in_location_impl<'a, T: HasAabbIntersector<'a, f64>>(
+        &self,
+        location: &'a T,
+    ) -> Vec<NodeId> {
+        // TODO(nnmm): Once intersection tests use Relation, this function can traverse the octree
+        // with the same strategy as get_visible_nodes(), skipping over fully-included nodes. Then
+        // it's a generalized version of get_visible_nodes(), and get_visible_nodes() can use this
+        // function instead.
+        let isec = location.aabb_intersector();
+        NodeIdsIterator::new(&self, |node_id, octree| {
+            let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
+            isec.intersect_aabb(&aabb)
+        })
+        .collect()
+    }
 }
 
 impl PointCloud for Octree {
     type Id = NodeId;
 
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
-        let node_ids_for_intersector = |isec: Intersector<f64>| {
-            let cached_intersector = isec.cache_separating_axes_for_aabb();
-            NodeIdsIterator::new(&self, move |node_id, octree| {
-                let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
-                cached_intersector.intersect(&aabb.compute_corners()) != Relation::Out
-            })
-            .collect()
-        };
         match location {
-            PointLocation::AllPoints => NodeIdsIterator::new(&self, |_, _| true).collect(),
-            PointLocation::Aabb(aabb) => node_ids_for_intersector(aabb.intersector()),
-            PointLocation::Frustum(f) => node_ids_for_intersector(f.intersector()),
-            PointLocation::Obb(obb) => node_ids_for_intersector(obb.intersector()),
-            PointLocation::S2Cells(cu) => NodeIdsIterator::new(&self, |node_id, octree| {
-                let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
-                cu.intersects_aabb(&aabb)
-            })
-            .collect(),
+            PointLocation::AllPoints => self.nodes_in_location_impl(&AllPoints {}),
+            PointLocation::Aabb(aabb) => self.nodes_in_location_impl(aabb),
+            PointLocation::Frustum(f) => self.nodes_in_location_impl(f),
+            PointLocation::Obb(obb) => self.nodes_in_location_impl(obb),
+            PointLocation::S2Cells(cu) => self.nodes_in_location_impl(cu),
         }
     }
 

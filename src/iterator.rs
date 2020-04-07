@@ -1,5 +1,5 @@
 use crate::errors::*;
-use crate::geometry::{Aabb, CachedAxesFrustum, CachedAxesObb, Frustum, Obb};
+use crate::geometry::{Aabb, Frustum, Obb};
 use crate::math::{AllPoints, ClosedInterval, PointCulling};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{match_1d_attr_data, AttributeData, PointsBatch};
@@ -30,39 +30,11 @@ impl PointLocation {
         match &self {
             PointLocation::AllPoints => Box::new(AllPoints {}),
             PointLocation::Aabb(aabb) => Box::new(aabb.clone()),
-            PointLocation::Frustum(frustum) => Box::new(CachedAxesFrustum::new(frustum.clone())),
-            PointLocation::Obb(obb) => Box::new(CachedAxesObb::new(obb.clone())),
+            PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
+            PointLocation::Obb(obb) => Box::new(obb.clone()),
             PointLocation::S2Cells(cell_union) => Box::new(cell_union.clone()),
         }
     }
-}
-
-/// This macro is an alternative to `get_point_culling()`, to be used where
-/// performance is important (i.e. in an inner loop). This can make a difference
-/// of 5-10 % in queries measuered by the point_cloud_test crate.
-/// It receives a function (closure) that accepts a _specific_ PointCulling
-/// object. Besides the object not being boxed, this way we can be sure that
-/// there is no overhead from matching against the PointLocation inside the
-/// function as well, as you might get with the `enum_dispatch` crate.
-///
-/// Drawbacks: It's a little duck-typed (the closure accepts any object that
-/// has methods with the same name as those in PointCulling), which is
-/// necessary – you cannot write this as a function with a signature like
-/// `fn with_point_culling<F, Culling, R>(pl: PointLocation, func: F) -> R
-/// where F: FnMut(Culling) -> R`.
-/// Another drawback: Trying to use this in another module makes Rust ask for
-/// an annotation of the argument type of the closure, which ruins this trick.
-macro_rules! with_point_culling {
-    ($point_location:expr, $closure:tt) => {
-        #[allow(clippy::redundant_closure_call)]
-        match &$point_location {
-            PointLocation::AllPoints => $closure(crate::math::AllPoints {}),
-            PointLocation::Aabb(aabb) => $closure(aabb.clone()),
-            PointLocation::Frustum(frustum) => $closure(CachedAxesFrustum::new(frustum.clone())),
-            PointLocation::Obb(obb) => $closure(CachedAxesObb::new(obb.clone())),
-            PointLocation::S2Cells(cell_union) => $closure(cell_union.clone()),
-        }
-    };
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -197,17 +169,38 @@ pub trait PointCloud: Sync {
     {
         let filter_intervals = &query.filter_intervals;
         let node_iterator = self.points_in_node(&query.attributes, node_id, batch_size)?;
-        with_point_culling!(
-            query.location,
-            (|culling| {
-                let mut filtered_iterator = FilteredIterator {
-                    culling,
-                    filter_intervals,
-                    node_iterator,
-                };
-                filtered_iterator.try_for_each(callback)
-            })
-        )
+        match &query.location {
+            PointLocation::AllPoints => FilteredIterator {
+                culling: AllPoints {},
+                filter_intervals,
+                node_iterator,
+            }
+            .try_for_each(callback),
+            PointLocation::Aabb(aabb) => FilteredIterator {
+                culling: aabb.clone(),
+                filter_intervals,
+                node_iterator,
+            }
+            .try_for_each(callback),
+            PointLocation::Frustum(frustum) => FilteredIterator {
+                culling: frustum.clone(),
+                filter_intervals,
+                node_iterator,
+            }
+            .try_for_each(callback),
+            PointLocation::Obb(obb) => FilteredIterator {
+                culling: obb.clone(),
+                filter_intervals,
+                node_iterator,
+            }
+            .try_for_each(callback),
+            PointLocation::S2Cells(cell_union) => FilteredIterator {
+                culling: cell_union.clone(),
+                filter_intervals,
+                node_iterator,
+            }
+            .try_for_each(callback),
+        }
     }
 }
 
