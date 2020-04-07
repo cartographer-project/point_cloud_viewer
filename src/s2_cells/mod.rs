@@ -1,8 +1,7 @@
 use crate::data_provider::DataProvider;
 use crate::errors::*;
-use crate::geometry::Aabb;
+use crate::geometry::{Aabb, cells_intersecting_polyhedron};
 use crate::iterator::{PointCloud, PointLocation};
-use crate::math::{ConvexPolyhedron, FromPoint3};
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
@@ -16,7 +15,7 @@ use std::iter;
 
 pub struct S2Cells {
     data_provider: Box<dyn DataProvider>,
-    cells: FnvHashMap<CellID, Cell>,
+    cells: CellUnion,
     meta: S2Meta,
 }
 
@@ -159,10 +158,10 @@ impl PointCloud for S2Cells {
 
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
         match location {
-            PointLocation::AllPoints => self.cells.keys().cloned().collect(),
-            PointLocation::Aabb(aabb) => self.cells_in_convex_polyhedron(aabb),
-            PointLocation::Obb(obb) => self.cells_in_convex_polyhedron(obb),
-            PointLocation::Frustum(frustum) => self.cells_in_convex_polyhedron(frustum),
+            PointLocation::AllPoints => self.cells.0.clone(),
+            PointLocation::Aabb(aabb) => cells_intersecting_polyhedron(&self.cells, aabb).collect(),
+            PointLocation::Obb(obb) => cells_intersecting_polyhedron(&self.cells, obb).collect(),
+            PointLocation::Frustum(frustum) => cells_intersecting_polyhedron(&self.cells, frustum).collect(),
             PointLocation::S2Cells(cell_union) => self.cells_intersecting_region(cell_union),
         }
     }
@@ -198,11 +197,11 @@ impl S2Cells {
     pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
         let meta_proto = data_provider.meta_proto()?;
         let meta = S2Meta::from_proto(meta_proto)?;
-        let cells: FnvHashMap<_, _> = meta
+        let cells = CellUnion(meta
             .get_cells()
             .keys()
-            .map(|id| (*id, Cell::from(id)))
-            .collect();
+            .copied()
+            .collect());
         Ok(S2Cells {
             data_provider,
             cells,
@@ -214,28 +213,11 @@ impl S2Cells {
         self.meta.to_proto()
     }
 
-    /// Returns all cells that intersect this convex polyhedron
-    fn cells_in_convex_polyhedron<T>(&self, poly: &T) -> Vec<CellID>
-    where
-        T: ConvexPolyhedron<f64>,
-    {
-        // We could choose either a covering rect or a covering cap as a convex hull
-        let point_cells = poly
-            .compute_corners()
-            .iter()
-            .map(|p| CellID::from_point(&p))
-            .collect();
-        let mut cell_union = CellUnion(point_cells);
-        cell_union.normalize();
-        let rect = cell_union.rect_bound();
-        self.cells_intersecting_region(&rect)
-    }
-
     fn cells_intersecting_region(&self, region: &impl Region) -> Vec<CellID> {
-        self.cells
-            .values()
-            .filter(|cell| region.intersects_cell(cell))
-            .map(|cell| cell.id)
+        self.cells.0
+            .iter()
+            .filter(|&cell_id| region.intersects_cell(&Cell::from(cell_id)))
+            .copied()
             .collect()
     }
 }

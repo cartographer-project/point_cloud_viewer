@@ -8,14 +8,14 @@ use crate::math::FromPoint3;
 use nalgebra::{Point3, RealField};
 use s2::{cell::Cell, cellid::CellID, region::Region};
 
-/// Checks for an intersection between a cell_union and a polyhedron.
+/// Checks for an intersection between a CellUnion and a polyhedron.
 ///
-/// This is done by checking whether an cell in the cell union intersects
+/// This is done by checking whether any cell in the cell union intersects
 /// a covering of the polyhedron with S2 cells.
-pub fn cell_union_intersects_polyhedron<S>(
-    cell_union: &CellUnion,
+pub fn cells_intersecting_polyhedron<'a, S>(
+    cell_union: &'a CellUnion,
     polyhedron: &impl ConvexPolyhedron<S>,
-) -> bool
+) -> impl Iterator<Item=CellID> + 'a
 where
     S: RealField,
     f64: From<S>,
@@ -31,7 +31,8 @@ where
     cell_union
         .0
         .iter()
-        .any(|cell_id| rect.intersects_cell(&Cell::from(cell_id)))
+        .filter(move |&cell_id| rect.intersects_cell(&Cell::from(cell_id)))
+        .copied()
 }
 
 impl<S> PointCulling<S> for CellUnion
@@ -44,6 +45,6 @@ where
     }
 
     fn intersects_aabb(&self, aabb: &Aabb<S>) -> bool {
-        cell_union_intersects_polyhedron(self, aabb)
+        cells_intersecting_polyhedron(self, aabb).next().is_some()
     }
 }
