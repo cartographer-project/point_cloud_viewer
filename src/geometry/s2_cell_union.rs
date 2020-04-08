@@ -51,9 +51,10 @@ where
     }
 }
 
-impl<'a, S: RealField> HasAabbIntersector<'a, S> for CellUnion
+impl<'a, S> HasAabbIntersector<'a, S> for CellUnion
 where
     f64: From<S>,
+    S: RealField,
 {
     type Intersector = Vec<Cell>;
     fn aabb_intersector(&'a self) -> Self::Intersector {

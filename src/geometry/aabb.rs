@@ -91,19 +91,13 @@ impl From<&Aabb<f64>> for proto::AxisAlignedCuboid {
     }
 }
 
-impl<S> PointCulling<S> for Aabb<S>
-where
-    S: RealField + num_traits::Bounded,
-{
+impl<S: RealField> PointCulling<S> for Aabb<S> {
     fn contains(&self, p: &Point3<S>) -> bool {
         self.contains(p)
     }
 }
 
-impl<'a, S> HasAabbIntersector<'a, S> for Aabb<S>
-where
-    S: RealField + num_traits::Bounded,
-{
+impl<'a, S: RealField> HasAabbIntersector<'a, S> for Aabb<S> {
     type Intersector = CachedAxesIntersector<S>;
     fn aabb_intersector(&'a self) -> CachedAxesIntersector<S> {
         CachedAxesIntersector {
@@ -113,10 +107,7 @@ where
     }
 }
 
-impl<S> ConvexPolyhedron<S> for Aabb<S>
-where
-    S: RealField,
-{
+impl<S: RealField> ConvexPolyhedron<S> for Aabb<S> {
     fn compute_corners(&self) -> [Point3<S>; 8] {
         [
             Point3::new(self.mins.x, self.mins.y, self.mins.z),

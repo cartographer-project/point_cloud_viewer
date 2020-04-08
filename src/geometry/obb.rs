@@ -5,7 +5,6 @@ use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use crate::math::{HasAabbIntersector, PointCulling};
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, RealField, Unit, UnitQuaternion, Vector3};
-use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
 /// An oriented bounding box.
@@ -14,22 +13,6 @@ pub struct Obb<S: RealField> {
     query_from_obb: Isometry3<S>,
     obb_from_query: Isometry3<S>,
     half_extent: Vector3<S>,
-}
-
-/// TODO(nnmm): Remove
-pub struct CachedAxesObb<S: RealField> {
-    pub obb: Obb<S>,
-    pub separating_axes: CachedAxesIntersector<S>,
-}
-
-impl<S: RealField + Bounded> CachedAxesObb<S> {
-    pub fn new(obb: Obb<S>) -> Self {
-        let separating_axes = obb.intersector().cache_separating_axes_for_aabb();
-        Self {
-            obb,
-            separating_axes,
-        }
-    }
 }
 
 impl<'a, S: RealField> HasAabbIntersector<'a, S> for Obb<S> {
@@ -68,10 +51,7 @@ impl<S: RealField> Obb<S> {
     }
 }
 
-impl<S> ConvexPolyhedron<S> for Obb<S>
-where
-    S: RealField,
-{
+impl<S: RealField> ConvexPolyhedron<S> for Obb<S> {
     fn compute_corners(&self) -> [Point3<S>; 8] {
         let corner_from = |x, y, z| self.query_from_obb * Point3::new(x, y, z);
         [
@@ -103,10 +83,7 @@ where
     }
 }
 
-impl<S> PointCulling<S> for Obb<S>
-where
-    S: RealField,
-{
+impl<S: RealField> PointCulling<S> for Obb<S> {
     fn contains(&self, p: &Point3<S>) -> bool {
         let p = self.obb_from_query * p;
         p.x.abs() <= self.half_extent.x

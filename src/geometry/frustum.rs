@@ -119,10 +119,7 @@ impl<S: RealField> Frustum<S> {
     }
 }
 
-impl<S> PointCulling<S> for Frustum<S>
-where
-    S: RealField,
-{
+impl<S: RealField> PointCulling<S> for Frustum<S> {
     fn contains(&self, point: &Point3<S>) -> bool {
         let p_clip = self.clip_from_query.transform_point(point);
         p_clip.coords.min() > nalgebra::convert(-1.0)
@@ -137,10 +134,7 @@ impl<'a, S: RealField> HasAabbIntersector<'a, S> for Frustum<S> {
     }
 }
 
-impl<S> ConvexPolyhedron<S> for Frustum<S>
-where
-    S: RealField,
-{
+impl<S: RealField> ConvexPolyhedron<S> for Frustum<S> {
     #[rustfmt::skip]
     fn compute_corners(&self) -> [Point3<S>; 8] {
         let corner_from = |x, y, z| self.query_from_clip.transform_point(&Point3::new(x, y, z));
