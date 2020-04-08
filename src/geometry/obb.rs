@@ -15,13 +15,6 @@ pub struct Obb<S: RealField> {
     half_extent: Vector3<S>,
 }
 
-impl<'a, S: RealField> HasAabbIntersector<'a, S> for Obb<S> {
-    type Intersector = CachedAxesIntersector<S>;
-    fn aabb_intersector(&'a self) -> Self::Intersector {
-        self.intersector().cache_separating_axes_for_aabb()
-    }
-}
-
 impl<S: RealField> From<&Aabb<S>> for Obb<S> {
     fn from(aabb: &Aabb<S>) -> Self {
         Obb::new(
@@ -82,6 +75,8 @@ impl<S: RealField> ConvexPolyhedron<S> for Obb<S> {
         }
     }
 }
+
+has_aabb_intersector_for_convex_polyhedron!(Obb<S>);
 
 impl<S: RealField> PointCulling<S> for Obb<S> {
     fn contains(&self, p: &Point3<S>) -> bool {

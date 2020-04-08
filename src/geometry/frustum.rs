@@ -127,12 +127,7 @@ impl<S: RealField> PointCulling<S> for Frustum<S> {
     }
 }
 
-impl<'a, S: RealField> HasAabbIntersector<'a, S> for Frustum<S> {
-    type Intersector = CachedAxesIntersector<S>;
-    fn aabb_intersector(&'a self) -> Self::Intersector {
-        self.intersector().cache_separating_axes_for_aabb()
-    }
-}
+has_aabb_intersector_for_convex_polyhedron!(Frustum<S>);
 
 impl<S: RealField> ConvexPolyhedron<S> for Frustum<S> {
     #[rustfmt::skip]

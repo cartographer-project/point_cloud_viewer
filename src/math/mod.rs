@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
+#[macro_use]
 pub mod base;
 pub mod sat;
 pub use base::*;

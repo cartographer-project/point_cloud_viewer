@@ -35,3 +35,16 @@ impl<S: RealField + Bounded> IntersectAabb<S> for CachedAxesIntersector<S> {
         self.intersect(&aabb.compute_corners()) != Relation::Out
     }
 }
+
+/// Use this macro as a crutch for the missing
+/// `impl<'a, S, T: ConvexPolyhedron<S>> HasAabbIntersector<'a, S> for T`.
+macro_rules! has_aabb_intersector_for_convex_polyhedron {
+	($type:ty) => (
+		impl<'a, S: RealField> HasAabbIntersector<'a, S> for $type {
+			type Intersector = CachedAxesIntersector<S>;
+		    fn aabb_intersector(&'a self) -> Self::Intersector {
+		    	self.intersector().cache_separating_axes_for_aabb()
+		    }
+		}
+	)
+}
