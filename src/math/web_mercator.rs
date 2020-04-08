@@ -52,10 +52,8 @@ impl WebMercatorCoord {
     /// The altitude returned is always 0.
     pub fn to_lat_lng(&self) -> WGS84<f64> {
         let centered = self.xy - Vector2::new(0.5, 0.5);
-
-        let sin_term = (-centered.y * FOUR_PI).exp();
-
         // Note that sin_term = -(2/(sin(y)-1)) - 1
+        let sin_term = (-centered.y * FOUR_PI).exp();
         let one_over_sin_y = (sin_term + 1.0) * -0.5;
         let mut sin_y = (1.0 / one_over_sin_y) + 1.0;
         sin_y = nalgebra::clamp(sin_y, -LAT_BOUND_SIN, LAT_BOUND_SIN);
