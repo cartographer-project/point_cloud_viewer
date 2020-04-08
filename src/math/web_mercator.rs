@@ -16,8 +16,9 @@ const FOUR_PI: f64 = 4.0 * PI;
 const FOUR_PI_INV: f64 = 0.25 * FRAC_1_PI;
 const TILE_SIZE: u32 = 256;
 
-/// The max zoom level is currently 23 because it makes implementation easier,
-/// but theoretically nothing stops us from going deeper.
+/// The max zoom level is currently 23 because of an implementation choice,
+/// namely fitting TILE_SIZE << MAX_ZOOM in an u32, but theoretically nothing
+/// stops us from going deeper.
 pub const MAX_ZOOM: u8 = 23;
 
 /// A Web Mercator coordinate. Essentially a position in a 2D map of the world.
