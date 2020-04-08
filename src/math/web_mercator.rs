@@ -5,7 +5,7 @@ use nav_types::WGS84;
 use std::f64::consts::{FRAC_1_PI, PI};
 
 /// 2.0 * E.powf(PI).arctan() - FRAC_PI_2;
-/// In degrees, it's 85.051129 (cf. Wikipedia)
+/// In degrees, it's 85.051129 (cf. [Wikipedia](https://en.wikipedia.org/wiki/Web_Mercator_projection#Formulas))
 const LAT_BOUND_RAD: f64 = 1.484_422_229_745_332_4;
 
 /// LAT_BOUND_SIN = sin(LAT_BOUND_RAD)
@@ -13,7 +13,7 @@ const LAT_BOUND_SIN: f64 = 0.996_272_076_220_75;
 
 const TWO_PI: f64 = 2.0 * PI;
 const FOUR_PI: f64 = 4.0 * PI;
-const FOUR_PI_INV: f64 = 0.25 * FRAC_1_PI;
+const FRAC_1_4_PI: f64 = 0.25 * FRAC_1_PI;
 const TILE_SIZE: u32 = 256;
 
 /// The max zoom level is currently 23 because of an implementation choice,
@@ -26,7 +26,7 @@ pub const MAX_ZOOM: u8 = 23;
 pub struct WebMercatorCoord {
     /// Implementation detail: This is normalized to [0, 1), so not zoom level 0.
     /// This makes calculations a bit simpler.
-    xy: Vector2<f64>,
+    normalized: Vector2<f64>,
 }
 
 impl WebMercatorCoord {
@@ -41,18 +41,18 @@ impl WebMercatorCoord {
         let lat = nalgebra::clamp(lat_lng.latitude(), -LAT_BOUND_RAD, LAT_BOUND_RAD);
         let sin_y = lat.sin();
 
-        let xy = Vector2::new(
+        let normalized = Vector2::new(
             0.5 + lat_lng.longitude() / TWO_PI,
-            0.5 - ((1.0 + sin_y) / (1.0 - sin_y)).ln() * FOUR_PI_INV,
+            0.5 - ((1.0 + sin_y) / (1.0 - sin_y)).ln() * FRAC_1_4_PI,
         );
-        Self { xy }
+        Self { normalized }
     }
 
     /// Convert the Web Mercator coordinate back to lat/lng.
     ///
     /// The altitude returned is always 0.
     pub fn to_lat_lng(&self) -> WGS84<f64> {
-        let centered = self.xy - Vector2::new(0.5, 0.5);
+        let centered = self.normalized - Vector2::new(0.5, 0.5);
         // Note that sin_term = -(2/(sin(y)-1)) - 1
         let sin_term = (-centered.y * FOUR_PI).exp();
         let one_over_sin_y = (sin_term + 1.0) * -0.5;
@@ -70,7 +70,7 @@ impl WebMercatorCoord {
         debug_assert!(z <= MAX_ZOOM);
         // 256 * 2^z
         let zoom = f64::from(TILE_SIZE << z);
-        zoom * self.xy
+        zoom * self.normalized
     }
 
     /// The inverse of [`to_zoomed_coordinate`](#method.to_zoomed_coordinate).
@@ -78,7 +78,9 @@ impl WebMercatorCoord {
         debug_assert!(z <= MAX_ZOOM);
         // 256 * 2^z
         let zoom = f64::from(TILE_SIZE << z);
-        Self { xy: coord / zoom }
+        Self {
+            normalized: coord / zoom,
+        }
     }
 }
 
