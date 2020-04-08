@@ -21,8 +21,10 @@ use std::str::FromStr;
 
 pub mod base;
 pub mod sat;
+pub mod web_mercator;
 pub use base::*;
 pub use sat::*;
+pub use web_mercator::*;
 
 /// Lower bound for distance from earth's center.
 /// See https://en.wikipedia.org/wiki/Earth_radius#Geophysical_extremes

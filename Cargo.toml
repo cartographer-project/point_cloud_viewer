@@ -55,6 +55,7 @@ path = "point_viewer_proto_rust"
 [dev-dependencies]
 lazy_static = "1.4.0"
 tempdir = "0.3.7"
+approx = "0.3.2"
 
 [workspace]
 members = [
