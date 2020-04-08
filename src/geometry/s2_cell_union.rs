@@ -10,7 +10,7 @@ use s2::{cell::Cell, cellid::CellID, region::Region};
 
 /// Checks for an intersection between a list of cells and a polyhedron.
 ///
-/// This is done by checking whether an cell in the cell union intersects
+/// This is done by checking whether any cell in the list intersects
 /// a covering of the polyhedron with S2 cells.
 pub fn cells_intersecting_polyhedron<S>(
     cells: &[Cell],
