@@ -37,6 +37,28 @@ impl PointLocation {
     }
 }
 
+/// This macro is an alternative to `get_point_culling()`, to be used where
+/// performance is important (i.e. in an inner loop). This can make a difference    
+/// of 5-10 % in queries measuered by the point_cloud_test crate.   
+/// It receives a function that accepts a _specific_ PointCulling object.
+/// Besides the object not being boxed, this way we can be sure that    
+/// there is no overhead from matching against the PointLocation inside the
+/// function as well, as you might get with the `enum_dispatch` crate.
+///
+/// Syntax: dispatch_point_location!(func, point_location, args*), which
+/// will call func(args*, concrete_point_location)
+macro_rules! dispatch_point_location {
+    ($func:path, $location:expr $(,$arg:expr)*) => {
+        match $location {
+            PointLocation::AllPoints => $func($($arg,)* &AllPoints {}),
+            PointLocation::Aabb(aabb) => $func($($arg,)* aabb),
+            PointLocation::Frustum(f) => $func($($arg,)* f),
+            PointLocation::Obb(obb) => $func($($arg,)* obb),
+            PointLocation::S2Cells(cu) => $func($($arg,)* cu),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PointQuery<'a> {
     #[serde(borrow)]
@@ -169,39 +191,32 @@ pub trait PointCloud: Sync {
     {
         let filter_intervals = &query.filter_intervals;
         let node_iterator = self.points_in_node(&query.attributes, node_id, batch_size)?;
-        match &query.location {
-            PointLocation::AllPoints => FilteredIterator {
-                culling: AllPoints {},
-                filter_intervals,
-                node_iterator,
-            }
-            .try_for_each(callback),
-            PointLocation::Aabb(aabb) => FilteredIterator {
-                culling: aabb.clone(),
-                filter_intervals,
-                node_iterator,
-            }
-            .try_for_each(callback),
-            PointLocation::Frustum(frustum) => FilteredIterator {
-                culling: frustum.clone(),
-                filter_intervals,
-                node_iterator,
-            }
-            .try_for_each(callback),
-            PointLocation::Obb(obb) => FilteredIterator {
-                culling: obb.clone(),
-                filter_intervals,
-                node_iterator,
-            }
-            .try_for_each(callback),
-            PointLocation::S2Cells(cell_union) => FilteredIterator {
-                culling: cell_union.clone(),
-                filter_intervals,
-                node_iterator,
-            }
-            .try_for_each(callback),
-        }
+
+        dispatch_point_location!(
+            stream,
+            &query.location,
+            filter_intervals,
+            node_iterator,
+            callback
+        )
     }
+}
+
+// TODO(nnmm): Instead of having this helper function, make stream_points_for_query_in_node
+// accept a T: PointCulling, so we can dispatch to this function directly
+fn stream<'a, T: PointCulling<f64> + Clone, F: FnMut(PointsBatch) -> Result<()>>(
+    intv: &'a HashMap<&'a str, ClosedInterval<f64>>,
+    itr: NodeIterator,
+    callback: F,
+    culling: &T,
+) -> Result<()> {
+    let culling: T = culling.clone();
+    FilteredIterator {
+        culling,
+        filter_intervals: intv,
+        node_iterator: itr,
+    }
+    .try_for_each(callback)
 }
 
 /// Iterator on point batches

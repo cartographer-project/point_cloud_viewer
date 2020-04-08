@@ -8,7 +8,7 @@ use crate::math::FromPoint3;
 use nalgebra::{Point3, RealField};
 use s2::{cell::Cell, cellid::CellID, region::Region};
 
-/// Checks for an intersection between a cell_union and a polyhedron.
+/// Checks for an intersection between a list of cells and a polyhedron.
 ///
 /// This is done by checking whether an cell in the cell union intersects
 /// a covering of the polyhedron with S2 cells.

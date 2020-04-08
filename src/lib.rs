@@ -19,6 +19,7 @@ pub mod data_provider;
 #[allow(deprecated)]
 pub mod errors;
 pub mod geometry;
+#[macro_use]
 pub mod iterator;
 pub mod math;
 pub mod octree;

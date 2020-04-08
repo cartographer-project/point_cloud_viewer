@@ -330,13 +330,7 @@ impl PointCloud for Octree {
     type Id = NodeId;
 
     fn nodes_in_location(&self, location: &PointLocation) -> Vec<Self::Id> {
-        match location {
-            PointLocation::AllPoints => self.nodes_in_location_impl(&AllPoints {}),
-            PointLocation::Aabb(aabb) => self.nodes_in_location_impl(aabb),
-            PointLocation::Frustum(f) => self.nodes_in_location_impl(f),
-            PointLocation::Obb(obb) => self.nodes_in_location_impl(obb),
-            PointLocation::S2Cells(cu) => self.nodes_in_location_impl(cu),
-        }
+        dispatch_point_location!(Octree::nodes_in_location_impl, location, &self)
     }
 
     fn encoding_for_node(&self, id: Self::Id) -> Encoding {
