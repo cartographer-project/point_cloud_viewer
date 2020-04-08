@@ -38,11 +38,12 @@ impl PointLocation {
 }
 
 /// This macro is an alternative to `get_point_culling()`, to be used where
-/// performance is important (i.e. in an inner loop). This can make a difference    
-/// of 5-10 % in queries measuered by the point_cloud_test crate.   
-/// It receives a function that accepts a _specific_ PointCulling object.
-/// Besides the object not being boxed, this way we can be sure that    
-/// there is no overhead from matching against the PointLocation inside the
+/// performance is important (i.e. in an inner loop). This can make a difference
+/// of 5-10 % in queries measuered by the `point_cloud_test` crate.
+/// It receives a function that accepts a _specific_ geometry object, which
+/// implements `PointCulling` and `HasAabbIntersector`.
+/// Besides the object not being boxed, this way we can be sure that
+/// there is no overhead from matching against the `PointLocation` inside the
 /// function as well, as you might get with the `enum_dispatch` crate.
 ///
 /// Syntax: dispatch_point_location!(func, point_location, args*), which
