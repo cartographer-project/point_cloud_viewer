@@ -6,10 +6,10 @@ use std::f64::consts::{FRAC_1_PI, PI};
 
 /// 2.0 * E.powf(PI).arctan() - FRAC_PI_2;
 /// In degrees, it's 85.051129 (cf. Wikipedia)
-const LAT_BOUND_RAD: f64 = 1.484_422_229_745_332_444_394_989_579_450_34;
+const LAT_BOUND_RAD: f64 = 1.484_422_229_745_332_4;
 
 /// LAT_BOUND_SIN = sin(LAT_BOUND_RAD)
-const LAT_BOUND_SIN: f64 = 0.996_272_076_220_749_980_279_833_835_083_99;
+const LAT_BOUND_SIN: f64 = 0.996_272_076_220_75;
 
 const TWO_PI: f64 = 2.0 * PI;
 const FOUR_PI: f64 = 4.0 * PI;
@@ -88,14 +88,12 @@ mod tests {
     use nalgebra::Vector2;
     use nav_types::WGS84;
 
-    /// LAT_BOUND_RAD converted to degrees
-    const LAT_BOUND_DEG: f64 = 85.05112877980658936394320335239172;
-
     #[test]
     fn projection_corners() {
         // Checks that the corners of the map are at the expected coordinates
-        let lat_lng_lower = WGS84::new(LAT_BOUND_DEG, -180.0, 0.0);
-        let lat_lng_upper = WGS84::new(-LAT_BOUND_DEG, 180.0, 0.0);
+        let lat_bound_deg = LAT_BOUND_RAD * 180.0 / PI;
+        let lat_lng_lower = WGS84::new(lat_bound_deg, -180.0, 0.0);
+        let lat_lng_upper = WGS84::new(-lat_bound_deg, 180.0, 0.0);
         let lower_corner = WebMercatorCoord::from_lat_lng(&lat_lng_lower);
         let upper_corner = WebMercatorCoord::from_lat_lng(&lat_lng_upper);
         let lower_corner_truth = Vector2::new(0.0, 0.0);
