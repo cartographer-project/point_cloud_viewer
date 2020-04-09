@@ -110,7 +110,10 @@ where
         assert!(c.contains(&point) == sat_result);
         sat_result
     });
-    assert!(data_filtered.count() > 0);
+    assert!(
+        data_filtered.count() > 0,
+        "The query returned no points (using PointCulling only)"
+    );
 }
 
 fn query_and_sort<C>(point_cloud: &C, query: &PointQuery, batch_size: usize) -> Vec<IndexedPoint>
@@ -133,7 +136,10 @@ where
             .unwrap();
     }
     points.sort_unstable_by(|p1, p2| p1.idx.cmp(&p2.idx));
-    assert!(!points.is_empty());
+    assert!(
+        !points.is_empty(),
+        "The query returned no points (using streaming)"
+    );
     points
 }
 
