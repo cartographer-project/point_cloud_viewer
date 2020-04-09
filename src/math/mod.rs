@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
+#[macro_use]
 pub mod base;
 pub mod sat;
 pub mod web_mercator;
@@ -129,19 +130,35 @@ where
     }
 }
 
-/// Implementation of PointCulling to return all points
-#[derive(Clone, Debug, Serialize, Deserialize)]
+impl<S: RealField> FromPoint3<S> for ECEF<S> {
+    fn from_point(p: &Point3<S>) -> Self {
+        ECEF::new(p.x, p.y, p.z)
+    }
+}
+
+/// Implementation of PointCulling which returns all points
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct AllPoints {}
+
+impl<S: RealField> IntersectAabb<S> for AllPoints {
+    fn intersect_aabb(&self, _aabb: &Aabb<S>) -> bool {
+        true
+    }
+}
+
+impl<'a, S: RealField> HasAabbIntersector<'a, S> for AllPoints {
+    type Intersector = Self;
+
+    fn aabb_intersector(&'a self) -> Self::Intersector {
+        *self
+    }
+}
 
 impl<S> PointCulling<S> for AllPoints
 where
-    S: RealField + num_traits::Bounded,
+    S: RealField,
 {
     fn contains(&self, _p: &Point3<S>) -> bool {
-        true
-    }
-
-    fn intersects_aabb(&self, _aabb: &Aabb<S>) -> bool {
         true
     }
 }
@@ -170,7 +187,7 @@ pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geometry::{Aabb, CachedAxesFrustum, Frustum, Perspective};
+    use crate::geometry::{Aabb, Frustum, Perspective};
     use nalgebra::{UnitQuaternion, Vector3};
 
     #[test]
@@ -200,8 +217,7 @@ mod tests {
             frustum.intersector().intersect(&bbox.intersector()),
             Relation::In
         );
-        let frustum_aabb_intersector = CachedAxesFrustum::new(frustum);
-        assert!(frustum_aabb_intersector.contains(&bbox_min));
-        assert!(frustum_aabb_intersector.contains(&bbox_max));
+        assert!(frustum.contains(&bbox_min));
+        assert!(frustum.contains(&bbox_max));
     }
 }

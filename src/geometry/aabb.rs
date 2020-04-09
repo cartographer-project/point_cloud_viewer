@@ -1,7 +1,7 @@
 //! Axis-aligned box and cube.
 
-use crate::math::sat::{self, ConvexPolyhedron, Intersector, Relation};
-use crate::math::PointCulling;
+use crate::math::base::{HasAabbIntersector, PointCulling};
+use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use crate::proto;
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, RealField, Vector3};
@@ -92,27 +92,23 @@ impl From<&Aabb<f64>> for proto::AxisAlignedCuboid {
     }
 }
 
-impl<S> PointCulling<S> for Aabb<S>
-where
-    S: RealField + num_traits::Bounded,
-{
+impl<S: RealField> PointCulling<S> for Aabb<S> {
     fn contains(&self, p: &Point3<S>) -> bool {
         self.contains(p)
     }
+}
 
-    fn intersects_aabb(&self, aabb: &Aabb<S>) -> bool {
-        sat::sat(
-            ArrayVec::from([Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()]),
-            &self.compute_corners(),
-            &aabb.compute_corners(),
-        ) != Relation::Out
+impl<'a, S: RealField> HasAabbIntersector<'a, S> for Aabb<S> {
+    type Intersector = CachedAxesIntersector<S>;
+    fn aabb_intersector(&'a self) -> CachedAxesIntersector<S> {
+        CachedAxesIntersector {
+            axes: vec![Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()],
+            corners: self.compute_corners(),
+        }
     }
 }
 
-impl<S> ConvexPolyhedron<S> for Aabb<S>
-where
-    S: RealField,
-{
+impl<S: RealField> ConvexPolyhedron<S> for Aabb<S> {
     fn compute_corners(&self) -> [Point3<S>; 8] {
         [
             Point3::new(self.mins.x, self.mins.y, self.mins.z),

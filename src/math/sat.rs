@@ -54,7 +54,7 @@ pub enum Relation {
 /// Together with the corners, these are the sufficient statistics for the SAT test.
 /// Hence, corners, edges and face normals must be provided by implementors of this trait.
 pub trait ConvexPolyhedron<S: RealField> {
-    /// For now, this is hardcoded to 8 corners and up to 6 edges/face normals.
+    /// For now, this is hardcoded to 8 corners and up to 12 edges/face normals.
     /// Using arrays should be cheaper than allocating a vector.
     /// We could also parametrize this trait by type-level numbers like nalgebra.
     fn compute_corners(&self) -> [Point3<S>; 8];
@@ -69,7 +69,7 @@ pub struct Intersector<S: RealField> {
     /// The corners of the polyhedron.
     pub corners: [Point3<S>; 8],
     /// The unique edges of the polyhedron.
-    /// This is hardcoded to 6 for now because we don't need more. Increase as needed.
+    /// This is hardcoded to 12 for now because we don't need more. Increase as needed.
     pub edges: ArrayVec<[Unit<Vector3<S>>; 12]>,
     /// The unique face normals of the polyhedron.
     pub face_normals: ArrayVec<[Unit<Vector3<S>>; 6]>,
@@ -218,7 +218,8 @@ mod tests {
 
     #[test]
     fn test_cube_with_cube() {
-        let unit_vectors = ArrayVec::from([Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()]);
+        let unit_vectors =
+            ArrayVec::from([Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()]);
         #[rustfmt::skip]
         let cube_isec_1 = Intersector {
             corners: [

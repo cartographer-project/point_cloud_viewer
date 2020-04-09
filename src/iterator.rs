@@ -1,11 +1,10 @@
 use crate::errors::*;
-use crate::geometry::{Aabb, CachedAxesFrustum, CachedAxesObb, Frustum, Obb};
+use crate::geometry::{Aabb, CellUnion, Frustum, Obb, WebMercatorRect};
 use crate::math::{AllPoints, ClosedInterval, PointCulling};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{match_1d_attr_data, AttributeData, PointsBatch};
 use crossbeam::deque::{Injector, Steal, Worker};
 use num_traits::ToPrimitive;
-use s2::cellunion::CellUnion;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
@@ -17,6 +16,7 @@ pub enum PointLocation {
     Frustum(Frustum<f64>),
     Obb(Obb<f64>),
     S2Cells(CellUnion),
+    WebMercatorRect(WebMercatorRect),
 }
 
 impl Default for PointLocation {
@@ -30,39 +30,36 @@ impl PointLocation {
         match &self {
             PointLocation::AllPoints => Box::new(AllPoints {}),
             PointLocation::Aabb(aabb) => Box::new(aabb.clone()),
-            PointLocation::Frustum(frustum) => Box::new(CachedAxesFrustum::new(frustum.clone())),
-            PointLocation::Obb(obb) => Box::new(CachedAxesObb::new(obb.clone())),
+            PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
+            PointLocation::Obb(obb) => Box::new(obb.clone()),
             PointLocation::S2Cells(cell_union) => Box::new(cell_union.clone()),
+            PointLocation::WebMercatorRect(wmr) => Box::new(wmr.clone()),
         }
     }
 }
 
 /// This macro is an alternative to `get_point_culling()`, to be used where
 /// performance is important (i.e. in an inner loop). This can make a difference
-/// of 5-10 % in queries measuered by the point_cloud_test crate.
-/// It receives a function (closure) that accepts a _specific_ PointCulling
-/// object. Besides the object not being boxed, this way we can be sure that
-/// there is no overhead from matching against the PointLocation inside the
+/// of 5-10 % in queries measuered by the `point_cloud_test` crate.
+/// It receives a function that accepts a _specific_ geometry object, which
+/// implements `PointCulling` and `HasAabbIntersector`.
+/// Besides the object not being boxed, this way we can be sure that
+/// there is no overhead from matching against the `PointLocation` inside the
 /// function as well, as you might get with the `enum_dispatch` crate.
 ///
-/// Drawbacks: It's a little duck-typed (the closure accepts any object that
-/// has methods with the same name as those in PointCulling), which is
-/// necessary – you cannot write this as a function with a signature like
-/// `fn with_point_culling<F, Culling, R>(pl: PointLocation, func: F) -> R
-/// where F: FnMut(Culling) -> R`.
-/// Another drawback: Trying to use this in another module makes Rust ask for
-/// an annotation of the argument type of the closure, which ruins this trick.
-macro_rules! with_point_culling {
-    ($point_location:expr, $closure:tt) => {
-        #[allow(clippy::redundant_closure_call)]
-        match &$point_location {
-            PointLocation::AllPoints => $closure(crate::math::AllPoints {}),
-            PointLocation::Aabb(aabb) => $closure(aabb.clone()),
-            PointLocation::Frustum(frustum) => $closure(CachedAxesFrustum::new(frustum.clone())),
-            PointLocation::Obb(obb) => $closure(CachedAxesObb::new(obb.clone())),
-            PointLocation::S2Cells(cell_union) => $closure(cell_union.clone()),
+/// Syntax: dispatch_point_location!(func, point_location, args*), which
+/// will call func(args*, concrete_point_location)
+macro_rules! dispatch_point_location {
+    ($func:path, $location:expr $(,$arg:expr)*) => {
+        match $location {
+            PointLocation::AllPoints => $func($($arg,)* &AllPoints {}),
+            PointLocation::Aabb(aabb) => $func($($arg,)* aabb),
+            PointLocation::Frustum(f) => $func($($arg,)* f),
+            PointLocation::Obb(obb) => $func($($arg,)* obb),
+            PointLocation::S2Cells(cu) => $func($($arg,)* cu),
+            PointLocation::WebMercatorRect(wmr) => $func($($arg,)* wmr),
         }
-    };
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -197,18 +194,32 @@ pub trait PointCloud: Sync {
     {
         let filter_intervals = &query.filter_intervals;
         let node_iterator = self.points_in_node(&query.attributes, node_id, batch_size)?;
-        with_point_culling!(
-            query.location,
-            (|culling| {
-                let mut filtered_iterator = FilteredIterator {
-                    culling,
-                    filter_intervals,
-                    node_iterator,
-                };
-                filtered_iterator.try_for_each(callback)
-            })
+
+        dispatch_point_location!(
+            stream,
+            &query.location,
+            filter_intervals,
+            node_iterator,
+            callback
         )
     }
+}
+
+// TODO(nnmm): Instead of having this helper function, make stream_points_for_query_in_node
+// accept a T: PointCulling, so we can dispatch to this function directly
+fn stream<'a, T: PointCulling<f64> + Clone, F: FnMut(PointsBatch) -> Result<()>>(
+    intv: &'a HashMap<&'a str, ClosedInterval<f64>>,
+    itr: NodeIterator,
+    callback: F,
+    culling: &T,
+) -> Result<()> {
+    let culling: T = culling.clone();
+    FilteredIterator {
+        culling,
+        filter_intervals: intv,
+        node_iterator: itr,
+    }
+    .try_for_each(callback)
 }
 
 /// Iterator on point batches

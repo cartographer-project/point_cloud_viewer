@@ -164,6 +164,7 @@ impl PointCloud for S2Cells {
             PointLocation::Obb(obb) => self.cells_in_convex_polyhedron(obb),
             PointLocation::Frustum(frustum) => self.cells_in_convex_polyhedron(frustum),
             PointLocation::S2Cells(cell_union) => self.cells_intersecting_region(cell_union),
+            PointLocation::WebMercatorRect(wmr) => self.cells_in_convex_polyhedron(wmr),
         }
     }
 

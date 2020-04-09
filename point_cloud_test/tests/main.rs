@@ -1,8 +1,8 @@
 use nalgebra::{Point3, Vector3};
 use num_integer::div_ceil;
 use point_cloud_test_lib::{
-    get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query, setup_pointcloud,
-    Arguments, SyntheticData,
+    get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query,
+    get_web_mercator_rect_query, setup_pointcloud, Arguments, SyntheticData,
 };
 use point_viewer::iterator::PointCloud;
 use point_viewer::iterator::{PointLocation, PointQuery};
@@ -56,6 +56,11 @@ fn check_obb_query_equality() {
 #[test]
 fn check_cell_union_query_equality() {
     check_equality(get_cell_union_query)
+}
+
+#[test]
+fn check_web_mercator_rect_query_equality() {
+    check_equality(get_web_mercator_rect_query)
 }
 
 fn check_equality<F>(gen_location: F)

@@ -1,10 +1,11 @@
 // Some synthetic queries for synthetic data. These are just examples, more can be added.
 use crate::synthetic_data::SyntheticData;
 use crate::S2_LEVEL;
-use nalgebra::{Perspective3, Point3, Vector3};
-use point_viewer::geometry::{Frustum, Obb};
+use nalgebra::{Perspective3, Point3, Vector2, Vector3};
+use nav_types::{ECEF, WGS84};
+use point_viewer::geometry::{Frustum, Obb, WebMercatorRect};
 use point_viewer::iterator::PointLocation;
-use point_viewer::math::FromPoint3;
+use point_viewer::math::{FromPoint3, WebMercatorCoord};
 use s2::cellid::CellID;
 
 pub fn get_abb_query(data: SyntheticData) -> PointLocation {
@@ -39,4 +40,14 @@ pub fn get_cell_union_query(data: SyntheticData) -> PointLocation {
     let s2_cell_id = CellID::from_point(&Point3 { coords }).parent(S2_LEVEL);
     let s2_cell_union = s2::cellunion::CellUnion(vec![s2_cell_id, s2_cell_id.next()]);
     PointLocation::S2Cells(s2_cell_union)
+}
+
+pub fn get_web_mercator_rect_query(data: SyntheticData) -> PointLocation {
+    let center = data.ecef_from_local().translation.vector;
+    let ll: WGS84<f64> = ECEF::new(center.x, center.y, center.z).into();
+    let wm = WebMercatorCoord::from_lat_lng(&ll);
+    let corner_1 = wm.to_zoomed_coordinate(22).unwrap() - Vector2::new(0.5, 0.5);
+    let corner_2 = wm.to_zoomed_coordinate(22).unwrap() + Vector2::new(0.5, 0.5);
+    let wmr = WebMercatorRect::new(corner_1, corner_2, 22).unwrap();
+    PointLocation::WebMercatorRect(wmr)
 }

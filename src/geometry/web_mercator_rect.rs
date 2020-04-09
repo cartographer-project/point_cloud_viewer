@@ -1,17 +1,20 @@
-//! A web mercator axis-aligned rectangle.
+//! A Web Mercator axis-aligned rectangle.
 
-use crate::math::sat::{ConvexPolyhedron, Intersector};
+use crate::math::base::{HasAabbIntersector, PointCulling};
+use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use crate::math::web_mercator::WebMercatorCoord;
 use arrayvec::ArrayVec;
-use nalgebra::{Point3, Unit, Vector2};
+use nalgebra::{Point3, RealField, Unit, Vector2};
 use nav_types::{ECEF, WGS84};
+use serde::{Deserialize, Serialize};
 
 /// The dead sea is at -413m, but we use a more generous minimum
 const MIN_ELEVATION_M: f64 = -1000.0;
 /// Mt. Everest is at 8,848m, plus we need some safety margin
 const MAX_ELEVATION_M: f64 = 9000.0;
 
-/// An axis-aligned rectangle on a Web Mercator map.
+/// A rectangle on a Web Mercator map, not rotated.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct WebMercatorRect {
     north_west: WebMercatorCoord,
     south_east: WebMercatorCoord,
@@ -21,6 +24,7 @@ impl WebMercatorRect {
     /// Returns `None` when `z` is greater than [`MAX_ZOOM`](index.html#constant.max_zoom)
     /// or when the coordinates are out of bounds for the zoom level `z`.
     pub fn new(min: Vector2<f64>, max: Vector2<f64>, z: u8) -> Option<Self> {
+        // TODO(nnmm):
         if z == 0 {
             return None;
         }
@@ -33,7 +37,6 @@ impl WebMercatorRect {
     }
 }
 
-///
 impl ConvexPolyhedron<f64> for WebMercatorRect {
     fn compute_corners(&self) -> [Point3<f64>; 8] {
         let n_w = self.north_west.to_lat_lng();
@@ -88,19 +91,48 @@ impl ConvexPolyhedron<f64> for WebMercatorRect {
     }
 }
 
+has_aabb_intersector_for_convex_polyhedron!(WebMercatorRect);
+
+impl<S: RealField> PointCulling<S> for WebMercatorRect
+where
+    f64: From<S>,
+{
+    fn contains(&self, point: &Point3<S>) -> bool {
+        let ll: WGS84<f64> =
+            ECEF::new(f64::from(point.x), f64::from(point.y), f64::from(point.z)).into();
+        let wmc = WebMercatorCoord::from_lat_lng(&ll);
+        nalgebra::partial_le(&self.north_west, &wmc) && nalgebra::partial_lt(&wmc, &self.south_east)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::math::sat::Relation;
 
     #[test]
-    fn sanity_test() {
-        let rect_1 = WebMercatorRect::new(Vector2::new(1.0, 1.0), Vector2::new(2.0, 2.0), 1).unwrap();
-        let rect_2 = WebMercatorRect::new(Vector2::new(3.0, 1.0), Vector2::new(4.0, 2.0), 1).unwrap();
-        let rect_3 = WebMercatorRect::new(Vector2::new(1.5, 1.5), Vector2::new(2.5, 2.5), 1).unwrap();
-        let rect_4 = WebMercatorRect::new(Vector2::new(0.0, 0.0), Vector2::new(2.5, 2.5), 1).unwrap();
-        assert_eq!(rect_1.intersector().intersect(&rect_2.intersector()), Relation::Out);
-        assert_eq!(rect_1.intersector().intersect(&rect_3.intersector()), Relation::Cross);
-        assert_eq!(rect_4.intersector().intersect(&rect_1.intersector()), Relation::In);
+    fn intersection_test() {
+        let rect_1 =
+            WebMercatorRect::new(Vector2::new(1.0, 1.0), Vector2::new(3.0, 3.0), 1).unwrap();
+        let rect_2 =
+            WebMercatorRect::new(Vector2::new(4.0, 4.0), Vector2::new(5.0, 5.0), 1).unwrap();
+        let rect_3 =
+            WebMercatorRect::new(Vector2::new(2.0, 2.0), Vector2::new(6.0, 6.0), 1).unwrap();
+        let rect_1_intersector = rect_1.intersector();
+        let rect_2_intersector = rect_2.intersector();
+        let rect_3_intersector = rect_3.intersector();
+        assert_eq!(
+            rect_1_intersector.intersect(&rect_2_intersector),
+            Relation::Out
+        );
+        assert_eq!(
+            rect_1_intersector.intersect(&rect_3_intersector),
+            Relation::Cross
+        );
+        // Why Cross and not In? Because rect_2 is taller than rect_3.
+        assert_eq!(
+            rect_3_intersector.intersect(&rect_2_intersector),
+            Relation::Cross
+        );
     }
 }

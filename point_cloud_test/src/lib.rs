@@ -16,7 +16,10 @@ mod synthetic_data;
 pub use synthetic_data::{Batched, SyntheticData};
 
 mod queries;
-pub use queries::{get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query};
+pub use queries::{
+    get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query,
+    get_web_mercator_rect_query,
+};
 
 pub const S2_LEVEL: u64 = 20;
 

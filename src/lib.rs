@@ -11,6 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Needs to be first, because we're using macros from here in the geometry module
+// and Rust's handling of macros is insane and depends on module order
+#[macro_use]
+pub mod math;
+
 #[macro_use]
 pub mod attributes;
 pub mod color;
@@ -19,8 +25,8 @@ pub mod data_provider;
 #[allow(deprecated)]
 pub mod errors;
 pub mod geometry;
+#[macro_use]
 pub mod iterator;
-pub mod math;
 pub mod octree;
 pub mod read_write;
 pub mod s2_cells;
