@@ -100,15 +100,17 @@ where
     let data = SyntheticData::new(args.width, args.height, args.num_points, args.seed);
     let c = gen_culling(data.clone());
     let intersector = c.intersector();
-    data.for_each(|p| {
+    let data_filtered = data.filter(|p| {
         let point = Point3::new(p.position.x, p.position.y, p.position.z);
         let sat_result = sat::sat(
             intersector.face_normals.iter().copied(),
             &intersector.corners,
             &[point],
-        );
-        assert!(c.contains(&point) == (sat_result == sat::Relation::In));
+        ) == sat::Relation::In;
+        assert!(c.contains(&point) == sat_result);
+        sat_result
     });
+    assert!(data_filtered.count() > 0);
 }
 
 fn query_and_sort<C>(point_cloud: &C, query: &PointQuery, batch_size: usize) -> Vec<IndexedPoint>
