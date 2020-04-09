@@ -4,7 +4,7 @@ use crate::geometry::Aabb;
 use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector, Relation};
 use crate::math::PointCulling;
 use arrayvec::ArrayVec;
-use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, RealField, Unit};
+use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, RealField, Unit, Vector3};
 use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
@@ -174,14 +174,13 @@ where
     fn intersector(&self) -> Intersector<S> {
         let corners = self.compute_corners();
 
-        let edges = ArrayVec::from([
-            Unit::new_normalize(corners[4] - corners[0]), // x
-            Unit::new_normalize(corners[2] - corners[0]), // y
-            Unit::new_normalize(corners[1] - corners[0]), // z lower left
-            Unit::new_normalize(corners[3] - corners[2]), // z upper left
-            Unit::new_normalize(corners[5] - corners[4]), // z lower right
-            Unit::new_normalize(corners[7] - corners[6]), // z upper right
-        ]);
+        let mut edges: ArrayVec<[Unit<Vector3<S>>; 12]> = ArrayVec::new();
+        edges.push(Unit::new_normalize(corners[4] - corners[0])); // x
+        edges.push(Unit::new_normalize(corners[2] - corners[0])); // y
+        edges.push(Unit::new_normalize(corners[1] - corners[0])); // z lower left
+        edges.push(Unit::new_normalize(corners[3] - corners[2])); // z upper left
+        edges.push(Unit::new_normalize(corners[5] - corners[4])); // z lower right
+        edges.push(Unit::new_normalize(corners[7] - corners[6])); // z upper right
 
         let mut face_normals = ArrayVec::new();
         face_normals.push(Unit::new_normalize(edges[0].cross(&edges[1]))); // Front and back sides

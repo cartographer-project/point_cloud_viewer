@@ -6,6 +6,7 @@ use crate::proto;
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, RealField, Vector3};
 use serde::{Deserialize, Serialize};
+use std::iter::FromIterator;
 
 /// An axis-aligned bounding box.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -126,14 +127,15 @@ where
     }
 
     fn intersector(&self) -> Intersector<S> {
-        let mut unit_axes = ArrayVec::new();
-        unit_axes.push(Vector3::x_axis());
-        unit_axes.push(Vector3::y_axis());
-        unit_axes.push(Vector3::z_axis());
+        let mut edges = ArrayVec::new();
+        edges.push(Vector3::x_axis());
+        edges.push(Vector3::y_axis());
+        edges.push(Vector3::z_axis());
+        let face_normals = ArrayVec::from_iter(edges.clone());
         Intersector {
             corners: self.compute_corners(),
-            edges: unit_axes.clone(),
-            face_normals: unit_axes,
+            edges,
+            face_normals,
         }
     }
 }
