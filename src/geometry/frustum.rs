@@ -1,11 +1,9 @@
 //! An asymmetric frustum with an arbitrary 3D pose.
 
-use crate::geometry::Aabb;
-use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector, Relation};
-use crate::math::PointCulling;
+use crate::math::base::{HasAabbIntersector, PointCulling};
+use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, RealField, Unit};
-use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
 /// A perspective projection matrix analogous to cgmath::Perspective.
@@ -101,22 +99,6 @@ pub struct Frustum<S: RealField> {
     clip_from_query: Matrix4<S>,
 }
 
-/// TODO(nnmm): Remove
-pub struct CachedAxesFrustum<S: RealField> {
-    frustum: Frustum<S>,
-    separating_axes: CachedAxesIntersector<S>,
-}
-
-impl<S: RealField + Bounded> CachedAxesFrustum<S> {
-    pub fn new(frustum: Frustum<S>) -> Self {
-        let separating_axes = frustum.intersector().cache_separating_axes_for_aabb();
-        Self {
-            frustum,
-            separating_axes,
-        }
-    }
-}
-
 impl<S: RealField> Frustum<S> {
     pub fn new(query_from_eye: Isometry3<S>, clip_from_eye: Perspective<S>) -> Self {
         let clip_from_query = clip_from_eye.as_matrix() * query_from_eye.inverse().to_homogeneous();
@@ -137,25 +119,17 @@ impl<S: RealField> Frustum<S> {
     }
 }
 
-impl<S> PointCulling<S> for CachedAxesFrustum<S>
-where
-    S: RealField,
-{
+impl<S: RealField> PointCulling<S> for Frustum<S> {
     fn contains(&self, point: &Point3<S>) -> bool {
-        let p_clip = self.frustum.clip_from_query.transform_point(point);
+        let p_clip = self.clip_from_query.transform_point(point);
         p_clip.coords.min() > nalgebra::convert(-1.0)
             && p_clip.coords.max() < nalgebra::convert(1.0)
     }
-
-    fn intersects_aabb(&self, aabb: &Aabb<S>) -> bool {
-        self.separating_axes.intersect(&aabb.compute_corners()) != Relation::Out
-    }
 }
 
-impl<S> ConvexPolyhedron<S> for Frustum<S>
-where
-    S: RealField,
-{
+has_aabb_intersector_for_convex_polyhedron!(Frustum<S>);
+
+impl<S: RealField> ConvexPolyhedron<S> for Frustum<S> {
     #[rustfmt::skip]
     fn compute_corners(&self) -> [Point3<S>; 8] {
         let corner_from = |x, y, z| self.query_from_clip.transform_point(&Point3::new(x, y, z));
