@@ -22,12 +22,10 @@ pub struct WebMercatorRect {
 
 impl WebMercatorRect {
     /// Returns `None` when `z` is greater than [`MAX_ZOOM`](index.html#constant.max_zoom)
-    /// or when the coordinates are out of bounds for the zoom level `z`.
+    /// or when the coordinates are out of bounds for the zoom level `z`. It also returns `None`
+    /// when the rect is larger than
+    /// Rects crossing the ±180° longitude line are not supported at the moment.
     pub fn new(min: Vector2<f64>, max: Vector2<f64>, z: u8) -> Option<Self> {
-        // TODO(nnmm):
-        if z == 0 {
-            return None;
-        }
         let north_west = WebMercatorCoord::from_zoomed_coordinate(nalgebra::inf(&min, &max), z)?;
         let south_east = WebMercatorCoord::from_zoomed_coordinate(nalgebra::sup(&min, &max), z)?;
         Some(Self {
@@ -37,6 +35,10 @@ impl WebMercatorRect {
     }
 }
 
+/// This is calculating the volume of all points in space which, when projected
+/// to Web Mercator, fall into the given rectangle.
+/// Implemented by extruding the rectangle's four corners along their altitude
+/// axis up and down, which results in a convex polyhedron.
 impl ConvexPolyhedron<f64> for WebMercatorRect {
     fn compute_corners(&self) -> [Point3<f64>; 8] {
         let n_w = self.north_west.to_lat_lng();
