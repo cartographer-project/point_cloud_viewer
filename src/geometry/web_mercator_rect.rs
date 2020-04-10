@@ -14,7 +14,7 @@ const MIN_ELEVATION_M: f64 = -1000.0;
 const MAX_ELEVATION_M: f64 = 9000.0;
 
 /// A rectangle on a Web Mercator map, not rotated.
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebMercatorRect {
     north_west: WebMercatorCoord,
     south_east: WebMercatorCoord,

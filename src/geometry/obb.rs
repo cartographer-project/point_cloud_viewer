@@ -72,7 +72,7 @@ impl<S: RealField> ConvexPolyhedron<S> for Obb<S> {
         let face_normals = ArrayVec::from_iter(edges.clone());
         Intersector {
             corners: self.compute_corners(),
-            edges: edges,
+            edges,
             face_normals,
         }
     }
