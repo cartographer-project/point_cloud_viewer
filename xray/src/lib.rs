@@ -16,6 +16,19 @@ pub const CURRENT_VERSION: i32 = 3;
 pub const META_FILENAME: &str = "meta.pb";
 pub const IMAGE_FILE_EXTENSION: &str = "png";
 
+lazy_static::lazy_static! {
+    pub static ref META_PREFIX: &'static str = Path::new(META_FILENAME)
+        .file_stem()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    pub static ref META_EXTENSION: &'static str = Path::new(META_FILENAME)
+        .extension()
+        .unwrap()
+        .to_str()
+        .unwrap();
+}
+
 #[derive(Debug, Clone)]
 pub struct Meta {
     pub nodes: FnvHashSet<NodeId>,
