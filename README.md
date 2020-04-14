@@ -1,9 +1,9 @@
 # Point viewer
 
-[![build status](https://travis-ci.org/googlecartographer/point_cloud_viewer.svg?branch=master)](https://travis-ci.org/googlecartographer/point_cloud_viewer) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/googlecartographer/point_cloud_viewer/blob/master/LICENSE)
+[![build status](https://travis-ci.org/cartographer-project/point_cloud_viewer.svg?branch=master)](https://travis-ci.org/cartographer-project/point_cloud_viewer) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/cartographer-project/point_cloud_viewer/blob/master/LICENSE)
 
 This is a standalone project to make viewing massive point clouds easy and convenient.
-It was build to serve the needs of the [Cartographer](https://github.com/googlecartographer) project, but is useful in its own right.
+It was build to serve the needs of the [Cartographer](https://github.com/cartographer-project) project, but is useful in its own right.
 
 ## Building
 
