@@ -25,7 +25,8 @@ impl WebMercatorRect {
     /// or when the coordinates are out of bounds for the zoom level `z`. It also returns `None`
     /// when the rect is larger than
     /// Rects crossing the ±180° longitude line are not supported at the moment.
-    pub fn new(min: Vector2<f64>, max: Vector2<f64>, z: u8) -> Option<Self> {
+    pub fn from_zoomed_coordinates(min: Vector2<f64>, max: Vector2<f64>, z: u8) -> Option<Self> {
+        // TODO(nnmm): Use inherent inf()/sup() when we switch to 0.21.0
         let north_west = WebMercatorCoord::from_zoomed_coordinate(nalgebra::inf(&min, &max), z)?;
         let south_east = WebMercatorCoord::from_zoomed_coordinate(nalgebra::sup(&min, &max), z)?;
         Some(Self {
@@ -77,13 +78,14 @@ impl ConvexPolyhedron<f64> for WebMercatorRect {
             Unit::new_normalize(corners[7] - corners[3]), // SW edge
         ]);
 
-        let mut face_normals = ArrayVec::new();
-        face_normals.push(Unit::new_normalize(edges[0].cross(&edges[8]))); // N face
-        face_normals.push(Unit::new_normalize(edges[1].cross(&edges[9]))); // E face
-        face_normals.push(Unit::new_normalize(edges[2].cross(&edges[10]))); // S face
-        face_normals.push(Unit::new_normalize(edges[3].cross(&edges[11]))); // W face
-        face_normals.push(Unit::new_normalize(edges[1].cross(&edges[0]))); // down face
-        face_normals.push(Unit::new_normalize(edges[5].cross(&edges[4]))); // up face
+        let face_normals = ArrayVec::from([
+            Unit::new_normalize(edges[0].cross(&edges[8])), // N face
+            Unit::new_normalize(edges[1].cross(&edges[9])), // E face
+            Unit::new_normalize(edges[2].cross(&edges[10])), // S face
+            Unit::new_normalize(edges[3].cross(&edges[11])), // W face
+            Unit::new_normalize(edges[1].cross(&edges[0])), // down face
+            Unit::new_normalize(edges[5].cross(&edges[4])), // up face
+        ]);
 
         Intersector {
             corners,
@@ -115,11 +117,11 @@ mod tests {
     #[test]
     fn intersection_test() {
         let rect_1 =
-            WebMercatorRect::new(Vector2::new(1.0, 1.0), Vector2::new(3.0, 3.0), 1).unwrap();
+            WebMercatorRect::from_zoomed_coordinates(Vector2::new(1.0, 1.0), Vector2::new(3.0, 3.0), 1).unwrap();
         let rect_2 =
-            WebMercatorRect::new(Vector2::new(4.0, 4.0), Vector2::new(5.0, 5.0), 1).unwrap();
+            WebMercatorRect::from_zoomed_coordinates(Vector2::new(4.0, 4.0), Vector2::new(5.0, 5.0), 1).unwrap();
         let rect_3 =
-            WebMercatorRect::new(Vector2::new(2.0, 2.0), Vector2::new(6.0, 6.0), 1).unwrap();
+            WebMercatorRect::from_zoomed_coordinates(Vector2::new(2.0, 2.0), Vector2::new(6.0, 6.0), 1).unwrap();
         let rect_1_intersector = rect_1.intersector();
         let rect_2_intersector = rect_2.intersector();
         let rect_3_intersector = rect_3.intersector();
