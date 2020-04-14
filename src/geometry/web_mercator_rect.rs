@@ -9,12 +9,24 @@ use nav_types::{ECEF, WGS84};
 use serde::{Deserialize, Serialize};
 
 /// The dead sea is at -413m, but we use a more generous minimum
-const MIN_ELEVATION_M: f64 = -1000.0;
-/// Mt. Everest is at 8,848m, plus we need some safety margin
-const MAX_ELEVATION_M: f64 = 9000.0;
+const MIN_ELEVATION_M: f64 = -500.0;
+
+/// Mt. Everest is at 8,848m, plus we need to take into account the
+/// [sagitta](https://en.wikipedia.org/wiki/Sagitta_(geometry)) of the section
+/// of the earth selected by a Web Mercator rect.
+///
+/// We'll limit Web Mercator rects to be smaller than 1 pixel at zoom level 0. See
+/// the unit test `check_sagitta()` in the source code to convince yourself that
+/// this means the sagitta is no more than 500m for rects of that size. Now,
+/// to make sure the sagitta doesn't pop out of the polyhedron for this rect,
+/// we're going to add 500m to its height (the direction of the sagitta is
+/// approximately the direction of the four corners, so it's fair to say we're
+/// adding it directly to its height), and then some to get a nice round number
+/// and to insure against calculation errors.
+const MAX_ELEVATION_M: f64 = 10000.0;
 
 /// A rectangle on a Web Mercator map, not rotated.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WebMercatorRect {
     north_west: WebMercatorCoord,
     south_east: WebMercatorCoord,
@@ -23,16 +35,21 @@ pub struct WebMercatorRect {
 impl WebMercatorRect {
     /// Returns `None` when `z` is greater than [`MAX_ZOOM`](index.html#constant.max_zoom)
     /// or when the coordinates are out of bounds for the zoom level `z`. It also returns `None`
-    /// when the rect is larger than
-    /// Rects crossing the ±180° longitude line are not supported at the moment.
+    /// when the distance from `min` to `max` is greater than 1 pixel at zoom 0, or when `min.y`
+    /// is greater than `max.y`.
     pub fn from_zoomed_coordinates(min: Vector2<f64>, max: Vector2<f64>, z: u8) -> Option<Self> {
-        // TODO(nnmm): Use inherent inf()/sup() when we switch to 0.21.0
-        let north_west = WebMercatorCoord::from_zoomed_coordinate(nalgebra::inf(&min, &max), z)?;
-        let south_east = WebMercatorCoord::from_zoomed_coordinate(nalgebra::sup(&min, &max), z)?;
-        Some(Self {
-            north_west,
-            south_east,
-        })
+        let north_west = WebMercatorCoord::from_zoomed_coordinate(min, z)?;
+        let south_east = WebMercatorCoord::from_zoomed_coordinate(max, z)?;
+        let diff = (max - min) / f64::from(1 << z);
+        // In the x direction, the query can wrap around, hence the rem_euclid
+        if diff.x.rem_euclid(256.0) > 1.0 || diff.y > 1.0 || diff.y < 0.0 {
+            None
+        } else {
+            Some(Self {
+                north_west,
+                south_east,
+            })
+        }
     }
 }
 
@@ -117,20 +134,20 @@ mod tests {
     #[test]
     fn intersection_test() {
         let rect_1 = WebMercatorRect::from_zoomed_coordinates(
-            Vector2::new(1.0, 1.0),
-            Vector2::new(3.0, 3.0),
+            Vector2::new(0.1, 0.1),
+            Vector2::new(0.3, 0.3),
             1,
         )
         .unwrap();
         let rect_2 = WebMercatorRect::from_zoomed_coordinates(
-            Vector2::new(4.0, 4.0),
-            Vector2::new(5.0, 5.0),
+            Vector2::new(0.4, 0.4),
+            Vector2::new(0.5, 0.5),
             1,
         )
         .unwrap();
         let rect_3 = WebMercatorRect::from_zoomed_coordinates(
-            Vector2::new(2.0, 2.0),
-            Vector2::new(6.0, 6.0),
+            Vector2::new(0.2, 0.2),
+            Vector2::new(0.6, 0.6),
             1,
         )
         .unwrap();
@@ -149,6 +166,60 @@ mod tests {
         assert_eq!(
             rect_3_intersector.intersect(&rect_2_intersector),
             Relation::Cross
+        );
+    }
+
+    #[test]
+    fn sagitta_test() {
+        let min_corner = Vector2::new(128.0 - 0.5, 128.0 - 0.5);
+        let max_corner = Vector2::new(128.0 + 0.5, 128.0 + 0.5);
+        let min_lat_lng = WebMercatorCoord::from_zoomed_coordinate(min_corner, 0)
+            .unwrap()
+            .to_lat_lng();
+        let max_lat_lng = WebMercatorCoord::from_zoomed_coordinate(max_corner, 0)
+            .unwrap()
+            .to_lat_lng();
+        // These come out about the same
+        let lat_diff = (max_lat_lng.latitude() - min_lat_lng.latitude()).abs();
+        let lng_diff = (max_lat_lng.longitude() - min_lat_lng.longitude()).abs();
+        // In the latitude direction, we don't have a circle, we have an ellipse.
+        // Use the local radius of curvature at the equator (i.e. semi_minor_axis²/semi_major_axis),
+        // see https://en.wikipedia.org/wiki/Ellipse#Curvature for the formula and
+        // https://en.wikipedia.org/wiki/World_Geodetic_System#A_new_World_Geodetic_System:_WGS_84
+        // for the values of the semi-major and semi-minor axes.
+        let lat_sagitta = 6335439.32 * (1.0 - (lat_diff / 2.0).cos());
+        // Here the equatorial radius can be used.
+        let lng_sagitta = 6378137.0 * (1.0 - (lng_diff / 2.0).cos());
+        // The result is about 480 for both.
+        assert!(lat_sagitta < 500.0);
+        assert!(lng_sagitta < 500.0);
+    }
+
+    #[test]
+    fn wraparound_test() {
+        // Wraparound in x direction works
+        assert!(
+            WebMercatorRect::from_zoomed_coordinates(
+                Vector2::new(255.5, 128.0),
+                Vector2::new(0.5, 128.8),
+                0
+            ).is_some()
+        );
+        // Size is still checked
+        assert!(
+            WebMercatorRect::from_zoomed_coordinates(
+                Vector2::new(255.5, 128.0),
+                Vector2::new(1.5, 128.8),
+                0
+            ).is_none()
+        );
+        // Wraparound in y direction is not possible
+        assert!(
+            WebMercatorRect::from_zoomed_coordinates(
+                Vector2::new(128.8, 255.5),
+                Vector2::new(128.8, 0.5),
+                0
+            ).is_none()
         );
     }
 }
