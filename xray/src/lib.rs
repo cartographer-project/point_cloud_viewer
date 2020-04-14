@@ -13,6 +13,7 @@ use std::path::Path;
 // Version 2 -> 3: Change in Rect proto from Vector2f to Vector2d min and float to double edge_length.
 // We are able to convert the proto on read, so the tools can still read version 2.
 pub const CURRENT_VERSION: i32 = 3;
+pub const META_FILENAME: &str = "meta.pb";
 pub const IMAGE_FILE_EXTENSION: &str = "png";
 
 #[derive(Debug, Clone)]
@@ -41,8 +42,12 @@ impl Meta {
     pub fn from_disk<P: AsRef<Path>>(filename: P) -> io::Result<Self> {
         let proto = {
             let data = std::fs::read(filename)?;
-            protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
-                .map_err(|_| io::Error::new(io::ErrorKind::Other, "Could not parse meta.pb"))?
+            protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data)).map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Could not parse {}", META_FILENAME),
+                )
+            })?
         };
         Ok(Self::from_proto(&proto))
     }

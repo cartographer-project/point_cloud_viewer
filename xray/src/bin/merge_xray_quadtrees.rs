@@ -4,7 +4,7 @@ use quadtree::{Node, NodeId};
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
-use xray::{generation, Meta};
+use xray::{generation, Meta, META_FILENAME};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "merge_xray_quadtrees")]
@@ -171,8 +171,8 @@ fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_
     metadata.root_meta.nodes.extend(&all_node_ids);
     metadata
         .root_meta
-        .to_disk(output_directory.join("meta.pb"))
-        .expect("Failed to write meta.pb");
+        .to_disk(output_directory.join(META_FILENAME))
+        .unwrap_or_else(|_| panic!("Failed to write {}", META_FILENAME));
 }
 
 fn main() {

@@ -1,4 +1,4 @@
-use crate::{BoundingRect, Meta};
+use crate::{BoundingRect, Meta, META_FILENAME};
 use iron::mime::Mime;
 use iron::prelude::*;
 use iron::{self, itry};
@@ -40,7 +40,7 @@ impl OnDiskXRay {
 
 impl XRay for OnDiskXRay {
     fn get_meta(&self) -> io::Result<Meta> {
-        let meta = Meta::from_disk(self.directory.join("meta.pb"))?;
+        let meta = Meta::from_disk(self.directory.join(META_FILENAME))?;
         Ok(meta)
     }
 

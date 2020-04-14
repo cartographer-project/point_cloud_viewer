@@ -1,12 +1,26 @@
+use crate::META_FILENAME;
 use image::{GenericImage, GenericImageView, ImageResult, Pixel, RgbaImage, SubImage};
 use quadtree::{NodeId, NODE_PREFIX};
 use std::io;
 use std::path::{Path, PathBuf};
 
-const META_PREFIX: &str = "meta";
+lazy_static::lazy_static! {
+    static ref META_PREFIX: &'static str = Path::new(META_FILENAME)
+        .file_stem()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    static ref META_EXTENSION: &'static str = Path::new(META_FILENAME)
+        .extension()
+        .unwrap()
+        .to_str()
+        .unwrap();
+}
 
 pub fn get_meta_pb_path(directory: &Path, id: NodeId) -> PathBuf {
-    directory.join(&format!("{}.pb", id).replace(NODE_PREFIX, META_PREFIX))
+    directory
+        .join(id.to_string().replace(NODE_PREFIX, *META_PREFIX))
+        .with_extension(*META_EXTENSION)
 }
 
 pub fn get_root_node_id_from_meta_pb_path(meta_path: &Path) -> io::Result<NodeId> {
@@ -19,7 +33,7 @@ pub fn get_root_node_id_from_meta_pb_path(meta_path: &Path) -> io::Result<NodeId
     let stem = meta_path
         .file_stem()
         .and_then(|stem| stem.to_str())
-        .map(|stem| stem.replace(META_PREFIX, NODE_PREFIX))
+        .map(|stem| stem.replace(*META_PREFIX, NODE_PREFIX))
         .ok_or_else(invalid_input_error)?;
 
     stem.parse::<NodeId>().map_err(|_| invalid_input_error())
@@ -82,7 +96,7 @@ mod tests {
         let directory = PathBuf::from("/tmp/");
         let root_node_id = NodeId::root();
         let path = get_meta_pb_path(&directory, root_node_id);
-        let expected_path = PathBuf::from("/tmp/meta.pb");
+        let expected_path = Path::new("/tmp").join(META_FILENAME);
         assert_eq!(path, expected_path);
         let derived_root_node_id =
             get_root_node_id_from_meta_pb_path(&path).expect("Failed to get root node id.");
@@ -91,7 +105,8 @@ mod tests {
         let directory = PathBuf::from("/tmp/");
         let root_node_id = NodeId::new(1, 2);
         let path = get_meta_pb_path(&directory, root_node_id);
-        let expected_path = PathBuf::from("/tmp/meta2.pb");
+        let expected_path =
+            Path::new("/tmp").join(format!("{}2.{}", *META_PREFIX, *META_EXTENSION));
         assert_eq!(path, expected_path);
         let derived_root_node_id =
             get_root_node_id_from_meta_pb_path(&path).expect("Failed to get root node id.");
