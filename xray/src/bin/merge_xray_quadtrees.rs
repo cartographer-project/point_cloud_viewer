@@ -112,18 +112,18 @@ where
 
 fn validate_input_directory(input_directory: &Path) -> io::Result<()> {
     if !input_directory.exists() {
-        return Err(io::Error::new(
+        Err(io::Error::new(
             io::ErrorKind::NotFound,
             format!("Input directory {:?} doesn't exist.", input_directory),
-        ));
-    }
-    if !input_directory.metadata()?.is_dir() {
-        return Err(io::Error::new(
+        ))
+    } else if !input_directory.metadata()?.is_dir() {
+        Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!("{:?} is not a directory.", input_directory),
-        ));
+        ))
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 fn validate_and_merge_metadata(metadata: &[Meta]) -> io::Result<MergedMetadata> {
