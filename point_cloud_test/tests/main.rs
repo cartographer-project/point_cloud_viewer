@@ -1,11 +1,10 @@
 use nalgebra::{Point3, Vector3};
 use num_integer::div_ceil;
-use point_cloud_test_lib::{
-    get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query, setup_pointcloud,
-    Arguments, SyntheticData,
-};
+use point_cloud_test_lib::queries::*;
+use point_cloud_test_lib::{setup_pointcloud, Arguments, SyntheticData};
 use point_viewer::iterator::PointCloud;
 use point_viewer::iterator::{PointLocation, PointQuery};
+use point_viewer::math::{sat, ConvexPolyhedron, PointCulling};
 use std::cmp::Ordering;
 
 #[test]
@@ -40,7 +39,7 @@ fn check_all_query_equality() {
 
 #[test]
 fn check_box_query_equality() {
-    check_equality(get_abb_query)
+    check_equality(get_aabb_query)
 }
 
 #[test]
@@ -58,6 +57,21 @@ fn check_cell_union_query_equality() {
     check_equality(get_cell_union_query)
 }
 
+#[test]
+fn check_box_point_culling_equality() {
+    check_point_culling_equality(get_aabb)
+}
+
+#[test]
+fn check_frustum_point_culling_equality() {
+    check_point_culling_equality(get_frustum)
+}
+
+#[test]
+fn check_obb_point_culling_equality() {
+    check_point_culling_equality(get_obb);
+}
+
 fn check_equality<F>(gen_location: F)
 where
     F: FnOnce(SyntheticData) -> PointLocation,
@@ -72,6 +86,34 @@ where
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
     let points_s2 = query_and_sort(&s2, &query, args.batch_size);
     assert_points_equal(&points_s2, &points_oct, args.resolution);
+}
+
+/// We have two implementations of a containment predicate on points:
+/// One via the `PointCulling` trait, and one via the `ConvexPolyhedron` trait.
+/// They should behave the same.
+fn check_point_culling_equality<F, C>(gen_culling: F)
+where
+    F: FnOnce(SyntheticData) -> C,
+    C: PointCulling<f64> + ConvexPolyhedron<f64>,
+{
+    let args = Arguments::default();
+    let data = SyntheticData::new(args.width, args.height, args.num_points, args.seed);
+    let c = gen_culling(data.clone());
+    let intersector = c.intersector();
+    let data_filtered = data.filter(|p| {
+        let point = Point3::new(p.position.x, p.position.y, p.position.z);
+        let sat_result = sat::sat(
+            intersector.face_normals.iter().copied(),
+            &intersector.corners,
+            &[point],
+        ) == sat::Relation::In;
+        assert!(c.contains(&point) == sat_result);
+        sat_result
+    });
+    assert!(
+        data_filtered.count() > 0,
+        "The query returned no points (using PointCulling only)"
+    );
 }
 
 fn query_and_sort<C>(point_cloud: &C, query: &PointQuery, batch_size: usize) -> Vec<IndexedPoint>
@@ -94,7 +136,10 @@ where
             .unwrap();
     }
     points.sort_unstable_by(|p1, p2| p1.idx.cmp(&p2.idx));
-    assert!(!points.is_empty());
+    assert!(
+        !points.is_empty(),
+        "The query returned no points (using streaming)"
+    );
     points
 }
 

@@ -13,11 +13,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Once;
 use tempdir::TempDir;
 
-mod synthetic_data;
+pub mod synthetic_data;
 pub use synthetic_data::{Batched, SyntheticData};
 
-mod queries;
-pub use queries::{get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query};
+pub mod queries;
 
 pub const S2_LEVEL: u64 = 20;
 
