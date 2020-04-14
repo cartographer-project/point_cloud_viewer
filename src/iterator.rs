@@ -16,7 +16,7 @@ pub enum PointLocation {
     Frustum(Frustum<f64>),
     Obb(Obb<f64>),
     S2Cells(CellUnion),
-    WebMercatorRect(WebMercatorRect),
+    WebMercatorRect(WebMercatorRect<f64>),
 }
 
 impl Default for PointLocation {

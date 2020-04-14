@@ -1,16 +1,11 @@
 //! Calculations with Web Mercator coordinates.
 
-use nalgebra::Vector2;
+use alga::general::SupersetOf;
+use nalgebra::{RealField, Vector2};
 use nav_types::WGS84;
 use serde::{Deserialize, Serialize};
 use std::f64::consts::{FRAC_1_PI, PI};
 
-/// 2.0 * E.powf(PI).arctan() - FRAC_PI_2;
-/// In degrees, it's 85.051129 (cf. [Wikipedia](https://en.wikipedia.org/wiki/Web_Mercator_projection#Formulas))
-const LAT_BOUND_RAD: f64 = 1.484_422_229_745_332_4;
-
-/// LAT_BOUND_SIN = sin(LAT_BOUND_RAD)
-const LAT_BOUND_SIN: f64 = 0.996_272_076_220_75;
 
 const TWO_PI: f64 = 2.0 * PI;
 const FOUR_PI: f64 = 4.0 * PI;
@@ -24,22 +19,33 @@ pub const MAX_ZOOM: u8 = 23;
 
 /// A Web Mercator coordinate. Essentially a position in a 2D map of the world.
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct WebMercatorCoord {
+pub struct WebMercatorCoord<S: RealField> {
     /// Implementation detail: This is normalized to [0, 1), so not zoom level 0.
     /// This makes calculations a bit simpler.
-    normalized: Vector2<f64>,
+    normalized: Vector2<S>,
 }
 
-impl WebMercatorCoord {
+impl<S: RealField + SupersetOf<u32>> WebMercatorCoord<S> {
+    /// 2.0 * E.powf(PI).arctan() - FRAC_PI_2;
+    /// In degrees, it's 85.051129 (cf. [Wikipedia](https://en.wikipedia.org/wiki/Web_Mercator_projection#Formulas))
+    fn lat_bound_rad() -> S {
+        nalgebra::convert(1.484_422_229_745_332_4)
+    }
+
+    /// lat_bound_sin = sin(lat_bound_rad)
+    fn lat_bound_sin() -> S {
+         nalgebra::convert(0.996_272_076_220_75)
+     }
+
     /// Projects a lat/lng coordinate to Web Mercator.
     ///
     /// Equivalent to the formula on [Wikipedia](https://en.wikipedia.org/wiki/Web_Mercator_projection#Formulas).
     /// If the latitude is outside `[-85.051129, 85.051129]`, it is clamped to that interval first.
-    pub fn from_lat_lng(lat_lng: &WGS84<f64>) -> Self {
+    pub fn from_lat_lng(lat_lng: &WGS84<S>) -> Self {
         // Implemented according to
         // https://developers.google.com/maps/documentation/javascript/examples/map-coordinates?csw=1
         // but clamping is done before the sin() operation.
-        let lat = nalgebra::clamp(lat_lng.latitude(), -LAT_BOUND_RAD, LAT_BOUND_RAD);
+        let lat = nalgebra::clamp(lat_lng.latitude(), -Self::lat_bound_rad(), Self::lat_bound_rad());
         let sin_y = lat.sin();
 
         let normalized = Vector2::new(
@@ -52,13 +58,13 @@ impl WebMercatorCoord {
     /// Convert the Web Mercator coordinate back to lat/lng.
     ///
     /// The altitude returned is always 0.
-    pub fn to_lat_lng(&self) -> WGS84<f64> {
+    pub fn to_lat_lng(&self) -> WGS84<S> {
         let centered = self.normalized - Vector2::new(0.5, 0.5);
         // Note that sin_term = -(2/(sin(y)-1)) - 1
         let sin_term = (-centered.y * FOUR_PI).exp();
         let one_over_sin_y = (sin_term + 1.0) * -0.5;
         let mut sin_y = (1.0 / one_over_sin_y) + 1.0;
-        sin_y = nalgebra::clamp(sin_y, -LAT_BOUND_SIN, LAT_BOUND_SIN);
+        sin_y = nalgebra::clamp(sin_y, -Self::lat_bound_sin(), Self::lat_bound_sin());
         let longitude = nalgebra::clamp(centered.x * TWO_PI, -PI, PI);
         WGS84::new(sin_y.asin() * 180.0 / PI, longitude * 180.0 / PI, 0.0)
     }
@@ -67,10 +73,10 @@ impl WebMercatorCoord {
     /// should be represented.
     /// Zoom level Z means the map coordinates are in the interval `[0, 256*2^Z)`
     /// in both dimensions, i.e. map resolution doubles at each zoom level.
-    pub fn to_zoomed_coordinate(&self, z: u8) -> Option<Vector2<f64>> {
+    pub fn to_zoomed_coordinate(&self, z: u8) -> Option<Vector2<S>> {
         if z <= MAX_ZOOM {
             // 256 * 2^z
-            let zoom = f64::from(TILE_SIZE << z);
+            let zoom: S = nalgebra::convert(TILE_SIZE << z);
             Some(zoom * self.normalized)
         } else {
             None
@@ -81,12 +87,12 @@ impl WebMercatorCoord {
     ///
     /// Returns `None` when `z` is greater than [`MAX_ZOOM`](index.html#constant.max_zoom)
     /// or when the coordinates are out of bounds for the zoom level `z`.
-    pub fn from_zoomed_coordinate(coord: Vector2<f64>, z: u8) -> Option<Self> {
-        if z > MAX_ZOOM || coord.min() < 0.0 {
+    pub fn from_zoomed_coordinate(coord: Vector2<S>, z: u8) -> Option<Self> {
+        if z > MAX_ZOOM || coord.min() < S::zero() {
             return None;
         }
         // 256 * 2^z
-        let zoom = f64::from(TILE_SIZE << z);
+        let zoom: S = nalgebra::convert(TILE_SIZE << z);
         if coord.max() < zoom {
             Some(Self {
                 normalized: coord / zoom,
@@ -107,7 +113,7 @@ mod tests {
     #[test]
     fn projection_corners() {
         // Checks that the corners of the map are at the expected coordinates
-        let lat_bound_deg = LAT_BOUND_RAD * 180.0 / PI;
+        let lat_bound_deg = WebMercatorCoord::lat_bound_rad() * 180.0 / PI;
         let lat_lng_lower = WGS84::new(lat_bound_deg, -180.0, 0.0);
         let lat_lng_upper = WGS84::new(-lat_bound_deg, 180.0, 0.0);
         let lower_corner = WebMercatorCoord::from_lat_lng(&lat_lng_lower);
