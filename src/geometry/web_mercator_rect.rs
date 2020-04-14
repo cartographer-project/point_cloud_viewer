@@ -16,12 +16,14 @@ pub struct WebMercatorRect<S: RealField> {
     south_east: WebMercatorCoord<S>,
 }
 
-impl<S: RealField+ SupersetOf<u32>> WebMercatorRect<S> {
+impl<S: RealField> WebMercatorRect<S> {
     /// The dead sea is at -413m, but we use a more generous minimum
     fn min_elevation_m() -> S { nalgebra::convert(-1000.0) }
     /// Mt. Everest is at 8,848m, plus we need some safety margin
     fn max_elevation_m() -> S { nalgebra::convert(9000.0) }
+}
 
+impl<S: RealField+ SupersetOf<u32>> WebMercatorRect<S> {
     /// Returns `None` when `z` is greater than [`MAX_ZOOM`](index.html#constant.max_zoom)
     /// or when the coordinates are out of bounds for the zoom level `z`. It also returns `None`
     /// when the rect is larger than
@@ -41,7 +43,7 @@ impl<S: RealField+ SupersetOf<u32>> WebMercatorRect<S> {
 /// to Web Mercator, fall into the given rectangle.
 /// Implemented by extruding the rectangle's four corners along their altitude
 /// axis up and down, which results in a convex polyhedron.
-impl<S: RealField + SupersetOf<u32>> ConvexPolyhedron<S> for WebMercatorRect<S> where f64: From<S> {
+impl<S: RealField> ConvexPolyhedron<S> for WebMercatorRect<S> where f64: From<S> {
     fn compute_corners(&self) -> [Point3<S>; 8] {
         let n_w = self.north_west.to_lat_lng();
         let s_e = self.south_east.to_lat_lng();

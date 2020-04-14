@@ -25,16 +25,17 @@ pub struct WebMercatorCoord<S: RealField> {
     normalized: Vector2<S>,
 }
 
-impl<S: RealField + SupersetOf<u32>> WebMercatorCoord<S> {
-    /// 2.0 * E.powf(PI).arctan() - FRAC_PI_2;
+impl<S: RealField> WebMercatorCoord<S> {
+    /// The constant for the latitude at which the map is cut off.
+    /// Equal to `2.0 * E.powf(PI).arctan() - FRAC_PI_2`.
     /// In degrees, it's 85.051129 (cf. [Wikipedia](https://en.wikipedia.org/wiki/Web_Mercator_projection#Formulas))
     fn lat_bound_rad() -> S {
-        nalgebra::convert(1.484_422_229_745_332_4)
+        nalgebra::convert(1.484_422_229_745_332_4f64)
     }
 
     /// lat_bound_sin = sin(lat_bound_rad)
     fn lat_bound_sin() -> S {
-         nalgebra::convert(0.996_272_076_220_75)
+         nalgebra::convert(0.996_272_076_220_75f64)
      }
 
     /// Projects a lat/lng coordinate to Web Mercator.
@@ -49,26 +50,31 @@ impl<S: RealField + SupersetOf<u32>> WebMercatorCoord<S> {
         let sin_y = lat.sin();
 
         let normalized = Vector2::new(
-            0.5 + lat_lng.longitude() / TWO_PI,
-            0.5 - ((1.0 + sin_y) / (1.0 - sin_y)).ln() * FRAC_1_4_PI,
+            nalgebra::convert::<_, S>(0.5) + lat_lng.longitude() / S::two_pi(),
+            nalgebra::convert::<_, S>(0.5) - ((S::one() + sin_y) / (S::one() - sin_y)).ln() * nalgebra::convert(0.25) * S::frac_1_pi(),
         );
         Self { normalized }
     }
+}
 
+impl<S: RealField> WebMercatorCoord<S> where f64: From<S> {
     /// Convert the Web Mercator coordinate back to lat/lng.
     ///
     /// The altitude returned is always 0.
     pub fn to_lat_lng(&self) -> WGS84<S> {
-        let centered = self.normalized - Vector2::new(0.5, 0.5);
+        let centered: Vector2<S> = self.normalized - nalgebra::convert(Vector2::new(0.5, 0.5));
         // Note that sin_term = -(2/(sin(y)-1)) - 1
-        let sin_term = (-centered.y * FOUR_PI).exp();
-        let one_over_sin_y = (sin_term + 1.0) * -0.5;
-        let mut sin_y = (1.0 / one_over_sin_y) + 1.0;
+        let sin_term = (-self.normalized.y * nalgebra::convert(4.0)*S::pi()).exp();
+        let one_over_sin_y = (sin_term + S::one()) * nalgebra::convert(-0.5);
+        let mut sin_y = (S::one() / one_over_sin_y) + nalgebra::convert(1.0);
         sin_y = nalgebra::clamp(sin_y, -Self::lat_bound_sin(), Self::lat_bound_sin());
-        let longitude = nalgebra::clamp(centered.x * TWO_PI, -PI, PI);
-        WGS84::new(sin_y.asin() * 180.0 / PI, longitude * 180.0 / PI, 0.0)
+        let longitude = nalgebra::clamp(S::two_pi()*centered.x, -S::pi(), S::pi());
+        let deg_per_rad = nalgebra::convert(180.0) / S::pi();
+        WGS84::new(sin_y.asin() * deg_per_rad, longitude * deg_per_rad, S::zero())
     }
+}
 
+impl<S: RealField + SupersetOf<u32>> WebMercatorCoord<S> {
     /// To use a Web Mercator coordinate, specify a zoom level in which it
     /// should be represented.
     /// Zoom level Z means the map coordinates are in the interval `[0, 256*2^Z)`
@@ -77,7 +83,7 @@ impl<S: RealField + SupersetOf<u32>> WebMercatorCoord<S> {
         if z <= MAX_ZOOM {
             // 256 * 2^z
             let zoom: S = nalgebra::convert(TILE_SIZE << z);
-            Some(zoom * self.normalized)
+            Some(self.normalized * zoom)
         } else {
             None
         }
