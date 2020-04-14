@@ -46,6 +46,7 @@ use std::convert::{TryFrom, TryInto};
 // Version 12 -> 13: Change back bounding box from OctreeMeta to Meta.
 // We are able to convert the proto on read, so the tools can still read version 9/10/11/12.
 pub const CURRENT_VERSION: i32 = 13;
+pub const META_FILENAME: &str = "meta.pb";
 
 /// size for batch
 pub const NUM_POINTS_PER_BATCH: usize = 500_000;

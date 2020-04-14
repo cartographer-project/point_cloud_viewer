@@ -2,6 +2,7 @@ use crate::attribute_extension;
 use crate::data_provider::DataProvider;
 use crate::errors::*;
 use crate::proto;
+use crate::META_FILENAME;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{Cursor, Read};
@@ -40,10 +41,10 @@ impl DataProvider for OnDiskDataProvider {
         }
 
         let mut data = Vec::new();
-        File::open(&self.directory.join("meta.pb"))?.read_to_end(&mut data)?;
+        File::open(&self.directory.join(META_FILENAME))?.read_to_end(&mut data)?;
         Ok(
             protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
-                .chain_err(|| "Could not parse meta.pb")?,
+                .chain_err(|| format!("Could not parse {}", META_FILENAME))?,
         )
     }
 

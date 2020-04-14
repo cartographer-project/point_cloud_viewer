@@ -22,6 +22,7 @@ use crate::read_write::{
     PositionEncoding, RawNodeWriter,
 };
 use crate::utils::create_progress_bar;
+use crate::META_FILENAME;
 use crate::{AttributeDataType, NumberOfPoints, PointCloudMeta, PointsBatch, NUM_POINTS_PER_BATCH};
 use fnv::{FnvHashMap, FnvHashSet};
 use protobuf::Message;
@@ -385,7 +386,7 @@ pub fn build_octree(
         nodes_to_subsample.extend(parent_ids.into_iter());
     }
 
-    // Add all non-zero node meta data to meta.pb
+    // Add all non-zero node meta data to meta file
     let nodes: Vec<proto::OctreeNode> = finished_nodes
         .iter()
         .map(|(id, num_points)| {
@@ -397,6 +398,6 @@ pub fn build_octree(
     let meta = to_meta_proto(&octree_meta, nodes);
 
     let mut buf_writer =
-        BufWriter::new(File::create(&output_directory.as_ref().join("meta.pb")).unwrap());
+        BufWriter::new(File::create(&output_directory.as_ref().join(META_FILENAME)).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
 }
