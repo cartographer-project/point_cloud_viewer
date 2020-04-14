@@ -25,9 +25,9 @@ struct CommandlineArguments {
     input_directories: Vec<PathBuf>,
 }
 
-fn copy_images(input_directory: &Path, output_directory: &Path) {
-    if input_directory.canonicalize().unwrap() == output_directory.canonicalize().unwrap() {
-        return;
+fn copy_images(input_directory: &Path, output_directory: &Path) -> io::Result<()> {
+    if input_directory.canonicalize()? == output_directory.canonicalize()? {
+        return Ok(());
     }
     globwalk::GlobWalkerBuilder::new(
         input_directory,
@@ -36,25 +36,19 @@ fn copy_images(input_directory: &Path, output_directory: &Path) {
     .build()
     .expect("Failed to build GlobWalker")
     .filter_map(Result::ok)
-    .for_each(|dir_entry| {
+    .try_for_each(|dir_entry| {
         std::fs::copy(
             dir_entry.path(),
             output_directory.join(dir_entry.file_name()),
         )
-        .unwrap_or_else(|_| {
-            panic!(
-                "Failed to copy {:?} to {:?}.",
-                dir_entry.path(),
-                output_directory
-            )
-        });
+        .map(|_| ())
     })
 }
 
-fn copy_all_images(input_directories: &[PathBuf], output_directory: &Path) {
-    for input_directory in input_directories {
-        copy_images(input_directory, output_directory);
-    }
+fn copy_all_images(input_directories: &[PathBuf], output_directory: &Path) -> io::Result<()> {
+    input_directories
+        .iter()
+        .try_for_each(|input_directory| copy_images(input_directory, output_directory))
 }
 
 fn read_metadata_from_directory(directory: &Path) -> io::Result<Vec<Meta>> {
@@ -175,7 +169,11 @@ fn validate_and_merge_metadata(metadata: &[Meta]) -> io::Result<MergedMetadata> 
     })
 }
 
-fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_color: Color<u8>) {
+fn merge(
+    mut metadata: MergedMetadata,
+    output_directory: &Path,
+    tile_background_color: Color<u8>,
+) -> io::Result<()> {
     let all_node_ids = generation::create_non_leaf_nodes(
         metadata.root_node_ids,
         metadata.level,
@@ -188,7 +186,6 @@ fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_
     metadata
         .root_meta
         .to_disk(output_directory.join(META_FILENAME))
-        .unwrap_or_else(|_| panic!("Failed to write {}", META_FILENAME));
 }
 
 fn main() -> io::Result<()> {
@@ -212,11 +209,10 @@ fn main() -> io::Result<()> {
     }
     let metadata = read_metadata_from_directories(&args.input_directories)?;
     let merged_metadata = validate_and_merge_metadata(&metadata)?;
-    copy_all_images(&args.input_directories, &args.output_directory);
+    copy_all_images(&args.input_directories, &args.output_directory)?;
     merge(
         merged_metadata,
         &args.output_directory,
         args.tile_background_color.to_color(),
-    );
-    Ok(())
+    )
 }
