@@ -10,7 +10,7 @@ lazy_static::lazy_static! {
         .unwrap()
         .to_str()
         .unwrap();
-    static ref META_SUFFIX: &'static str = Path::new(META_FILENAME)
+    static ref META_EXTENSION: &'static str = Path::new(META_FILENAME)
         .extension()
         .unwrap()
         .to_str()
@@ -18,7 +18,9 @@ lazy_static::lazy_static! {
 }
 
 pub fn get_meta_pb_path(directory: &Path, id: NodeId) -> PathBuf {
-    directory.join(&format!("{}.{}", id, *META_SUFFIX).replace(NODE_PREFIX, *META_PREFIX))
+    directory
+        .join(id.to_string().replace(NODE_PREFIX, *META_PREFIX))
+        .with_extension(*META_EXTENSION)
 }
 
 pub fn get_root_node_id_from_meta_pb_path(meta_path: &Path) -> io::Result<NodeId> {
