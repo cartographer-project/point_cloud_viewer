@@ -3587,6 +3587,7 @@ dependencies = [
  "image",
  "imageproc",
  "iron",
+ "lazy_static",
  "nalgebra",
  "num 0.2.1",
  "pbr",

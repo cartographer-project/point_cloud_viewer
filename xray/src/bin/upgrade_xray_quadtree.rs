@@ -17,6 +17,7 @@ use std::fs::File;
 use std::io::{BufWriter, Cursor};
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
+use xray::META_FILENAME;
 use xray_proto_rust::proto;
 
 #[derive(StructOpt, Debug)]
@@ -45,7 +46,7 @@ fn upgrade_version2(filename: &Path, mut meta: proto::Meta) {
 
 fn main() {
     let args = CommandlineArguments::from_args();
-    let filename = args.directory.join("meta.pb");
+    let filename = args.directory.join(META_FILENAME);
 
     loop {
         let meta = {

@@ -15,6 +15,7 @@
 use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
 use point_viewer::octree::NodeId;
 use point_viewer::proto;
+use point_viewer::META_FILENAME;
 use protobuf::Message;
 use std::fs::File;
 use std::io::BufWriter;
@@ -31,7 +32,7 @@ struct CommandlineArguments {
 
 fn write_meta(directory: &Path, mut meta: proto::Meta, version: i32) {
     meta.version = version;
-    let mut buf_writer = BufWriter::new(File::create(&directory.join("meta.pb")).unwrap());
+    let mut buf_writer = BufWriter::new(File::create(&directory.join(META_FILENAME)).unwrap());
     meta.write_to_writer(&mut buf_writer).unwrap();
 }
 

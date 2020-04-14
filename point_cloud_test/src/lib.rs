@@ -5,6 +5,7 @@ use point_viewer::data_provider::OnDiskDataProvider;
 use point_viewer::octree::{build_octree, Octree};
 use point_viewer::read_write::{Encoding, NodeWriter, OpenMode, RawNodeWriter, S2Splitter};
 use point_viewer::s2_cells::S2Cells;
+use point_viewer::META_FILENAME;
 use protobuf::Message;
 use std::fs::File;
 use std::io::BufWriter;
@@ -12,14 +13,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Once;
 use tempdir::TempDir;
 
-mod synthetic_data;
+pub mod synthetic_data;
 pub use synthetic_data::{Batched, SyntheticData};
 
-mod queries;
-pub use queries::{
-    get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query,
-    get_web_mercator_rect_query,
-};
+pub mod queries;
 
 pub const S2_LEVEL: u64 = 20;
 
@@ -73,7 +70,7 @@ pub fn make_s2_cells(args: &Arguments, dir: &Path) {
     // An S2 writer that has not written any points cannot produce a meta proto,
     // but in this case we know it did write points.
     let meta = s2_writer.get_meta().unwrap().to_proto();
-    let mut meta_writer = BufWriter::new(File::create(dir.join("meta.pb")).unwrap());
+    let mut meta_writer = BufWriter::new(File::create(dir.join(META_FILENAME)).unwrap());
     meta.write_to_writer(&mut meta_writer).unwrap();
 }
 
