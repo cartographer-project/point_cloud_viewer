@@ -105,7 +105,8 @@ mod tests {
         let directory = PathBuf::from("/tmp/");
         let root_node_id = NodeId::new(1, 2);
         let path = get_meta_pb_path(&directory, root_node_id);
-        let expected_path = Path::new("/tmp").join(format!("{}2.{}", *META_PREFIX, *META_SUFFIX));
+        let expected_path =
+            Path::new("/tmp").join(format!("{}2.{}", *META_PREFIX, *META_EXTENSION));
         assert_eq!(path, expected_path);
         let derived_root_node_id =
             get_root_node_id_from_meta_pb_path(&path).expect("Failed to get root node id.");
