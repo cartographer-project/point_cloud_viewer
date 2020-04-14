@@ -2,6 +2,7 @@ use fnv::FnvHashSet;
 use point_viewer::color::Color;
 use quadtree::{Node, NodeId};
 use std::fs::create_dir_all;
+use std::io;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 use xray::{generation, Meta, META_FILENAME};
@@ -56,24 +57,21 @@ fn copy_all_images(input_directories: &[PathBuf], output_directory: &Path) {
     }
 }
 
-fn read_metadata_from_directory(directory: &Path) -> Vec<Meta> {
+fn read_metadata_from_directory(directory: &Path) -> io::Result<Vec<Meta>> {
     globwalk::GlobWalkerBuilder::new(directory, "meta*.pb")
         .build()
         .expect("Failed to build GlobWalker")
         .filter_map(Result::ok)
-        .map(|dir_entry| {
-            Meta::from_disk(dir_entry.path())
-                .unwrap_or_else(|_| panic!("Failed to load meta from {:?}.", dir_entry.path()))
-        })
+        .map(|dir_entry| Meta::from_disk(dir_entry.path()))
         .collect()
 }
 
-fn read_metadata_from_directories(directories: &[PathBuf]) -> Vec<Meta> {
+fn read_metadata_from_directories(directories: &[PathBuf]) -> io::Result<Vec<Meta>> {
     directories
         .iter()
         .map(|directory| read_metadata_from_directory(&directory))
-        .flatten()
-        .collect()
+        .collect::<io::Result<Vec<Vec<Meta>>>>()
+        .map(|directories| directories.into_iter().flatten().collect())
 }
 
 fn get_root_nodes(meta: &[Meta]) -> Vec<Node> {
@@ -175,22 +173,26 @@ fn merge(mut metadata: MergedMetadata, output_directory: &Path, tile_background_
         .unwrap_or_else(|_| panic!("Failed to write {}", META_FILENAME));
 }
 
-fn main() {
+fn main() -> io::Result<()> {
     let args = CommandlineArguments::from_args();
     for input_directory in &args.input_directories {
-        assert!(
-            input_directory.exists(),
-            format!("Input directory {:?} doesn't exist.", input_directory)
-        );
-        assert!(
-            input_directory.metadata().unwrap().is_dir(),
-            format!("{:?} is not a directory.", input_directory)
-        )
+        if !input_directory.exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Input directory {:?} doesn't exist.", input_directory),
+            ));
+        }
+        if !input_directory.metadata()?.is_dir() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("{:?} is not a directory.", input_directory),
+            ));
+        }
     }
     if !args.output_directory.exists() {
-        create_dir_all(&args.output_directory).expect("Couldn't create the output directory.");
+        create_dir_all(&args.output_directory)?;
     }
-    let metadata = read_metadata_from_directories(&args.input_directories);
+    let metadata = read_metadata_from_directories(&args.input_directories)?;
     let merged_metadata = validate_and_merge_metadata(&metadata);
     copy_all_images(&args.input_directories, &args.output_directory);
     merge(
@@ -198,4 +200,5 @@ fn main() {
         &args.output_directory,
         args.tile_background_color.to_color(),
     );
+    Ok(())
 }
