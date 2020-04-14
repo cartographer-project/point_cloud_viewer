@@ -116,12 +116,24 @@ mod tests {
 
     #[test]
     fn intersection_test() {
-        let rect_1 =
-            WebMercatorRect::from_zoomed_coordinates(Vector2::new(1.0, 1.0), Vector2::new(3.0, 3.0), 1).unwrap();
-        let rect_2 =
-            WebMercatorRect::from_zoomed_coordinates(Vector2::new(4.0, 4.0), Vector2::new(5.0, 5.0), 1).unwrap();
-        let rect_3 =
-            WebMercatorRect::from_zoomed_coordinates(Vector2::new(2.0, 2.0), Vector2::new(6.0, 6.0), 1).unwrap();
+        let rect_1 = WebMercatorRect::from_zoomed_coordinates(
+            Vector2::new(1.0, 1.0),
+            Vector2::new(3.0, 3.0),
+            1,
+        )
+        .unwrap();
+        let rect_2 = WebMercatorRect::from_zoomed_coordinates(
+            Vector2::new(4.0, 4.0),
+            Vector2::new(5.0, 5.0),
+            1,
+        )
+        .unwrap();
+        let rect_3 = WebMercatorRect::from_zoomed_coordinates(
+            Vector2::new(2.0, 2.0),
+            Vector2::new(6.0, 6.0),
+            1,
+        )
+        .unwrap();
         let rect_1_intersector = rect_1.intersector();
         let rect_2_intersector = rect_2.intersector();
         let rect_3_intersector = rect_3.intersector();
