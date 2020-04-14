@@ -80,7 +80,7 @@ where
     let (s2, oct, data) = setup_pointcloud(&args);
     let query = PointQuery {
         attributes: vec!["color"],
-        location: gen_location(data.clone()),
+        location: gen_location(data),
         ..Default::default()
     };
     let points_oct = query_and_sort(&oct, &query, args.batch_size);
