@@ -1,9 +1,9 @@
 //! A Web Mercator axis-aligned rectangle.
 
-use alga::general::SupersetOf;
 use crate::math::base::{HasAabbIntersector, PointCulling};
 use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use crate::math::web_mercator::WebMercatorCoord;
+use alga::general::SupersetOf;
 use arrayvec::ArrayVec;
 use nalgebra::{Point3, RealField, Unit, Vector2};
 use nav_types::{ECEF, WGS84};
@@ -18,12 +18,16 @@ pub struct WebMercatorRect<S: RealField> {
 
 impl<S: RealField> WebMercatorRect<S> {
     /// The dead sea is at -413m, but we use a more generous minimum
-    fn min_elevation_m() -> S { nalgebra::convert(-1000.0) }
+    fn min_elevation_m() -> S {
+        nalgebra::convert(-1000.0)
+    }
     /// Mt. Everest is at 8,848m, plus we need some safety margin
-    fn max_elevation_m() -> S { nalgebra::convert(9000.0) }
+    fn max_elevation_m() -> S {
+        nalgebra::convert(9000.0)
+    }
 }
 
-impl<S: RealField+ SupersetOf<u32>> WebMercatorRect<S> {
+impl<S: RealField + SupersetOf<u32>> WebMercatorRect<S> {
     /// Returns `None` when `z` is greater than [`MAX_ZOOM`](index.html#constant.max_zoom)
     /// or when the coordinates are out of bounds for the zoom level `z`. It also returns `None`
     /// when the rect is larger than
@@ -43,7 +47,10 @@ impl<S: RealField+ SupersetOf<u32>> WebMercatorRect<S> {
 /// to Web Mercator, fall into the given rectangle.
 /// Implemented by extruding the rectangle's four corners along their altitude
 /// axis up and down, which results in a convex polyhedron.
-impl<S: RealField> ConvexPolyhedron<S> for WebMercatorRect<S> where f64: From<S> {
+impl<S: RealField> ConvexPolyhedron<S> for WebMercatorRect<S>
+where
+    f64: From<S>,
+{
     fn compute_corners(&self) -> [Point3<S>; 8] {
         let n_w = self.north_west.to_lat_lng();
         let s_e = self.south_east.to_lat_lng();
@@ -102,8 +109,7 @@ has_aabb_intersector_for_convex_polyhedron!(WebMercatorRect<S>);
 
 impl<S: RealField + SupersetOf<u32>> PointCulling<S> for WebMercatorRect<S> {
     fn contains(&self, point: &Point3<S>) -> bool {
-        let ll: WGS84<S> =
-            ECEF::new(point.x, point.y, point.z).into();
+        let ll: WGS84<S> = ECEF::new(point.x, point.y, point.z).into();
         let wmc = WebMercatorCoord::from_lat_lng(&ll);
         nalgebra::partial_le(&self.north_west, &wmc) && nalgebra::partial_lt(&wmc, &self.south_east)
     }

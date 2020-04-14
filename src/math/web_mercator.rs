@@ -4,12 +4,7 @@ use alga::general::SupersetOf;
 use nalgebra::{RealField, Vector2};
 use nav_types::WGS84;
 use serde::{Deserialize, Serialize};
-use std::f64::consts::{FRAC_1_PI, PI};
 
-
-const TWO_PI: f64 = 2.0 * PI;
-const FOUR_PI: f64 = 4.0 * PI;
-const FRAC_1_4_PI: f64 = 0.25 * FRAC_1_PI;
 const TILE_SIZE: u32 = 256;
 
 /// The max zoom level is currently 23 because of an implementation choice,
@@ -35,8 +30,8 @@ impl<S: RealField> WebMercatorCoord<S> {
 
     /// lat_bound_sin = sin(lat_bound_rad)
     fn lat_bound_sin() -> S {
-         nalgebra::convert(0.996_272_076_220_75f64)
-     }
+        nalgebra::convert(0.996_272_076_220_75f64)
+    }
 
     /// Projects a lat/lng coordinate to Web Mercator.
     ///
@@ -46,31 +41,46 @@ impl<S: RealField> WebMercatorCoord<S> {
         // Implemented according to
         // https://developers.google.com/maps/documentation/javascript/examples/map-coordinates?csw=1
         // but clamping is done before the sin() operation.
-        let lat = nalgebra::clamp(lat_lng.latitude(), -Self::lat_bound_rad(), Self::lat_bound_rad());
+        let lat = nalgebra::clamp(
+            lat_lng.latitude(),
+            -Self::lat_bound_rad(),
+            Self::lat_bound_rad(),
+        );
         let sin_y = lat.sin();
 
         let normalized = Vector2::new(
             nalgebra::convert::<_, S>(0.5) + lat_lng.longitude() / S::two_pi(),
-            nalgebra::convert::<_, S>(0.5) - ((S::one() + sin_y) / (S::one() - sin_y)).ln() * nalgebra::convert(0.25) * S::frac_1_pi(),
+            nalgebra::convert::<_, S>(0.5)
+                - ((S::one() + sin_y) / (S::one() - sin_y)).ln()
+                    * nalgebra::convert(0.25)
+                    * S::frac_1_pi(),
         );
         Self { normalized }
     }
 }
 
-impl<S: RealField> WebMercatorCoord<S> where f64: From<S> {
+impl<S: RealField> WebMercatorCoord<S>
+where
+    f64: From<S>,
+{
     /// Convert the Web Mercator coordinate back to lat/lng.
     ///
     /// The altitude returned is always 0.
     pub fn to_lat_lng(&self) -> WGS84<S> {
-        let centered: Vector2<S> = self.normalized - nalgebra::convert(Vector2::new(0.5, 0.5));
+        let centered: Vector2<S> =
+            self.normalized - Vector2::new(nalgebra::convert(0.5), nalgebra::convert(0.5));
         // Note that sin_term = -(2/(sin(y)-1)) - 1
-        let sin_term = (-self.normalized.y * nalgebra::convert(4.0)*S::pi()).exp();
+        let sin_term = (-self.normalized.y * nalgebra::convert(4.0) * S::pi()).exp();
         let one_over_sin_y = (sin_term + S::one()) * nalgebra::convert(-0.5);
         let mut sin_y = (S::one() / one_over_sin_y) + nalgebra::convert(1.0);
         sin_y = nalgebra::clamp(sin_y, -Self::lat_bound_sin(), Self::lat_bound_sin());
-        let longitude = nalgebra::clamp(S::two_pi()*centered.x, -S::pi(), S::pi());
-        let deg_per_rad = nalgebra::convert(180.0) / S::pi();
-        WGS84::new(sin_y.asin() * deg_per_rad, longitude * deg_per_rad, S::zero())
+        let longitude = nalgebra::clamp(S::two_pi() * centered.x, -S::pi(), S::pi());
+        let deg_per_rad = nalgebra::convert::<_, S>(180.0) / S::pi();
+        WGS84::new(
+            sin_y.asin() * deg_per_rad,
+            longitude * deg_per_rad,
+            S::zero(),
+        )
     }
 }
 
@@ -115,11 +125,12 @@ mod tests {
     use approx::{assert_abs_diff_eq, assert_relative_eq};
     use nalgebra::Vector2;
     use nav_types::WGS84;
+    use std::f64::consts::PI;
 
     #[test]
     fn projection_corners() {
         // Checks that the corners of the map are at the expected coordinates
-        let lat_bound_deg = WebMercatorCoord::lat_bound_rad() * 180.0 / PI;
+        let lat_bound_deg = WebMercatorCoord::<f64>::lat_bound_rad() * 180.0 / PI;
         let lat_lng_lower = WGS84::new(lat_bound_deg, -180.0, 0.0);
         let lat_lng_upper = WGS84::new(-lat_bound_deg, 180.0, 0.0);
         let lower_corner = WebMercatorCoord::from_lat_lng(&lat_lng_lower);
