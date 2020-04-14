@@ -5,7 +5,7 @@ use std::fs::create_dir_all;
 use std::io;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
-use xray::{generation, Meta, META_FILENAME};
+use xray::{generation, Meta, META_EXTENSION, META_FILENAME, META_PREFIX};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "merge_xray_quadtrees")]
@@ -52,7 +52,7 @@ fn copy_all_images(input_directories: &[PathBuf], output_directory: &Path) -> io
 }
 
 fn read_metadata_from_directory(directory: &Path) -> io::Result<Vec<Meta>> {
-    globwalk::GlobWalkerBuilder::new(directory, "meta*.pb")
+    globwalk::GlobWalkerBuilder::new(directory, format!("{}*.{}", *META_PREFIX, *META_EXTENSION))
         .build()
         .expect("Failed to build GlobWalker")
         .filter_map(Result::ok)

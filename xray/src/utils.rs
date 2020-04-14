@@ -1,21 +1,8 @@
-use crate::META_FILENAME;
+use crate::{META_EXTENSION, META_PREFIX};
 use image::{GenericImage, GenericImageView, ImageResult, Pixel, RgbaImage, SubImage};
 use quadtree::{NodeId, NODE_PREFIX};
 use std::io;
 use std::path::{Path, PathBuf};
-
-lazy_static::lazy_static! {
-    static ref META_PREFIX: &'static str = Path::new(META_FILENAME)
-        .file_stem()
-        .unwrap()
-        .to_str()
-        .unwrap();
-    static ref META_EXTENSION: &'static str = Path::new(META_FILENAME)
-        .extension()
-        .unwrap()
-        .to_str()
-        .unwrap();
-}
 
 pub fn get_meta_pb_path(directory: &Path, id: NodeId) -> PathBuf {
     directory
@@ -90,6 +77,7 @@ pub fn interpolate_subimages<W>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::META_FILENAME;
 
     #[test]
     fn node_id_to_paths_back_and_forth() {
