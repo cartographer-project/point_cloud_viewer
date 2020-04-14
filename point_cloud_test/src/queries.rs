@@ -50,6 +50,6 @@ pub fn get_web_mercator_rect_query(data: SyntheticData) -> PointLocation {
     // approx. 25m by 25m at level 21.
     let corner_1 = wm.to_zoomed_coordinate(21).unwrap() - Vector2::new(128.0, 128.0);
     let corner_2 = wm.to_zoomed_coordinate(21).unwrap() + Vector2::new(128.0, 128.0);
-    let wmr = WebMercatorRect::new(corner_1, corner_2, 21).unwrap();
+    let wmr = WebMercatorRect::from_zoomed_coordinates(corner_1, corner_2, 21).unwrap();
     PointLocation::WebMercatorRect(wmr)
 }
