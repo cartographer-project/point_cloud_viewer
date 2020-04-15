@@ -198,28 +198,25 @@ mod tests {
     #[test]
     fn wraparound_test() {
         // Wraparound in x direction works
-        assert!(
-            WebMercatorRect::from_zoomed_coordinates(
-                Vector2::new(255.5, 128.0),
-                Vector2::new(0.5, 128.8),
-                0
-            ).is_some()
-        );
+        assert!(WebMercatorRect::from_zoomed_coordinates(
+            Vector2::new(255.5, 128.0),
+            Vector2::new(0.5, 128.8),
+            0
+        )
+        .is_some());
         // Size is still checked
-        assert!(
-            WebMercatorRect::from_zoomed_coordinates(
-                Vector2::new(255.5, 128.0),
-                Vector2::new(1.5, 128.8),
-                0
-            ).is_none()
-        );
+        assert!(WebMercatorRect::from_zoomed_coordinates(
+            Vector2::new(255.5, 128.0),
+            Vector2::new(1.5, 128.8),
+            0
+        )
+        .is_none());
         // Wraparound in y direction is not possible
-        assert!(
-            WebMercatorRect::from_zoomed_coordinates(
-                Vector2::new(128.8, 255.5),
-                Vector2::new(128.8, 0.5),
-                0
-            ).is_none()
-        );
+        assert!(WebMercatorRect::from_zoomed_coordinates(
+            Vector2::new(128.8, 255.5),
+            Vector2::new(128.8, 0.5),
+            0
+        )
+        .is_none());
     }
 }
