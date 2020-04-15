@@ -141,8 +141,8 @@ impl<S: RealField> FromPoint3<S> for ECEF<S> {
 pub struct AllPoints {}
 
 impl<S: RealField> IntersectAabb<S> for AllPoints {
-    fn intersect_aabb(&self, _aabb: &Aabb<S>) -> bool {
-        true
+    fn intersect_aabb(&self, _aabb: &Aabb<S>) -> Relation {
+        Relation::In
     }
 }
 

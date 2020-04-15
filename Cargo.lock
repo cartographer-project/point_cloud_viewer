@@ -2119,6 +2119,7 @@ dependencies = [
  "num-integer",
  "num-traits 0.2.11",
  "num_cpus",
+ "ordered-float",
  "pbr",
  "point_viewer_proto_rust",
  "protobuf",

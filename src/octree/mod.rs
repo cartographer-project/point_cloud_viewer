@@ -16,7 +16,7 @@ use crate::errors::*;
 use crate::geometry::{Aabb, Cube, Frustum};
 use crate::iterator::{PointCloud, PointLocation};
 use crate::math::base::{HasAabbIntersector, IntersectAabb};
-use crate::math::sat::{ConvexPolyhedron, Relation};
+use crate::math::sat::Relation;
 use crate::math::AllPoints;
 use crate::proto;
 use crate::read_write::{Encoding, NodeIterator, PositionEncoding};
@@ -24,8 +24,7 @@ use crate::{AttributeDataType, PointCloudMeta, CURRENT_VERSION};
 use fnv::FnvHashMap;
 use nalgebra::{Matrix4, Point3};
 use num::clamp;
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::HashMap;
 use std::io::{BufReader, Read};
 
 mod generation;
@@ -228,58 +227,17 @@ impl Octree {
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
         let frustum =
             Frustum::from_matrix4(*projection_matrix).expect("Invalid projection matrix.");
-        let frustum_isec = frustum.intersector().cache_separating_axes_for_aabb();
-        let mut open = BinaryHeap::new();
-        maybe_push_node(
-            &mut open,
-            &self.nodes,
-            Relation::Cross,
-            Node::root_with_bounding_cube(Cube::bounding(&self.meta.bounding_box)),
-            projection_matrix,
-        );
-
-        let mut visible = Vec::new();
-        while let Some(current) = open.pop() {
-            match current.relation {
-                Relation::Cross => {
-                    for child_index in 0..8 {
-                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
-                        let child_relation = frustum_isec
-                            .intersect(&child.bounding_cube.to_aabb().compute_corners());
-                        if child_relation == Relation::Out {
-                            continue;
-                        }
-                        maybe_push_node(
-                            &mut open,
-                            &self.nodes,
-                            child_relation,
-                            child,
-                            projection_matrix,
-                        );
-                    }
-                }
-                Relation::In => {
-                    // When the parent is fully in the frustum, so are the children.
-                    for child_index in 0..8 {
-                        maybe_push_node(
-                            &mut open,
-                            &self.nodes,
-                            Relation::In,
-                            current.node.get_child(ChildIndex::from_u8(child_index)),
-                            projection_matrix,
-                        );
-                    }
-                }
-                Relation::Out => {
-                    // This should never happen.
-                    unreachable!();
-                }
-            };
-            if !current.empty {
-                visible.push(current.node.id);
-            }
-        }
-        visible
+        let mut node_ids = self.nodes_in_location_impl(&frustum);
+        let root_cube = Cube::bounding(&self.meta.bounding_box);
+        node_ids.sort_by_cached_key(|id| {
+            ordered_float::NotNan::new(relative_size_on_screen(
+                &id.find_bounding_cube(&root_cube),
+                projection_matrix,
+            ))
+            .unwrap()
+        });
+        node_ids.reverse();
+        node_ids
     }
 
     pub fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData> {
@@ -309,20 +267,70 @@ impl Octree {
         })
     }
 
-    fn nodes_in_location_impl<'a, T: HasAabbIntersector<'a, f64>>(
+    pub fn nodes_in_location_impl<'a, T: HasAabbIntersector<'a, f64>>(
         &self,
         location: &'a T,
     ) -> Vec<NodeId> {
-        // TODO(nnmm): Once intersection tests use Relation, this function can traverse the octree
-        // with the same strategy as get_visible_nodes(), skipping over fully-included nodes. Then
-        // it's a generalized version of get_visible_nodes(), and get_visible_nodes() can use this
-        // function instead.
-        let isec = location.aabb_intersector();
-        NodeIdsIterator::new(&self, |node_id, octree| {
-            let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
-            isec.intersect_aabb(&aabb)
-        })
-        .collect()
+        let mut open = std::collections::VecDeque::new();
+        let root_cube = Cube::bounding(&self.meta.bounding_box);
+        let root_node = Node::root_with_bounding_cube(root_cube);
+        let location_isec = location.aabb_intersector();
+
+        struct Elem {
+            node: Node,
+            relation: Relation,
+            empty: bool,
+        }
+        // Is this a bug? Missing intersection test, root node is always included
+        open.push_back(Elem {
+            node: root_node,
+            relation: Relation::Cross,
+            empty: self.nodes[&NodeId::root()].num_points == 0,
+        });
+
+        let mut node_ids = Vec::new();
+        while let Some(current) = open.pop_front() {
+            match current.relation {
+                Relation::Cross => {
+                    for child_index in 0..8 {
+                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
+                        let child_relation =
+                            location_isec.intersect_aabb(&child.bounding_cube.to_aabb());
+                        if child_relation == Relation::Out {
+                            continue;
+                        }
+                        if let Some(meta) = self.nodes.get(&child.id) {
+                            open.push_back(Elem {
+                                node: child,
+                                relation: child_relation,
+                                empty: meta.num_points == 0,
+                            });
+                        }
+                    }
+                }
+                Relation::In => {
+                    // When the parent is fully in the frustum, so are the children.
+                    for child_index in 0..8 {
+                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
+                        if let Some(meta) = self.nodes.get(&child.id) {
+                            open.push_back(Elem {
+                                node: child,
+                                relation: Relation::In,
+                                empty: meta.num_points == 0,
+                            });
+                        }
+                    }
+                }
+                Relation::Out => {
+                    // This should never happen.
+                    unreachable!();
+                }
+            };
+            if !current.empty {
+                node_ids.push(current.node.id);
+            }
+        }
+        node_ids
     }
 }
 
@@ -357,51 +365,5 @@ impl PointCloud for Octree {
     /// return the bounding box saved in meta
     fn bounding_box(&self) -> &Aabb<f64> {
         &self.meta.bounding_box
-    }
-}
-
-struct OpenNode {
-    node: Node,
-    relation: Relation,
-    size_on_screen: f64,
-    empty: bool,
-}
-
-impl Ord for OpenNode {
-    fn cmp(&self, other: &OpenNode) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl PartialOrd for OpenNode {
-    fn partial_cmp(&self, other: &OpenNode) -> Option<Ordering> {
-        self.size_on_screen.partial_cmp(&other.size_on_screen)
-    }
-}
-
-impl PartialEq for OpenNode {
-    fn eq(&self, other: &OpenNode) -> bool {
-        self.size_on_screen == other.size_on_screen
-    }
-}
-
-impl Eq for OpenNode {}
-
-#[inline]
-fn maybe_push_node(
-    v: &mut BinaryHeap<OpenNode>,
-    nodes: &FnvHashMap<NodeId, NodeMeta>,
-    relation: Relation,
-    node: Node,
-    projection_matrix: &Matrix4<f64>,
-) {
-    if let Some(meta) = nodes.get(&node.id) {
-        let size_on_screen = relative_size_on_screen(&node.bounding_cube, projection_matrix);
-        v.push(OpenNode {
-            node,
-            relation,
-            size_on_screen,
-            empty: meta.num_points == 0,
-        });
     }
 }
