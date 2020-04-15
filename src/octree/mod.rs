@@ -241,16 +241,16 @@ impl Octree {
             Err(_) => (),
             Ok(filename) => {
                 let mut queries = FRUSTUMS.lock().unwrap();
-                if queries.len() + 1 < NUM_FRUSTUMS {
+                if queries.len() < NUM_FRUSTUMS {
                     queries.push(frustum.clone());
                 }
-                if queries.len() + 1 == NUM_FRUSTUMS {
+                if queries.len() == NUM_FRUSTUMS {
                     use std::fs::{self, OpenOptions};
                     use std::io::BufWriter;
                     let file = fs::create(filename).expect("Couldn't open file for logging");
                     let f = BufWriter::new(file);
                     serde_json::to_writer(f, &*queries).unwrap();
-                    queries.push(frustum.clone());
+                    queries.clear();
                 }
             }
         }
