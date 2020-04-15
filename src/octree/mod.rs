@@ -151,6 +151,15 @@ pub struct NodeData {
     pub color: Vec<u8>,
 }
 
+const NUM_FRUSTUMS: usize = 10000;
+
+use std::sync::Mutex;
+lazy_static::lazy_static! {
+    static ref FRUSTUMS: Mutex<Vec<Frustum<f64>>> = {
+        Mutex::new(Vec::with_capacity(NUM_FRUSTUMS))
+    };
+}
+
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
     pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
@@ -228,6 +237,23 @@ impl Octree {
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
         let frustum =
             Frustum::from_matrix4(*projection_matrix).expect("Invalid projection matrix.");
+        match std::env::var("LOG_SDL_VIEWER_QUERIES") {
+            Err(_) => (),
+            Ok(filename) => {
+                let mut queries = FRUSTUMS.lock().unwrap();
+                if queries.len() + 1 < NUM_FRUSTUMS {
+                    queries.push(frustum.clone());
+                }
+                if queries.len() + 1 == NUM_FRUSTUMS {
+                    use std::fs::{self, OpenOptions};
+                    use std::io::BufWriter;
+                    let file = fs::create(filename).expect("Couldn't open file for logging");
+                    let f = BufWriter::new(file);
+                    serde_json::to_writer(f, &*queries).unwrap();
+                    queries.push(frustum.clone());
+                }
+            }
+        }
         let frustum_isec = frustum.intersector().cache_separating_axes_for_aabb();
         let mut open = BinaryHeap::new();
         maybe_push_node(
