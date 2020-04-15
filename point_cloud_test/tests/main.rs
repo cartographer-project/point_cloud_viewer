@@ -58,6 +58,11 @@ fn check_cell_union_query_equality() {
 }
 
 #[test]
+fn check_web_mercator_rect_query_equality() {
+    check_equality(get_web_mercator_rect_query)
+}
+
+#[test]
 fn check_box_point_culling_equality() {
     check_point_culling_equality(get_aabb)
 }
@@ -70,6 +75,11 @@ fn check_frustum_point_culling_equality() {
 #[test]
 fn check_obb_point_culling_equality() {
     check_point_culling_equality(get_obb);
+}
+
+#[test]
+fn check_web_mercator_rect_point_culling_equality() {
+    check_point_culling_equality(get_web_mercator_rect);
 }
 
 fn check_equality<F>(gen_location: F)

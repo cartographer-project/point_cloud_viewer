@@ -6,6 +6,7 @@ use crate::math::{HasAabbIntersector, PointCulling};
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, RealField, Unit, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
+use std::iter::FromIterator;
 
 /// An oriented bounding box.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,10 +69,11 @@ impl<S: RealField> ConvexPolyhedron<S> for Obb<S> {
         edges.push(Unit::new_normalize(self.query_from_obb * Vector3::x()));
         edges.push(Unit::new_normalize(self.query_from_obb * Vector3::y()));
         edges.push(Unit::new_normalize(self.query_from_obb * Vector3::z()));
+        let face_normals = ArrayVec::from_iter(edges.clone());
         Intersector {
             corners: self.compute_corners(),
-            edges: edges.clone(),
-            face_normals: edges,
+            edges,
+            face_normals,
         }
     }
 }

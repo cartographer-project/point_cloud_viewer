@@ -54,7 +54,7 @@ pub enum Relation {
 /// Together with the corners, these are the sufficient statistics for the SAT test.
 /// Hence, corners, edges and face normals must be provided by implementors of this trait.
 pub trait ConvexPolyhedron<S: RealField> {
-    /// For now, this is hardcoded to 8 corners and up to 6 edges/face normals.
+    /// For now, this is hardcoded to 8 corners and up to 12 edges/face normals.
     /// Using arrays should be cheaper than allocating a vector.
     /// We could also parametrize this trait by type-level numbers like nalgebra.
     fn compute_corners(&self) -> [Point3<S>; 8];
@@ -69,8 +69,8 @@ pub struct Intersector<S: RealField> {
     /// The corners of the polyhedron.
     pub corners: [Point3<S>; 8],
     /// The unique edges of the polyhedron.
-    /// This is hardcoded to 6 for now because we don't need more. Increase as needed.
-    pub edges: ArrayVec<[Unit<Vector3<S>>; 6]>,
+    /// This is hardcoded to 12 for now because we don't need more. Increase as needed.
+    pub edges: ArrayVec<[Unit<Vector3<S>>; 12]>,
     /// The unique face normals of the polyhedron.
     pub face_normals: ArrayVec<[Unit<Vector3<S>>; 6]>,
 }
@@ -214,13 +214,12 @@ mod tests {
     use super::*;
     use arrayvec::ArrayVec;
     use nalgebra::{Point3, Vector3};
+    use std::iter::FromIterator;
 
     #[test]
     fn test_cube_with_cube() {
-        let unit_vectors: ArrayVec<_> =
-            ArrayVec::from([Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()])
-                .into_iter()
-                .collect();
+        let unit_vectors =
+            ArrayVec::from([Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()]);
         #[rustfmt::skip]
         let cube_isec_1 = Intersector {
             corners: [
@@ -233,8 +232,8 @@ mod tests {
                 Point3::new( 1.0,  1.0, -1.0),
                 Point3::new( 1.0,  1.0,  1.0),
             ],
-            edges: unit_vectors.clone(),
-            face_normals: unit_vectors.clone(),
+            edges: ArrayVec::from_iter(unit_vectors.clone()),
+            face_normals: ArrayVec::from_iter(unit_vectors.clone()),
         };
         #[rustfmt::skip]
         let cube_isec_2 = Intersector {
@@ -248,8 +247,8 @@ mod tests {
                 Point3::new( 1.5,  1.5, -0.5),
                 Point3::new( 1.5,  1.5,  1.5),
             ],
-            edges: unit_vectors.clone(),
-            face_normals: unit_vectors.clone(),
+            edges: ArrayVec::from_iter(unit_vectors.clone()),
+            face_normals: ArrayVec::from_iter(unit_vectors.clone()),
         };
         #[rustfmt::skip]
         let cube_isec_3 = Intersector {
@@ -263,8 +262,8 @@ mod tests {
                 Point3::new(-0.7, -0.7, -0.9),
                 Point3::new(-0.7, -0.7, -0.7),
             ],
-            edges: unit_vectors.clone(),
-            face_normals: unit_vectors.clone(),
+            edges: ArrayVec::from_iter(unit_vectors.clone()),
+            face_normals: ArrayVec::from_iter(unit_vectors),
         };
 
         assert_eq!(cube_isec_1.intersect(&cube_isec_2), Relation::Cross);

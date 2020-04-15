@@ -2087,6 +2087,7 @@ dependencies = [
  "criterion",
  "lazy_static",
  "nalgebra",
+ "nav-types",
  "num-integer",
  "point_cloud_client",
  "point_viewer",

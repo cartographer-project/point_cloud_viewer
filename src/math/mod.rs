@@ -130,6 +130,12 @@ where
     }
 }
 
+impl<S: RealField> FromPoint3<S> for ECEF<S> {
+    fn from_point(p: &Point3<S>) -> Self {
+        ECEF::new(p.x, p.y, p.z)
+    }
+}
+
 /// Implementation of PointCulling which returns all points
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct AllPoints {}

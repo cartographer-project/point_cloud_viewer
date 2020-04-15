@@ -1,11 +1,10 @@
 use crate::errors::*;
-use crate::geometry::{Aabb, Frustum, Obb};
+use crate::geometry::{Aabb, CellUnion, Frustum, Obb, WebMercatorRect};
 use crate::math::{AllPoints, ClosedInterval, PointCulling};
 use crate::read_write::{Encoding, NodeIterator};
 use crate::{match_1d_attr_data, AttributeData, PointsBatch};
 use crossbeam::deque::{Injector, Steal, Worker};
 use num_traits::ToPrimitive;
-use s2::cellunion::CellUnion;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
@@ -17,6 +16,7 @@ pub enum PointLocation {
     Frustum(Frustum<f64>),
     Obb(Obb<f64>),
     S2Cells(CellUnion),
+    WebMercatorRect(WebMercatorRect),
 }
 
 impl Default for PointLocation {
@@ -33,6 +33,7 @@ impl PointLocation {
             PointLocation::Frustum(frustum) => Box::new(frustum.clone()),
             PointLocation::Obb(obb) => Box::new(obb.clone()),
             PointLocation::S2Cells(cell_union) => Box::new(cell_union.clone()),
+            PointLocation::WebMercatorRect(wmr) => Box::new(wmr.clone()),
         }
     }
 }
@@ -56,6 +57,7 @@ macro_rules! dispatch_point_location {
             PointLocation::Frustum(f) => $func($($arg,)* f),
             PointLocation::Obb(obb) => $func($($arg,)* obb),
             PointLocation::S2Cells(cu) => $func($($arg,)* cu),
+            PointLocation::WebMercatorRect(wmr) => $func($($arg,)* wmr),
         }
     }
 }

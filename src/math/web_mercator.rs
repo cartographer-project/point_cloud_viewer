@@ -1,7 +1,8 @@
-//! Calculations with Web Mercator coordinates and tiles.
+//! Calculations with Web Mercator coordinates.
 
 use nalgebra::Vector2;
 use nav_types::WGS84;
+use serde::{Deserialize, Serialize};
 use std::f64::consts::{FRAC_1_PI, PI};
 
 /// 2.0 * E.powf(PI).arctan() - FRAC_PI_2;
@@ -17,12 +18,12 @@ const FRAC_1_4_PI: f64 = 0.25 * FRAC_1_PI;
 const TILE_SIZE: u32 = 256;
 
 /// The max zoom level is currently 23 because of an implementation choice,
-/// namely fitting TILE_SIZE << MAX_ZOOM in an u32, but theoretically nothing
+/// namely fitting `TILE_SIZE << MAX_ZOOM` in an `u32`, but theoretically nothing
 /// stops us from going deeper.
 pub const MAX_ZOOM: u8 = 23;
 
 /// A Web Mercator coordinate. Essentially a position in a 2D map of the world.
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct WebMercatorCoord {
     /// Implementation detail: This is normalized to [0, 1), so not zoom level 0.
     /// This makes calculations a bit simpler.
@@ -66,20 +67,32 @@ impl WebMercatorCoord {
     /// should be represented.
     /// Zoom level Z means the map coordinates are in the interval `[0, 256*2^Z)`
     /// in both dimensions, i.e. map resolution doubles at each zoom level.
-    pub fn to_zoomed_coordinate(&self, z: u8) -> Vector2<f64> {
-        debug_assert!(z <= MAX_ZOOM);
-        // 256 * 2^z
-        let zoom = f64::from(TILE_SIZE << z);
-        zoom * self.normalized
+    pub fn to_zoomed_coordinate(&self, z: u8) -> Option<Vector2<f64>> {
+        if z <= MAX_ZOOM {
+            // 256 * 2^z
+            let zoom = f64::from(TILE_SIZE << z);
+            Some(zoom * self.normalized)
+        } else {
+            None
+        }
     }
 
     /// The inverse of [`to_zoomed_coordinate`](#method.to_zoomed_coordinate).
-    pub fn from_zoomed_coordinate(coord: Vector2<f64>, z: u8) -> Self {
-        debug_assert!(z <= MAX_ZOOM);
+    ///
+    /// Returns `None` when `z` is greater than [`MAX_ZOOM`](index.html#constant.max_zoom)
+    /// or when the coordinates are out of bounds for the zoom level `z`.
+    pub fn from_zoomed_coordinate(coord: Vector2<f64>, z: u8) -> Option<Self> {
+        if z > MAX_ZOOM || coord.min() < 0.0 {
+            return None;
+        }
         // 256 * 2^z
         let zoom = f64::from(TILE_SIZE << z);
-        Self {
-            normalized: coord / zoom,
+        if coord.max() < zoom {
+            Some(Self {
+                normalized: coord / zoom,
+            })
+        } else {
+            None
         }
     }
 }
@@ -99,15 +112,17 @@ mod tests {
         let lat_lng_upper = WGS84::new(-lat_bound_deg, 180.0, 0.0);
         let lower_corner = WebMercatorCoord::from_lat_lng(&lat_lng_lower);
         let upper_corner = WebMercatorCoord::from_lat_lng(&lat_lng_upper);
+        // The upper left corner of a world map
         let lower_corner_truth = Vector2::new(0.0, 0.0);
+        // The lower right corner of a world map
         let upper_corner_truth = Vector2::new(256.0, 256.0);
         assert_abs_diff_eq!(
-            upper_corner.to_zoomed_coordinate(0),
+            upper_corner.to_zoomed_coordinate(0).unwrap(),
             upper_corner_truth,
             epsilon = 10e-10
         );
         assert_abs_diff_eq!(
-            lower_corner.to_zoomed_coordinate(0),
+            lower_corner.to_zoomed_coordinate(0).unwrap(),
             lower_corner_truth,
             epsilon = 10e-10
         );
@@ -133,8 +148,9 @@ mod tests {
         // So the pixel coordinate in a map at zoom level 19 (resolution 256*2^19) is this:
         let test_coordinate_web_mercator_zoomed_truth =
             Vector2::new(84253.0 * 256.0 + 165.0, 203324.0 * 256.0 + 18.0);
-        let test_coordinate_web_mercator_zoomed =
-            WebMercatorCoord::from_lat_lng(&test_coordinate).to_zoomed_coordinate(19);
+        let test_coordinate_web_mercator_zoomed = WebMercatorCoord::from_lat_lng(&test_coordinate)
+            .to_zoomed_coordinate(19)
+            .unwrap();
         // This was from eyeballing, so we shouldn't expect more than 20px accuracy at zoom 19.
         assert_abs_diff_eq!(
             test_coordinate_web_mercator_zoomed,
