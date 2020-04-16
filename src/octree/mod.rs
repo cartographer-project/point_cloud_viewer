@@ -251,6 +251,7 @@ impl Octree {
                     let f = BufWriter::new(file);
                     serde_json::to_writer(f, &*queries).unwrap();
                     queries.clear();
+                    println!("Wrote to {:?}", filename);
                 }
             }
         }
