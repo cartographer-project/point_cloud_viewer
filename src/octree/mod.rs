@@ -238,14 +238,19 @@ impl Octree {
             projection_matrix,
         );
 
+        println!("open.len() = {:?}", open.len());
+        println!("open = {:?}", open);
+
         let mut visible = Vec::new();
         while let Some(current) = open.pop() {
+            println!("current = {:?}", current);
             match current.relation {
                 Relation::Cross => {
                     for child_index in 0..8 {
                         let child = current.node.get_child(ChildIndex::from_u8(child_index));
                         let child_relation = frustum_isec
                             .intersect(&child.bounding_cube.to_aabb().compute_corners());
+                        println!("child_relation for {} is {:?}", child.id, child_relation);
                         if child_relation == Relation::Out {
                             continue;
                         }
@@ -279,79 +284,6 @@ impl Octree {
                 visible.push(current.node.id);
             }
         }
-        visible
-    }
-
-    pub fn get_visible_nodes_simple(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
-        let frustum =
-            Frustum::from_matrix4(*projection_matrix).expect("Invalid projection matrix.");
-        let frustum_isec = frustum.intersector().cache_separating_axes_for_aabb();
-        let mut open = std::collections::VecDeque::new();
-        let root_cube = Cube::bounding(&self.meta.bounding_box);
-        let root_node = Node::root_with_bounding_cube(root_cube.clone());
-
-        struct Elem {
-            node: Node,
-            relation: Relation,
-            empty: bool,
-        }
-        // Is this a bug? Missing intersection test, root node is always included 
-        open.push_back(Elem {
-            node: root_node,
-            relation: Relation::Cross,
-            empty: self.nodes[&NodeId::root()].num_points == 0
-        });
-
-        let mut visible = Vec::new();
-        while let Some(current) = open.pop_front() {
-            match current.relation {
-                Relation::Cross => {
-                    for child_index in 0..8 {
-                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
-                        let child_relation = frustum_isec
-                            .intersect(&child.bounding_cube.to_aabb().compute_corners());
-                        if child_relation == Relation::Out {
-                            continue;
-                        }
-                        if let Some(meta) = self.nodes.get(&child.id) {
-                            open.push_back(Elem {
-                                node: child,
-                                relation: child_relation,
-                                empty: meta.num_points == 0
-                            });
-                        }
-                    }
-                }
-                Relation::In => {
-                    // When the parent is fully in the frustum, so are the children.
-                    for child_index in 0..8 {
-                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
-                        if let Some(meta) = self.nodes.get(&child.id) {
-                            open.push_back(Elem {
-                                node: child,
-                                relation: Relation::In,
-                                empty: meta.num_points == 0
-                            });
-                        }
-                    }
-                }
-                Relation::Out => {
-                    // This should never happen.
-                    unreachable!();
-                }
-            };
-            if !current.empty {
-                visible.push(current.node.id);
-            }
-        }
-        visible.sort_by_cached_key(|id| {
-            ordered_float::NotNan::new(relative_size_on_screen(
-                &id.find_bounding_cube(&root_cube),
-                projection_matrix,
-            ))
-            .unwrap()
-        });
-        visible.reverse();
         visible
     }
 
@@ -393,9 +325,62 @@ impl Octree {
         let isec = location.aabb_intersector();
         NodeIdsIterator::new(&self, |node_id, octree| {
             let aabb = octree.nodes[&node_id].bounding_cube.to_aabb();
-            isec.intersect_aabb(&aabb)
+            isec.intersect_aabb(&aabb) != Relation::Out
         })
         .collect()
+    }
+
+    pub fn nodes_in_location_impl_relation<'a, T: HasAabbIntersector<'a, f64>>(
+        &self,
+        location: &'a T,
+    ) -> Vec<NodeId> {
+        let mut open = Vec::new();
+        let root_cube = Cube::bounding(&self.meta.bounding_box);
+        let root_node = Node::root_with_bounding_cube(root_cube);
+        let location_isec = location.aabb_intersector();
+
+        struct Elem {
+            node: Node,
+            relation: Relation,
+            empty: bool,
+        }
+        // Is this a bug? Missing intersection test, root node is always included
+        open.push(Elem {
+            node: root_node,
+            relation: Relation::Cross,
+            empty: self.nodes[&NodeId::root()].num_points == 0,
+        });
+
+        let mut node_ids = Vec::new();
+        while let Some(current) = open.pop() {
+            for child_index in 0..8 {
+                let child = current.node.get_child(ChildIndex::from_u8(child_index));
+                // Check that the node exists
+                if let Some(meta) = self.nodes.get(&child.id) {
+                    let child_relation = match current.relation {
+                        Relation::Out => unreachable!(),
+                        Relation::In => Relation::In,
+                        Relation::Cross => {
+                            let rel = location_isec.intersect_aabb(&child.bounding_cube.to_aabb());
+                            if rel == Relation::Out {
+                                continue;
+                            }
+                            rel
+                        }
+                    };
+                    // Empty nodes can have nonempty children, so they are not filtered out yet
+                    open.push(Elem {
+                        node: child,
+                        relation: child_relation,
+                        empty: meta.num_points == 0,
+                    });
+                }
+            }
+            if !current.empty {
+                node_ids.push(current.node.id);
+            }
+        }
+        node_ids
     }
 }
 
@@ -433,6 +418,7 @@ impl PointCloud for Octree {
     }
 }
 
+#[derive(Debug)]
 struct OpenNode {
     node: Node,
     relation: Relation,

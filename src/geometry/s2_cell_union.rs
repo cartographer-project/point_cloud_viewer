@@ -3,7 +3,7 @@ pub use s2::cellunion::CellUnion;
 
 use crate::geometry::Aabb;
 use crate::math::base::{HasAabbIntersector, IntersectAabb, PointCulling};
-use crate::math::sat::ConvexPolyhedron;
+use crate::math::sat::{ConvexPolyhedron, Relation};
 use crate::math::FromPoint3;
 use nalgebra::{Point3, RealField};
 use s2::{cell::Cell, cellid::CellID, region::Region};
@@ -46,8 +46,12 @@ where
     f64: From<S>,
     S: RealField,
 {
-    fn intersect_aabb(&self, aabb: &Aabb<S>) -> bool {
-        cells_intersecting_polyhedron(self, aabb)
+    fn intersect_aabb(&self, aabb: &Aabb<S>) -> Relation {
+        if cells_intersecting_polyhedron(self, aabb) {
+            Relation::Cross
+        } else {
+            Relation::Out
+        }
     }
 }
 

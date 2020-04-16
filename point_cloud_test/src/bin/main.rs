@@ -34,18 +34,30 @@ fn main() -> Result<()> {
     }) as Box<dyn DataProvider>;
     let point_cloud = Octree::from_data_provider(data_provider).unwrap();
 
+    use std::collections::HashSet;
     for frustum in &frustums {
-        let node_ids_old = point_cloud.get_visible_nodes(frustum.as_matrix());
-        let node_ids_new = point_cloud.get_visible_nodes_simple(frustum.as_matrix());
-        assert_eq!(node_ids_old, node_ids_new);
+        println!("==============================");
+        let mut node_ids_1 = point_cloud.get_visible_nodes(frustum.as_matrix());
+        let mut node_ids_2 = point_cloud.nodes_in_location_impl_relation(frustum);
+        let mut node_ids_3 = point_cloud.nodes_in_location_impl(frustum);
+        let node_ids_1_hashset: HashSet<_> = node_ids_1.iter().copied().collect();
+        let node_ids_2_hashset: HashSet<_> = node_ids_2.iter().copied().collect();
+        let node_ids_3_hashset: HashSet<_> = node_ids_3.iter().copied().collect();
+        assert_eq!(node_ids_1.len(), node_ids_3.len(), "{:?}", node_ids_1);
+        for id in &node_ids_1 {
+            assert!(node_ids_2_hashset.contains(id), "{} not in node_ids_2", id);
+        }
+        for id in &node_ids_2 {
+            assert!(node_ids_1_hashset.contains(id), "{} not in node_ids_1", id);
+        }
     }
 
     let mut now = Instant::now();
     let x = with_get_visible_nodes(&point_cloud, opt.iterations, &frustums);
     println!("get_visible_nodes: {:?} {}", now.elapsed(), x);
     now = Instant::now();
-    let x = with_get_visible_nodes_simple(&point_cloud, opt.iterations, &frustums);
-    println!("get_visible_nodes_simple: {:?} {}", now.elapsed(), x);
+    let x = with_nodes_in_location_impl_relation(&point_cloud, opt.iterations, &frustums);
+    println!("nodes_in_location_impl_relation: {:?} {}", now.elapsed(), x);
     now = Instant::now();
     let y = with_nodes_in_location_impl(&point_cloud, opt.iterations, &frustums);
     println!("nodes_in_location_impl: {:?} {}", now.elapsed(), y);
@@ -72,7 +84,7 @@ fn with_get_visible_nodes(
 }
 
 #[inline(never)]
-fn with_get_visible_nodes_simple(
+fn with_nodes_in_location_impl_relation(
     point_cloud: &Octree,
     iterations: u32,
     frustums: &Vec<Frustum<f64>>,
@@ -81,7 +93,7 @@ fn with_get_visible_nodes_simple(
     let mut total_length = 0;
     for _ in 0..iterations {
         for frustum in frustums {
-            let node_ids = point_cloud.get_visible_nodes_simple(frustum.as_matrix());
+            let node_ids = point_cloud.nodes_in_location_impl_relation(frustum);
             total_length += node_ids.len();
         }
         total_length = total_length % 100;
