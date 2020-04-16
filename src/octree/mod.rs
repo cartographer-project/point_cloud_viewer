@@ -332,42 +332,30 @@ impl Octree {
 
         let mut node_ids = Vec::new();
         while let Some(current) = open.pop_front() {
-            match current.relation {
-                Relation::Cross => {
-                    for child_index in 0..8 {
-                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
-                        let child_relation =
-                            location_isec.intersect_aabb(&child.bounding_cube.to_aabb());
-                        if child_relation == Relation::Out {
-                            continue;
+            for child_index in 0..8 {
+                let child = current.node.get_child(ChildIndex::from_u8(child_index));
+                // Check that the node exists
+                if let Some(meta) = self.nodes.get(&child.id) {
+                    let child_relation = match current.relation {
+                        Relation::Out => unreachable!(),
+                        Relation::In => Relation::In,
+                        Relation::Cross => {
+                            let rel = location_isec.intersect_aabb(&child.bounding_cube.to_aabb());
+                            if rel == Relation::Out {
+                                continue;
+                            }
+                            rel
                         }
-                        if let Some(meta) = self.nodes.get(&child.id) {
-                            open.push_back(Elem {
-                                node: child,
-                                relation: child_relation,
-                                empty: meta.num_points == 0,
-                            });
-                        }
-                    }
+                    };
+                    // Empty nodes can have nonempty children, so they are not filtered out yet
+                    open.push_back(Elem {
+                        node: child,
+                        relation: child_relation,
+                        empty: meta.num_points == 0,
+                    });
                 }
-                Relation::In => {
-                    // When the parent is fully in the frustum, so are the children.
-                    for child_index in 0..8 {
-                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
-                        if let Some(meta) = self.nodes.get(&child.id) {
-                            open.push_back(Elem {
-                                node: child,
-                                relation: Relation::In,
-                                empty: meta.num_points == 0,
-                            });
-                        }
-                    }
-                }
-                Relation::Out => {
-                    // This should never happen.
-                    unreachable!();
-                }
-            };
+            }
+
             if !current.empty {
                 node_ids.push(current.node.id);
             }
