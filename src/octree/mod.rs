@@ -151,15 +151,6 @@ pub struct NodeData {
     pub color: Vec<u8>,
 }
 
-const NUM_FRUSTUMS: usize = 100;
-
-use std::sync::Mutex;
-lazy_static::lazy_static! {
-    static ref FRUSTUMS: Mutex<Vec<Frustum<f64>>> = {
-        Mutex::new(Vec::with_capacity(NUM_FRUSTUMS))
-    };
-}
-
 impl Octree {
     // TODO(sirver): This creates an object that is only partially usable.
     pub fn from_data_provider(data_provider: Box<dyn DataProvider>) -> Result<Self> {
@@ -237,24 +228,6 @@ impl Octree {
     pub fn get_visible_nodes(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
         let frustum =
             Frustum::from_matrix4(*projection_matrix).expect("Invalid projection matrix.");
-        match std::env::var("LOG_SDL_VIEWER_QUERIES") {
-            Err(_) => (),
-            Ok(filename) => {
-                let mut queries = FRUSTUMS.lock().unwrap();
-                if queries.len() < NUM_FRUSTUMS {
-                    queries.push(frustum.clone());
-                }
-                if queries.len() == NUM_FRUSTUMS {
-                    use std::fs::{self, OpenOptions};
-                    use std::io::BufWriter;
-                    let file = fs::File::create(&filename).expect("Couldn't open file for logging");
-                    let f = BufWriter::new(file);
-                    serde_json::to_writer(f, &*queries).unwrap();
-                    queries.clear();
-                    println!("Wrote to {:?}", filename);
-                }
-            }
-        }
         let frustum_isec = frustum.intersector().cache_separating_axes_for_aabb();
         let mut open = BinaryHeap::new();
         maybe_push_node(
@@ -309,6 +282,79 @@ impl Octree {
         visible
     }
 
+    pub fn get_visible_nodes_simple(&self, projection_matrix: &Matrix4<f64>) -> Vec<NodeId> {
+        let frustum =
+            Frustum::from_matrix4(*projection_matrix).expect("Invalid projection matrix.");
+        let frustum_isec = frustum.intersector().cache_separating_axes_for_aabb();
+        let mut open = std::collections::VecDeque::new();
+        let root_cube = Cube::bounding(&self.meta.bounding_box);
+        let root_node = Node::root_with_bounding_cube(root_cube.clone());
+
+        struct Elem {
+            node: Node,
+            relation: Relation,
+            empty: bool,
+        }
+        // Is this a bug? Missing intersection test, root node is always included 
+        open.push_back(Elem {
+            node: root_node,
+            relation: Relation::Cross,
+            empty: self.nodes[&NodeId::root()].num_points == 0
+        });
+
+        let mut visible = Vec::new();
+        while let Some(current) = open.pop_front() {
+            match current.relation {
+                Relation::Cross => {
+                    for child_index in 0..8 {
+                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
+                        let child_relation = frustum_isec
+                            .intersect(&child.bounding_cube.to_aabb().compute_corners());
+                        if child_relation == Relation::Out {
+                            continue;
+                        }
+                        if let Some(meta) = self.nodes.get(&child.id) {
+                            open.push_back(Elem {
+                                node: child,
+                                relation: child_relation,
+                                empty: meta.num_points == 0
+                            });
+                        }
+                    }
+                }
+                Relation::In => {
+                    // When the parent is fully in the frustum, so are the children.
+                    for child_index in 0..8 {
+                        let child = current.node.get_child(ChildIndex::from_u8(child_index));
+                        if let Some(meta) = self.nodes.get(&child.id) {
+                            open.push_back(Elem {
+                                node: child,
+                                relation: Relation::In,
+                                empty: meta.num_points == 0
+                            });
+                        }
+                    }
+                }
+                Relation::Out => {
+                    // This should never happen.
+                    unreachable!();
+                }
+            };
+            if !current.empty {
+                visible.push(current.node.id);
+            }
+        }
+        visible.sort_by_cached_key(|id| {
+            ordered_float::NotNan::new(relative_size_on_screen(
+                &id.find_bounding_cube(&root_cube),
+                projection_matrix,
+            ))
+            .unwrap()
+        });
+        visible.reverse();
+        visible
+    }
+
     pub fn get_node_data(&self, node_id: &NodeId) -> Result<NodeData> {
         // TODO(hrapp): If we'd randomize the points while writing, we could just read the
         // first N points instead of reading everything and skipping over a few.
@@ -336,7 +382,7 @@ impl Octree {
         })
     }
 
-    fn nodes_in_location_impl<'a, T: HasAabbIntersector<'a, f64>>(
+    pub fn nodes_in_location_impl<'a, T: HasAabbIntersector<'a, f64>>(
         &self,
         location: &'a T,
     ) -> Vec<NodeId> {

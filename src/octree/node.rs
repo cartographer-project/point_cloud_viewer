@@ -111,7 +111,7 @@ impl NodeId {
     }
 
     /// Returns the root node of the octree.
-    fn root() -> Self {
+    pub fn root() -> Self {
         NodeId(0)
     }
 
