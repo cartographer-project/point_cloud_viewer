@@ -34,9 +34,6 @@ pub use self::generation::{build_octree, build_octree_from_file};
 mod node;
 pub use self::node::{to_node_proto, ChildIndex, Node, NodeId, NodeMeta};
 
-mod octree_iterator;
-pub use self::octree_iterator::NodeIdsIterator;
-
 #[cfg(test)]
 mod tests;
 
