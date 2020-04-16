@@ -310,7 +310,7 @@ impl Octree {
         &self,
         location: &'a T,
     ) -> Vec<NodeId> {
-        let mut open = std::collections::VecDeque::new();
+        let mut open = Vec::new();
         let root_cube = Cube::bounding(&self.meta.bounding_box);
         let root_node = Node::root_with_bounding_cube(root_cube);
         let location_isec = location.aabb_intersector();
@@ -321,14 +321,14 @@ impl Octree {
             empty: bool,
         }
         // Is this a bug? Missing intersection test, root node is always included
-        open.push_back(Elem {
+        open.push(Elem {
             node: root_node,
             relation: Relation::Cross,
             empty: self.nodes[&NodeId::root()].num_points == 0,
         });
 
         let mut node_ids = Vec::new();
-        while let Some(current) = open.pop_front() {
+        while let Some(current) = open.pop() {
             for child_index in 0..8 {
                 let child = current.node.get_child(ChildIndex::from_u8(child_index));
                 // Check that the node exists
@@ -345,7 +345,7 @@ impl Octree {
                         }
                     };
                     // Empty nodes can have nonempty children, so they are not filtered out yet
-                    open.push_back(Elem {
+                    open.push(Elem {
                         node: child,
                         relation: child_relation,
                         empty: meta.num_points == 0,
