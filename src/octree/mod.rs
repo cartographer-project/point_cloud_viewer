@@ -247,7 +247,7 @@ impl Octree {
                 if queries.len() == NUM_FRUSTUMS {
                     use std::fs::{self, OpenOptions};
                     use std::io::BufWriter;
-                    let file = fs::create(filename).expect("Couldn't open file for logging");
+                    let file = fs::File::create(filename).expect("Couldn't open file for logging");
                     let f = BufWriter::new(file);
                     serde_json::to_writer(f, &*queries).unwrap();
                     queries.clear();
