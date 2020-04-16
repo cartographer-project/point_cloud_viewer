@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use point_cloud_client::PointCloudClient;
+use point_cloud_test_lib::queries::*;
 use point_cloud_test_lib::{
-    get_abb_query, get_cell_union_query, get_frustum_query, get_obb_query, make_octree,
-    make_s2_cells, setup_octree_client, setup_s2_client, Arguments, SyntheticData,
+    make_octree, make_s2_cells, setup_octree_client, setup_s2_client, Arguments, SyntheticData,
 };
 use point_viewer::iterator::{PointLocation, PointQuery};
 use tempdir::TempDir;
@@ -48,11 +48,11 @@ fn all_query_s2(b: &mut Criterion) {
 }
 
 fn box_query_octree(b: &mut Criterion) {
-    run_bench("box_query_octree", setup_octree_client, get_abb_query, b)
+    run_bench("box_query_octree", setup_octree_client, get_aabb_query, b)
 }
 
 fn box_query_s2(b: &mut Criterion) {
-    run_bench("box_query_s2", setup_s2_client, get_abb_query, b)
+    run_bench("box_query_s2", setup_s2_client, get_aabb_query, b)
 }
 
 fn frustum_query_octree(b: &mut Criterion) {
