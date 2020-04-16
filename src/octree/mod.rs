@@ -151,7 +151,7 @@ pub struct NodeData {
     pub color: Vec<u8>,
 }
 
-const NUM_FRUSTUMS: usize = 10000;
+const NUM_FRUSTUMS: usize = 100;
 
 use std::sync::Mutex;
 lazy_static::lazy_static! {
