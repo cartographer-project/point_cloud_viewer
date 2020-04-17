@@ -36,20 +36,16 @@ fn main() -> Result<()> {
 
     use std::collections::HashSet;
     for frustum in &frustums {
-        println!("==============================");
         let mut node_ids_1 = point_cloud.get_visible_nodes(frustum.as_matrix());
-        let mut node_ids_2 = point_cloud.nodes_in_location_impl_relation(frustum);
-        let mut node_ids_3 = point_cloud.nodes_in_location_impl(frustum);
-        let node_ids_1_hashset: HashSet<_> = node_ids_1.iter().copied().collect();
-        let node_ids_2_hashset: HashSet<_> = node_ids_2.iter().copied().collect();
-        let node_ids_3_hashset: HashSet<_> = node_ids_3.iter().copied().collect();
-        assert_eq!(node_ids_1.len(), node_ids_3.len(), "{:?}", node_ids_1);
-        for id in &node_ids_1 {
-            assert!(node_ids_2_hashset.contains(id), "{} not in node_ids_2", id);
-        }
-        for id in &node_ids_2 {
-            assert!(node_ids_1_hashset.contains(id), "{} not in node_ids_1", id);
-        }
+        let mut node_ids_2 = point_cloud.nodes_in_location_impl_relation(frustum, false);
+        let mut node_ids_3 = point_cloud.nodes_in_location_impl_relation(frustum, true);
+        let mut node_ids_4 = point_cloud.nodes_in_location_impl(frustum);
+        node_ids_1.sort();
+        node_ids_2.sort();
+        node_ids_3.sort();
+        node_ids_4.sort();
+        assert_eq!(node_ids_1, node_ids_2);
+        assert_eq!(node_ids_3, node_ids_4);
     }
 
     let mut now = Instant::now();
@@ -93,7 +89,7 @@ fn with_nodes_in_location_impl_relation(
     let mut total_length = 0;
     for _ in 0..iterations {
         for frustum in frustums {
-            let node_ids = point_cloud.nodes_in_location_impl_relation(frustum);
+            let node_ids = point_cloud.nodes_in_location_impl_relation(frustum, false);
             total_length += node_ids.len();
         }
         total_length = total_length % 100;

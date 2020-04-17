@@ -238,19 +238,15 @@ impl Octree {
             projection_matrix,
         );
 
-        println!("open.len() = {:?}", open.len());
-        println!("open = {:?}", open);
 
         let mut visible = Vec::new();
         while let Some(current) = open.pop() {
-            println!("current = {:?}", current);
             match current.relation {
                 Relation::Cross => {
                     for child_index in 0..8 {
                         let child = current.node.get_child(ChildIndex::from_u8(child_index));
                         let child_relation = frustum_isec
                             .intersect(&child.bounding_cube.to_aabb().compute_corners());
-                        println!("child_relation for {} is {:?}", child.id, child_relation);
                         if child_relation == Relation::Out {
                             continue;
                         }
@@ -333,6 +329,7 @@ impl Octree {
     pub fn nodes_in_location_impl_relation<'a, T: HasAabbIntersector<'a, f64>>(
         &self,
         location: &'a T,
+        retain_empty: bool,
     ) -> Vec<NodeId> {
         let mut open = Vec::new();
         let root_cube = Cube::bounding(&self.meta.bounding_box);
@@ -376,7 +373,7 @@ impl Octree {
                     });
                 }
             }
-            if !current.empty {
+            if retain_empty || !current.empty {
                 node_ids.push(current.node.id);
             }
         }

@@ -119,7 +119,7 @@ impl<S: RealField> Frustum<S> {
     }
 
     pub fn as_matrix(&self) -> &Matrix4<S> {
-        &self.query_from_clip
+        &self.clip_from_query
     }
 }
 
