@@ -6,6 +6,8 @@ use point_viewer::octree::Octree;
 use point_viewer::s2_cells::S2Cells;
 use point_viewer::{PointsBatch, NUM_POINTS_PER_BATCH};
 
+mod logging;
+
 enum PointClouds {
     Octrees(Vec<Octree>),
     S2Cells(Vec<S2Cells>),
@@ -43,6 +45,7 @@ impl PointCloudClient {
     where
         F: FnMut(PointsBatch) -> Result<()>,
     {
+        logging::log_if_env_var_is_set(point_query);
         match &self.point_clouds {
             PointClouds::Octrees(octrees) => self.for_each(octrees, point_query, func),
             PointClouds::S2Cells(s2_cells) => self.for_each(s2_cells, point_query, func),
@@ -138,5 +141,11 @@ impl<'a> PointCloudClientBuilder<'a> {
             num_threads: self.num_threads,
             buffer_size: self.buffer_size,
         })
+    }
+}
+
+impl Drop for PointCloudClient {
+    fn drop(&mut self) {
+        logging::flush()
     }
 }
