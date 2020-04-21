@@ -44,14 +44,16 @@ fn main() {
     println!("cargo:rerun-if-changed=src/proto.proto");
 
     let git_repo_root = find_git_repo_root();
+    // TODO(feuerste): Remove, once https://github.com/stepancheg/grpc-rust/blob/7117a28bcd05572b9e8706a554bf677c033dc1a0/protoc-rust-grpc/src/lib.rs#L31
+    // is done
     let _protoc_path = ScopedProtocPath::default();
-    protoc_grpcio::compile_grpc_protos(
-        &["point_viewer_grpc_proto_rust/src/proto.proto"],
-        &[git_repo_root],
-        &out_dir,
-        None,
-    )
-    .expect("Failed to compile gRPC definitions!");
+    protoc_rust_grpc::run(protoc_rust_grpc::Args {
+        out_dir: &out_dir,
+        includes: &[git_repo_root],
+        input: &["point_viewer_grpc_proto_rust/src/proto.proto"],
+        rust_protobuf: true,
+        ..Default::default()
+    }).expect("Failed to compile gRPC definitions!");
 
     inplace_modify_file(&Path::new(&out_dir).join("proto.rs"), |c| {
         // Work around https://github.com/stepancheg/rust-protobuf/issues/260. The protobuf plugin

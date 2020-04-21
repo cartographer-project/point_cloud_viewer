@@ -25,8 +25,8 @@ edition = "2018"
 
 [build-dependencies]
 protobuf_provider = { path = "../protobuf_provider" }
-protoc-grpcio = "1.2.0"
 protoc-rust = "2.14.0"
+protoc-rust-grpc = { git = "https://github.com/stepancheg/grpc-rust.git", rev = "5aef2956aa76493ab8030148d6e62cf6d7c407f8" }
 
 [dependencies]
 protobuf = "2.14.0"
