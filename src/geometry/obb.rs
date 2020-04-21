@@ -4,35 +4,35 @@ use super::aabb::Aabb;
 use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use crate::math::{HasAabbIntersector, PointCulling};
 use arrayvec::ArrayVec;
-use nalgebra::{Isometry3, Point3, RealField, Unit, UnitQuaternion, Vector3};
+use nalgebra::{Isometry3, Point3, Unit, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 use std::iter::FromIterator;
 
 /// An oriented bounding box.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Obb<S: RealField> {
-    query_from_obb: Isometry3<S>,
-    obb_from_query: Isometry3<S>,
-    half_extent: Vector3<S>,
+pub struct Obb {
+    query_from_obb: Isometry3<f64>,
+    obb_from_query: Isometry3<f64>,
+    half_extent: Vector3<f64>,
 }
 
-impl<S: RealField> From<&Aabb<S>> for Obb<S> {
-    fn from(aabb: &Aabb<S>) -> Self {
+impl From<&Aabb<f64>> for Obb {
+    fn from(aabb: &Aabb<f64>) -> Self {
         Obb::new(
             Isometry3::from_parts(aabb.center().coords.into(), UnitQuaternion::identity()),
-            aabb.diag() * nalgebra::convert::<f64, S>(0.5),
+            aabb.diag() * 0.5,
         )
     }
 }
 
-impl<S: RealField> From<Aabb<S>> for Obb<S> {
-    fn from(aabb: Aabb<S>) -> Self {
+impl From<Aabb<f64>> for Obb {
+    fn from(aabb: Aabb<f64>) -> Self {
         Self::from(&aabb)
     }
 }
 
-impl<S: RealField> Obb<S> {
-    pub fn new(query_from_obb: Isometry3<S>, half_extent: Vector3<S>) -> Self {
+impl Obb {
+    pub fn new(query_from_obb: Isometry3<f64>, half_extent: Vector3<f64>) -> Self {
         Obb {
             obb_from_query: query_from_obb.inverse(),
             half_extent,
@@ -40,13 +40,13 @@ impl<S: RealField> Obb<S> {
         }
     }
 
-    pub fn transformed(&self, global_from_query: &Isometry3<S>) -> Self {
+    pub fn transformed(&self, global_from_query: &Isometry3<f64>) -> Self {
         Self::new(global_from_query * self.query_from_obb, self.half_extent)
     }
 }
 
-impl<S: RealField> ConvexPolyhedron<S> for Obb<S> {
-    fn compute_corners(&self) -> [Point3<S>; 8] {
+impl ConvexPolyhedron<f64> for Obb {
+    fn compute_corners(&self) -> [Point3<f64>; 8] {
         let corner_from = |x, y, z| self.query_from_obb * Point3::new(x, y, z);
         [
             corner_from(
@@ -64,7 +64,7 @@ impl<S: RealField> ConvexPolyhedron<S> for Obb<S> {
         ]
     }
 
-    fn intersector(&self) -> Intersector<S> {
+    fn intersector(&self) -> Intersector<f64> {
         let mut edges = ArrayVec::new();
         edges.push(Unit::new_normalize(self.query_from_obb * Vector3::x()));
         edges.push(Unit::new_normalize(self.query_from_obb * Vector3::y()));
@@ -78,10 +78,10 @@ impl<S: RealField> ConvexPolyhedron<S> for Obb<S> {
     }
 }
 
-has_aabb_intersector_for_convex_polyhedron!(Obb<S>);
+has_aabb_intersector_for_convex_polyhedron!(Obb);
 
-impl<S: RealField> PointCulling<S> for Obb<S> {
-    fn contains(&self, p: &Point3<S>) -> bool {
+impl PointCulling<f64> for Obb {
+    fn contains(&self, p: &Point3<f64>) -> bool {
         let p = self.obb_from_query * p;
         p.x.abs() <= self.half_extent.x
             && p.y.abs() <= self.half_extent.y
