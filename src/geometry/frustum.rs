@@ -3,18 +3,18 @@
 use crate::math::base::{HasAabbIntersector, PointCulling};
 use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use arrayvec::ArrayVec;
-use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, RealField, Unit, Vector3};
+use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Unit, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// A perspective projection matrix analogous to cgmath::Perspective.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Perspective<S: RealField> {
-    matrix: Matrix4<S>,
+pub struct Perspective{
+    matrix: Matrix4<f64>,
 }
 
-impl<S: RealField> Perspective<S> {
+impl Perspective {
     /// Left, right, bottom, and top are in radians.
-    pub fn new(left: S, right: S, bottom: S, top: S, near: S, far: S) -> Self {
+    pub fn new(left: f64, right: f64, bottom: f64, top: f64, near: f64, far: f64) -> Self {
         assert!(
             left < right,
             "`left` must be smaller than `right`, found: left: {:?} right: {:?}",
@@ -28,38 +28,36 @@ impl<S: RealField> Perspective<S> {
             top
         );
         assert!(
-            near > S::zero() && near < far,
+            near > 0.0 && near < far,
             "`near` must be greater than 0 and must be smaller than `far`, found: near: {:?} far: {:?}",
             near,
             far
         );
 
-        let two: S = nalgebra::convert(2.0);
-
-        let r0c0 = (two * near) / (right - left);
+        let r0c0 = (2.0 * near) / (right - left);
         let r0c2 = (right + left) / (right - left);
 
-        let r1c1 = (two * near) / (top - bottom);
+        let r1c1 = (2.0 * near) / (top - bottom);
         let r1c2 = (top + bottom) / (top - bottom);
 
         let r2c2 = -(far + near) / (far - near);
-        let r2c3 = -(two * far * near) / (far - near);
+        let r2c3 = -(2.0 * far * near) / (far - near);
 
         #[rustfmt::skip]
         let matrix = Matrix4::new(
-            r0c0,      S::zero(), r0c2,      S::zero(),
-            S::zero(), r1c1,      r1c2,      S::zero(),
-            S::zero(), S::zero(), r2c2,      r2c3,
-            S::zero(), S::zero(), -S::one(), S::zero(),
+            r0c0, 0.0,  r0c2, 0.0,
+            0.0,  r1c1, r1c2, 0.0,
+            0.0,  0.0,  r2c2, r2c3,
+            0.0,  0.0,  -1.0, 0.0,
         );
         Self { matrix }
     }
 
-    pub fn as_matrix(&self) -> &Matrix4<S> {
+    pub fn as_matrix(&self) -> &Matrix4<f64> {
         &self.matrix
     }
 
-    pub fn inverse(&self) -> Matrix4<S> {
+    pub fn inverse(&self) -> Matrix4<f64> {
         let r0c0 = self.matrix[(0, 0)].recip();
         let r0c3 = self.matrix[(0, 2)] / self.matrix[(0, 0)];
 
@@ -71,17 +69,17 @@ impl<S: RealField> Perspective<S> {
 
         #[rustfmt::skip]
         let matrix = Matrix4::new(
-            r0c0,      S::zero(), S::zero(), r0c3,
-            S::zero(), r1c1,      S::zero(), r1c3,
-            S::zero(), S::zero(), S::zero(), -S::one(),
-            S::zero(), S::zero(), r3c2,      r3c3,
+            r0c0,      0.0, 0.0, r0c3,
+            0.0, r1c1,      0.0, r1c3,
+            0.0, 0.0, 0.0, -1.0,
+            0.0, 0.0, r3c2,      r3c3,
         );
         matrix
     }
 }
 
-impl<S: RealField> From<Perspective3<S>> for Perspective<S> {
-    fn from(per3: Perspective3<S>) -> Self {
+impl From<Perspective3<f64>> for Perspective {
+    fn from(per3: Perspective3<f64>) -> Self {
         Self {
             matrix: per3.to_homogeneous(),
         }
@@ -94,13 +92,13 @@ impl<S: RealField> From<Perspective3<S>> for Perspective<S> {
 /// to eye coordinates, you need to rotate 180 deg around the x axis before
 /// creating the perspective projection, see also the frustum unit test below.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Frustum<S: RealField> {
-    query_from_clip: Matrix4<S>,
-    clip_from_query: Matrix4<S>,
+pub struct Frustum {
+    query_from_clip: Matrix4<f64>,
+    clip_from_query: Matrix4<f64>,
 }
 
-impl<S: RealField> Frustum<S> {
-    pub fn new(query_from_eye: Isometry3<S>, clip_from_eye: Perspective<S>) -> Self {
+impl Frustum {
+    pub fn new(query_from_eye: Isometry3<f64>, clip_from_eye: Perspective) -> Self {
         let clip_from_query = clip_from_eye.as_matrix() * query_from_eye.inverse().to_homogeneous();
         let query_from_clip = query_from_eye.to_homogeneous() * clip_from_eye.inverse();
         Frustum {
@@ -110,7 +108,7 @@ impl<S: RealField> Frustum<S> {
     }
 
     /// Fails if the matrix is not invertible.
-    pub fn from_matrix4(clip_from_query: Matrix4<S>) -> Option<Self> {
+    pub fn from_matrix4(clip_from_query: Matrix4<f64>) -> Option<Self> {
         let query_from_clip = clip_from_query.try_inverse()?;
         Some(Self {
             query_from_clip,
@@ -119,36 +117,36 @@ impl<S: RealField> Frustum<S> {
     }
 }
 
-impl<S: RealField> PointCulling<S> for Frustum<S> {
-    fn contains(&self, point: &Point3<S>) -> bool {
+impl PointCulling<f64> for Frustum {
+    fn contains(&self, point: &Point3<f64>) -> bool {
         let p_clip = self.clip_from_query.transform_point(point);
-        p_clip.coords.min() > nalgebra::convert(-1.0)
-            && p_clip.coords.max() < nalgebra::convert(1.0)
+        p_clip.coords.min() > -1.0
+            && p_clip.coords.max() < 1.0
     }
 }
 
-has_aabb_intersector_for_convex_polyhedron!(Frustum<S>);
+has_aabb_intersector_for_convex_polyhedron!(Frustum);
 
-impl<S: RealField> ConvexPolyhedron<S> for Frustum<S> {
+impl ConvexPolyhedron<f64> for Frustum {
     #[rustfmt::skip]
-    fn compute_corners(&self) -> [Point3<S>; 8] {
+    fn compute_corners(&self) -> [Point3<f64>; 8] {
         let corner_from = |x, y, z| self.query_from_clip.transform_point(&Point3::new(x, y, z));
         [
-            corner_from(-S::one(), -S::one(), -S::one()),
-            corner_from(-S::one(), -S::one(),  S::one()),
-            corner_from(-S::one(),  S::one(), -S::one()),
-            corner_from(-S::one(),  S::one(),  S::one()),
-            corner_from( S::one(), -S::one(), -S::one()),
-            corner_from( S::one(), -S::one(),  S::one()),
-            corner_from( S::one(),  S::one(), -S::one()),
-            corner_from( S::one(),  S::one(),  S::one()),
+            corner_from(-1.0, -1.0, -1.0),
+            corner_from(-1.0, -1.0,  1.0),
+            corner_from(-1.0,  1.0, -1.0),
+            corner_from(-1.0,  1.0,  1.0),
+            corner_from( 1.0, -1.0, -1.0),
+            corner_from( 1.0, -1.0,  1.0),
+            corner_from( 1.0,  1.0, -1.0),
+            corner_from( 1.0,  1.0,  1.0),
         ]
     }
 
-    fn intersector(&self) -> Intersector<S> {
+    fn intersector(&self) -> Intersector<f64> {
         let corners = self.compute_corners();
 
-        let mut edges: ArrayVec<[Unit<Vector3<S>>; 12]> = ArrayVec::new();
+        let mut edges: ArrayVec<[Unit<Vector3<f64>>; 12]> = ArrayVec::new();
         edges.push(Unit::new_normalize(corners[4] - corners[0])); // x
         edges.push(Unit::new_normalize(corners[2] - corners[0])); // y
         edges.push(Unit::new_normalize(corners[1] - corners[0])); // z lower left
@@ -180,15 +178,15 @@ mod tests {
     /// aspect, fovy, near and far.
     #[test]
     fn compare_perspective() {
-        impl<S: RealField> Perspective<S> {
+        impl Perspective {
             pub fn new_fov(aspect: S, fovy: S, near: S, far: S) -> Self {
                 assert!(
-                    fovy > S::zero() && fovy < S::pi(),
+                    fovy > 0.0 && fovy < S::pi(),
                     "`fovy` must be a number between 0 and π, found: {:?}",
                     fovy
                 );
                 assert!(
-                    aspect > S::zero(),
+                    aspect > 0.0,
                     "`aspect` must be a positive number, found: {:?}",
                     aspect
                 );

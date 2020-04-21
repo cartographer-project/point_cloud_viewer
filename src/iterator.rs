@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, HashMap};
 pub enum PointLocation {
     AllPoints,
     Aabb(Aabb<f64>),
-    Frustum(Frustum<f64>),
+    Frustum(Frustum),
     Obb(Obb<f64>),
     S2Cells(CellUnion),
     WebMercatorRect(WebMercatorRect),
