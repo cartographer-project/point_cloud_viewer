@@ -31,31 +31,19 @@ where
     cells.iter().any(|cell| rect.intersects_cell(cell))
 }
 
-impl<S> PointCulling<S> for CellUnion
-where
-    S: RealField,
-    f64: From<S>,
-{
-    fn contains(&self, p: &Point3<S>) -> bool {
+impl PointCulling for CellUnion {
+    fn contains(&self, p: &Point3<f64>) -> bool {
         self.contains_cellid(&CellID::from_point(p))
     }
 }
 
-impl<S> IntersectAabb<S> for Vec<Cell>
-where
-    f64: From<S>,
-    S: RealField,
-{
-    fn intersect_aabb(&self, aabb: &Aabb<S>) -> bool {
+impl IntersectAabb for Vec<Cell> {
+    fn intersect_aabb(&self, aabb: &Aabb) -> bool {
         cells_intersecting_polyhedron(self, aabb)
     }
 }
 
-impl<'a, S> HasAabbIntersector<'a, S> for CellUnion
-where
-    f64: From<S>,
-    S: RealField,
-{
+impl<'a> HasAabbIntersector<'a> for CellUnion {
     type Intersector = Vec<Cell>;
     fn aabb_intersector(&'a self) -> Self::Intersector {
         self.0.iter().map(Cell::from).collect()

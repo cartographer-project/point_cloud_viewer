@@ -1,10 +1,10 @@
 //! A Web Mercator axis-aligned rectangle.
 
-use crate::math::base::{HasAabbIntersector, PointCulling};
-use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
+use crate::math::base::PointCulling;
+use crate::math::sat::{ConvexPolyhedron, Intersector};
 use crate::math::web_mercator::WebMercatorCoord;
 use arrayvec::ArrayVec;
-use nalgebra::{Point3, RealField, Unit, Vector2};
+use nalgebra::{Point3, Unit, Vector2};
 use nav_types::{ECEF, WGS84};
 use serde::{Deserialize, Serialize};
 
@@ -112,15 +112,9 @@ impl ConvexPolyhedron<f64> for WebMercatorRect {
     }
 }
 
-has_aabb_intersector_for_convex_polyhedron!(WebMercatorRect);
-
-impl<S: RealField> PointCulling<S> for WebMercatorRect
-where
-    f64: From<S>,
-{
-    fn contains(&self, point: &Point3<S>) -> bool {
-        let ll: WGS84<f64> =
-            ECEF::new(f64::from(point.x), f64::from(point.y), f64::from(point.z)).into();
+impl PointCulling for WebMercatorRect {
+    fn contains(&self, point: &Point3<f64>) -> bool {
+        let ll: WGS84<f64> = ECEF::new(point.x, point.y, point.z).into();
         let wmc = WebMercatorCoord::from_lat_lng(&ll);
         nalgebra::partial_le(&self.north_west, &wmc) && nalgebra::partial_lt(&wmc, &self.south_east)
     }

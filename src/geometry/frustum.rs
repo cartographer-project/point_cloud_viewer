@@ -1,14 +1,14 @@
 //! An asymmetric frustum with an arbitrary 3D pose.
 
-use crate::math::base::{HasAabbIntersector, PointCulling};
-use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
+use crate::math::base::PointCulling;
+use crate::math::sat::{ConvexPolyhedron, Intersector};
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Unit, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// A perspective projection matrix analogous to cgmath::Perspective.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Perspective{
+pub struct Perspective {
     matrix: Matrix4<f64>,
 }
 
@@ -117,15 +117,12 @@ impl Frustum {
     }
 }
 
-impl PointCulling<f64> for Frustum {
+impl PointCulling for Frustum {
     fn contains(&self, point: &Point3<f64>) -> bool {
         let p_clip = self.clip_from_query.transform_point(point);
-        p_clip.coords.min() > -1.0
-            && p_clip.coords.max() < 1.0
+        p_clip.coords.min() > -1.0 && p_clip.coords.max() < 1.0
     }
 }
-
-has_aabb_intersector_for_convex_polyhedron!(Frustum);
 
 impl ConvexPolyhedron<f64> for Frustum {
     #[rustfmt::skip]
@@ -179,9 +176,9 @@ mod tests {
     #[test]
     fn compare_perspective() {
         impl Perspective {
-            pub fn new_fov(aspect: S, fovy: S, near: S, far: S) -> Self {
+            pub fn new_fov(aspect: f64, fovy: f64, near: f64, far: f64) -> Self {
                 assert!(
-                    fovy > 0.0 && fovy < S::pi(),
+                    fovy > 0.0 && fovy < f64::PI,
                     "`fovy` must be a number between 0 and π, found: {:?}",
                     fovy
                 );
@@ -190,7 +187,7 @@ mod tests {
                     "`aspect` must be a positive number, found: {:?}",
                     aspect
                 );
-                let angle = fovy * nalgebra::convert(0.5);
+                let angle = fovy * 0.5;
                 let ymax = near * angle.tan();
                 let xmax = ymax * aspect;
 
@@ -198,8 +195,8 @@ mod tests {
             }
         }
 
-        let persp_a: Perspective<f64> = Perspective::new_fov(1.2, 0.66, 1.0, 100.0);
-        let persp_b: Perspective<f64> = nalgebra::Perspective3::new(1.2, 0.66, 1.0, 100.0).into();
+        let persp_a: Perspective = Perspective::new_fov(1.2, 0.66, 1.0, 100.0);
+        let persp_b: Perspective = nalgebra::Perspective3::new(1.2, 0.66, 1.0, 100.0).into();
         for (el_a, el_b) in persp_a.as_matrix().iter().zip(persp_b.as_matrix().iter()) {
             assert_eq!(el_a, el_b);
         }

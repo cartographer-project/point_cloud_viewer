@@ -21,7 +21,7 @@ pub struct S2Splitter<W> {
     writers: LruCache<CellID, W>,
     already_opened_writers: HashSet<CellID>,
     cell_stats: FnvHashMap<CellID, S2CellMeta>,
-    bounding_box: Option<Aabb<f64>>,
+    bounding_box: Option<Aabb>,
     attributes_seen: BTreeMap<String, AttributeDataType>,
     encoding: Encoding,
     open_mode: OpenMode,

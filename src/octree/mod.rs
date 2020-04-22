@@ -43,7 +43,7 @@ mod tests;
 #[derive(Clone, Debug)]
 pub struct OctreeMeta {
     pub resolution: f64,
-    pub bounding_box: Aabb<f64>,
+    pub bounding_box: Aabb,
     attribute_data_types: HashMap<String, AttributeDataType>,
 }
 
@@ -59,7 +59,7 @@ impl OctreeMeta {
     /// meta data structure, but not its serialized form. So the data structure
     /// is initialized with color and intensity hardcoded until attributes are
     /// in the meta proto.
-    pub fn new_with_standard_attributes(resolution: f64, bounding_box: Aabb<f64>) -> Self {
+    pub fn new_with_standard_attributes(resolution: f64, bounding_box: Aabb) -> Self {
         let attribute_data_types = vec![
             ("color".to_string(), AttributeDataType::U8Vec3),
             ("intensity".to_string(), AttributeDataType::F32),
@@ -309,7 +309,7 @@ impl Octree {
         })
     }
 
-    fn nodes_in_location_impl<'a, T: HasAabbIntersector<'a, f64>>(
+    fn nodes_in_location_impl<'a, T: HasAabbIntersector<'a>>(
         &self,
         location: &'a T,
     ) -> Vec<NodeId> {
@@ -355,7 +355,7 @@ impl PointCloud for Octree {
     }
 
     /// return the bounding box saved in meta
-    fn bounding_box(&self) -> &Aabb<f64> {
+    fn bounding_box(&self) -> &Aabb {
         &self.meta.bounding_box
     }
 }

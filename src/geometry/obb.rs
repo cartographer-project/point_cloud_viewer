@@ -1,8 +1,8 @@
 //! A bounding box with an arbitrary 3D pose.
 
 use super::aabb::Aabb;
-use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
-use crate::math::{HasAabbIntersector, PointCulling};
+use crate::math::sat::{ConvexPolyhedron, Intersector};
+use crate::math::PointCulling;
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, Unit, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
@@ -16,8 +16,8 @@ pub struct Obb {
     half_extent: Vector3<f64>,
 }
 
-impl From<&Aabb<f64>> for Obb {
-    fn from(aabb: &Aabb<f64>) -> Self {
+impl From<&Aabb> for Obb {
+    fn from(aabb: &Aabb) -> Self {
         Obb::new(
             Isometry3::from_parts(aabb.center().coords.into(), UnitQuaternion::identity()),
             aabb.diag() * 0.5,
@@ -25,8 +25,8 @@ impl From<&Aabb<f64>> for Obb {
     }
 }
 
-impl From<Aabb<f64>> for Obb {
-    fn from(aabb: Aabb<f64>) -> Self {
+impl From<Aabb> for Obb {
+    fn from(aabb: Aabb) -> Self {
         Self::from(&aabb)
     }
 }
@@ -78,9 +78,7 @@ impl ConvexPolyhedron<f64> for Obb {
     }
 }
 
-has_aabb_intersector_for_convex_polyhedron!(Obb);
-
-impl PointCulling<f64> for Obb {
+impl PointCulling for Obb {
     fn contains(&self, p: &Point3<f64>) -> bool {
         let p = self.obb_from_query * p;
         p.x.abs() <= self.half_extent.x
