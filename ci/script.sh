@@ -13,7 +13,7 @@ main() {
 
     # root
     cargo clippy --workspace -- -D warnings
-    cargo build --workspace --verbose
+    cargo build --workspace --verbose --all-targets
     cargo test --workspace
 }
 
