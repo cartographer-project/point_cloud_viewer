@@ -1,8 +1,8 @@
 //! A bounding box with an arbitrary 3D pose.
 
 use super::aabb::Aabb;
-use crate::math::sat::{ConvexPolyhedron, Intersector};
-use crate::math::PointCulling;
+use crate::math::base::{HasAabbIntersector, PointCulling};
+use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, Unit, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
@@ -77,6 +77,8 @@ impl ConvexPolyhedron<f64> for Obb {
         }
     }
 }
+
+has_aabb_intersector_for_convex_polyhedron!(Obb);
 
 impl PointCulling for Obb {
     fn contains(&self, p: &Point3<f64>) -> bool {

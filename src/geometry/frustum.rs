@@ -1,7 +1,7 @@
 //! An asymmetric frustum with an arbitrary 3D pose.
 
-use crate::math::base::PointCulling;
-use crate::math::sat::{ConvexPolyhedron, Intersector};
+use crate::math::base::{HasAabbIntersector, PointCulling};
+use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Unit, Vector3};
 use serde::{Deserialize, Serialize};
@@ -165,6 +165,8 @@ impl ConvexPolyhedron<f64> for Frustum {
         }
     }
 }
+
+has_aabb_intersector_for_convex_polyhedron!(Frustum);
 
 #[cfg(test)]
 mod tests {

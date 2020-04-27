@@ -19,8 +19,8 @@ pub trait IntersectAabb {
 /// &Self.
 ///
 /// Having `impl<'a, T: IntersectAabb, S> HasAabbIntersector<'a, S> for T` and
-/// `impl<'a, S, T: ConvexPolyhedron> HasAabbIntersector<'a, S> for T` would be nice, but results
-/// in conflicts.
+/// `impl<'a, S, T: ConvexPolyhedron> HasAabbIntersector<'a, S> for T` would be nice, but doesn't
+/// allow us to specialize for Aabb.
 pub trait HasAabbIntersector<'a> {
     type Intersector: IntersectAabb + 'a;
     fn aabb_intersector(&'a self) -> Self::Intersector;
@@ -32,22 +32,15 @@ impl IntersectAabb for CachedAxesIntersector<f64> {
     }
 }
 
-impl<'a, T: ConvexPolyhedron<f64>> HasAabbIntersector<'a> for T {
-    type Intersector = CachedAxesIntersector<f64>;
-    fn aabb_intersector(&'a self) -> Self::Intersector {
-        self.intersector().cache_separating_axes_for_aabb()
-    }
+/// Use this macro as a crutch for the missing
+/// `impl<'a, S, T: ConvexPolyhedron> HasAabbIntersector<'a, S> for T`.
+macro_rules! has_aabb_intersector_for_convex_polyhedron {
+    ($type:ty) => {
+        impl<'a> HasAabbIntersector<'a> for $type {
+            type Intersector = CachedAxesIntersector<f64>;
+            fn aabb_intersector(&'a self) -> Self::Intersector {
+                self.intersector().cache_separating_axes_for_aabb()
+            }
+        }
+    };
 }
-
-// /// Use this macro as a crutch for the missing
-// /// `impl<'a, S, T: ConvexPolyhedron> HasAabbIntersector<'a, S> for T`.
-// macro_rules! has_aabb_intersector_for_convex_polyhedron {
-//     ($type:ty) => {
-//         impl<'a> HasAabbIntersector<'a, f64> for $type {
-//             type Intersector = CachedAxesIntersector<f64>;
-//             fn aabb_intersector(&'a self) -> Self::Intersector {
-//                 self.intersector().cache_separating_axes_for_aabb()
-//             }
-//         }
-//     };
-// }

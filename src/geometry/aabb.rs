@@ -1,7 +1,7 @@
 //! Axis-aligned box and cube.
 
-use crate::math::base::PointCulling;
-use crate::math::sat::{ConvexPolyhedron, Intersector};
+use crate::math::base::{HasAabbIntersector, PointCulling};
+use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use crate::proto;
 use arrayvec::ArrayVec;
 use nalgebra::{Isometry3, Point3, Vector3};
@@ -98,15 +98,17 @@ impl PointCulling for Aabb {
     }
 }
 
-// impl<'a> HasAabbIntersector<'a> for Aabb {
-//     type Intersector = CachedAxesIntersector<f64>;
-//     fn aabb_intersector(&'a self) -> Self::Intersector {
-//         CachedAxesIntersector {
-//             axes: vec![Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()],
-//             corners: self.compute_corners(),
-//         }
-//     }
-// }
+// This should be a tad more efficient than the generic ConvexPolyhedron
+// TODO(nnmm): Measure and remove if this does not represent a significant improvement
+impl<'a> HasAabbIntersector<'a> for Aabb {
+    type Intersector = CachedAxesIntersector<f64>;
+    fn aabb_intersector(&'a self) -> Self::Intersector {
+        CachedAxesIntersector {
+            axes: vec![Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()],
+            corners: self.compute_corners(),
+        }
+    }
+}
 
 impl ConvexPolyhedron<f64> for Aabb {
     fn compute_corners(&self) -> [Point3<f64>; 8] {

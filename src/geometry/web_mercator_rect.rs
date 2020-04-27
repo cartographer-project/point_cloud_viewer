@@ -1,7 +1,7 @@
 //! A Web Mercator axis-aligned rectangle.
 
-use crate::math::base::PointCulling;
-use crate::math::sat::{ConvexPolyhedron, Intersector};
+use crate::math::base::{HasAabbIntersector, PointCulling};
+use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use crate::math::web_mercator::WebMercatorCoord;
 use arrayvec::ArrayVec;
 use nalgebra::{Point3, Unit, Vector2};
@@ -111,6 +111,8 @@ impl ConvexPolyhedron<f64> for WebMercatorRect {
         }
     }
 }
+
+has_aabb_intersector_for_convex_polyhedron!(WebMercatorRect);
 
 impl PointCulling for WebMercatorRect {
     fn contains(&self, point: &Point3<f64>) -> bool {

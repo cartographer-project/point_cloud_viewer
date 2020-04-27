@@ -553,10 +553,7 @@ pub fn get_nodes_at_level(root_node: &Node, level: u8) -> Vec<Node> {
     nodes_at_level
 }
 
-pub fn get_bounding_box(
-    bounding_box: &Aabb,
-    query_from_global: &Option<Isometry3<f64>>,
-) -> Aabb {
+pub fn get_bounding_box(bounding_box: &Aabb, query_from_global: &Option<Isometry3<f64>>) -> Aabb {
     match query_from_global {
         Some(query_from_global) => bounding_box.transform(&query_from_global),
         None => bounding_box.clone(),
