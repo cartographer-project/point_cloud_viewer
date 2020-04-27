@@ -8,7 +8,7 @@ use point_viewer::iterator::PointLocation;
 use point_viewer::math::{FromPoint3, WebMercatorCoord};
 use s2::cellid::CellID;
 
-pub fn get_aabb(data: SyntheticData) -> Aabb<f64> {
+pub fn get_aabb(data: SyntheticData) -> Aabb {
     let min_corner = data.bbox().min() + 0.2 * data.bbox().diag();
     let max_corner = data.bbox().min() + 0.8 * data.bbox().diag();
     Aabb::new(min_corner, max_corner)
@@ -20,7 +20,7 @@ pub fn get_aabb_query(data: SyntheticData) -> PointLocation {
 
 // An OBB that lies in the center of the point cloud and is aligned with gravity.
 // Its half-extent is half of that of the data.
-pub fn get_obb(data: SyntheticData) -> Obb<f64> {
+pub fn get_obb(data: SyntheticData) -> Obb {
     Obb::new(
         *data.ecef_from_local(),
         Vector3::new(
@@ -35,7 +35,7 @@ pub fn get_obb_query(data: SyntheticData) -> PointLocation {
     PointLocation::Obb(get_obb(data))
 }
 
-pub fn get_frustum(data: SyntheticData) -> Frustum<f64> {
+pub fn get_frustum(data: SyntheticData) -> Frustum {
     let ecef_from_local = *data.ecef_from_local();
     let perspective = Perspective3::new(
         /* aspect */ 1.0, /* fovy */ 1.2, /* near */ 0.1, /* far */ 10.0,

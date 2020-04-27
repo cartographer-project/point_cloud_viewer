@@ -13,14 +13,14 @@ enum PointClouds {
 
 pub struct PointCloudClient {
     point_clouds: PointClouds,
-    aabb: Aabb<f64>,
+    aabb: Aabb,
     num_points_per_batch: usize,
     num_threads: usize,
     buffer_size: usize,
 }
 
 impl PointCloudClient {
-    pub fn bounding_box(&self) -> &Aabb<f64> {
+    pub fn bounding_box(&self) -> &Aabb {
         &self.aabb
     }
 
@@ -98,8 +98,8 @@ impl<'a> PointCloudClientBuilder<'a> {
             .iter()
             .map(|location| self.data_provider_factory.generate_data_provider(location))
             .collect::<Result<Vec<Box<dyn DataProvider>>>>()?;
-        let mut aabb: Option<Aabb<f64>> = None;
-        let unite = |bbox: &Aabb<f64>, with: &mut Option<Aabb<f64>>| {
+        let mut aabb: Option<Aabb> = None;
+        let unite = |bbox: &Aabb, with: &mut Option<Aabb>| {
             let b = with.get_or_insert(bbox.clone());
             b.grow(*bbox.min());
             b.grow(*bbox.max());

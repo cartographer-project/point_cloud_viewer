@@ -178,7 +178,7 @@ mod tests {
         impl Perspective {
             pub fn new_fov(aspect: f64, fovy: f64, near: f64, far: f64) -> Self {
                 assert!(
-                    fovy > 0.0 && fovy < f64::PI,
+                    fovy > 0.0 && fovy < std::f64::consts::PI,
                     "`fovy` must be a number between 0 and π, found: {:?}",
                     fovy
                 );

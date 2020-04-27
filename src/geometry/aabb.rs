@@ -4,7 +4,7 @@ use crate::math::base::PointCulling;
 use crate::math::sat::{ConvexPolyhedron, Intersector};
 use crate::proto;
 use arrayvec::ArrayVec;
-use nalgebra::{Isometry3, Point3, RealField, Vector3};
+use nalgebra::{Isometry3, Point3, Vector3};
 use serde::{Deserialize, Serialize};
 use std::iter::FromIterator;
 
@@ -94,7 +94,7 @@ impl From<&Aabb> for proto::AxisAlignedCuboid {
 
 impl PointCulling for Aabb {
     fn contains(&self, p: &Point3<f64>) -> bool {
-        self.contains(nalgebra::convert(p))
+        self.contains(p)
     }
 }
 
