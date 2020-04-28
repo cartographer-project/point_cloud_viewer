@@ -135,7 +135,7 @@ impl PointCloudRenderer {
         self.needs_drawing = true;
         self.node_drawer.update_world_to_gl(world_to_gl);
         self.get_visible_nodes_params_tx
-            .send(world_to_gl.clone())
+            .send(*world_to_gl)
             .unwrap();
         self.last_moving = time::Instant::now();
         self.world_to_gl = *world_to_gl;
