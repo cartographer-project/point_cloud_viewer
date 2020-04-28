@@ -45,7 +45,7 @@ impl Obb {
     }
 }
 
-impl ConvexPolyhedron<f64> for Obb {
+impl ConvexPolyhedron for Obb {
     fn compute_corners(&self) -> [Point3<f64>; 8] {
         let corner_from = |x, y, z| self.query_from_obb * Point3::new(x, y, z);
         [
@@ -64,7 +64,7 @@ impl ConvexPolyhedron<f64> for Obb {
         ]
     }
 
-    fn intersector(&self) -> Intersector<f64> {
+    fn intersector(&self) -> Intersector {
         let mut edges = ArrayVec::new();
         edges.push(Unit::new_normalize(self.query_from_obb * Vector3::x()));
         edges.push(Unit::new_normalize(self.query_from_obb * Vector3::y()));

@@ -5,21 +5,14 @@ use crate::geometry::Aabb;
 use crate::math::base::{HasAabbIntersector, IntersectAabb, PointCulling};
 use crate::math::sat::ConvexPolyhedron;
 use crate::math::FromPoint3;
-use nalgebra::{Point3, RealField};
+use nalgebra::Point3;
 use s2::{cell::Cell, cellid::CellID, region::Region};
 
 /// Checks for an intersection between a list of cells and a polyhedron.
 ///
 /// This is done by checking whether any cell in the list intersects
 /// a covering of the polyhedron with S2 cells.
-pub fn cells_intersecting_polyhedron<S>(
-    cells: &[Cell],
-    polyhedron: &impl ConvexPolyhedron<S>,
-) -> bool
-where
-    S: RealField,
-    f64: From<S>,
-{
+pub fn cells_intersecting_polyhedron(cells: &[Cell], polyhedron: &impl ConvexPolyhedron) -> bool {
     let polyhedron_corner_cells = polyhedron
         .compute_corners()
         .iter()

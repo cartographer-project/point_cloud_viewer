@@ -101,7 +101,7 @@ impl PointCulling for Aabb {
 // This should be a tad more efficient than the generic ConvexPolyhedron
 // TODO(nnmm): Measure and remove if this does not represent a significant improvement
 impl<'a> HasAabbIntersector<'a> for Aabb {
-    type Intersector = CachedAxesIntersector<f64>;
+    type Intersector = CachedAxesIntersector;
     fn aabb_intersector(&'a self) -> Self::Intersector {
         CachedAxesIntersector {
             axes: vec![Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()],
@@ -110,7 +110,7 @@ impl<'a> HasAabbIntersector<'a> for Aabb {
     }
 }
 
-impl ConvexPolyhedron<f64> for Aabb {
+impl ConvexPolyhedron for Aabb {
     fn compute_corners(&self) -> [Point3<f64>; 8] {
         [
             Point3::new(self.mins.x, self.mins.y, self.mins.z),
@@ -124,7 +124,7 @@ impl ConvexPolyhedron<f64> for Aabb {
         ]
     }
 
-    fn intersector(&self) -> Intersector<f64> {
+    fn intersector(&self) -> Intersector {
         let mut edges = ArrayVec::new();
         edges.push(Vector3::x_axis());
         edges.push(Vector3::y_axis());

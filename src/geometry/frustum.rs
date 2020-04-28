@@ -124,7 +124,7 @@ impl PointCulling for Frustum {
     }
 }
 
-impl ConvexPolyhedron<f64> for Frustum {
+impl ConvexPolyhedron for Frustum {
     #[rustfmt::skip]
     fn compute_corners(&self) -> [Point3<f64>; 8] {
         let corner_from = |x, y, z| self.query_from_clip.transform_point(&Point3::new(x, y, z));
@@ -140,7 +140,7 @@ impl ConvexPolyhedron<f64> for Frustum {
         ]
     }
 
-    fn intersector(&self) -> Intersector<f64> {
+    fn intersector(&self) -> Intersector {
         let corners = self.compute_corners();
 
         let mut edges: ArrayVec<[Unit<Vector3<f64>>; 12]> = ArrayVec::new();

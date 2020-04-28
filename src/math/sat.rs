@@ -30,8 +30,7 @@
 //! ```
 
 use arrayvec::ArrayVec;
-use nalgebra::{Point3, RealField, Unit, Vector3};
-use num_traits::Bounded;
+use nalgebra::{Point3, Unit, Vector3};
 
 /// Spatial relation between two objects.
 /// Modeled after the collision crate.
@@ -53,36 +52,36 @@ pub enum Relation {
 /// * The cross product between all edge combinations of A and B
 /// Together with the corners, these are the sufficient statistics for the SAT test.
 /// Hence, corners, edges and face normals must be provided by implementors of this trait.
-pub trait ConvexPolyhedron<S: RealField> {
+pub trait ConvexPolyhedron {
     /// For now, this is hardcoded to 8 corners and up to 12 edges/face normals.
     /// Using arrays should be cheaper than allocating a vector.
     /// We could also parametrize this trait by type-level numbers like nalgebra.
-    fn compute_corners(&self) -> [Point3<S>; 8];
+    fn compute_corners(&self) -> [Point3<f64>; 8];
     /// An intersector contains corners, edges and face normals. Edges and face normals should be
     /// unique to get the best performance (antiparallel vectors are the same for this purpose).
-    fn intersector(&self) -> Intersector<S>;
+    fn intersector(&self) -> Intersector;
 }
 
 /// When you have one object that is intersection tested against many others,
 /// compute this once (with the [`intersector`](trait.ConvexPolyhedron.html#method.intersector) method) and reuse it.
-pub struct Intersector<S: RealField> {
+pub struct Intersector {
     /// The corners of the polyhedron.
-    pub corners: [Point3<S>; 8],
+    pub corners: [Point3<f64>; 8],
     /// The unique edges of the polyhedron.
     /// This is hardcoded to 12 for now because we don't need more. Increase as needed.
-    pub edges: ArrayVec<[Unit<Vector3<S>>; 12]>,
+    pub edges: ArrayVec<[Unit<Vector3<f64>>; 12]>,
     /// The unique face normals of the polyhedron.
-    pub face_normals: ArrayVec<[Unit<Vector3<S>>; 6]>,
+    pub face_normals: ArrayVec<[Unit<Vector3<f64>>; 6]>,
 }
 
-impl<S: RealField + Bounded> Intersector<S> {
+impl Intersector {
     /// An iterator over separating axes – if we're only going to use the separating axes once,
     /// we don't want to require an allocation.
     fn separating_axes_iter<'a>(
         &'a self,
-        other_edges: &'a [Unit<Vector3<S>>],
-        other_face_normals: &'a [Unit<Vector3<S>>],
-    ) -> impl Iterator<Item = Unit<Vector3<S>>> + 'a {
+        other_edges: &'a [Unit<Vector3<f64>>],
+        other_face_normals: &'a [Unit<Vector3<f64>>],
+    ) -> impl Iterator<Item = Unit<Vector3<f64>>> + 'a {
         let self_face_normals = self.face_normals.iter();
         let nested_iter = move |e1| other_edges.iter().map(move |e2| (e1, e2));
         let edge_cross_products = self
@@ -111,18 +110,18 @@ impl<S: RealField + Bounded> Intersector<S> {
     /// That deduplication is currently O(n^2).
     pub fn cache_separating_axes(
         self,
-        other_edges: &[Unit<Vector3<S>>],
-        other_face_normals: &[Unit<Vector3<S>>],
-    ) -> CachedAxesIntersector<S> {
+        other_edges: &[Unit<Vector3<f64>>],
+        other_face_normals: &[Unit<Vector3<f64>>],
+    ) -> CachedAxesIntersector {
         let all_axes: Vec<_> = self
             .separating_axes_iter(other_edges, other_face_normals)
             .collect();
         let mut dedup_axes = Vec::new();
         for ax1 in all_axes {
-            let is_dupe = dedup_axes.iter().any(|ax2: &Unit<Vector3<S>>| {
+            let is_dupe = dedup_axes.iter().any(|ax2: &Unit<Vector3<f64>>| {
                 let d1 = (ax1.as_ref() - ax2.as_ref()).norm_squared();
                 let d2 = (ax1.as_ref() + ax2.as_ref()).norm_squared();
-                d1.min(d2) < S::default_epsilon()
+                d1.min(d2) < f64::EPSILON
             });
             if !is_dupe {
                 dedup_axes.push(ax1);
@@ -136,7 +135,7 @@ impl<S: RealField + Bounded> Intersector<S> {
 
     /// A specialized version of [`cache_separating_axes`](#method.cache_separating_axes) for
     /// the case where the other object is an AABB.
-    pub fn cache_separating_axes_for_aabb(self) -> CachedAxesIntersector<S> {
+    pub fn cache_separating_axes_for_aabb(self) -> CachedAxesIntersector {
         // An AABB is by definition axis-aligned, so the edges and face normals are exactly the
         // x, y, z unit vectors.
         let unit_axes = [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()];
@@ -156,26 +155,25 @@ impl<S: RealField + Bounded> Intersector<S> {
 }
 
 /// Stores pre-computed separating axes for intersection tests.
-pub struct CachedAxesIntersector<S: RealField> {
-    pub axes: Vec<Unit<Vector3<S>>>,
-    pub corners: [Point3<S>; 8],
+pub struct CachedAxesIntersector {
+    pub axes: Vec<Unit<Vector3<f64>>>,
+    pub corners: [Point3<f64>; 8],
 }
 
-impl<S: RealField + Bounded> CachedAxesIntersector<S> {
+impl CachedAxesIntersector {
     /// Perform an intersection test using the cached axes and the specified corner points. The resulting
     /// Relation expresses how the other object is spatially related to the self object – e.g. if
     /// `Relation::In` is returned, the other object is completely inside the self object.
-    pub fn intersect(&self, corners: &[Point3<S>]) -> Relation {
+    pub fn intersect(&self, corners: &[Point3<f64>]) -> Relation {
         sat(self.axes.iter().cloned(), &self.corners, corners)
     }
 }
 
 /// See https://www.gamedev.net/forums/topic/694911-separating-axis-theorem-3d-polygons/ for more detail
 /// Return `Relation::In` if B is contained in A
-pub fn sat<S, I>(separating_axes: I, corners_a: &[Point3<S>], corners_b: &[Point3<S>]) -> Relation
+pub fn sat<I>(separating_axes: I, corners_a: &[Point3<f64>], corners_b: &[Point3<f64>]) -> Relation
 where
-    S: RealField + Bounded,
-    I: IntoIterator<Item = Unit<Vector3<S>>>,
+    I: IntoIterator<Item = Unit<Vector3<f64>>>,
 {
     let mut rel = Relation::In;
     for sep_axis in separating_axes {
@@ -195,12 +193,9 @@ where
     rel
 }
 
-fn project_on_axis<S>(corners: &[Point3<S>], sep_axis: Unit<Vector3<S>>) -> (S, S)
-where
-    S: RealField + Bounded,
-{
-    let mut min_proj: S = Bounded::max_value();
-    let mut max_proj: S = Bounded::min_value();
+fn project_on_axis(corners: &[Point3<f64>], sep_axis: Unit<Vector3<f64>>) -> (f64, f64) {
+    let mut min_proj = f64::MAX;
+    let mut max_proj = f64::MIN;
     for corner in corners {
         let corner_proj = corner.coords.dot(&sep_axis);
         min_proj = min_proj.min(corner_proj);

@@ -218,7 +218,7 @@ impl S2Cells {
     /// Returns all cells that intersect this convex polyhedron
     fn cells_in_convex_polyhedron<T>(&self, poly: &T) -> Vec<CellID>
     where
-        T: ConvexPolyhedron<f64>,
+        T: ConvexPolyhedron,
     {
         // We could choose either a covering rect or a covering cap as a convex hull
         let point_cells = poly

@@ -57,7 +57,7 @@ impl WebMercatorRect {
 /// to Web Mercator, fall into the given rectangle.
 /// Implemented by extruding the rectangle's four corners along their altitude
 /// axis up and down, which results in a convex polyhedron.
-impl ConvexPolyhedron<f64> for WebMercatorRect {
+impl ConvexPolyhedron for WebMercatorRect {
     fn compute_corners(&self) -> [Point3<f64>; 8] {
         let n_w = self.north_west.to_lat_lng();
         let s_e = self.south_east.to_lat_lng();
@@ -78,7 +78,7 @@ impl ConvexPolyhedron<f64> for WebMercatorRect {
         ]
     }
 
-    fn intersector(&self) -> Intersector<f64> {
+    fn intersector(&self) -> Intersector {
         let corners = self.compute_corners();
         let edges = ArrayVec::from([
             Unit::new_normalize(corners[1] - corners[0]), // N edge, down

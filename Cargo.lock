@@ -2129,7 +2129,6 @@ dependencies = [
  "serde_derive",
  "structopt",
  "tempdir",
- "walkdir",
 ]
 
 [[package]]

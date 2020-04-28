@@ -26,7 +26,7 @@ pub trait HasAabbIntersector<'a> {
     fn aabb_intersector(&'a self) -> Self::Intersector;
 }
 
-impl IntersectAabb for CachedAxesIntersector<f64> {
+impl IntersectAabb for CachedAxesIntersector {
     fn intersect_aabb(&self, aabb: &Aabb) -> bool {
         self.intersect(&aabb.compute_corners()) != Relation::Out
     }
@@ -37,7 +37,7 @@ impl IntersectAabb for CachedAxesIntersector<f64> {
 macro_rules! has_aabb_intersector_for_convex_polyhedron {
     ($type:ty) => {
         impl<'a> HasAabbIntersector<'a> for $type {
-            type Intersector = CachedAxesIntersector<f64>;
+            type Intersector = CachedAxesIntersector;
             fn aabb_intersector(&'a self) -> Self::Intersector {
                 self.intersector().cache_separating_axes_for_aabb()
             }
