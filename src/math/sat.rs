@@ -11,9 +11,9 @@
 //! use point_viewer::math::sat::ConvexPolyhedron;
 //! use point_viewer::geometry::{Aabb, Obb, Frustum};
 //! // Use your imagination here
-//! let many_obbs: Vec<Obb<f64>> = unimplemented!();
-//! let many_aabbs: Vec<Aabb<f64>> = unimplemented!();
-//! let frustum: Frustum<f64> = unimplemented!();
+//! let many_obbs: Vec<Obb> = unimplemented!();
+//! let many_aabbs: Vec<Aabb> = unimplemented!();
+//! let frustum: Frustum = unimplemented!();
 //! // For a generic intersection, you can reuse the intersector:
 //! let frustum_intersector = frustum.intersector();
 //! for obb in many_obbs {
