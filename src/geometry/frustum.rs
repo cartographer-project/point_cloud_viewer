@@ -117,6 +117,10 @@ impl<S: RealField> Frustum<S> {
             clip_from_query,
         })
     }
+
+    pub fn as_matrix(&self) -> &Matrix4<S> {
+        &self.clip_from_query
+    }
 }
 
 impl<S: RealField> PointCulling<S> for Frustum<S> {

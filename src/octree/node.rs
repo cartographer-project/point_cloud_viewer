@@ -52,7 +52,7 @@ impl ChildIndex {
 // Top 8 bits of the value are level, the rest is the index.
 // The root has level = 0, its children 1 and so on. Multiple nodes can have the same index,
 // but none can have the same index and level.
-#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Hash, Clone, Copy, Ord, PartialOrd, PartialEq, Eq)]
 pub struct NodeId(u128);
 
 impl FromStr for NodeId {
@@ -111,7 +111,7 @@ impl NodeId {
     }
 
     /// Returns the root node of the octree.
-    fn root() -> Self {
+    pub fn root() -> Self {
         NodeId(0)
     }
 

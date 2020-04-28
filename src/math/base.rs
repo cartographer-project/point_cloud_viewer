@@ -12,8 +12,7 @@ where
 
 /// Something that can perform an intersection test with an AABB.
 pub trait IntersectAabb<S: RealField> {
-    // TODO(nnmm): return Relation
-    fn intersect_aabb(&self, aabb: &Aabb<S>) -> bool;
+    fn intersect_aabb(&self, aabb: &Aabb<S>) -> Relation;
 }
 
 /// We use this trait to allow an indirection: The geometry itself does not need to be able to
@@ -31,8 +30,8 @@ pub trait HasAabbIntersector<'a, S: RealField> {
 }
 
 impl<S: RealField + Bounded> IntersectAabb<S> for CachedAxesIntersector<S> {
-    fn intersect_aabb(&self, aabb: &Aabb<S>) -> bool {
-        self.intersect(&aabb.compute_corners()) != Relation::Out
+    fn intersect_aabb(&self, aabb: &Aabb<S>) -> Relation {
+        self.intersect(&aabb.compute_corners())
     }
 }
 
