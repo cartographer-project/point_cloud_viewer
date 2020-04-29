@@ -4,19 +4,19 @@ use crate::math::base::{HasAabbIntersector, PointCulling};
 use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use crate::proto;
 use arrayvec::ArrayVec;
-use nalgebra::{Isometry3, Point3, RealField, Vector3};
+use nalgebra::{Isometry3, Point3, Vector3};
 use serde::{Deserialize, Serialize};
 use std::iter::FromIterator;
 
 /// An axis-aligned bounding box.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct Aabb<S: RealField> {
-    mins: Point3<S>,
-    maxs: Point3<S>,
+pub struct Aabb {
+    mins: Point3<f64>,
+    maxs: Point3<f64>,
 }
 
-impl<S: RealField> Aabb<S> {
-    pub fn new(mins: Point3<S>, maxs: Point3<S>) -> Self {
+impl Aabb {
+    pub fn new(mins: Point3<f64>, maxs: Point3<f64>) -> Self {
         Aabb {
             mins: nalgebra::inf(&mins, &maxs),
             maxs: nalgebra::sup(&mins, &maxs),
@@ -30,32 +30,32 @@ impl<S: RealField> Aabb<S> {
         }
     }
 
-    pub fn min(&self) -> &Point3<S> {
+    pub fn min(&self) -> &Point3<f64> {
         &self.mins
     }
 
-    pub fn max(&self) -> &Point3<S> {
+    pub fn max(&self) -> &Point3<f64> {
         &self.maxs
     }
 
-    pub fn grow(&mut self, p: Point3<S>) {
+    pub fn grow(&mut self, p: Point3<f64>) {
         self.mins = nalgebra::inf(&self.mins, &p);
         self.maxs = nalgebra::sup(&self.maxs, &p);
     }
 
-    pub fn contains(&self, p: &Point3<S>) -> bool {
+    pub fn contains(&self, p: &Point3<f64>) -> bool {
         nalgebra::partial_le(&self.mins, p) && nalgebra::partial_lt(p, &self.maxs)
     }
 
-    pub fn center(&self) -> Point3<S> {
+    pub fn center(&self) -> Point3<f64> {
         nalgebra::center(&self.mins, &self.maxs)
     }
 
-    pub fn diag(&self) -> Vector3<S> {
+    pub fn diag(&self) -> Vector3<f64> {
         self.maxs - self.mins
     }
 
-    pub fn transform(&self, transform: &Isometry3<S>) -> Aabb<S> {
+    pub fn transform(&self, transform: &Isometry3<f64>) -> Aabb {
         let corners = self.compute_corners();
         let transformed_first = transform.transform_point(&corners[0]);
         let base = Self::new(transformed_first, transformed_first);
@@ -66,7 +66,7 @@ impl<S: RealField> Aabb<S> {
     }
 }
 
-impl From<&proto::AxisAlignedCuboid> for Aabb<f64> {
+impl From<&proto::AxisAlignedCuboid> for Aabb {
     fn from(aac: &proto::AxisAlignedCuboid) -> Self {
         let aac_min = aac.min.clone().unwrap_or_else(|| {
             let deprecated_min = aac.deprecated_min.clone().unwrap(); // Version 9
@@ -83,8 +83,8 @@ impl From<&proto::AxisAlignedCuboid> for Aabb<f64> {
     }
 }
 
-impl From<&Aabb<f64>> for proto::AxisAlignedCuboid {
-    fn from(bbox: &Aabb<f64>) -> Self {
+impl From<&Aabb> for proto::AxisAlignedCuboid {
+    fn from(bbox: &Aabb) -> Self {
         let mut aac = proto::AxisAlignedCuboid::new();
         aac.set_min(proto::Vector3d::from(bbox.min()));
         aac.set_max(proto::Vector3d::from(bbox.max()));
@@ -92,15 +92,17 @@ impl From<&Aabb<f64>> for proto::AxisAlignedCuboid {
     }
 }
 
-impl<S: RealField> PointCulling<S> for Aabb<S> {
-    fn contains(&self, p: &Point3<S>) -> bool {
+impl PointCulling for Aabb {
+    fn contains(&self, p: &Point3<f64>) -> bool {
         self.contains(p)
     }
 }
 
-impl<'a, S: RealField> HasAabbIntersector<'a, S> for Aabb<S> {
-    type Intersector = CachedAxesIntersector<S>;
-    fn aabb_intersector(&'a self) -> CachedAxesIntersector<S> {
+// This should be a tad more efficient than the generic ConvexPolyhedron
+// TODO(nnmm): Measure and remove if this does not represent a significant improvement
+impl<'a> HasAabbIntersector<'a> for Aabb {
+    type Intersector = CachedAxesIntersector;
+    fn aabb_intersector(&'a self) -> Self::Intersector {
         CachedAxesIntersector {
             axes: vec![Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()],
             corners: self.compute_corners(),
@@ -108,8 +110,8 @@ impl<'a, S: RealField> HasAabbIntersector<'a, S> for Aabb<S> {
     }
 }
 
-impl<S: RealField> ConvexPolyhedron<S> for Aabb<S> {
-    fn compute_corners(&self) -> [Point3<S>; 8] {
+impl ConvexPolyhedron for Aabb {
+    fn compute_corners(&self) -> [Point3<f64>; 8] {
         [
             Point3::new(self.mins.x, self.mins.y, self.mins.z),
             Point3::new(self.maxs.x, self.mins.y, self.mins.z),
@@ -122,7 +124,7 @@ impl<S: RealField> ConvexPolyhedron<S> for Aabb<S> {
         ]
     }
 
-    fn intersector(&self) -> Intersector<S> {
+    fn intersector(&self) -> Intersector {
         let mut edges = ArrayVec::new();
         edges.push(Vector3::x_axis());
         edges.push(Vector3::y_axis());
@@ -144,7 +146,7 @@ pub struct Cube {
 }
 
 impl Cube {
-    pub fn bounding(aabb: &Aabb<f64>) -> Self {
+    pub fn bounding(aabb: &Aabb) -> Self {
         let edge_length = (aabb.max().x - aabb.min().x)
             .max(aabb.max().y - aabb.min().y)
             .max(aabb.max().z - aabb.min().z);
@@ -154,7 +156,7 @@ impl Cube {
         }
     }
 
-    pub fn to_aabb(&self) -> Aabb<f64> {
+    pub fn to_aabb(&self) -> Aabb {
         Aabb::new(self.min(), self.max())
     }
 

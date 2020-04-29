@@ -37,7 +37,7 @@ impl S2CellMeta {
 pub struct S2Meta {
     cells: FnvHashMap<CellID, S2CellMeta>,
     attribute_data_types: HashMap<String, AttributeDataType>,
-    bounding_box: Aabb<f64>,
+    bounding_box: Aabb,
 }
 
 impl PointCloudMeta for S2Meta {
@@ -50,7 +50,7 @@ impl S2Meta {
     pub fn new(
         cells: FnvHashMap<CellID, S2CellMeta>,
         attribute_data_types: HashMap<String, AttributeDataType>,
-        bounding_box: Aabb<f64>,
+        bounding_box: Aabb,
     ) -> Self {
         S2Meta {
             cells,
@@ -70,7 +70,7 @@ impl S2Meta {
         &self.cells
     }
 
-    pub fn bounding_box(&self) -> &Aabb<f64> {
+    pub fn bounding_box(&self) -> &Aabb {
         &self.bounding_box
     }
 
@@ -190,7 +190,7 @@ impl PointCloud for S2Cells {
         Ok(node_iterator)
     }
 
-    fn bounding_box(&self) -> &Aabb<f64> {
+    fn bounding_box(&self) -> &Aabb {
         &self.meta.bounding_box
     }
 }
@@ -218,7 +218,7 @@ impl S2Cells {
     /// Returns all cells that intersect this convex polyhedron
     fn cells_in_convex_polyhedron<T>(&self, poly: &T) -> Vec<CellID>
     where
-        T: ConvexPolyhedron<f64>,
+        T: ConvexPolyhedron,
     {
         // We could choose either a covering rect or a covering cap as a convex hull
         let point_cells = poly

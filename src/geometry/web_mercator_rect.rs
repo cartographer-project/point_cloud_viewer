@@ -4,7 +4,7 @@ use crate::math::base::{HasAabbIntersector, PointCulling};
 use crate::math::sat::{CachedAxesIntersector, ConvexPolyhedron, Intersector};
 use crate::math::web_mercator::WebMercatorCoord;
 use arrayvec::ArrayVec;
-use nalgebra::{Point3, RealField, Unit, Vector2};
+use nalgebra::{Point3, Unit, Vector2};
 use nav_types::{ECEF, WGS84};
 use serde::{Deserialize, Serialize};
 
@@ -57,7 +57,7 @@ impl WebMercatorRect {
 /// to Web Mercator, fall into the given rectangle.
 /// Implemented by extruding the rectangle's four corners along their altitude
 /// axis up and down, which results in a convex polyhedron.
-impl ConvexPolyhedron<f64> for WebMercatorRect {
+impl ConvexPolyhedron for WebMercatorRect {
     fn compute_corners(&self) -> [Point3<f64>; 8] {
         let n_w = self.north_west.to_lat_lng();
         let s_e = self.south_east.to_lat_lng();
@@ -78,7 +78,7 @@ impl ConvexPolyhedron<f64> for WebMercatorRect {
         ]
     }
 
-    fn intersector(&self) -> Intersector<f64> {
+    fn intersector(&self) -> Intersector {
         let corners = self.compute_corners();
         let edges = ArrayVec::from([
             Unit::new_normalize(corners[1] - corners[0]), // N edge, down
@@ -114,13 +114,9 @@ impl ConvexPolyhedron<f64> for WebMercatorRect {
 
 has_aabb_intersector_for_convex_polyhedron!(WebMercatorRect);
 
-impl<S: RealField> PointCulling<S> for WebMercatorRect
-where
-    f64: From<S>,
-{
-    fn contains(&self, point: &Point3<S>) -> bool {
-        let ll: WGS84<f64> =
-            ECEF::new(f64::from(point.x), f64::from(point.y), f64::from(point.z)).into();
+impl PointCulling for WebMercatorRect {
+    fn contains(&self, point: &Point3<f64>) -> bool {
+        let ll: WGS84<f64> = ECEF::new(point.x, point.y, point.z).into();
         let wmc = WebMercatorCoord::from_lat_lng(&ll);
         nalgebra::partial_le(&self.north_west, &wmc) && nalgebra::partial_lt(&wmc, &self.south_east)
     }

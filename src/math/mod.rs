@@ -140,13 +140,13 @@ impl<S: RealField> FromPoint3<S> for ECEF<S> {
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct AllPoints {}
 
-impl<S: RealField> IntersectAabb<S> for AllPoints {
-    fn intersect_aabb(&self, _aabb: &Aabb<S>) -> bool {
+impl IntersectAabb for AllPoints {
+    fn intersect_aabb(&self, _aabb: &Aabb) -> bool {
         true
     }
 }
 
-impl<'a, S: RealField> HasAabbIntersector<'a, S> for AllPoints {
+impl<'a> HasAabbIntersector<'a> for AllPoints {
     type Intersector = Self;
 
     fn aabb_intersector(&'a self) -> Self::Intersector {
@@ -154,11 +154,8 @@ impl<'a, S: RealField> HasAabbIntersector<'a, S> for AllPoints {
     }
 }
 
-impl<S> PointCulling<S> for AllPoints
-where
-    S: RealField,
-{
-    fn contains(&self, _p: &Point3<S>) -> bool {
+impl PointCulling for AllPoints {
+    fn contains(&self, _p: &Point3<f64>) -> bool {
         true
     }
 }

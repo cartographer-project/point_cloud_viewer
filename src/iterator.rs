@@ -12,9 +12,9 @@ use std::collections::{BTreeMap, HashMap};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PointLocation {
     AllPoints,
-    Aabb(Aabb<f64>),
-    Frustum(Frustum<f64>),
-    Obb(Obb<f64>),
+    Aabb(Aabb),
+    Frustum(Frustum),
+    Obb(Obb),
     S2Cells(CellUnion),
     WebMercatorRect(WebMercatorRect),
 }
@@ -26,7 +26,7 @@ impl Default for PointLocation {
 }
 
 impl PointLocation {
-    pub fn get_point_culling(&self) -> Box<dyn PointCulling<f64>> {
+    pub fn get_point_culling(&self) -> Box<dyn PointCulling> {
         match &self {
             PointLocation::AllPoints => Box::new(AllPoints {}),
             PointLocation::Aabb(aabb) => Box::new(aabb.clone()),
@@ -73,7 +73,7 @@ pub struct PointQuery<'a> {
 
 /// Iterator over the points of a point cloud node within the specified PointCulling
 /// Essentially a specialized version of the Filter iterator adapter
-pub struct FilteredIterator<'a, Culling: PointCulling<f64>> {
+pub struct FilteredIterator<'a, Culling: PointCulling> {
     pub culling: Culling,
     pub filter_intervals: &'a HashMap<&'a str, ClosedInterval<f64>>,
     pub node_iterator: NodeIterator,
@@ -90,7 +90,7 @@ where
     }
 }
 
-impl<'a, Culling: PointCulling<f64>> Iterator for FilteredIterator<'a, Culling> {
+impl<'a, Culling: PointCulling> Iterator for FilteredIterator<'a, Culling> {
     type Item = PointsBatch;
 
     fn next(&mut self) -> Option<PointsBatch> {
@@ -177,7 +177,7 @@ pub trait PointCloud: Sync {
         node_id: Self::Id,
         batch_size: usize,
     ) -> Result<NodeIterator>;
-    fn bounding_box(&self) -> &Aabb<f64>;
+    fn bounding_box(&self) -> &Aabb;
 
     /// Return the points matching the query in the selected node.
     /// Why only a single node? Because the nodes are distributed to several `PointStream` instances
@@ -207,7 +207,7 @@ pub trait PointCloud: Sync {
 
 // TODO(nnmm): Instead of having this helper function, make stream_points_for_query_in_node
 // accept a T: PointCulling, so we can dispatch to this function directly
-fn stream<'a, T: PointCulling<f64> + Clone, F: FnMut(PointsBatch) -> Result<()>>(
+fn stream<'a, T: PointCulling + Clone, F: FnMut(PointsBatch) -> Result<()>>(
     intv: &'a HashMap<&'a str, ClosedInterval<f64>>,
     itr: NodeIterator,
     callback: F,

@@ -104,7 +104,7 @@ where
 fn check_point_culling_equality<F, C>(gen_culling: F)
 where
     F: FnOnce(SyntheticData) -> C,
-    C: PointCulling<f64> + ConvexPolyhedron<f64>,
+    C: PointCulling + ConvexPolyhedron,
 {
     let args = Arguments::default();
     let data = SyntheticData::new(args.width, args.height, args.num_points, args.seed);

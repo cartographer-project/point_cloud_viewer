@@ -164,7 +164,7 @@ impl BoxDrawer {
     // Then we use 'world_to_gl' to transform it into clip space.
     pub fn draw_outlines(
         &self,
-        cuboid: &Aabb<f64>,
+        cuboid: &Aabb,
         world_to_gl: &Matrix4<f64>,
         color: &color::Color<f32>,
     ) {

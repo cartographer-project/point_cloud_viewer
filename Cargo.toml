@@ -46,7 +46,6 @@ s2 = { version = "0.0.10", features = ["serde"] }
 serde = "1.0.104"
 serde_derive = "1.0.104"
 structopt = "0.3.11"
-walkdir = "2.3.1"
 rand = "0.7.3"
 
 [dependencies.point_viewer_proto_rust]

@@ -253,7 +253,7 @@ fn subsample_children_into(
 }
 
 /// Returns the bounding box containing all points
-fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb<f64> {
+fn find_bounding_box(filename: impl AsRef<Path>) -> Aabb {
     let mut bounding_box = None;
     let stream = PlyIterator::from_file(filename, NUM_POINTS_PER_BATCH).unwrap();
     let mut progress_bar = create_progress_bar(stream.num_points(), "Determining bounding box");
@@ -289,7 +289,7 @@ pub fn build_octree_from_file(
 pub fn build_octree(
     output_directory: impl AsRef<Path>,
     resolution: f64,
-    bounding_box: Aabb<f64>,
+    bounding_box: Aabb,
     input: impl Iterator<Item = PointsBatch> + NumberOfPoints + Send,
     attributes: &[&str],
 ) {

@@ -114,7 +114,7 @@ pub trait ColoringStrategy: Send {
     fn process_point_data(
         &mut self,
         points_batch: &PointsBatch,
-        bbox: &Aabb<f64>,
+        bbox: &Aabb,
         image_size: Vector2<u32>,
     ) {
         let mut discretized_locations = Vec::with_capacity(points_batch.position.len());
@@ -468,7 +468,7 @@ pub struct XrayParameters {
 }
 
 pub fn xray_from_points(
-    bbox: &Aabb<f64>,
+    bbox: &Aabb,
     image_size: Vector2<u32>,
     mut coloring_strategy: Box<dyn ColoringStrategy>,
     parameters: &XrayParameters,
@@ -519,7 +519,7 @@ pub fn xray_from_points(
 }
 
 pub fn find_quadtree_bounding_rect_and_levels(
-    bbox: &Aabb<f64>,
+    bbox: &Aabb,
     tile_size_px: u32,
     pixel_size_m: f64,
 ) -> (Rect, u8) {
@@ -553,10 +553,7 @@ pub fn get_nodes_at_level(root_node: &Node, level: u8) -> Vec<Node> {
     nodes_at_level
 }
 
-pub fn get_bounding_box(
-    bounding_box: &Aabb<f64>,
-    query_from_global: &Option<Isometry3<f64>>,
-) -> Aabb<f64> {
+pub fn get_bounding_box(bounding_box: &Aabb, query_from_global: &Option<Isometry3<f64>>) -> Aabb {
     match query_from_global {
         Some(query_from_global) => bounding_box.transform(&query_from_global),
         None => bounding_box.clone(),
@@ -627,7 +624,7 @@ pub fn build_xray_quadtree(
 pub fn create_leaf_nodes(
     leaf_nodes: Vec<Node>,
     deepest_level: u8,
-    bounding_box: &Aabb<f64>,
+    bounding_box: &Aabb,
     coloring_strategy_kind: &ColoringStrategyKind,
     parameters: &XrayParameters,
 ) -> ImageResult<FnvHashSet<NodeId>> {
