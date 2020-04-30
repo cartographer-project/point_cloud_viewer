@@ -1,6 +1,3 @@
-// This removes clippy warnings regarding redundant Clap.
-#![allow(clippy::redundant_closure)]
-
 use clap::Clap;
 use nalgebra::Point3;
 use point_cloud_client::PointCloudClientBuilder;

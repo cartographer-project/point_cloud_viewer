@@ -2,7 +2,7 @@ use crate::generation::{
     build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, ColormapArgument,
     TileBackgroundColorArgument, XrayParameters,
 };
-use clap::derive::ArgEnum;
+use clap::{crate_authors, derive::ArgEnum};
 use nalgebra::Isometry3;
 use point_cloud_client::PointCloudClientBuilder;
 use point_viewer::data_provider::DataProviderFactory;
@@ -21,7 +21,7 @@ pub trait Extension {
 fn parse_arguments<T: Extension>() -> clap::ArgMatches {
     let mut app = clap::App::new("build_xray_quadtree")
         .version("1.0")
-        .author("Holger H. Rapp <hrapp@lyft.com>")
+        .author(crate_authors!())
         .args(&[
             clap::Arg::with_name("output_directory")
                 .about("Output directory to write the X-Ray quadtree into.")
