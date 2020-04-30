@@ -140,6 +140,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
 
     let binning = args.value_of("binning").map(|f| parse_key_val(f).unwrap());
     let coloring_strategy_kind = {
+        use ColoringStrategyArgument::*;
         let arg = ColoringStrategyArgument::from_str(
             args.value_of("coloring_strategy")
                 .expect("coloring_strategy is invalid"),
@@ -147,28 +148,24 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         )
         .expect("coloring_strategy couldn't be parsed");
         match arg {
-            ColoringStrategyArgument::Xray => ColoringStrategyKind::XRay,
-            ColoringStrategyArgument::Colored => ColoringStrategyKind::Colored(binning),
-            ColoringStrategyArgument::ColoredWithIntensity => {
-                ColoringStrategyKind::ColoredWithIntensity(
-                    args.value_of_t("min_intensity")
-                        .expect("min_intensity is invalid"),
-                    args.value_of_t("max_intensity")
-                        .expect("max_intensity is invalid"),
-                    binning,
+            Xray => ColoringStrategyKind::XRay,
+            Colored => ColoringStrategyKind::Colored(binning),
+            ColoredWithIntensity => ColoringStrategyKind::ColoredWithIntensity(
+                args.value_of_t("min_intensity")
+                    .expect("min_intensity is invalid"),
+                args.value_of_t("max_intensity")
+                    .expect("max_intensity is invalid"),
+                binning,
+            ),
+            ColoredWithHeightStddev => ColoringStrategyKind::ColoredWithHeightStddev(
+                args.value_of_t("max_stddev")
+                    .expect("max_stddev is invalid"),
+                ColormapArgument::from_str(
+                    args.value_of("colormap").expect("colormap is invalid"),
+                    false,
                 )
-            }
-            ColoringStrategyArgument::ColoredWithHeightStddev => {
-                ColoringStrategyKind::ColoredWithHeightStddev(
-                    args.value_of_t("max_stddev")
-                        .expect("max_stddev is invalid"),
-                    ColormapArgument::from_str(
-                        args.value_of("colormap").expect("colormap is invalid"),
-                        false,
-                    )
-                    .expect("colormap couldn't be parsed"),
-                )
-            }
+                .expect("colormap couldn't be parsed"),
+            ),
         }
     };
 
