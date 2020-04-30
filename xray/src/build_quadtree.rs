@@ -2,7 +2,7 @@ use crate::generation::{
     build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, ColormapArgument,
     TileBackgroundColorArgument, XrayParameters,
 };
-use clap::value_t;
+use clap::{crate_authors, derive::ArgEnum};
 use nalgebra::Isometry3;
 use point_cloud_client::PointCloudClientBuilder;
 use point_viewer::data_provider::DataProviderFactory;
@@ -14,40 +14,40 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 pub trait Extension {
-    fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
+    fn pre_init(app: clap::App) -> clap::App;
     fn query_from_global(matches: &clap::ArgMatches) -> Option<Isometry3<f64>>;
 }
 
-fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
+fn parse_arguments<T: Extension>() -> clap::ArgMatches {
     let mut app = clap::App::new("build_xray_quadtree")
         .version("1.0")
-        .author("Holger H. Rapp <hrapp@lyft.com>")
+        .author(crate_authors!())
         .args(&[
             clap::Arg::with_name("output_directory")
-                .help("Output directory to write the X-Ray quadtree into.")
+                .about("Output directory to write the X-Ray quadtree into.")
                 .long("output-directory")
                 .required(true)
                 .takes_value(true),
             clap::Arg::with_name("resolution")
-                .help("Size of 1px in meters on the finest X-Ray level.")
+                .about("Size of 1px in meters on the finest X-Ray level.")
                 .long("resolution")
                 .default_value("0.01"),
             clap::Arg::with_name("num_threads")
-                .help("The number of threads used to shard X-Ray tile building.")
+                .about("The number of threads used to shard X-Ray tile building.")
                 .takes_value(true)
                 .long("num-threads")
                 .default_value("10"),
             clap::Arg::with_name("tile_size")
-                .help("Size of finest X-Ray level tile in pixels. Must be a power of two.")
+                .about("Size of finest X-Ray level tile in pixels. Must be a power of two.")
                 .long("tile-size")
                 .default_value("256"),
             clap::Arg::with_name("coloring_strategy")
                 .long("coloring-strategy")
                 .takes_value(true)
-                .possible_values(&ColoringStrategyArgument::variants())
+                .possible_values(&ColoringStrategyArgument::VARIANTS)
                 .default_value("xray"),
             clap::Arg::with_name("min_intensity")
-                .help(
+                .about(
                     "Minimum intensity of all points for color scaling. \
                      Only used for 'colored_with_intensity'.",
                 )
@@ -56,7 +56,7 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .default_value("0")
                 .required_if("coloring_strategy", "colored_with_intensity"),
             clap::Arg::with_name("max_intensity")
-                .help(
+                .about(
                     "Maximum intensity of all points for color scaling. \
                      Only used for 'colored_with_intensity'.",
                 )
@@ -65,14 +65,14 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .default_value("1")
                 .required_if("coloring_strategy", "colored_with_intensity"),
             clap::Arg::with_name("colormap")
-                .help("How values are mapped to colors")
+                .about("How values are mapped to colors")
                 .long("colormap")
                 .takes_value(true)
-                .possible_values(&ColormapArgument::variants())
+                .possible_values(&ColormapArgument::VARIANTS)
                 .default_value("jet")
                 .required_if("coloring_strategy", "colored_with_height_stddev"),
             clap::Arg::with_name("max_stddev")
-                .help(
+                .about(
                     "Maximum standard deviation for colored_with_height_stddev. Every stddev above this \
                      will be clamped to this value and appear saturated in the X-Rays. \
                      Only used for 'colored_with_height_stddev'.",
@@ -82,31 +82,31 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches<'static> {
                 .default_value("1")
                 .required_if("coloring_strategy", "colored_with_height_stddev"),
             clap::Arg::with_name("point_cloud_locations")
-                .help("Point cloud locations to turn into xrays.")
+                .about("Point cloud locations to turn into xrays.")
                 .index(1)
                 .multiple(true)
                 .required(true),
             clap::Arg::with_name("tile_background_color")
                 .long("tile-background-color")
                 .takes_value(true)
-                .possible_values(&TileBackgroundColorArgument::variants())
+                .possible_values(&TileBackgroundColorArgument::VARIANTS)
                 .default_value("white"),
             clap::Arg::with_name("filter_interval")
-                .help("Filter intervals for attributes, e.g. --filter-interval intensity=2.0,51.0")
+                .about("Filter intervals for attributes, e.g. --filter-interval intensity=2.0,51.0")
                 .long("filter-interval")
                 .takes_value(true)
                 .multiple(true),
             clap::Arg::with_name("binning")
-                .help(
+                .about(
                     "Binning size for one attribute, e.g. --binning timestamp=30000000000, \
                      which will be applied to 'colored' and 'colored_with_intensity' strategies. \
-                     Colors will be first averaged within the same bin and then averaged over all
-                     bins, so e.g. for timestamped bins temporally closer points will get less
+                     Colors will be first averaged within the same bin and then averaged over all \
+                     bins, so e.g. for timestamped bins temporally closer points will get less \
                      weight than points temporally further away.")
                 .long("binning")
                 .takes_value(true),
             clap::Arg::with_name("root_node_id")
-                .help("The root node id to start building with.")
+                .about("The root node id to start building with.")
                 .long("root-node-id")
                 .takes_value(true)
                 .default_value("r"),
@@ -141,27 +141,41 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     let binning = args.value_of("binning").map(|f| parse_key_val(f).unwrap());
     let coloring_strategy_kind = {
         use ColoringStrategyArgument::*;
-        let arg = value_t!(args, "coloring_strategy", ColoringStrategyArgument)
-            .expect("coloring_strategy is invalid");
+        let arg = ColoringStrategyArgument::from_str(
+            args.value_of("coloring_strategy")
+                .expect("coloring_strategy is invalid"),
+            false,
+        )
+        .expect("coloring_strategy couldn't be parsed");
         match arg {
-            xray => ColoringStrategyKind::XRay,
-            colored => ColoringStrategyKind::Colored(binning),
-            colored_with_intensity => ColoringStrategyKind::ColoredWithIntensity(
-                value_t!(args, "min_intensity", f32).expect("min_intensity is invalid"),
-                value_t!(args, "max_intensity", f32).expect("max_intensity is invalid"),
+            Xray => ColoringStrategyKind::XRay,
+            Colored => ColoringStrategyKind::Colored(binning),
+            ColoredWithIntensity => ColoringStrategyKind::ColoredWithIntensity(
+                args.value_of_t("min_intensity")
+                    .expect("min_intensity is invalid"),
+                args.value_of_t("max_intensity")
+                    .expect("max_intensity is invalid"),
                 binning,
             ),
-            colored_with_height_stddev => ColoringStrategyKind::ColoredWithHeightStddev(
-                value_t!(args, "max_stddev", f32).expect("max_stddev is invalid"),
-                value_t!(args, "colormap", ColormapArgument).expect("colormap is invalid"),
+            ColoredWithHeightStddev => ColoringStrategyKind::ColoredWithHeightStddev(
+                args.value_of_t("max_stddev")
+                    .expect("max_stddev is invalid"),
+                ColormapArgument::from_str(
+                    args.value_of("colormap").expect("colormap is invalid"),
+                    false,
+                )
+                .expect("colormap couldn't be parsed"),
             ),
         }
     };
 
-    let tile_background_color =
-        value_t!(args, "tile_background_color", TileBackgroundColorArgument)
-            .expect("tile_background_color is invalid")
-            .to_color();
+    let tile_background_color = TileBackgroundColorArgument::from_str(
+        args.value_of("tile_background_color")
+            .expect("tile_background_color is invalid"),
+        false,
+    )
+    .expect("tile_background_color couldn't be parsed")
+    .to_color();
 
     let output_directory = PathBuf::from(args.value_of("output_directory").unwrap());
 

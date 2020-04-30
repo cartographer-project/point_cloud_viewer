@@ -14,10 +14,10 @@ name = "point_cloud_client_test"
 path = "src/bin/test.rs"
 
 [dependencies]
+clap = { git = "https://github.com/clap-rs/clap/", rev = "5b9dbee5db540f44c336c2db54ece444624c30ef" }
 fnv = "1.0.6"
 nalgebra = "0.20.0"
 num_cpus ="1.12.0"
 point_viewer = { path = ".." }
 point_viewer_grpc = { path = "../point_viewer_grpc" }
 protobuf = "2.10.2"
-structopt = "0.3.11"

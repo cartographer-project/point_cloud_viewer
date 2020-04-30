@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use clap::value_t;
 use iron::mime::Mime;
 use iron::prelude::*;
 use router::Router;
@@ -45,17 +44,17 @@ fn main() {
     let matches = clap::App::new("web_viewer")
         .args(&[
             clap::Arg::with_name("port")
-                .help("Port to listen on for connections.")
+                .about("Port to listen on for connections.")
                 .long("port")
                 .takes_value(true),
             clap::Arg::with_name("quadtree_directory")
-                .help("Input directory of the quadtree directory to serve.")
+                .about("Input directory of the quadtree directory to serve.")
                 .index(1)
                 .required(true),
         ])
         .get_matches();
 
-    let port = value_t!(matches, "port", u16).unwrap_or(5434);
+    let port = matches.value_of_t("port").unwrap_or(5434);
     let quadtree_directory = PathBuf::from(matches.value_of("quadtree_directory").unwrap());
 
     let mut router = Router::new();

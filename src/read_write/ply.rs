@@ -141,19 +141,19 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
         line.clear();
         header_len += reader.read_line(&mut line)?;
         let entries: Vec<&str> = line.trim().split_whitespace().collect();
-        match entries[0] {
-            "format" if entries.len() == 3 => {
+        match entries.get(0) {
+            Some(&"format") if entries.len() == 3 => {
                 if entries[2] != "1.0" {
                     return Err(InvalidInput(format!("Invalid version: {}", entries[2])).into());
                 }
-                format = Some(match entries[1] {
-                    "ascii" => Format::AsciiV1,
-                    "binary_little_endian" => Format::BinaryLittleEndianV1,
-                    "binary_big_endian" => Format::BinaryBigEndianV1,
+                format = Some(match entries.get(1) {
+                    Some(&"ascii") => Format::AsciiV1,
+                    Some(&"binary_little_endian") => Format::BinaryLittleEndianV1,
+                    Some(&"binary_big_endian") => Format::BinaryBigEndianV1,
                     _ => return Err(InvalidInput(format!("Invalid format: {}", entries[1])).into()),
                 });
             }
-            "element" if entries.len() == 3 => {
+            Some(&"element") if entries.len() == 3 => {
                 if let Some(element) = current_element.take() {
                     elements.push(element);
                 }
@@ -165,18 +165,18 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
                     properties: Vec::new(),
                 });
             }
-            "property" => {
+            Some(&"property") => {
                 if current_element.is_none() {
                     return Err(
                         InvalidInput(format!("property outside of element: {}", line)).into(),
                     );
                 };
-                let property = match entries[1] {
-                    "list" if entries.len() == 5 => {
+                let property = match entries.get(1) {
+                    Some(&"list") if entries.len() == 5 => {
                         // We do not support list properties.
                         continue;
                     }
-                    data_type_str if entries.len() == 3 => {
+                    Some(data_type_str) if entries.len() == 3 => {
                         let data_type = DataType::from_str(data_type_str)?;
                         ScalarProperty {
                             name: entries[2].to_string(),
@@ -187,8 +187,8 @@ fn parse_header<R: BufRead>(reader: &mut R) -> Result<(Header, usize)> {
                 };
                 current_element.as_mut().unwrap().properties.push(property);
             }
-            "end_header" => break,
-            "comment" => {
+            Some(&"end_header") => break,
+            Some(&"comment") => {
                 if entries.len() == 5 && entries[1] == "offset:" {
                     let x = entries[2]
                         .parse::<f64>()

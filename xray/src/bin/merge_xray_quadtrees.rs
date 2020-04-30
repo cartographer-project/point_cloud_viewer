@@ -1,27 +1,27 @@
+use clap::Clap;
 use fnv::FnvHashSet;
 use point_viewer::color::Color;
 use quadtree::{Node, NodeId};
 use std::fs::create_dir_all;
 use std::io;
 use std::path::{Path, PathBuf};
-use structopt::StructOpt;
 use xray::{generation, Meta, META_EXTENSION, META_FILENAME, META_PREFIX};
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "merge_xray_quadtrees")]
+#[derive(Clap, Debug)]
+#[clap(name = "merge_xray_quadtrees")]
 /// Merge partial xray quadtrees. We assume that the root
 /// of each quadtree belongs to the same level of the final
 /// quadtree.
 struct CommandlineArguments {
     /// Directory where to write the merged quadtree. Does *not*
     /// have to be disjoint from input_directories.
-    #[structopt(parse(from_os_str), long)]
+    #[clap(parse(from_os_str), long)]
     output_directory: PathBuf,
     /// Tile background color.
-    #[structopt(default_value = "white", long)]
+    #[clap(arg_enum, default_value = "white", long)]
     tile_background_color: generation::TileBackgroundColorArgument,
     /// Directories with, possibly multiple, partial xray quadtrees.
-    #[structopt(parse(from_os_str))]
+    #[clap(parse(from_os_str))]
     input_directories: Vec<PathBuf>,
 }
 
@@ -205,7 +205,7 @@ fn merge(
 }
 
 fn main() -> io::Result<()> {
-    let args = CommandlineArguments::from_args();
+    let args = CommandlineArguments::parse();
     args.input_directories
         .iter()
         .try_for_each(|directory| validate_input_directory(&directory))?;

@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use clap::Clap;
 use protobuf::Message;
 use std::fs::File;
 use std::io::{BufWriter, Cursor};
 use std::path::{Path, PathBuf};
-use structopt::StructOpt;
 use xray::META_FILENAME;
 use xray_proto_rust::proto;
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "upgrade_xray_quadtree")]
+#[derive(Clap, Debug)]
+#[clap(name = "upgrade_xray_quadtree")]
 struct CommandlineArguments {
     /// Directory of xray quadtree to upgrade.
-    #[structopt(parse(from_os_str))]
+    #[clap(parse(from_os_str))]
     directory: PathBuf,
 }
 
@@ -45,7 +45,7 @@ fn upgrade_version2(filename: &Path, mut meta: proto::Meta) {
 }
 
 fn main() {
-    let args = CommandlineArguments::from_args();
+    let args = CommandlineArguments::parse();
     let filename = args.directory.join(META_FILENAME);
 
     loop {

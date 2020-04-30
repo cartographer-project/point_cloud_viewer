@@ -12,34 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use clap::Clap;
 use point_viewer::octree::build_octree_from_file;
 use rayon::ThreadPoolBuilder;
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "build_octree")]
+#[derive(Clap, Debug)]
+#[clap(name = "build_octree")]
 struct CommandlineArguments {
     /// PLY/PTS file to parse for the points.
-    #[structopt(parse(from_os_str))]
+    #[clap(parse(from_os_str))]
     input: PathBuf,
 
     /// Output directory to write the octree into.
-    #[structopt(long, parse(from_os_str))]
+    #[clap(long, parse(from_os_str))]
     output_directory: PathBuf,
 
     /// Minimal precision that this point cloud should have.
     /// This decides on the number of bits used to encode each node.
-    #[structopt(long, default_value = "0.001")]
+    #[clap(long, default_value = "0.001")]
     resolution: f64,
 
     /// The number of threads used to shard octree building. Set this as high as possible for SSDs.
-    #[structopt(long, default_value = "10")]
+    #[clap(long, default_value = "10")]
     num_threads: usize,
 }
 
 fn main() {
-    let args = CommandlineArguments::from_args();
+    let args = CommandlineArguments::parse();
     ThreadPoolBuilder::new()
         .num_threads(args.num_threads)
         .build_global()
