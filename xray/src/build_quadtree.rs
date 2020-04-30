@@ -100,8 +100,8 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches {
                 .about(
                     "Binning size for one attribute, e.g. --binning timestamp=30000000000, \
                      which will be applied to 'colored' and 'colored_with_intensity' strategies. \
-                     Colors will be first averaged within the same bin and then averaged over all
-                     bins, so e.g. for timestamped bins temporally closer points will get less
+                     Colors will be first averaged within the same bin and then averaged over all \
+                     bins, so e.g. for timestamped bins temporally closer points will get less \
                      weight than points temporally further away.")
                 .long("binning")
                 .takes_value(true),
