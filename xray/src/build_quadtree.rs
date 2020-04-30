@@ -143,7 +143,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
         let arg = ColoringStrategyArgument::from_str(
             args.value_of("coloring_strategy")
                 .expect("coloring_strategy is invalid"),
-            true,
+            false,
         )
         .expect("coloring_strategy couldn't be parsed");
         match arg {
@@ -164,7 +164,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
                         .expect("max_stddev is invalid"),
                     ColormapArgument::from_str(
                         args.value_of("colormap").expect("colormap is invalid"),
-                        true,
+                        false,
                     )
                     .expect("colormap couldn't be parsed"),
                 )
@@ -175,7 +175,7 @@ pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     let tile_background_color = TileBackgroundColorArgument::from_str(
         args.value_of("tile_background_color")
             .expect("tile_background_color is invalid"),
-        true,
+        false,
     )
     .expect("tile_background_color couldn't be parsed")
     .to_color();
