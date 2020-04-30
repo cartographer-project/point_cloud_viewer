@@ -3,7 +3,7 @@
 use crate::colormap::{Colormap, Jet, Monochrome, PURPLISH};
 use crate::utils::{get_image_path, get_meta_pb_path};
 use crate::Meta;
-use clap::arg_enum;
+use clap::Clap;
 use fnv::{FnvHashMap, FnvHashSet};
 use image::{self, GenericImage, ImageResult, Rgba, RgbaImage};
 use imageproc::map::map_colors;
@@ -30,42 +30,36 @@ use std::path::{Path, PathBuf};
 // becomes.
 const NUM_Z_BUCKETS: f64 = 1024.;
 
-arg_enum! {
-    #[derive(Debug)]
-    #[allow(non_camel_case_types)]
-    pub enum ColoringStrategyArgument {
-        xray,
-        colored,
-        colored_with_intensity,
-        colored_with_height_stddev,
-    }
+#[derive(Clap, Debug)]
+#[clap(rename_all = "snake_case")]
+pub enum ColoringStrategyArgument {
+    Xray,
+    Colored,
+    ColoredWithIntensity,
+    ColoredWithHeightStddev,
 }
 
-arg_enum! {
-    #[derive(Debug)]
-    #[allow(non_camel_case_types)]
-    pub enum TileBackgroundColorArgument {
-        white,
-        transparent,
-    }
+#[derive(Clap, Debug)]
+#[clap(rename_all = "snake_case")]
+pub enum TileBackgroundColorArgument {
+    White,
+    Transparent,
 }
 
 impl TileBackgroundColorArgument {
     pub fn to_color(&self) -> Color<u8> {
         match self {
-            TileBackgroundColorArgument::white => WHITE.to_u8(),
-            TileBackgroundColorArgument::transparent => TRANSPARENT.to_u8(),
+            TileBackgroundColorArgument::White => WHITE.to_u8(),
+            TileBackgroundColorArgument::Transparent => TRANSPARENT.to_u8(),
         }
     }
 }
 
-arg_enum! {
-    #[derive(Debug)]
-    #[allow(non_camel_case_types)]
-    pub enum ColormapArgument {
-        jet,
-        purplish,
-    }
+#[derive(Clap, Debug)]
+#[clap(rename_all = "snake_case")]
+pub enum ColormapArgument {
+    Jet,
+    Purplish,
 }
 
 // Maps from attribute name to the bin size
@@ -92,10 +86,10 @@ impl ColoringStrategyKind {
             ColoredWithIntensity(min_intensity, max_intensity, binning) => Box::new(
                 IntensityColoringStrategy::new(*min_intensity, *max_intensity, binning.clone()),
             ),
-            ColoredWithHeightStddev(max_stddev, ColormapArgument::jet) => {
+            ColoredWithHeightStddev(max_stddev, ColormapArgument::Jet) => {
                 Box::new(HeightStddevColoringStrategy::new(*max_stddev, Jet {}))
             }
-            ColoredWithHeightStddev(max_stddev, ColormapArgument::purplish) => Box::new(
+            ColoredWithHeightStddev(max_stddev, ColormapArgument::Purplish) => Box::new(
                 HeightStddevColoringStrategy::new(*max_stddev, Monochrome(PURPLISH)),
             ),
         }

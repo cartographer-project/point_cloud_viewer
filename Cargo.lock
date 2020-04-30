@@ -613,10 +613,40 @@ dependencies = [
  "ansi_term",
  "atty",
  "bitflags",
- "strsim",
+ "strsim 0.8.0",
  "textwrap",
  "unicode-width",
  "vec_map",
+]
+
+[[package]]
+name = "clap"
+version = "3.0.0-beta.1"
+source = "git+https://github.com/clap-rs/clap/?rev=5b9dbee5db540f44c336c2db54ece444624c30ef#5b9dbee5db540f44c336c2db54ece444624c30ef"
+dependencies = [
+ "atty",
+ "bitflags",
+ "clap_derive",
+ "indexmap",
+ "lazy_static",
+ "os_str_bytes",
+ "strsim 0.10.0",
+ "termcolor",
+ "textwrap",
+ "unicode-width",
+ "vec_map",
+]
+
+[[package]]
+name = "clap_derive"
+version = "3.0.0-beta.1"
+source = "git+https://github.com/clap-rs/clap/?rev=5b9dbee5db540f44c336c2db54ece444624c30ef#5b9dbee5db540f44c336c2db54ece444624c30ef"
+dependencies = [
+ "heck",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -695,7 +725,7 @@ checksum = "1fc755679c12bda8e5523a71e4d654b6bf2e14bd838dfc48cde6559a05caf7d1"
 dependencies = [
  "atty",
  "cast",
- "clap",
+ "clap 2.33.0",
  "criterion-plot",
  "csv",
  "itertools 0.8.2",
@@ -1867,6 +1897,7 @@ dependencies = [
  "actix",
  "actix-web",
  "byteorder",
+ "clap 3.0.0-beta.1",
  "crossbeam-utils",
  "failure",
  "json",
@@ -1874,7 +1905,6 @@ dependencies = [
  "point_viewer",
  "serde",
  "serde_derive",
- "structopt",
  "time 0.2.9",
 ]
 
@@ -1892,6 +1922,12 @@ checksum = "18869315e81473c951eb56ad5558bbc56978562d3ecfb87abb7a1e944cea4518"
 dependencies = [
  "num-traits 0.2.11",
 ]
+
+[[package]]
+name = "os_str_bytes"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5aad937e768e4bd31ddf5f56ce5d1fa7d2e18d84d2aae49d2c45c65aa1cadba0"
 
 [[package]]
 name = "parking_lot"
@@ -2071,13 +2107,13 @@ dependencies = [
 name = "point_cloud_client"
 version = "0.1.0"
 dependencies = [
+ "clap 3.0.0-beta.1",
  "fnv",
  "nalgebra",
  "num_cpus",
  "point_viewer",
  "point_viewer_grpc",
  "protobuf",
- "structopt",
 ]
 
 [[package]]
@@ -2106,6 +2142,7 @@ dependencies = [
  "approx 0.3.2",
  "arrayvec",
  "byteorder",
+ "clap 3.0.0-beta.1",
  "crossbeam",
  "error-chain",
  "fnv",
@@ -2127,7 +2164,6 @@ dependencies = [
  "s2",
  "serde",
  "serde_derive",
- "structopt",
  "tempdir",
 ]
 
@@ -2135,7 +2171,7 @@ dependencies = [
 name = "point_viewer_grpc"
 version = "0.1.0"
 dependencies = [
- "clap",
+ "clap 2.33.0",
  "crossbeam-channel",
  "ctrlc",
  "futures 0.1.29",
@@ -2756,7 +2792,7 @@ name = "sdl_viewer"
 version = "0.1.0"
 dependencies = [
  "byteorder",
- "clap",
+ "clap 2.33.0",
  "fnv",
  "gl_generator",
  "image",
@@ -2958,28 +2994,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 
 [[package]]
-name = "structopt"
-version = "0.3.12"
+name = "strsim"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8faa2719539bbe9d77869bfb15d4ee769f99525e707931452c97b693b3f159d"
-dependencies = [
- "clap",
- "lazy_static",
- "structopt-derive",
-]
-
-[[package]]
-name = "structopt-derive"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f88b8e18c69496aad6f9ddf4630dd7d585bcaf765786cb415b9aec2fe5a0430"
-dependencies = [
- "heck",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn",
-]
+checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
 name = "syn"
@@ -3049,6 +3067,15 @@ dependencies = [
  "redox_syscall",
  "remove_dir_all",
  "winapi 0.3.8",
+]
+
+[[package]]
+name = "termcolor"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb6bfa289a4d7c5766392812c0a1f4c1ba45afa1ad47803c11e1f407d846d75f"
+dependencies = [
+ "winapi-util",
 ]
 
 [[package]]
@@ -3579,7 +3606,7 @@ checksum = "9afd061c1c7c8ef0a3d337fbf76fc8c098bd0dfefd4adaafef25a559352f2031"
 name = "xray"
 version = "0.1.0"
 dependencies = [
- "clap",
+ "clap 3.0.0-beta.1",
  "crossbeam",
  "fnv",
  "globwalk",
@@ -3601,7 +3628,6 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "streaming-stats",
- "structopt",
  "texture-synthesis",
  "urlencoded",
  "xray_proto_rust",

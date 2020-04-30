@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use clap::Clap;
 use point_viewer::data_provider::{DataProvider, OnDiskDataProvider};
 use point_viewer::octree::NodeId;
 use point_viewer::proto;
@@ -20,13 +21,12 @@ use protobuf::Message;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
-use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "upgrade_octree")]
+#[derive(Clap, Debug)]
+#[clap(name = "upgrade_octree")]
 struct CommandlineArguments {
     /// Directory of octree to upgrade.
-    #[structopt(parse(from_os_str))]
+    #[clap(parse(from_os_str))]
     directory: PathBuf,
 }
 
@@ -81,7 +81,7 @@ fn upgrade_version12(directory: &Path, mut meta: proto::Meta) {
 }
 
 fn main() {
-    let args = CommandlineArguments::from_args();
+    let args = CommandlineArguments::parse();
     let data_provider = OnDiskDataProvider {
         directory: args.directory.clone(),
     };

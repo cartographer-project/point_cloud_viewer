@@ -1,10 +1,10 @@
+use clap::Clap;
 use fnv::FnvHashSet;
 use quadtree::{Direction, NodeId};
 use std::error::Error;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use structopt::StructOpt;
 use xray::{
     generation::{assign_background_color, create_non_leaf_nodes, TileBackgroundColorArgument},
     inpaint::perform_inpainting,
@@ -12,8 +12,8 @@ use xray::{
     Meta,
 };
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "inpaint_xray_quadtrees")]
+#[derive(Clap, Debug)]
+#[clap(name = "inpaint_xray_quadtrees")]
 /// Inpaint a (possibly partial) xray quadtree. We assume that the input
 /// quadtree was generated with transparent background color, so we can
 /// determine which pixels to actually fill.
@@ -21,20 +21,20 @@ struct CommandlineArguments {
     /// Directory with the (possibly partial) quadtree to be inpainted.
     /// Needs to include all leaf nodes of the neighboring quadtrees as well
     /// for smooth inpainting results.
-    #[structopt(parse(from_os_str))]
+    #[clap(parse(from_os_str))]
     input_directory: PathBuf,
     /// Directory where to write the inpainted quadtree. Does *not*
     /// have to be disjoint from input_directory.
-    #[structopt(parse(from_os_str), long)]
+    #[clap(parse(from_os_str), long)]
     output_directory: PathBuf,
     /// Tile background color.
-    #[structopt(default_value = "white", long)]
+    #[clap(arg_enum, default_value = "white", long)]
     tile_background_color: TileBackgroundColorArgument,
     /// The inpainting distance in pixels to fill holes (particularly useful for high resolutions)
-    #[structopt(long)]
+    #[clap(long)]
     inpaint_distance_px: u8,
     /// The root node id to start inpainting with.
-    #[structopt(default_value = "r", long)]
+    #[clap(default_value = "r", long)]
     root_node_id: NodeId,
 }
 
@@ -96,7 +96,7 @@ fn copy_meta_pb(
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args = CommandlineArguments::from_args();
+    let args = CommandlineArguments::parse();
     let input_directory = args.input_directory.canonicalize()?;
     if !args.output_directory.exists() {
         fs::create_dir_all(&args.output_directory)?;

@@ -11,7 +11,7 @@ authors = [
 edition = "2018"
 
 [dependencies]
-clap = "2.33.0"
+clap = { git = "https://github.com/clap-rs/clap/", rev = "5b9dbee5db540f44c336c2db54ece444624c30ef" }
 crossbeam = "0.7.3"
 fnv = "1.0.6"
 globwalk = "0.8.0"
@@ -28,7 +28,6 @@ router = "0.6.0"
 serde = "1.0.104"
 serde_json = "1.0.48"
 serde_derive = "1.0.104"
-structopt = "0.3.11"
 texture-synthesis = "0.8.0"
 urlencoded = "0.6.0"
 streaming-stats = "0.2.3"

@@ -12,28 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use clap::Clap;
 use octree_web_viewer::backend_error::PointsViewerError;
 use octree_web_viewer::state::AppState;
 use octree_web_viewer::utils::start_octree_server;
 use point_viewer::data_provider::DataProviderFactory;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use structopt::StructOpt;
 
 /// HTTP web viewer for 3d points stored in OnDiskOctrees
-#[derive(StructOpt, Debug)]
-#[structopt(name = "points_web_viewer", about = "Visualizing points")]
+#[derive(Clap, Debug)]
+#[clap(name = "points_web_viewer", about = "Visualizing points")]
 pub struct CommandLineArguments {
     /// The octree directory to serve, including a trailing slash.
-    #[structopt(name = "DIR", parse(from_os_str))]
+    #[clap(name = "DIR", parse(from_os_str))]
     octree_path: PathBuf,
     /// Port to listen on.
-    #[structopt(default_value = "5433")]
+    #[clap(default_value = "5433")]
     port: u16,
     /// IP string.
-    #[structopt(default_value = "127.0.0.1")]
+    #[clap(default_value = "127.0.0.1")]
     ip: String,
-    #[structopt(default_value = "100")]
+    #[clap(default_value = "100")]
     cache_items: usize,
 }
 
@@ -55,7 +55,7 @@ pub fn state_from(args: CommandLineArguments) -> Result<AppState, PointsViewerEr
 }
 
 fn main() {
-    let args = CommandLineArguments::from_args();
+    let args = CommandLineArguments::parse();
 
     let ip_port = format!("{}:{}", args.ip, args.port);
 

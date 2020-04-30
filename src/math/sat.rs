@@ -121,7 +121,7 @@ impl Intersector {
             let is_dupe = dedup_axes.iter().any(|ax2: &Unit<Vector3<f64>>| {
                 let d1 = (ax1.as_ref() - ax2.as_ref()).norm_squared();
                 let d2 = (ax1.as_ref() + ax2.as_ref()).norm_squared();
-                d1.min(d2) < f64::EPSILON
+                d1.min(d2) < std::f64::EPSILON
             });
             if !is_dupe {
                 dedup_axes.push(ax1);
@@ -194,8 +194,8 @@ where
 }
 
 fn project_on_axis(corners: &[Point3<f64>], sep_axis: Unit<Vector3<f64>>) -> (f64, f64) {
-    let mut min_proj = f64::MAX;
-    let mut max_proj = f64::MIN;
+    let mut min_proj = std::f64::MAX;
+    let mut max_proj = std::f64::MIN;
     for corner in corners {
         let corner_proj = corner.coords.dot(&sep_axis);
         min_proj = min_proj.min(corner_proj);

@@ -6,7 +6,7 @@ use xray::build_quadtree::{run, Extension};
 struct NullExtension;
 
 impl Extension for NullExtension {
-    fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
+    fn pre_init(app: clap::App) -> clap::App {
         app
     }
     fn query_from_global(_: &clap::ArgMatches) -> Option<Isometry3<f64>> {

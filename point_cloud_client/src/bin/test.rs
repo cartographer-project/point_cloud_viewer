@@ -1,13 +1,13 @@
-// This removes clippy warnings regarding redundant StructOpt.
+// This removes clippy warnings regarding redundant Clap.
 #![allow(clippy::redundant_closure)]
 
+use clap::Clap;
 use nalgebra::Point3;
 use point_cloud_client::PointCloudClientBuilder;
 use point_viewer::errors::{ErrorKind, Result};
 use point_viewer::geometry::Aabb;
 use point_viewer::iterator::{PointLocation, PointQuery};
 use point_viewer::PointsBatch;
-use structopt::StructOpt;
 
 // size for batch
 const BATCH_SIZE: usize = 1_000_000;
@@ -24,15 +24,15 @@ fn point3f64_from_str(s: &str) -> std::result::Result<Point3<f64>, &'static str>
     Ok(Point3::new(coords[0], coords[1], coords[2]))
 }
 
-#[derive(StructOpt)]
-#[structopt(about = "Simple point_cloud_client test.")]
+#[derive(Clap)]
+#[clap(about = "Simple point_cloud_client test.")]
 struct CommandlineArguments {
     /// The locations containing the octree data.
-    #[structopt(parse(from_str), required = true)]
+    #[clap(parse(from_str), required = true)]
     locations: Vec<String>,
 
     /// The minimum value of the bounding box to be queried.
-    #[structopt(
+    #[clap(
         long,
         default_value = "-500.0 -500.0 -500.0",
         parse(try_from_str = point3f64_from_str)
@@ -40,7 +40,7 @@ struct CommandlineArguments {
     min: Point3<f64>,
 
     /// The maximum value of the bounding box to be queried.
-    #[structopt(
+    #[clap(
         long,
         default_value = "500.0 500.0 500.0",
         parse(try_from_str = point3f64_from_str)
@@ -48,20 +48,20 @@ struct CommandlineArguments {
     max: Point3<f64>,
 
     /// The maximum number of points to return.
-    #[structopt(long, default_value = "50000000")]
+    #[clap(long, default_value = "50000000")]
     num_points: usize,
 
     /// The maximum number of threads to be running.
-    #[structopt(long, default_value = "30")]
+    #[clap(long, default_value = "30")]
     num_threads: usize,
 
     /// The maximum number of points sent through batch.
-    #[structopt(long, default_value = "500000")]
+    #[clap(long, default_value = "500000")]
     batch_size: usize,
 }
 
 fn main() {
-    let args = CommandlineArguments::from_args();
+    let args = CommandlineArguments::parse();
     let num_points = args.num_points;
     let point_cloud_client = PointCloudClientBuilder::new(&args.locations)
         .num_threads(args.num_threads)
