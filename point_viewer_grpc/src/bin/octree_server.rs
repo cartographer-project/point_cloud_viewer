@@ -48,7 +48,7 @@ fn main() {
     let mut server = start_grpc_server("0.0.0.0", port, &octree_directory, data_provider_factory);
     server.start();
 
-    for &(ref host, port) in server.bind_addrs() {
+    for (ref host, port) in server.bind_addrs() {
         eprintln!("listening on {}:{}", host, port);
     }
     let rx: crossbeam_channel::Receiver<()> = ctrlc_channel().unwrap();
