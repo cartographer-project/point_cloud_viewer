@@ -49,14 +49,14 @@ struct OctreeService {
 
 fn send_fail_stream<T>(ctx: &RpcContext, sink: ServerStreamingSink<T>, err_str: String) {
     let f = sink
-        .fail(RpcStatus::new(RpcStatusCode::INTERNAL, Some(err_str)))
+        .fail(RpcStatus::new(RpcStatusCode::Internal, Some(err_str)))
         .map_err(move |err| eprintln!("Failed to reply: {:?}", err));
     ctx.spawn(f);
 }
 
 fn send_fail<T>(ctx: &RpcContext, sink: UnarySink<T>, err_str: String) {
     let f = sink
-        .fail(RpcStatus::new(RpcStatusCode::INTERNAL, Some(err_str)))
+        .fail(RpcStatus::new(RpcStatusCode::Internal, Some(err_str)))
         .map_err(move |err| eprintln!("Failed to reply: {:?}", err));
     ctx.spawn(f);
 }
