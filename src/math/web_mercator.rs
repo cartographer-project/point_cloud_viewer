@@ -39,11 +39,11 @@ impl WebMercatorCoord {
         // Implemented according to
         // https://developers.google.com/maps/documentation/javascript/examples/map-coordinates?csw=1
         // but clamping is done before the sin() operation.
-        let lat = nalgebra::clamp(lat_lng.latitude(), -LAT_BOUND_RAD, LAT_BOUND_RAD);
+        let lat = nalgebra::clamp(lat_lng.latitude_radians(), -LAT_BOUND_RAD, LAT_BOUND_RAD);
         let sin_y = lat.sin();
 
         let normalized = Vector2::new(
-            0.5 + lat_lng.longitude() / TWO_PI,
+            0.5 + lat_lng.longitude_radians() / TWO_PI,
             0.5 - ((1.0 + sin_y) / (1.0 - sin_y)).ln() * FRAC_1_4_PI,
         );
         Self { normalized }
@@ -60,7 +60,7 @@ impl WebMercatorCoord {
         let mut sin_y = (1.0 / one_over_sin_y) + 1.0;
         sin_y = nalgebra::clamp(sin_y, -LAT_BOUND_SIN, LAT_BOUND_SIN);
         let longitude = nalgebra::clamp(centered.x * TWO_PI, -PI, PI);
-        WGS84::new(sin_y.asin() * 180.0 / PI, longitude * 180.0 / PI, 0.0)
+        WGS84::from_radians_and_meters(sin_y.asin(), longitude, 0.0)
     }
 
     /// To use a Web Mercator coordinate, specify a zoom level in which it
@@ -107,9 +107,8 @@ mod tests {
     #[test]
     fn projection_corners() {
         // Checks that the corners of the map are at the expected coordinates
-        let lat_bound_deg = LAT_BOUND_RAD * 180.0 / PI;
-        let lat_lng_lower = WGS84::new(lat_bound_deg, -180.0, 0.0);
-        let lat_lng_upper = WGS84::new(-lat_bound_deg, 180.0, 0.0);
+        let lat_lng_lower = WGS84::from_radians_and_meters(LAT_BOUND_RAD, -PI, 0.0);
+        let lat_lng_upper = WGS84::from_radians_and_meters(-LAT_BOUND_RAD, PI, 0.0);
         let lower_corner = WebMercatorCoord::from_lat_lng(&lat_lng_lower);
         let upper_corner = WebMercatorCoord::from_lat_lng(&lat_lng_upper);
         // The upper left corner of a world map
@@ -132,17 +131,23 @@ mod tests {
     fn projection_roundtrip() {
         // Checks that unprojection of a projection returns the original coordinate,
         // except for altitude, which is 0
-        let test_coordinate = WGS84::new(37.407204, -122.147604, 1300.0);
+        let test_coordinate = WGS84::from_degrees_and_meters(37.407204, -122.147604, 1300.0);
         let projected = WebMercatorCoord::from_lat_lng(&test_coordinate);
         let unprojected = projected.to_lat_lng();
-        assert_relative_eq!(test_coordinate.longitude(), unprojected.longitude());
-        assert_relative_eq!(test_coordinate.latitude(), unprojected.latitude());
+        assert_relative_eq!(
+            test_coordinate.longitude_radians(),
+            unprojected.longitude_radians()
+        );
+        assert_relative_eq!(
+            test_coordinate.latitude_radians(),
+            unprojected.latitude_radians()
+        );
         assert_eq!(unprojected.altitude(), 0.0);
     }
 
     #[test]
     fn projection_ground_truth() {
-        let test_coordinate = WGS84::new(37.407204, -122.147604, 0.0);
+        let test_coordinate = WGS84::from_degrees_and_meters(37.407204, -122.147604, 0.0);
         // This test coordinate is at approx. pixel (165, 18) on this OSM tile at level 19:
         // https://a.tile.openstreetmap.org/19/84253/203324.png
         // So the pixel coordinate in a map at zoom level 19 (resolution 256*2^19) is this:

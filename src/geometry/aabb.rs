@@ -18,8 +18,8 @@ pub struct Aabb {
 impl Aabb {
     pub fn new(mins: Point3<f64>, maxs: Point3<f64>) -> Self {
         Aabb {
-            mins: nalgebra::inf(&mins, &maxs),
-            maxs: nalgebra::sup(&mins, &maxs),
+            mins: mins.inf(&maxs),
+            maxs: mins.sup(&maxs),
         }
     }
 
@@ -39,8 +39,8 @@ impl Aabb {
     }
 
     pub fn grow(&mut self, p: Point3<f64>) {
-        self.mins = nalgebra::inf(&self.mins, &p);
-        self.maxs = nalgebra::sup(&self.maxs, &p);
+        self.mins = self.mins.inf(&p);
+        self.maxs = self.maxs.sup(&p);
     }
 
     pub fn contains(&self, p: &Point3<f64>) -> bool {

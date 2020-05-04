@@ -25,7 +25,7 @@ edition = "2018"
 
 [build-dependencies]
 protobuf_provider = { path = "../protobuf_provider" }
-protoc-rust = "2.10.2"
+protoc-rust = "2.14.0"
 
 [dependencies]
-protobuf = "2.10.2"
+protobuf = "2.14.0"
