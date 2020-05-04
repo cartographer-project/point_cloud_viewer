@@ -165,16 +165,17 @@ impl PointCulling for AllPoints {
 // used as Earth's ellipsoid, which does not generally pass through the center of the Earth>)
 // https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
 pub fn local_frame_from_lat_lng(lat: f64, lon: f64) -> Isometry3<f64> {
-    let lat_lng_alt = WGS84::new(lat, lon, 0.0);
+    let lat_lng_alt = WGS84::from_degrees_and_meters(lat, lon, 0.0);
     let origin = ECEF::from(lat_lng_alt);
     let origin_vector = Vector3::new(origin.x(), origin.y(), origin.z());
 
     let rot_1 = UnitQuaternion::from_axis_angle(&Vector3::z_axis(), -std::f64::consts::FRAC_PI_2);
     let rot_2 = UnitQuaternion::from_axis_angle(
         &Vector3::y_axis(),
-        lat_lng_alt.latitude() - std::f64::consts::FRAC_PI_2,
+        lat_lng_alt.latitude_radians() - std::f64::consts::FRAC_PI_2,
     );
-    let rot_3 = UnitQuaternion::from_axis_angle(&Vector3::z_axis(), -lat_lng_alt.longitude());
+    let rot_3 =
+        UnitQuaternion::from_axis_angle(&Vector3::z_axis(), -lat_lng_alt.longitude_radians());
 
     let rotation = rot_1 * rot_2 * rot_3;
 

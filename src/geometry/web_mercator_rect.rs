@@ -62,7 +62,11 @@ impl ConvexPolyhedron for WebMercatorRect {
         let n_w = self.north_west.to_lat_lng();
         let s_e = self.south_east.to_lat_lng();
         let ecef_point = |lat: WGS84<f64>, lng: WGS84<f64>, elevation: f64| -> Point3<f64> {
-            let lat_lng = WGS84::new(lat.latitude_degrees(), lng.longitude_degrees(), elevation);
+            let lat_lng = WGS84::from_radians_and_meters(
+                lat.latitude_radians(),
+                lng.longitude_radians(),
+                elevation,
+            );
             let ecef = ECEF::from(lat_lng);
             Point3::new(ecef.x(), ecef.y(), ecef.z())
         };
@@ -176,8 +180,8 @@ mod tests {
             .unwrap()
             .to_lat_lng();
         // These come out about the same
-        let lat_diff = (max_lat_lng.latitude() - min_lat_lng.latitude()).abs();
-        let lng_diff = (max_lat_lng.longitude() - min_lat_lng.longitude()).abs();
+        let lat_diff = (max_lat_lng.latitude_radians() - min_lat_lng.latitude_radians()).abs();
+        let lng_diff = (max_lat_lng.longitude_radians() - min_lat_lng.longitude_radians()).abs();
         // In the latitude direction, we don't have a circle, we have an ellipse.
         // Use the local radius of curvature at the equator (i.e. semi_minor_axis²/semi_major_axis),
         // see https://en.wikipedia.org/wiki/Ellipse#Curvature for the formula and

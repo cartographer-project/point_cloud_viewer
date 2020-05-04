@@ -84,7 +84,7 @@ pub enum Encoding {
 /// Encode float as integer.
 pub fn fixpoint_encode<T>(value: f64, min: f64, edge_length: f64) -> T
 where
-    T: num_traits::PrimInt + num_traits::Bounded + alga::general::SubsetOf<f64>,
+    T: num_traits::PrimInt + num_traits::Bounded + simba::scalar::SubsetOf<f64>,
 {
     let value =
         clamp((value - min) / edge_length, 0., 1.) * nalgebra::convert::<T, f64>(T::max_value());
@@ -94,7 +94,7 @@ where
 /// Encode float as f32 or f64 unit interval float.
 pub fn _encode<T>(value: f64, min: f64, edge_length: f64) -> T
 where
-    T: alga::general::SubsetOf<f64>,
+    T: simba::scalar::SubsetOf<f64>,
 {
     nalgebra::try_convert(clamp((value - min) / edge_length, 0., 1.)).unwrap()
 }
@@ -105,7 +105,7 @@ pub fn vec3_fixpoint_encode<T>(
     edge_length: f64,
 ) -> Vector3<T>
 where
-    T: Scalar + num_traits::PrimInt + num_traits::Bounded + alga::general::SubsetOf<f64>,
+    T: Scalar + num_traits::PrimInt + num_traits::Bounded + simba::scalar::SubsetOf<f64>,
 {
     let scale: f64 = nalgebra::convert(T::max_value());
     let value = clamp_elementwise((value - min) / edge_length, 0.0, 1.0);
@@ -114,7 +114,7 @@ where
 
 pub fn vec3_encode<T>(value: &Point3<f64>, min: &Point3<f64>, edge_length: f64) -> Vector3<T>
 where
-    T: Scalar + alga::general::SubsetOf<f64>,
+    T: Scalar + simba::scalar::SubsetOf<f64>,
 {
     let value = clamp_elementwise((value - min) / edge_length, 0.0, 1.0);
     nalgebra::try_convert(value).unwrap()
@@ -123,7 +123,7 @@ where
 /// Decode integer as float.
 pub fn fixpoint_decode<T>(value: T, min: f64, edge_length: f64) -> f64
 where
-    T: num_traits::PrimInt + num_traits::Bounded + alga::general::SubsetOf<f64>,
+    T: num_traits::PrimInt + num_traits::Bounded + simba::scalar::SubsetOf<f64>,
 {
     let max: f64 = nalgebra::convert(T::max_value());
     let v: f64 = nalgebra::convert(value);
@@ -133,7 +133,7 @@ where
 /// Decode f32 or f64 unit interval float as f64.
 pub fn decode<T>(value: T, min: f64, edge_length: f64) -> f64
 where
-    T: alga::general::SubsetOf<f64>,
+    T: simba::scalar::SubsetOf<f64>,
 {
     nalgebra::convert::<T, f64>(value).mul_add(edge_length, min)
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use protobuf_provider::ScopedProtocPath;
+use protobuf_provider::PROTOBUF_BIN_PATH;
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -22,14 +22,12 @@ fn main() {
     println!("cargo:rerun-if-changed=src/proto.proto");
 
     let out_dir = env::var("OUT_DIR").unwrap();
-    let _protoc_path = ScopedProtocPath::default();
-    protoc_rust::run(protoc_rust::Args {
-        out_dir: &out_dir,
-        input: &["src/proto.proto"],
-        includes: &[],
-        ..Default::default()
-    })
-    .expect("protoc");
+    protoc_rust::Codegen::new()
+        .protoc_path(Path::new(PROTOBUF_BIN_PATH).join("protoc"))
+        .out_dir(&out_dir)
+        .input("src/proto.proto")
+        .run()
+        .expect("protoc");
     // Work around
     // https://github.com/stepancheg/rust-protobuf/issues/117
     // https://github.com/rust-lang/rust/issues/18810.
