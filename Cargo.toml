@@ -32,7 +32,7 @@ error-chain = "0.12.2"
 fnv = "1.0.7"
 image = "0.23.4"
 libc = "0.2.70"
-lru = "0.4.4"
+lru = "0.4.3"
 nalgebra = { version = "0.21.0", features = ["serde-serialize"] }
 nav-types = "0.5.0"
 num = "0.2.1"
