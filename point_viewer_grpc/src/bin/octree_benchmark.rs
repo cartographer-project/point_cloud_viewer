@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use clap::value_t;
 use futures::future::Future;
 use futures::Stream;
 use grpcio::{ChannelBuilder, Environment};
@@ -33,27 +32,27 @@ fn main() {
     let matches = clap::App::new("octree_benchmark")
         .args(&[
             clap::Arg::with_name("port")
-                .help("Port for the server to listen on for connections. [50051]")
+                .about("Port for the server to listen on for connections. [50051]")
                 .long("port")
                 .takes_value(true),
             clap::Arg::with_name("no-client")
-                .help("Do not actually send points, only read them on the server.")
+                .about("Do not actually send points, only read them on the server.")
                 .long("no-client")
                 .takes_value(false),
             clap::Arg::with_name("num-points")
-                .help("Number of points to stream. [50000000]")
+                .about("Number of points to stream. [50000000]")
                 .long("num-points")
                 .takes_value(true),
             clap::Arg::with_name("num-threads")
-                .help("Number of threads, num(cpus) - 1 by default")
+                .about("Number of threads, num(cpus) - 1 by default")
                 .long("num-threads")
                 .takes_value(true),
             clap::Arg::with_name("buffer-size")
-                .help("Buffer capacity, 4 by default")
+                .about("Buffer capacity, 4 by default")
                 .long("buffer")
                 .takes_value(true),
             clap::Arg::with_name("octree_directory")
-                .help("Input directory of the octree directory to serve.")
+                .about("Input directory of the octree directory to serve.")
                 .index(1)
                 .required(true),
         ])
@@ -77,7 +76,7 @@ fn main() {
     if matches.is_present("no-client") {
         server_benchmark(&octree_directory, num_points, num_threads, buffer_size)
     } else {
-        let port = value_t!(matches, "port", u16).unwrap_or(50051);
+        let port = matches.value_of_t("port").unwrap_or(50051);
         full_benchmark(&octree_directory, num_points, port)
     }
 }
