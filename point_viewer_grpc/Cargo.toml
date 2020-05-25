@@ -24,7 +24,7 @@ authors = [
 edition = "2018"
 
 [dependencies]
-clap = "2.33.0"
+clap = "3.0.0-beta.1"
 crossbeam-channel = "0.4.2"
 ctrlc = "3.1.4"
 futures = "0.1.29"

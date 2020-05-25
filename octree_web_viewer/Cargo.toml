@@ -32,9 +32,9 @@ crossbeam-utils = "0.7.2"
 failure = "0.1.8"
 json = "0.12.4"
 nalgebra = "0.21.0"
-serde = "1.0.106"
-serde_derive = "1.0.106"
-time = "0.2.14"
+serde = "1.0.110"
+serde_derive = "1.0.110"
+time = "0.2.16"
 
 [dependencies.point_viewer]
 path = ".."

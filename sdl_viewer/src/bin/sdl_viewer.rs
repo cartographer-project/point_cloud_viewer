@@ -22,7 +22,7 @@ use std::rc::Rc;
 struct NullExtension;
 
 impl Extension for NullExtension {
-    fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
+    fn pre_init(app: clap::App) -> clap::App {
         app
     }
 

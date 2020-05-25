@@ -293,7 +293,7 @@ fn load_camera(index: usize, pose_path: &Option<PathBuf>, camera: &mut Camera) {
 }
 
 pub trait Extension {
-    fn pre_init<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>;
+    fn pre_init(app: clap::App) -> clap::App;
     fn new(matches: &clap::ArgMatches, opengl: Rc<opengl::Gl>) -> Self;
     fn local_from_global(matches: &clap::ArgMatches, octree: &Octree) -> Option<Isometry3<f64>>;
     fn camera_changed(&mut self, transform: &Matrix4<f64>);
@@ -349,16 +349,16 @@ impl Joystick for SpaceMouseJoystick {
 pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     let mut app = clap::App::new("sdl_viewer").args(&[
         clap::Arg::with_name("octree")
-            .help("Input path of the octree.")
+            .about("Input path of the octree.")
             .index(1)
             .required(true),
         clap::Arg::with_name("terrain")
             .long("terrain")
             .takes_value(true)
             .multiple(true)
-            .help("Terrain directories (multiple possible)."),
+            .about("Terrain directories (multiple possible)."),
         clap::Arg::with_name("cache_size_mb")
-            .help(
+            .about(
                 "Maximum cache size in MB for octree nodes in GPU memory. \
                  The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.",
             )
