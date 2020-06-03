@@ -4,9 +4,7 @@ set -ex
 
 install_javascript_stuff() {
   source ~/.nvm/nvm.sh
-  nvm install 12.18.0
-  nvm ls
-  nvm use 12.18.0
+  nvm install $(cat .nvmrc)
 
   sudo apt-key adv --fetch-keys http://dl.yarnpkg.com/debian/pubkey.gpg
   echo "deb http://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list

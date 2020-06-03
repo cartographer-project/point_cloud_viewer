@@ -1,6 +1,9 @@
 set -ex
 
 main() {
+    source ~/.nvm/nvm.sh
+    nvm use $(cat .nvmrc)
+
     # octree_web_viewer - client
     pushd octree_web_viewer/client
     yarn run build
