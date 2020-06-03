@@ -3,6 +3,10 @@
 set -ex
 
 install_javascript_stuff() {
+  curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.35.3/install.sh | bash
+  source ~/.nvm/nvm.sh
+  nvm install 12.18.0
+
   sudo apt-key adv --fetch-keys http://dl.yarnpkg.com/debian/pubkey.gpg
   echo "deb http://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
   sudo apt-get update -qq
