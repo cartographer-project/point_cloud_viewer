@@ -2,7 +2,7 @@ set -ex
 
 main() {
     source ~/.nvm/nvm.sh
-    nvm use $(cat .nvmrc)
+    nvm use
 
     # octree_web_viewer - client
     pushd octree_web_viewer/client
