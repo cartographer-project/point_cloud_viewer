@@ -25,12 +25,12 @@ macro_rules! c_str {
 mod camera;
 #[allow(
     non_upper_case_globals,
+    clippy::manual_non_exhaustive,
+    clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::unreadable_literal,
     clippy::unused_unit
 )]
-// TODO(feuerste): Move this up when Rust 1.40 is stable.
-#[cfg_attr(clippy_has_missing_safety_doc, allow(clippy::missing_safety_doc))]
 pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
