@@ -15,14 +15,14 @@
   ],
   "license": "Apache-2.0",
   "devDependencies": {
-    "prettier": "^1.10.2",
-    "rollup": "^0.55.3",
-    "rollup-plugin-commonjs": "^8.3.0",
-    "rollup-plugin-node-resolve": "^3.0.2",
-    "typescript": "~3.3.3"
+    "prettier": "^2.0.5",
+    "rollup": "^2.12.1",
+    "@rollup/plugin-commonjs": "^12.0.0",
+    "@rollup/plugin-node-resolve": "^8.0.0",
+    "typescript": "~3.9.3"
   },
   "dependencies": {
-    "three": "~0.107.0"
+    "three": "~0.117.1"
   },
   "prettier": {
     "arrowParens": "always",
