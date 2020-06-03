@@ -1121,9 +1121,8 @@ dependencies = [
 
 [[package]]
 name = "gl_generator"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a95dfc23a2b4a9a2f5ab41d194f8bfda3cabec42af4e39f08c339eb2a0c124d"
+version = "0.14.1"
+source = "git+https://github.com/feuerste/gl-rs?branch=feuerste/non_exhaustive#6bb6afe7ebbc12e0429635defae512576ba67b63"
 dependencies = [
  "khronos_api",
  "log 0.4.8",
@@ -1474,9 +1473,8 @@ dependencies = [
 
 [[package]]
 name = "khronos_api"
-version = "3.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
+version = "3.2.0"
+source = "git+https://github.com/feuerste/gl-rs?branch=feuerste/non_exhaustive#6bb6afe7ebbc12e0429635defae512576ba67b63"
 
 [[package]]
 name = "language-tags"
