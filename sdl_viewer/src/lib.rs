@@ -30,6 +30,8 @@ mod camera;
     clippy::unreadable_literal,
     clippy::unused_unit
 )]
+// TODO(feuerste): Remove rustversion from Cargo.toml and move this up once it is in stable clippy, too.
+#[rustversion::attr(not(stable), allow(clippy::manual_non_exhaustive))]
 pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
