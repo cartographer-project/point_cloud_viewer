@@ -25,12 +25,13 @@ macro_rules! c_str {
 mod camera;
 #[allow(
     non_upper_case_globals,
-    clippy::manual_non_exhaustive,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::unreadable_literal,
     clippy::unused_unit
 )]
+// TODO(feuerste): Move this up once in stable.
+#[cfg_attr(manual_non_exhaustive, allow(clippy::manual_non_exhaustive))]
 pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
