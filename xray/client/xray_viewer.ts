@@ -46,7 +46,7 @@ class NodeData {
       this.boundingRect['edge_length'],
       1
     );
-    geometry.applyMatrix(
+    geometry.applyMatrix4(
       new THREE.Matrix4().makeTranslation(
         this.boundingRect['edge_length'] / 2,
         this.boundingRect['edge_length'] / 2,
@@ -68,7 +68,7 @@ class NodeData {
 }
 
 export class XRayViewer {
-  private nodes: {[key: string]: NodeData} = {};
+  private nodes: { [key: string]: NodeData } = {};
   private currentlyLoading: number;
   private nodesToLoad: string[] = [];
   private nextNodesForLevelQueryId: number;
