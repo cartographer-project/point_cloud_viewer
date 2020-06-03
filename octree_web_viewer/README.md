@@ -4,7 +4,7 @@ The `octree_web_viewer` consists of [TypeScript](https://www.typescriptlang.org)
 
 To build,
 
-1. Install yarn. On Mac `brew install yarn`.
+1. Install node.js and yarn. On Mac `brew install yarn`.
 2. Change into the web viewer's client directory: `cd client`.
 3. Install javascript dependencies: `yarn install`.
 4. Build the client: `yarn run build`.

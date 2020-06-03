@@ -56,7 +56,7 @@ Saved camera positions are persisted in the octree directory and will therefore 
 ### Web Viewer
 The `octree_web_viewer` consists of [TypeScript](https://www.typescriptlang.org) code running in the browser and a web server binary.
 
-To build and run the `octree_web_viewer`  please look into [the `octree_web_viewer` README file](octree_web_viewer/README.md)
+To build and run the `octree_web_viewer` please look into [the `octree_web_viewer` README file](octree_web_viewer/README.md)
 
 ## Prior art
 
