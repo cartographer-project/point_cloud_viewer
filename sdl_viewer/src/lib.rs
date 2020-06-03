@@ -30,8 +30,6 @@ mod camera;
     clippy::unreadable_literal,
     clippy::unused_unit
 )]
-// TODO(feuerste): Move this up once in stable.
-#[cfg_attr(manual_non_exhaustive, allow(clippy::manual_non_exhaustive))]
 pub mod opengl {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
