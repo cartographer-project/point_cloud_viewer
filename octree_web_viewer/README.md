@@ -4,11 +4,10 @@ The `octree_web_viewer` consists of [TypeScript](https://www.typescriptlang.org)
 
 To build,
 
-1. Change into the web viewer's client directory: `cd octree_web_viewer/client`.
-2. Install npm. We strongly suggest using [nvm](https://github.com/creationix/nvm). On Mac `brew install nvm`. 
-3. Install node version 8: `nvm install 8`. Change to the web viewer's client directory: `cd client`, then set node version to 8: `nvm use 8`. 
-4. Install javascript dependencies: `yarn install`.
-5. Build the client: `yarn build`.
+1. Install yarn. On Mac `brew install yarn`.
+2. Change into the web viewer's client directory: `cd client`.
+3. Install javascript dependencies: `yarn install`.
+4. Build the client: `yarn run build`.
 
 
 Then build the server: `cargo build --release`.
