@@ -12,6 +12,7 @@ install_javascript_stuff() {
   sudo apt-get update -qq
   sudo apt-get install -y -qq yarn=1.22.4-1
 
+  node -v
   pushd octree_web_viewer/client
   yarn install
   popd
