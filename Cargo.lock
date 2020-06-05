@@ -1121,8 +1121,9 @@ dependencies = [
 
 [[package]]
 name = "gl_generator"
-version = "0.14.1"
-source = "git+https://github.com/feuerste/gl-rs?branch=feuerste/non_exhaustive#6bb6afe7ebbc12e0429635defae512576ba67b63"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a95dfc23a2b4a9a2f5ab41d194f8bfda3cabec42af4e39f08c339eb2a0c124d"
 dependencies = [
  "khronos_api",
  "log 0.4.8",
@@ -1473,8 +1474,9 @@ dependencies = [
 
 [[package]]
 name = "khronos_api"
-version = "3.2.0"
-source = "git+https://github.com/feuerste/gl-rs?branch=feuerste/non_exhaustive#6bb6afe7ebbc12e0429635defae512576ba67b63"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "language-tags"
@@ -2687,6 +2689,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustversion"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3bba175698996010c4f6dce5e7f173b6eb781fce25d2cfc45e27091ce0b79f6"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "ryu"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2774,12 +2787,12 @@ dependencies = [
  "point_viewer",
  "point_viewer_grpc",
  "rand 0.7.3",
+ "rustversion",
  "sdl2",
  "serde",
  "serde_derive",
  "serde_json",
  "time 0.2.16",
- "version_check 0.9.2",
 ]
 
 [[package]]
