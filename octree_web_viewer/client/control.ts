@@ -49,7 +49,8 @@ export class FirstPersonController {
       this.onKeyUp(<KeyboardEvent>event)
     );
     window.addEventListener('mousewheel', (event) =>
-      this.onMouseWheel(<WheelEvent>event)
+      this.onMouseWheel(<WheelEvent>event),
+      { capture: false, passive: false }
     );
     this.domElement.addEventListener('mousedown', (event) =>
       this.onMouseDown(<MouseEvent>event)
