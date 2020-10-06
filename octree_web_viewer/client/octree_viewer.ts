@@ -206,7 +206,7 @@ class NodeData {
 
         const geometry = new THREE.BufferGeometry();
         // itemSize = 3 because there are 3 values (components) per vertex.
-        geometry.addAttribute(
+        geometry.setAttribute(
             'position',
             new THREE.BufferAttribute(
                 nodeRenderData.position,
@@ -214,7 +214,7 @@ class NodeData {
                 nodeRenderData.normalizePosition
             )
         );
-        geometry.addAttribute(
+        geometry.setAttribute(
             'color',
             new THREE.BufferAttribute(nodeRenderData.color, 3)
         );

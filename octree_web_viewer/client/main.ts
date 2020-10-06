@@ -211,8 +211,8 @@ class App {
             );
             this.viewer.frustumChanged(
                 matrix,
-                this.renderer.context.canvas.width,
-                this.renderer.context.canvas.height,
+                this.renderer.getContext().canvas.width,
+                this.renderer.getContext().canvas.height,
             );
         }
 
