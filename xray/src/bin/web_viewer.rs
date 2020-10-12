@@ -43,11 +43,11 @@ fn app_bundle_source_map(_: &mut Request) -> IronResult<Response> {
 fn main() {
     let matches = clap::App::new("web_viewer")
         .args(&[
-            clap::Arg::with_name("port")
+            clap::Arg::new("port")
                 .about("Port to listen on for connections.")
                 .long("port")
                 .takes_value(true),
-            clap::Arg::with_name("quadtree_directory")
+            clap::Arg::new("quadtree_directory")
                 .about("Input directory of the quadtree directory to serve.")
                 .index(1)
                 .required(true),

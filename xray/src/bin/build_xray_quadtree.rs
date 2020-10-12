@@ -1,6 +1,5 @@
 use nalgebra::Isometry3;
 use point_viewer::data_provider::DataProviderFactory;
-use point_viewer_grpc::data_provider_from_grpc_address;
 use xray::build_quadtree::{run, Extension};
 
 struct NullExtension;
@@ -15,7 +14,6 @@ impl Extension for NullExtension {
 }
 
 pub fn main() {
-    let data_provider_factory =
-        DataProviderFactory::new().register("grpc://", data_provider_from_grpc_address);
+    let data_provider_factory = DataProviderFactory::new();
     run::<NullExtension>(data_provider_factory);
 }

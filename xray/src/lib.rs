@@ -146,7 +146,7 @@ impl Meta {
             })
     }
 
-    pub fn iter_level<'a>(&'a self, level: u8) -> impl Iterator<Item = NodeId> + 'a {
+    pub fn iter_level(&self, level: u8) -> impl Iterator<Item = NodeId> + '_ {
         self.nodes
             .iter()
             .copied()

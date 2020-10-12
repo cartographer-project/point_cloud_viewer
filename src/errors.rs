@@ -39,10 +39,6 @@ error_chain! {
             description("The node does not exist.")
         }
 
-        Grpc {
-            description("Grpc request failed")
-        }
-
         Channel(msg: String) {
             description("The current channel failed an operation")
             display("{}", msg)
