@@ -290,11 +290,8 @@ impl Octree {
             .data(&node_id.to_string(), &["position", "color"])?;
 
         let mut get_data = |node_attribute: &str, err: &str| -> Result<Vec<u8>> {
-            let mut reader = BufReader::new(
-                position_color_reads
-                    .remove(node_attribute)
-                    .ok_or_else(|| err)?,
-            );
+            let mut reader =
+                BufReader::new(position_color_reads.remove(node_attribute).ok_or(err)?);
             let mut all_data = Vec::new();
             reader.read_to_end(&mut all_data).chain_err(|| err)?;
             Ok(all_data)

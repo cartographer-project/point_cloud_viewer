@@ -54,7 +54,7 @@ export class Maps2DController {
     window.addEventListener(
       'mousewheel',
       (event) => this.onMouseWheel(<WheelEvent>event),
-      false
+      { capture: false, passive: false }
     );
     this.domElement.addEventListener(
       'mousedown',
