@@ -25,8 +25,6 @@ main() {
     install_javascript_stuff
 
     export PATH="$PATH:$HOME/bin"
-
-    cargo install --force grpcio-compiler
 }
 
 main
