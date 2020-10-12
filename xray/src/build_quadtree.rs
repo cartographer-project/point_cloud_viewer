@@ -2,7 +2,7 @@ use crate::generation::{
     build_xray_quadtree, ColoringStrategyArgument, ColoringStrategyKind, ColormapArgument,
     TileBackgroundColorArgument, XrayParameters,
 };
-use clap::{crate_authors, derive::ArgEnum};
+use clap::{crate_authors, ArgEnum};
 use nalgebra::Isometry3;
 use point_cloud_client::PointCloudClientBuilder;
 use point_viewer::data_provider::DataProviderFactory;
@@ -23,30 +23,30 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches {
         .version("1.0")
         .author(crate_authors!())
         .args(&[
-            clap::Arg::with_name("output_directory")
+            clap::Arg::new("output_directory")
                 .about("Output directory to write the X-Ray quadtree into.")
                 .long("output-directory")
                 .required(true)
                 .takes_value(true),
-            clap::Arg::with_name("resolution")
+            clap::Arg::new("resolution")
                 .about("Size of 1px in meters on the finest X-Ray level.")
                 .long("resolution")
                 .default_value("0.01"),
-            clap::Arg::with_name("num_threads")
+            clap::Arg::new("num_threads")
                 .about("The number of threads used to shard X-Ray tile building.")
                 .takes_value(true)
                 .long("num-threads")
                 .default_value("10"),
-            clap::Arg::with_name("tile_size")
+            clap::Arg::new("tile_size")
                 .about("Size of finest X-Ray level tile in pixels. Must be a power of two.")
                 .long("tile-size")
                 .default_value("256"),
-            clap::Arg::with_name("coloring_strategy")
+            clap::Arg::new("coloring_strategy")
                 .long("coloring-strategy")
                 .takes_value(true)
                 .possible_values(&ColoringStrategyArgument::VARIANTS)
                 .default_value("xray"),
-            clap::Arg::with_name("min_intensity")
+            clap::Arg::new("min_intensity")
                 .about(
                     "Minimum intensity of all points for color scaling. \
                      Only used for 'colored_with_intensity'.",
@@ -54,8 +54,8 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches {
                 .long("min-intensity")
                 .takes_value(true)
                 .default_value("0")
-                .required_if("coloring_strategy", "colored_with_intensity"),
-            clap::Arg::with_name("max_intensity")
+                .required_if_eq("coloring_strategy", "colored_with_intensity"),
+            clap::Arg::new("max_intensity")
                 .about(
                     "Maximum intensity of all points for color scaling. \
                      Only used for 'colored_with_intensity'.",
@@ -63,15 +63,15 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches {
                 .long("max-intensity")
                 .takes_value(true)
                 .default_value("1")
-                .required_if("coloring_strategy", "colored_with_intensity"),
-            clap::Arg::with_name("colormap")
+                .required_if_eq("coloring_strategy", "colored_with_intensity"),
+            clap::Arg::new("colormap")
                 .about("How values are mapped to colors")
                 .long("colormap")
                 .takes_value(true)
                 .possible_values(&ColormapArgument::VARIANTS)
                 .default_value("jet")
-                .required_if("coloring_strategy", "colored_with_height_stddev"),
-            clap::Arg::with_name("max_stddev")
+                .required_if_eq("coloring_strategy", "colored_with_height_stddev"),
+            clap::Arg::new("max_stddev")
                 .about(
                     "Maximum standard deviation for colored_with_height_stddev. Every stddev above this \
                      will be clamped to this value and appear saturated in the X-Rays. \
@@ -80,23 +80,23 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches {
                 .long("max-stddev")
                 .takes_value(true)
                 .default_value("1")
-                .required_if("coloring_strategy", "colored_with_height_stddev"),
-            clap::Arg::with_name("point_cloud_locations")
+                .required_if_eq("coloring_strategy", "colored_with_height_stddev"),
+            clap::Arg::new("point_cloud_locations")
                 .about("Point cloud locations to turn into xrays.")
                 .index(1)
                 .multiple(true)
                 .required(true),
-            clap::Arg::with_name("tile_background_color")
+            clap::Arg::new("tile_background_color")
                 .long("tile-background-color")
                 .takes_value(true)
                 .possible_values(&TileBackgroundColorArgument::VARIANTS)
                 .default_value("white"),
-            clap::Arg::with_name("filter_interval")
+            clap::Arg::new("filter_interval")
                 .about("Filter intervals for attributes, e.g. --filter-interval intensity=2.0,51.0")
                 .long("filter-interval")
                 .takes_value(true)
                 .multiple(true),
-            clap::Arg::with_name("binning")
+            clap::Arg::new("binning")
                 .about(
                     "Binning size for one attribute, e.g. --binning timestamp=30000000000, \
                      which will be applied to 'colored' and 'colored_with_intensity' strategies. \
@@ -105,7 +105,7 @@ fn parse_arguments<T: Extension>() -> clap::ArgMatches {
                      weight than points temporally further away.")
                 .long("binning")
                 .takes_value(true),
-            clap::Arg::with_name("root_node_id")
+            clap::Arg::new("root_node_id")
                 .about("The root node id to start building with.")
                 .long("root-node-id")
                 .takes_value(true)

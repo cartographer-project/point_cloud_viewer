@@ -10,9 +10,6 @@ It was build to serve the needs of the [Cartographer](https://github.com/cartogr
 The project consist of a root crate that can build and read octrees on disk and viewer binaries to visualize the data. For Mac OS X, we assume below that you've installed [Homebrew](https://brew.sh).
 
 - Install Rust: `curl https://sh.rustup.rs -sSf | sh`. See <https://rustup.rs> for details.
-- Install the rust gRPC protobuf plugin: `cargo install grpcio-compiler` and
-  make sure it is in your `$PATH`. This has more dependencies, it requires cmake
-  and go. On mac: `brew install cmake go`.
 - Initialize all submodules: `git submodule update --init --recursive`.
 
 ### Creating Octrees

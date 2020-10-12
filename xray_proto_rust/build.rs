@@ -26,7 +26,10 @@ fn main() {
         .unwrap()
         .read_to_string(&mut contents)
         .unwrap();
-    let new_contents = format!("pub mod proto {{\n{}\n}}", contents);
+    let new_contents = format!(
+        "#[rustfmt::skip]\npub mod proto {{\n{}\n}}",
+        contents.replace("#![rustfmt::skip]\n", "")
+    );
 
     File::create(&proto_path)
         .unwrap()

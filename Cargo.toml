@@ -26,26 +26,26 @@ edition = "2018"
 [dependencies]
 arrayvec = "0.5.1"
 byteorder = "1.3.4"
-clap = "3.0.0-beta.1"
-crossbeam = "0.7.3"
-error-chain = "0.12.2"
+clap = "3.0.0-beta.2"
+crossbeam = "0.8.0"
+error-chain = "0.12.4"
 fnv = "1.0.7"
-image = "0.23.4"
-libc = "0.2.71"
-lru = "0.5.1"
-nalgebra = { version = "0.21.0", features = ["serde-serialize"] }
-nav-types = "0.5.0"
-num = "0.2.1"
+image = "0.23.10"
+libc = "0.2.79"
+lru = "0.6.0"
+nalgebra = { version = "0.22.0", features = ["serde-serialize"] }
+nav-types = "0.5.1"
+num = "0.3.0"
 num_cpus = "1.13.0"
-num-integer = "0.1.42"
-num-traits = "0.2.11"
+num-integer = "0.1.43"
+num-traits = "0.2.12"
 pbr = "1.0.3"
-protobuf = "2.14.0"
-rayon = "1.3.0"
+protobuf = "2.18.0"
+rayon = "1.4.1"
 s2 = { version = "0.0.10", features = ["serde"] }
-serde = "1.0.111"
-serde_derive = "1.0.111"
-simba = "0.1.2"
+serde = "1.0.116"
+serde_derive = "1.0.116"
+simba = "0.2.1"
 rand = "0.7.3"
 
 [dependencies.point_viewer_proto_rust]
@@ -61,8 +61,6 @@ members = [
    "octree_web_viewer",
    "point_cloud_client",
    "point_cloud_test",
-   "point_viewer_grpc",
-   "point_viewer_grpc_proto_rust",
    "point_viewer_proto_rust",
    "protobuf_provider",
    "quadtree",

@@ -349,16 +349,16 @@ impl Joystick for SpaceMouseJoystick {
 
 pub fn run<T: Extension>(data_provider_factory: DataProviderFactory) {
     let mut app = clap::App::new("sdl_viewer").args(&[
-        clap::Arg::with_name("octree")
+        clap::Arg::new("octree")
             .about("Input path of the octree.")
             .index(1)
             .required(true),
-        clap::Arg::with_name("terrain")
+        clap::Arg::new("terrain")
             .long("terrain")
             .takes_value(true)
             .multiple(true)
             .about("Terrain directories (multiple possible)."),
-        clap::Arg::with_name("cache_size_mb")
+        clap::Arg::new("cache_size_mb")
             .about(
                 "Maximum cache size in MB for octree nodes in GPU memory. \
                  The default value is 2000 MB and the valid range is 1000 MB to 16000 MB.",

@@ -15,7 +15,6 @@
 use nalgebra::{Isometry3, Matrix4};
 use point_viewer::data_provider::DataProviderFactory;
 use point_viewer::octree::Octree;
-use point_viewer_grpc::data_provider_from_grpc_address;
 use sdl_viewer::{opengl, run, Extension};
 use std::rc::Rc;
 
@@ -40,8 +39,7 @@ impl Extension for NullExtension {
 }
 
 fn main() {
-    let data_provider_factory =
-        DataProviderFactory::new().register("grpc://", data_provider_from_grpc_address);
+    let data_provider_factory = DataProviderFactory::new();
     // TODO(catevita): hide data provider factory details, simplify the run method interface
     run::<NullExtension>(data_provider_factory);
 }
