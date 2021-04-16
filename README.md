@@ -30,6 +30,7 @@ In the point cloud viewer, navigate with the keyboard or with the mouse or touch
 
 | Key                | Action                        |
 | ------------------ | ----------------------------- |
+| T                  | Toggle the view to CT mode    |
 | W                  | Move forward                  |
 | A                  | Move left                     |
 | S                  | Move backwards                |
