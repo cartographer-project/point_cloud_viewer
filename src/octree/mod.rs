@@ -208,9 +208,9 @@ impl Octree {
         }
 
         Ok(Octree {
+            data_provider,
             meta,
             nodes,
-            data_provider,
         })
     }
 
