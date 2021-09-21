@@ -42,10 +42,8 @@ impl DataProvider for OnDiskDataProvider {
 
         let mut data = Vec::new();
         File::open(&self.directory.join(META_FILENAME))?.read_to_end(&mut data)?;
-        Ok(
-            protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
-                .chain_err(|| format!("Could not parse {}", META_FILENAME))?,
-        )
+        protobuf::parse_from_reader::<proto::Meta>(&mut Cursor::new(data))
+            .chain_err(|| format!("Could not parse {}", META_FILENAME))
     }
 
     fn data(
