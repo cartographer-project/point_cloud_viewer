@@ -62,7 +62,7 @@ where
         let mut batches_by_s2_cell = HashMap::new();
         for (i, pos) in points_batch.position.iter().enumerate() {
             let radius = pos.coords.norm();
-            if radius > EARTH_RADIUS_MAX_M || radius < EARTH_RADIUS_MIN_M {
+            if !(EARTH_RADIUS_MIN_M..=EARTH_RADIUS_MAX_M).contains(&radius) {
                 let msg = format!(
                     "Point ({}, {}, {}) is not a valid ECEF point",
                     pos.x, pos.y, pos.z
