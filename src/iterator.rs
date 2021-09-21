@@ -99,7 +99,7 @@ impl<'a, Culling: PointCulling> Iterator for FilteredIterator<'a, Culling> {
             let mut keep: Vec<bool> = batch
                 .position
                 .iter()
-                .map(|pos| culling.contains(&pos))
+                .map(|pos| culling.contains(pos))
                 .collect();
             macro_rules! rhs {
                 ($dtype:ident, $data:ident, $interval:expr) => {
@@ -300,7 +300,7 @@ where
                     }) {
                         // executing on the available next task if the function still requires it
                         match point_cloud.stream_points_for_query_in_node(
-                            &point_query,
+                            point_query,
                             node_id,
                             batch_size,
                             |batch| point_stream.push_points_and_callback(batch),

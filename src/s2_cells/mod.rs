@@ -181,7 +181,7 @@ impl PointCloud for S2Cells {
         let num_points = self.meta.cells[&node_id].num_points as usize;
         let node_iterator = NodeIterator::from_data_provider(
             &*self.data_provider,
-            &self.meta.attribute_data_types_for(&attributes)?,
+            &self.meta.attribute_data_types_for(attributes)?,
             self.encoding_for_node(node_id),
             &node_id,
             num_points,
@@ -224,7 +224,7 @@ impl S2Cells {
         let point_cells = poly
             .compute_corners()
             .iter()
-            .map(|p| CellID::from_point(&p))
+            .map(|p| CellID::from_point(p))
             .collect();
         let mut cell_union = CellUnion(point_cells);
         cell_union.normalize();

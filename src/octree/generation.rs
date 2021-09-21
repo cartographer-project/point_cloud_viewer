@@ -392,10 +392,10 @@ pub fn build_octree(
         .map(|(id, num_points)| {
             let bounding_cube = id.find_bounding_cube(&Cube::bounding(&octree_meta.bounding_box));
             let position_encoding = PositionEncoding::new(&bounding_cube, octree_meta.resolution);
-            to_node_proto(&id, *num_points, &position_encoding)
+            to_node_proto(id, *num_points, &position_encoding)
         })
         .collect();
-    let meta = to_meta_proto(&octree_meta, nodes);
+    let meta = to_meta_proto(octree_meta, nodes);
 
     let mut buf_writer =
         BufWriter::new(File::create(&output_directory.as_ref().join(META_FILENAME)).unwrap());
