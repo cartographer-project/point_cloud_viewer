@@ -378,7 +378,7 @@ impl NodeWriter<PointsBatch> for RawNodeWriter {
         if self.attribute_writers.is_empty() {
             for name in p.attributes.keys() {
                 self.attribute_writers.push(DataWriter::new(
-                    &self.stem.with_extension(attribute_extension(&name)),
+                    &self.stem.with_extension(attribute_extension(name)),
                     self.open_mode,
                 )?)
             }

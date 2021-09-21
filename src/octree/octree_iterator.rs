@@ -29,7 +29,7 @@ where
 
     fn next(&mut self) -> Option<NodeId> {
         while let Some(current) = self.node_ids.pop_front() {
-            if (self.filter_func)(&current, &self.octree) {
+            if (self.filter_func)(&current, self.octree) {
                 for child_index in 0..8 {
                     let child_id = current.get_child_id(ChildIndex::from_u8(child_index));
                     if self.octree.nodes.contains_key(&child_id) {
