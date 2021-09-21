@@ -52,7 +52,7 @@ impl WebMercatorCoord {
     /// Convert the Web Mercator coordinate back to lat/lng.
     ///
     /// The altitude returned is always 0.
-    pub fn to_lat_lng(&self) -> WGS84<f64> {
+    pub fn to_lat_lng(self) -> WGS84<f64> {
         let centered = self.normalized - Vector2::new(0.5, 0.5);
         // Note that sin_term = -(2/(sin(y)-1)) - 1
         let sin_term = (-centered.y * FOUR_PI).exp();
@@ -67,7 +67,7 @@ impl WebMercatorCoord {
     /// should be represented.
     /// Zoom level Z means the map coordinates are in the interval `[0, 256*2^Z)`
     /// in both dimensions, i.e. map resolution doubles at each zoom level.
-    pub fn to_zoomed_coordinate(&self, z: u8) -> Option<Vector2<f64>> {
+    pub fn to_zoomed_coordinate(self, z: u8) -> Option<Vector2<f64>> {
         if z <= MAX_ZOOM {
             // 256 * 2^z
             let zoom = f64::from(TILE_SIZE << z);
