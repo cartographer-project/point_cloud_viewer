@@ -98,7 +98,7 @@ impl NodeId {
         }
     }
 
-    pub fn to_proto(&self) -> proto::NodeId {
+    pub fn to_proto(self) -> proto::NodeId {
         let mut proto = proto::NodeId::new();
         proto.set_high((self.0 >> 64) as u64);
         proto.set_low(self.0 as u64);

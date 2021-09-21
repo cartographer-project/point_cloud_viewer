@@ -26,7 +26,7 @@ pub struct Color<T> {
 }
 
 impl Color<f32> {
-    pub fn to_u8(&self) -> Color<u8> {
+    pub fn to_u8(self) -> Color<u8> {
         Color {
             red: (self.red * 255.) as u8,
             green: (self.green * 255.) as u8,
