@@ -5,6 +5,7 @@
 This is a standalone project to make viewing massive point clouds easy and convenient.
 It was build to serve the needs of the [Cartographer](https://github.com/cartographer-project) project, but is useful in its own right.
 
+
 ## Building
 
 The project consist of a root crate that can build and read octrees on disk and viewer binaries to visualize the data. For Mac OS X, we assume below that you've installed [Homebrew](https://brew.sh).
