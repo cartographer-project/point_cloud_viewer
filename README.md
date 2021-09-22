@@ -17,6 +17,7 @@ The project consist of a root crate that can build and read octrees on disk and 
 In the root of the repo, run `cargo build --release`.
 Then use `target/release/build_octree` to generate an octree out of a PLY file.
 
+------------------
 ### SDL client
 
 This is a native client using [SDL2](https://libsdl.org).
