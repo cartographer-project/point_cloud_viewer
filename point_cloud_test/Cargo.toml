@@ -32,7 +32,7 @@ point_viewer = { path = ".." }
 point_cloud_client = { path = "../point_cloud_client" }
 protobuf = "2.18.0"
 rand = "0.7.3"
-rayon = "1.4.1"
+rayon = "1.5.1"
 s2 = { version = "0.0.10", features = ["serde"] }
 tempdir = "0.3.7"
 
