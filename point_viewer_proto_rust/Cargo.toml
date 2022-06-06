@@ -28,5 +28,5 @@ protobuf_provider = { path = "../protobuf_provider" }
 protoc-rust = "2.18.0"
 
 [dependencies]
-nalgebra = "0.22.0"
+nalgebra = "0.27.1"
 protobuf = "2.18.0"
