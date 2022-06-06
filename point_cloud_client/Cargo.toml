@@ -16,7 +16,7 @@ path = "src/bin/test.rs"
 [dependencies]
 clap = "3.0.0-beta.2"
 fnv = "1.0.7"
-nalgebra = "0.22.0"
+nalgebra = "0.27.1"
 num_cpus ="1.13.0"
 point_viewer = { path = ".." }
 protobuf = "2.18.0"

@@ -375,6 +375,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "approx"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cab112f0a86d568ea0e627cc1d6be74a1e9cd55214684db5561995f6dad897c6"
+dependencies = [
+ "num-traits 0.2.12",
+]
+
+[[package]]
 name = "arc-swap"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1649,6 +1658,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "matrixmultiply"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "add85d4dd35074e6fedc608f8c8f513a3548619a9024b751949ef0e8e45a4d84"
+dependencies = [
+ "rawpointer 0.2.1",
+]
+
+[[package]]
 name = "maybe-uninit"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1755,9 +1773,9 @@ checksum = "41f5c9112cb662acd3b204077e0de5bc66305fa8df65c8019d5adb10e9ab6e58"
 
 [[package]]
 name = "nalgebra"
-version = "0.22.0"
+version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a3f0b89b0a44cb7bb9b62c5e6fd485145ddc6bc14483ab005355e96029b3fbf"
+checksum = "500430fe18b836c0099c22e716139eae37210ecf8e1ae3931b73078e9a2de7a9"
 dependencies = [
  "approx 0.3.2",
  "generic-array 0.13.2",
@@ -1767,9 +1785,36 @@ dependencies = [
  "num-traits 0.2.12",
  "rand 0.7.3",
  "rand_distr",
- "serde",
- "simba",
+ "simba 0.2.1",
  "typenum",
+]
+
+[[package]]
+name = "nalgebra"
+version = "0.27.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "462fffe4002f4f2e1f6a9dcf12cc1a6fc0e15989014efc02a941d3e0f5dc2120"
+dependencies = [
+ "approx 0.5.1",
+ "matrixmultiply 0.3.2",
+ "nalgebra-macros",
+ "num-complex 0.4.1",
+ "num-rational 0.4.0",
+ "num-traits 0.2.12",
+ "serde",
+ "simba 0.5.1",
+ "typenum",
+]
+
+[[package]]
+name = "nalgebra-macros"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01fcc0b8149b4632adc89ac3b7b31a12fb6099a0317a4eb2ebff574ef7de7218"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1778,7 +1823,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a761b66b2e27aba4945f8e82ad20aef2dac0f47f9659ecbbdf54095c79828a37"
 dependencies = [
- "nalgebra",
+ "nalgebra 0.22.1",
 ]
 
 [[package]]
@@ -1847,7 +1892,6 @@ checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
 dependencies = [
  "autocfg 1.0.0",
  "num-traits 0.2.12",
- "serde",
 ]
 
 [[package]]
@@ -1857,6 +1901,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05ad05bd8977050b171b3f6b48175fea6e0565b7981059b486075e1026a9fb5"
 dependencies = [
  "num-traits 0.2.12",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97fbc387afefefd5e9e39493299f3069e14a140dd34dc19b4c1c1a8fddb6a790"
+dependencies = [
+ "num-traits 0.2.12",
+ "serde",
 ]
 
 [[package]]
@@ -1904,6 +1958,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-rational"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d41702bd167c2df5520b384281bc111a4b5efcf7fbc4c9c222c815b07e0a6a6a"
+dependencies = [
+ "autocfg 1.0.0",
+ "num-integer",
+ "num-traits 0.2.12",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1942,7 +2007,7 @@ dependencies = [
  "crossbeam-utils 0.7.2",
  "failure",
  "json",
- "nalgebra",
+ "nalgebra 0.27.1",
  "point_viewer",
  "serde",
  "serde_derive",
@@ -2041,6 +2106,12 @@ dependencies = [
  "paste-impl",
  "proc-macro-hack",
 ]
+
+[[package]]
+name = "paste"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c520e05135d6e763148b6426a837e239041653ba7becd2e538c076c738025fc"
 
 [[package]]
 name = "paste-impl"
@@ -2204,7 +2275,7 @@ version = "0.1.0"
 dependencies = [
  "clap 3.0.0-beta.2",
  "fnv",
- "nalgebra",
+ "nalgebra 0.27.1",
  "num_cpus",
  "point_viewer",
  "protobuf",
@@ -2216,7 +2287,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "lazy_static",
- "nalgebra",
+ "nalgebra 0.27.1",
  "nav-types",
  "num-integer",
  "point_cloud_client",
@@ -2243,7 +2314,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "lru",
- "nalgebra",
+ "nalgebra 0.27.1",
  "nav-types",
  "num 0.3.0",
  "num-integer",
@@ -2257,7 +2328,7 @@ dependencies = [
  "s2",
  "serde",
  "serde_derive",
- "simba",
+ "simba 0.2.1",
  "tempdir",
 ]
 
@@ -2265,7 +2336,7 @@ dependencies = [
 name = "point_viewer_proto_rust"
 version = "0.1.0"
 dependencies = [
- "nalgebra",
+ "nalgebra 0.27.1",
  "protobuf",
  "protobuf_provider",
  "protoc-rust",
@@ -2371,7 +2442,7 @@ dependencies = [
 name = "quadtree"
 version = "0.1.0"
 dependencies = [
- "nalgebra",
+ "nalgebra 0.27.1",
  "xray_proto_rust",
 ]
 
@@ -2836,7 +2907,7 @@ dependencies = [
  "gl_generator",
  "image",
  "lru",
- "nalgebra",
+ "nalgebra 0.27.1",
  "num-integer",
  "point_viewer",
  "rand 0.7.3",
@@ -2954,7 +3025,19 @@ dependencies = [
  "approx 0.3.2",
  "num-complex 0.2.4",
  "num-traits 0.2.12",
- "paste",
+ "paste 0.1.11",
+]
+
+[[package]]
+name = "simba"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e82063457853d00243beda9952e910b82593e4b07ae9f721b9278a99a0d3d5c"
+dependencies = [
+ "approx 0.5.1",
+ "num-complex 0.4.1",
+ "num-traits 0.2.12",
+ "paste 1.0.7",
 ]
 
 [[package]]
@@ -3717,7 +3800,7 @@ dependencies = [
  "imageproc",
  "iron",
  "lazy_static",
- "nalgebra",
+ "nalgebra 0.27.1",
  "num 0.3.0",
  "pbr",
  "point_cloud_client",

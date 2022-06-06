@@ -33,7 +33,7 @@ fnv = "1.0.7"
 image = "0.23.10"
 libc = "0.2.79"
 lru = "0.6.0"
-nalgebra = { version = "0.22.0", features = ["serde-serialize"] }
+nalgebra = { version = "0.27.1", features = ["serde-serialize"] }
 nav-types = "0.5.1"
 num = "0.3.0"
 num_cpus = "1.13.0"
