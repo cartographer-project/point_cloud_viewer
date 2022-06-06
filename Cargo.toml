@@ -30,7 +30,7 @@ clap = "3.0.0-beta.2"
 crossbeam = "0.8.0"
 error-chain = "0.12.4"
 fnv = "1.0.7"
-image = "0.23.10"
+image = "0.23.12"
 libc = "0.2.79"
 lru = "0.6.0"
 nalgebra = { version = "0.22.0", features = ["serde-serialize"] }
