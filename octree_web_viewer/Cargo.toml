@@ -34,7 +34,7 @@ json = "0.12.4"
 nalgebra = "0.22.0"
 serde = "1.0.116"
 serde_derive = "1.0.116"
-time = "0.2.22"
+time = "0.2.23"
 
 [dependencies.point_viewer]
 path = ".."
